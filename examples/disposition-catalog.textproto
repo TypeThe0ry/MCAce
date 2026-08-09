@@ -1,0 +1,98 @@
+# Safe catalog starter: entries do nothing until an administrator explicitly selects them.
+# These are public Fabric manifest identities only, never artifact hashes or verdicts.
+# No cheat binary, verified malicious hash, Baritone, or Freecam identity is included here.
+schema_version: 1
+version: "catalog-example-2026-08-09"
+rollout_stage: "OBSERVE"
+validity_seconds: 86400
+
+catalog_entries {
+  entry_id: "wurst-fabric-identity"
+  category: CHEAT_MOD
+  selector {
+    artifact_type: DETECTION_ARTIFACT_MOD
+    match_type: DETECTION_MATCH_MOD_ID_VERSION
+    artifact_id: "wurst"
+  }
+  confidence: DETECTION_CONFIDENCE_LOW
+  suggested_action: DISPOSITION_OBSERVE
+  player_message_key: "mcace.catalog.observe"
+  operator_reason: "Official upstream Fabric manifest identity only; no verified artifact hash."
+  false_positive_notes: "Client-reported identity is not unique evidence."
+  source_id: "wurst-fabric-manifest"
+  source_summary: "Official Wurst7 src/main/resources/fabric.mod.json at 64dfabaea5fa0afa4e33bc38997917c4c0c17cce, retrieved 2026-08-09; identity only, not a reviewed binary hash."
+  source_uri: "https://raw.githubusercontent.com/Wurst-Imperium/Wurst7/64dfabaea5fa0afa4e33bc38997917c4c0c17cce/src/main/resources/fabric.mod.json"
+  source_revision: "64dfabaea5fa0afa4e33bc38997917c4c0c17cce"
+  source_manifest_path: "src/main/resources/fabric.mod.json"
+  source_retrieved_at_epoch_ms: 1786204800000
+  default_enabled: false
+}
+
+catalog_entries {
+  entry_id: "liquidbounce-fabric-identity"
+  category: CHEAT_MOD
+  selector {
+    artifact_type: DETECTION_ARTIFACT_MOD
+    match_type: DETECTION_MATCH_MOD_ID_VERSION
+    artifact_id: "liquidbounce"
+  }
+  confidence: DETECTION_CONFIDENCE_LOW
+  suggested_action: DISPOSITION_OBSERVE
+  player_message_key: "mcace.catalog.observe"
+  operator_reason: "Official upstream Fabric manifest identity only; no verified artifact hash."
+  false_positive_notes: "Client-reported identity is not unique evidence."
+  source_id: "liquidbounce-fabric-manifest"
+  source_summary: "Official LiquidBounce src/main/resources/fabric.mod.json at 97bf05cc272f397fe5b7a7a6abe00130460e84d0, retrieved 2026-08-09; identity only, not a reviewed binary hash."
+  source_uri: "https://raw.githubusercontent.com/CCBlueX/LiquidBounce/97bf05cc272f397fe5b7a7a6abe00130460e84d0/src/main/resources/fabric.mod.json"
+  source_revision: "97bf05cc272f397fe5b7a7a6abe00130460e84d0"
+  source_manifest_path: "src/main/resources/fabric.mod.json"
+  source_retrieved_at_epoch_ms: 1786204800000
+  default_enabled: false
+}
+
+catalog_entries {
+  entry_id: "meteor-client-fabric-identity"
+  category: CHEAT_MOD
+  selector {
+    artifact_type: DETECTION_ARTIFACT_MOD
+    match_type: DETECTION_MATCH_MOD_ID_VERSION
+    artifact_id: "meteor-client"
+  }
+  confidence: DETECTION_CONFIDENCE_LOW
+  suggested_action: DISPOSITION_OBSERVE
+  player_message_key: "mcace.catalog.observe"
+  operator_reason: "Official upstream Fabric manifest identity only; no verified artifact hash."
+  false_positive_notes: "Client-reported identity is not unique evidence."
+  source_id: "meteor-client-fabric-manifest"
+  source_summary: "Official Meteor Client src/main/resources/fabric.mod.json at 9ffe8e4d6dcaa2d2a73c7fc09e37054f0a9dff7c, retrieved 2026-08-09; identity only, not a reviewed binary hash."
+  source_uri: "https://raw.githubusercontent.com/MeteorDevelopment/meteor-client/9ffe8e4d6dcaa2d2a73c7fc09e37054f0a9dff7c/src/main/resources/fabric.mod.json"
+  source_revision: "9ffe8e4d6dcaa2d2a73c7fc09e37054f0a9dff7c"
+  source_manifest_path: "src/main/resources/fabric.mod.json"
+  source_retrieved_at_epoch_ms: 1786204800000
+  default_enabled: false
+}
+
+# Explicit selection is required. Keep disabled entries without final_action.
+catalog_selections { entry_id: "wurst-fabric-identity" enabled: false }
+catalog_selections { entry_id: "liquidbounce-fabric-identity" enabled: false }
+catalog_selections { entry_id: "meteor-client-fabric-identity" enabled: false }
+
+# Manual exact-player ALLOW exception remains available for reviewed event use.
+rules {
+  rule {
+    rule_id: "allow-reviewed-event-staff"
+    priority: 1000
+    revision: 1
+    selector {
+      artifact_type: DETECTION_ARTIFACT_MOD
+      match_type: DETECTION_MATCH_MOD_ID_VERSION
+      artifact_id: "approved-event-tool"
+      version_constraint: "1.0.0"
+    }
+    scope { player_ids: "00000000-0000-0000-0000-000000000001" }
+    confidence: DETECTION_CONFIDENCE_HIGH
+    default_action: DISPOSITION_ALLOW
+    exception: true
+    operator_reason: "Reviewed, time-bounded player exception."
+  }
+}

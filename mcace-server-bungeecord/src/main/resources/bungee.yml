@@ -1,0 +1,5 @@
+name: MCAce
+main: com.ellan.mcace.bungeecord.MCAceBungeePlugin
+version: 0.1.0-SNAPSHOT
+author: EllanServer
+description: MCAce trusted-client session bridge for BungeeCord

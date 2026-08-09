@@ -1,0 +1,784 @@
+syntax = "proto3";
+
+package mcace.protocol.v1;
+
+option java_package = "com.ellan.mcace.protocol.generated";
+option java_multiple_files = true;
+option java_outer_classname = "MCAceProtocol";
+
+enum PacketType {
+  PACKET_TYPE_UNSPECIFIED = 0;
+  SERVER_HELLO = 1;
+  CLIENT_HELLO = 2;
+  AUTH_REQUEST = 3;
+  AUTH_RESULT = 4;
+  HEARTBEAT = 5;
+  EVIDENCE_REQUEST = 6;
+  EVIDENCE_RESPONSE = 7;
+  ADMISSION_UPDATE = 8;
+  EVIDENCE_BEGIN = 9;
+  EVIDENCE_CHUNK = 10;
+  EVIDENCE_COMMIT = 11;
+  PAYLOAD_BEGIN = 12;
+  PAYLOAD_CHUNK = 13;
+  PAYLOAD_COMMIT = 14;
+  EVIDENCE_ACK = 15;
+  EVIDENCE_ERROR = 16;
+  FEDERATION_CONSENT_REQUEST = 17;
+  FEDERATION_CONSENT_RESPONSE = 18;
+  FEDERATION_GRANT = 19;
+  FEDERATION_PRESENTATION = 20;
+}
+
+// A deliberately separate, minimal remote claim. It is never a TrustLevel and must
+// not be interpreted as the target network's VERIFIED state.
+enum FederationLocalClaim {
+  FEDERATION_LOCAL_CLAIM_UNSPECIFIED = 0;
+  FEDERATION_SOURCE_LOCALLY_VERIFIED = 1;
+}
+
+// Generic bounded transport target. AUTH_REQUEST exists to carry the existing signed
+// AuthRequest without weakening its manifest semantics; observation batches are optional,
+// subsequent client-reported telemetry and never replace authenticated manifests.
+enum BoundedPayloadKind {
+  BOUNDED_PAYLOAD_KIND_UNSPECIFIED = 0;
+  BOUNDED_PAYLOAD_AUTH_REQUEST = 1;
+  BOUNDED_PAYLOAD_ARTIFACT_OBSERVATION = 2;
+}
+
+enum TrustLevel {
+  UNKNOWN = 0;
+  VERIFIED = 1;
+  TRUSTED = 2;
+  SECURE = 3;
+}
+
+enum LoaderType {
+  LOADER_UNSPECIFIED = 0;
+  FABRIC = 1;
+  NEOFORGE = 2;
+  FORGE = 3;
+}
+
+enum EvidenceType {
+  EVIDENCE_UNSPECIFIED = 0;
+  SCREENSHOT = 1;
+  MOD_LIST = 2;
+  FILE_VERIFY = 3;
+  PROCESS_CHECK = 4;
+  AUTH_LOG = 5;
+}
+
+// The collection boundary is deliberately explicit. A client must not treat a
+// game-frame request as permission to capture a window or the desktop.
+enum EvidenceCaptureScope {
+  EVIDENCE_CAPTURE_SCOPE_UNSPECIFIED = 0;
+  GAME_RENDER_FRAME = 1;
+  GAME_WINDOW = 2;
+  DESKTOP = 3;
+}
+
+// This is an outcome, not a risk signal. In particular, consent refusal and
+// unavailable platform support must never be reclassified as a cheat finding.
+enum EvidenceCollectionStatus {
+  EVIDENCE_COLLECTION_STATUS_UNSPECIFIED = 0;
+  EVIDENCE_COLLECTION_COLLECTED = 1;
+  EVIDENCE_COLLECTION_DECLINED = 2;
+  EVIDENCE_COLLECTION_UNAVAILABLE = 3;
+  EVIDENCE_COLLECTION_EXPIRED = 4;
+  EVIDENCE_COLLECTION_FAILED = 5;
+  EVIDENCE_COLLECTION_INVALID = 6;
+  EVIDENCE_COLLECTION_UNSUPPORTED = 7;
+}
+
+enum EvidenceAckStatus {
+  EVIDENCE_ACK_STATUS_UNSPECIFIED = 0;
+  EVIDENCE_ACK_ACCEPTED = 1;
+  EVIDENCE_ACK_COMPLETE = 2;
+}
+
+enum EvidenceErrorCode {
+  EVIDENCE_ERROR_CODE_UNSPECIFIED = 0;
+  EVIDENCE_ERROR_INVALID_REQUEST = 1;
+  EVIDENCE_ERROR_UNAUTHORIZED = 2;
+  EVIDENCE_ERROR_EXPIRED = 3;
+  EVIDENCE_ERROR_REPLAYED = 4;
+  EVIDENCE_ERROR_UNSUPPORTED_SCOPE = 5;
+  EVIDENCE_ERROR_DECLINED = 6;
+  EVIDENCE_ERROR_INVALID_TRANSFER = 7;
+  EVIDENCE_ERROR_TOO_LARGE = 8;
+  EVIDENCE_ERROR_HASH_MISMATCH = 9;
+  EVIDENCE_ERROR_SEQUENCE = 10;
+}
+
+enum DetectionArtifactType {
+  DETECTION_ARTIFACT_TYPE_UNSPECIFIED = 0;
+  DETECTION_ARTIFACT_MOD = 1;
+  DETECTION_ARTIFACT_RESOURCE_PACK = 2;
+  DETECTION_ARTIFACT_SHADER_PACK = 3;
+  DETECTION_ARTIFACT_CONFIG = 4;
+  DETECTION_ARTIFACT_BEHAVIOR = 5;
+  DETECTION_ARTIFACT_PROTOCOL = 6;
+}
+
+enum DetectionMatchType {
+  DETECTION_MATCH_TYPE_UNSPECIFIED = 0;
+  DETECTION_MATCH_EXACT_SHA256 = 1;
+  DETECTION_MATCH_MOD_ID_VERSION = 2;
+  DETECTION_MATCH_SIGNER = 3;
+  DETECTION_MATCH_CONTENT_ROOT = 4;
+  DETECTION_MATCH_METADATA = 5;
+  DETECTION_MATCH_BEHAVIOR_CORRELATION = 6;
+  DETECTION_MATCH_ADMIN_CLASSIFICATION = 7;
+}
+
+enum DetectionConfidence {
+  DETECTION_CONFIDENCE_UNSPECIFIED = 0;
+  DETECTION_CONFIDENCE_LOW = 1;
+  DETECTION_CONFIDENCE_MEDIUM = 2;
+  DETECTION_CONFIDENCE_HIGH = 3;
+  DETECTION_CONFIDENCE_CONFIRMED = 4;
+}
+
+enum DetectionCatalogCategory {
+  DETECTION_CATALOG_CATEGORY_UNSPECIFIED = 0;
+  CHEAT_MOD = 1;
+  XRAY_RESOURCE_PACK = 2;
+  AUTOMATION = 3;
+  SUSPICIOUS_CONFIG = 4;
+  ACCESSIBILITY = 5;
+  UTILITY = 6;
+}
+
+enum ObservationOrigin {
+  OBSERVATION_ORIGIN_UNSPECIFIED = 0;
+  OBSERVATION_ORIGIN_SERVER_CONFIRMED = 1;
+  OBSERVATION_ORIGIN_CLIENT_REPORTED = 2;
+  OBSERVATION_ORIGIN_INFERRED = 3;
+  OBSERVATION_ORIGIN_ADMIN_REVIEWED = 4;
+  OBSERVATION_ORIGIN_UNAVAILABLE = 5;
+}
+
+enum DispositionAction {
+  DISPOSITION_ACTION_UNSPECIFIED = 0;
+  DISPOSITION_ALLOW = 1;
+  DISPOSITION_OBSERVE = 2;
+  DISPOSITION_NOTICE = 3;
+  DISPOSITION_WARN = 4;
+  DISPOSITION_CHALLENGE = 5;
+  DISPOSITION_LIMIT = 6;
+  DISPOSITION_QUARANTINE = 7;
+  DISPOSITION_DENY = 8;
+}
+
+enum AdmissionDecision {
+  ADMISSION_DECISION_UNSPECIFIED = 0;
+  ADMISSION_CONNECTING = 1;
+  ADMISSION_VERIFYING = 2;
+  ADMISSION_VERIFIED = 3;
+  ADMISSION_LIMITED = 4;
+  ADMISSION_BLOCKED = 5;
+}
+
+enum RiskClassification {
+  RISK_CLASSIFICATION_UNSPECIFIED = 0;
+  RISK_NORMAL = 1;
+  RISK_WATCH = 2;
+  RISK_RESTRICTED = 3;
+  RISK_INVESTIGATION = 4;
+}
+
+message EnvelopeHeader {
+  uint32 protocol_version = 1;
+  PacketType packet_type = 2;
+  string session_id = 3;
+  int64 timestamp_epoch_ms = 4;
+  bytes nonce = 5;
+  uint32 payload_length = 6;
+  fixed32 checksum_crc32c = 7;
+}
+
+message SignedEnvelope {
+  EnvelopeHeader header = 1;
+  bytes payload = 2;
+  bytes signature = 3;
+}
+
+message ServerHello {
+  string server_id = 1;
+  bytes challenge_nonce = 2;
+  TrustLevel required_level = 3;
+  string policy_version = 4;
+  SignedPolicyDocument signed_policy = 5;
+}
+
+message ClientHello {
+  string client_version = 1;
+  LoaderType loader = 2;
+  string minecraft_version = 3;
+  bytes public_key_x509 = 4;
+  string build_id = 5;
+  bytes challenge_nonce = 6;
+}
+
+message ModEntry {
+  string id = 1;
+  string version = 2;
+  string filename = 3;
+  uint64 file_size = 4;
+  bytes sha256 = 5;
+  string signer = 6;
+  map<string, string> metadata = 7;
+}
+
+message IntegrityScopeRule {
+  string scope = 1;
+  string relative_root = 2;
+  bool required = 3;
+  uint32 max_entries = 4;
+  uint64 max_file_bytes = 5;
+  repeated string allowed_extensions = 6;
+  repeated string explicit_relative_files = 7;
+}
+
+message DelegatedSigningKey {
+  bytes key_id_sha256 = 1;
+  bytes public_key_x509 = 2;
+  int64 not_before_epoch_ms = 3;
+  int64 not_after_epoch_ms = 4;
+}
+
+message SecurityPolicy {
+  string policy_version = 1;
+  uint64 sequence = 2;
+  string server_id = 3;
+  int64 issued_at_epoch_ms = 4;
+  int64 expires_at_epoch_ms = 5;
+  TrustLevel required_level = 6;
+  repeated string allowed_minecraft_versions = 7;
+  repeated LoaderType allowed_loaders = 8;
+  repeated string allowed_build_ids = 9;
+  repeated IntegrityScopeRule integrity_scopes = 10;
+  bytes signer_key_id_sha256 = 11;
+  repeated DelegatedSigningKey delegated_signing_keys = 12;
+  repeated bytes revoked_key_ids_sha256 = 13;
+}
+
+message SignedPolicyDocument {
+  bytes policy = 1;
+  bytes signer_key_id_sha256 = 2;
+  bytes signature = 3;
+  SignedPolicyTrustStatement trust_statement = 4;
+}
+
+message PolicyTrustStatement {
+  uint64 sequence = 1;
+  string server_id = 2;
+  int64 issued_at_epoch_ms = 3;
+  int64 expires_at_epoch_ms = 4;
+  bytes root_key_id_sha256 = 5;
+  repeated DelegatedSigningKey delegated_signing_keys = 6;
+  repeated bytes revoked_key_ids_sha256 = 7;
+}
+
+message SignedPolicyTrustStatement {
+  bytes statement = 1;
+  bytes root_key_id_sha256 = 2;
+  bytes signature = 3;
+}
+
+message FileEntry {
+  string relative_path = 1;
+  uint64 file_size = 2;
+  bytes sha256 = 3;
+}
+
+message IntegrityScopeManifest {
+  string scope = 1;
+  string relative_root = 2;
+  bool present = 3;
+  uint32 entry_count = 4;
+  bytes root_sha256 = 5;
+  repeated FileEntry entries = 6;
+}
+
+message AuthRequest {
+  string player_uuid = 1;
+  string client_id = 2;
+  string build_id = 3;
+  repeated ModEntry mods = 4;
+  bytes manifest_root_sha256 = 5;
+  bytes environment_sha256 = 6;
+  repeated IntegrityScopeManifest scope_manifests = 7;
+  bytes policy_sha256 = 8;
+  uint64 policy_sequence = 9;
+}
+
+// A complete post-authentication snapshot of the same policy-authorized scopes used by
+// AuthRequest. It is client-reported integrity telemetry, never an admission assertion.
+// The bounded-payload envelope binds aggregate_root_sha256 as its manifest root.
+message ArtifactObservationUpdate {
+  uint64 update_sequence = 1;
+  bytes base_manifest_root_sha256 = 2;
+  bytes previous_aggregate_root_sha256 = 3;
+  bytes aggregate_root_sha256 = 4;
+  int64 observed_at_epoch_ms = 5;
+  repeated ModEntry mods = 6;
+  repeated IntegrityScopeManifest scope_manifests = 7;
+  bytes policy_sha256 = 8;
+  uint64 policy_sequence = 9;
+}
+
+message AuthResult {
+  // Signed admission-result freshness. This is not the heartbeat session lease;
+  // an authenticated session may continue heartbeats after this TTL while the
+  // transport/session remains active and each heartbeat remains independently
+  // bound to the authenticated session.
+  bool accepted = 1;
+  TrustLevel trust_level = 2;
+  uint32 risk_score = 3;
+  repeated string reason_codes = 4;
+  int64 expires_at_epoch_ms = 5;
+}
+
+message Heartbeat {
+  uint64 sequence = 1;
+  string current_server = 2;
+  TrustLevel client_status = 3;
+  bool agent_available = 4 [deprecated = true];
+  bytes manifest_root_sha256 = 5;
+  uint64 policy_sequence = 6;
+  bytes policy_sha256 = 7;
+  bytes aggregate_root_sha256 = 8;
+}
+
+// Server -> client. The containing signed envelope must use EVIDENCE_REQUEST;
+// request_id is single-use and player_id/session_id/scope are checked together.
+message EvidenceRequest {
+  string evidence_id = 1;
+  EvidenceType type = 2;
+  repeated string allowed_relative_paths = 3;
+  int64 expires_at_epoch_ms = 4;
+  EvidenceCaptureScope capture_scope = 5;
+  string case_id = 6;
+  // Server-issued single-use identifier. It is bound to EnvelopeHeader.session_id,
+  // player_id, and capture_scope by the evidence request verifier.
+  string request_id = 7;
+  string player_id = 8;
+  // Signed retention disclosure. Old requests omit these fields and therefore mean
+  // raw content is not retained after request processing.
+  bool raw_content_retained = 9;
+  uint32 retention_seconds = 10;
+  string retention_policy_id = 11;
+  string retention_purpose = 12;
+}
+
+// Client -> server for a small GAME_RENDER_FRAME result. A non-collected response
+// must have empty content and content_sha256; window/desktop are unsupported or declined.
+message EvidenceResponse {
+  string evidence_id = 1;
+  EvidenceType type = 2;
+  int64 captured_at_epoch_ms = 3;
+  bytes content_sha256 = 4;
+  bytes content = 5;
+  string collection_status = 6;
+  EvidenceCaptureScope capture_scope = 7;
+  EvidenceCollectionStatus collection_status_code = 8;
+  string request_id = 9;
+  string player_id = 10;
+}
+
+// Client -> server bounded evidence transfer. The server must validate all advertised
+// dimensions before accepting any chunk. EVIDENCE_ACK/EVIDENCE_ERROR are bidirectional
+// control packets; they carry status only and never raw evidence content.
+message EvidenceBegin {
+  string evidence_id = 1;
+  EvidenceType type = 2;
+  EvidenceCaptureScope capture_scope = 3;
+  EvidenceCollectionStatus collection_status = 4;
+  int64 captured_at_epoch_ms = 5;
+  uint64 total_bytes = 6;
+  uint32 total_chunks = 7;
+  uint32 width_pixels = 8;
+  uint32 height_pixels = 9;
+  bytes content_sha256 = 10;
+  bytes merkle_root_sha256 = 11;
+  string request_id = 12;
+  string player_id = 13;
+  uint64 transport_sequence = 14;
+}
+
+message EvidenceChunk {
+  string evidence_id = 1;
+  uint32 chunk_index = 2;
+  bytes content = 3;
+  bytes chunk_sha256 = 4;
+  string request_id = 5;
+  string player_id = 6;
+  uint64 transport_sequence = 7;
+}
+
+message EvidenceCommit {
+  string evidence_id = 1;
+  uint64 total_bytes = 2;
+  uint32 total_chunks = 3;
+  bytes content_sha256 = 4;
+  bytes merkle_root_sha256 = 5;
+  EvidenceCollectionStatus collection_status = 6;
+  string request_id = 7;
+  string player_id = 8;
+  uint64 transport_sequence = 9;
+}
+
+message EvidenceAck {
+  string request_id = 1;
+  string evidence_id = 2;
+  PacketType acknowledged_packet_type = 3;
+  EvidenceAckStatus status = 4;
+  uint64 transport_sequence = 5;
+}
+
+message EvidenceError {
+  string request_id = 1;
+  string evidence_id = 2;
+  PacketType rejected_packet_type = 3;
+  EvidenceErrorCode code = 4;
+  uint64 transport_sequence = 5;
+}
+
+// These messages are carried in individually signed envelopes. EnvelopeHeader.session_id,
+// nonce, timestamp, and signature bind every fragment to the authenticated session; the
+// monotonically increasing transport_sequence prevents reordering within a transfer.
+message BoundedPayloadBegin {
+  string transfer_id = 1;
+  BoundedPayloadKind payload_kind = 2;
+  uint64 transport_sequence = 3;
+  bytes manifest_root_sha256 = 4;
+  uint64 total_bytes = 5;
+  uint32 total_chunks = 6;
+  bytes content_sha256 = 7;
+  bytes merkle_root_sha256 = 8;
+}
+
+message BoundedPayloadChunk {
+  string transfer_id = 1;
+  BoundedPayloadKind payload_kind = 2;
+  uint64 transport_sequence = 3;
+  uint32 chunk_index = 4;
+  bytes content = 5;
+  bytes chunk_sha256 = 6;
+}
+
+message BoundedPayloadCommit {
+  string transfer_id = 1;
+  BoundedPayloadKind payload_kind = 2;
+  uint64 transport_sequence = 3;
+  uint64 total_bytes = 4;
+  uint32 total_chunks = 5;
+  bytes content_sha256 = 6;
+  bytes merkle_root_sha256 = 7;
+}
+
+message DetectionSelector {
+  DetectionArtifactType artifact_type = 1;
+  DetectionMatchType match_type = 2;
+  bytes sha256 = 3;
+  string artifact_id = 4;
+  string version_constraint = 5;
+  string signer = 6;
+  bytes content_root_sha256 = 7;
+  map<string, string> metadata = 8;
+  string behavior_rule_id = 9;
+}
+
+message DetectionRuleScope {
+  repeated string proxy_ids = 1;
+  repeated string backend_ids = 2;
+  repeated string game_modes = 3;
+  repeated string permission_groups = 4;
+  repeated string world_ids = 5;
+  // Exact player scopes support auditable, per-player ALLOW exceptions.
+  repeated string player_ids = 6;
+}
+
+message DetectionRule {
+  string rule_id = 1;
+  uint32 priority = 2;
+  DetectionSelector selector = 3;
+  DetectionConfidence confidence = 4;
+  DispositionAction default_action = 5;
+  DetectionRuleScope scope = 6;
+  int64 introduced_at_epoch_ms = 7;
+  int64 expires_at_epoch_ms = 8;
+  string player_message_key = 9;
+  string false_positive_notes = 10;
+  bool disabled = 11;
+  bool exception = 12;
+  bool foundation_security = 13;
+  uint32 revision = 14;
+  int64 effective_from_epoch_ms = 15;
+  string operator_reason = 16;
+  string source_id = 17;
+  string source_summary = 18;
+  string catalog_entry_id = 19;
+  DetectionCatalogCategory catalog_category = 20;
+  string limit_justification = 21;
+  string source_uri = 22;
+  string source_revision = 23;
+  string source_manifest_path = 24;
+  int64 source_retrieved_at_epoch_ms = 25;
+}
+
+// A signed document makes the policy independently versioned from the base
+// integrity policy. previous_document_sha256 forms a non-reorderable chain.
+message DispositionPolicyDocument {
+  uint32 schema_version = 1;
+  string policy_id = 2;
+  uint64 sequence = 3;
+  int64 issued_at_epoch_ms = 4;
+  int64 expires_at_epoch_ms = 5;
+  bytes previous_document_sha256 = 6;
+  bytes signer_key_id_sha256 = 7;
+  repeated DetectionRule rules = 8;
+  int64 effective_from_epoch_ms = 9;
+  string version = 10;
+  string rollout_stage = 11;
+}
+
+message SignedDispositionPolicyDocument {
+  bytes document = 1;
+  bytes signer_key_id_sha256 = 2;
+  bytes signature = 3;
+}
+
+// Unsigned administrator input. The publisher assigns all rule/policy times, sequence,
+// predecessor, signer identity, and signature; those fields are intentionally absent here.
+message DispositionRuleConfiguration {
+  DetectionRule rule = 1;
+  // Administrator-friendly inputs. The publisher converts these to canonical 32-byte selector
+  // values; these helper fields never enter the signed DispositionPolicyDocument.
+  string sha256_hex = 2;
+  string content_root_sha256_hex = 3;
+}
+
+// Unsigned catalog metadata. Catalog entries are never published unless a matching explicit
+// DetectionCatalogSelection with enabled=true and a final_action is present.
+message DetectionCatalogEntry {
+  string entry_id = 1;
+  DetectionCatalogCategory category = 2;
+  DetectionSelector selector = 3;
+  string sha256_hex = 4;
+  string content_root_sha256_hex = 5;
+  DetectionConfidence confidence = 6;
+  DispositionAction suggested_action = 7;
+  string player_message_key = 8;
+  string operator_reason = 9;
+  string false_positive_notes = 10;
+  string source_id = 11;
+  string source_summary = 12;
+  bool default_enabled = 13;
+  DetectionRuleScope scope = 14;
+  string limit_justification = 15;
+  string source_uri = 16;
+  string source_revision = 17;
+  string source_manifest_path = 18;
+  int64 source_retrieved_at_epoch_ms = 19;
+}
+
+// Administrator choice, deliberately separate from catalog defaults and suggestions.
+message DetectionCatalogSelection {
+  string entry_id = 1;
+  bool enabled = 2;
+  DispositionAction final_action = 3;
+  uint32 priority = 4;
+}
+
+message DispositionPolicyConfiguration {
+  uint32 schema_version = 1;
+  string version = 2;
+  string rollout_stage = 3;
+  uint32 validity_seconds = 4;
+  repeated DispositionRuleConfiguration rules = 5;
+  repeated DetectionCatalogEntry catalog_entries = 6;
+  repeated DetectionCatalogSelection catalog_selections = 7;
+}
+
+message AdmissionReason {
+  string code = 1;
+  uint32 weight = 2;
+  string source = 3;
+  int64 observed_at_epoch_ms = 4;
+  bool corroborated = 5;
+}
+
+message AdmissionUpdate {
+  string player_uuid = 1;
+  TrustLevel trust_level = 2;
+  AdmissionDecision admission_status = 3;
+  uint32 risk_score = 4;
+  RiskClassification risk_band = 5;
+  string policy_version = 6;
+  int64 evaluated_at_epoch_ms = 7;
+  int64 expires_at_epoch_ms = 8;
+  uint64 transport_sequence = 9;
+  repeated AdmissionReason reasons = 10;
+}
+
+// Source network -> its locally authenticated client. There is no automatic transport:
+// runtime code must explicitly deliver this request after obtaining operator consent.
+message FederationConsentRequest {
+  uint32 schema_version = 1;
+  string source_network_id = 2;
+  string target_network_id = 3;
+  string player_uuid = 4;
+  bytes client_public_key_sha256 = 5;
+  string local_authenticated_session_id = 6;
+  string assertion_id = 7;
+  bytes assertion_nonce = 8;
+  int64 issued_at_epoch_ms = 9;
+  int64 expires_at_epoch_ms = 10;
+  string policy_version = 11;
+  bytes policy_sha256 = 12;
+  string disclosure = 13;
+  bytes source_key_id_sha256 = 14;
+  bytes target_key_id_sha256 = 15;
+}
+
+// The signature is Ed25519 over the canonical ClientFederationConsent with this
+// signature field cleared. Refusal is represented by producing no consent at all.
+message ClientFederationConsent {
+  uint32 schema_version = 1;
+  string source_network_id = 2;
+  string target_network_id = 3;
+  string player_uuid = 4;
+  bytes client_public_key_sha256 = 5;
+  string local_authenticated_session_id = 6;
+  string assertion_id = 7;
+  bytes assertion_nonce = 8;
+  int64 issued_at_epoch_ms = 9;
+  int64 expires_at_epoch_ms = 10;
+  string policy_version = 11;
+  bytes policy_sha256 = 12;
+  string disclosure = 13;
+  bytes client_signature = 14;
+  bytes source_key_id_sha256 = 15;
+  bytes target_key_id_sha256 = 16;
+}
+
+// Source-signed statement containing the only remotely disclosed trust claim. It
+// intentionally has no risk score/reasons, manifest, evidence, device or IP fields.
+message FederationAssertion {
+  uint32 schema_version = 1;
+  string source_network_id = 2;
+  string target_network_id = 3;
+  string player_uuid = 4;
+  bytes client_public_key_sha256 = 5;
+  string local_authenticated_session_id = 6;
+  string assertion_id = 7;
+  bytes assertion_nonce = 8;
+  int64 issued_at_epoch_ms = 9;
+  int64 expires_at_epoch_ms = 10;
+  string policy_version = 11;
+  bytes policy_sha256 = 12;
+  string disclosure = 13;
+  FederationLocalClaim local_claim = 14;
+  bytes client_consent_sha256 = 15;
+  bytes source_key_id_sha256 = 16;
+  bytes target_key_id_sha256 = 17;
+}
+
+message SignedFederationAssertion {
+  bytes assertion = 1;
+  bytes source_key_id_sha256 = 2;
+  bytes signature = 3;
+}
+
+// Source network -> client after validating the consent response and its local
+// authentication state. This grant is not accepted by a target without a fresh PoP.
+message FederationGrant {
+  uint32 schema_version = 1;
+  ClientFederationConsent client_consent = 2;
+  SignedFederationAssertion signed_assertion = 3;
+  bytes client_public_key_x509 = 4;
+}
+
+// Fresh proof that the presenter still holds the short-lived source session key.
+// The target supplies both its authenticated session id and a single-use challenge.
+message FederationPresentationProof {
+  uint32 schema_version = 1;
+  bytes signed_assertion_sha256 = 2;
+  string assertion_id = 3;
+  string target_network_id = 4;
+  string target_authenticated_session_id = 5;
+  bytes target_challenge_nonce = 6;
+  int64 presented_at_epoch_ms = 7;
+  bytes client_signature = 8;
+  string target_player_uuid = 9;
+}
+
+// An application-carried object only. MCAce protocol does not open a federation
+// connection or send this presentation without an explicit runtime integration.
+message FederationPresentation {
+  uint32 schema_version = 1;
+  FederationGrant grant = 2;
+  FederationPresentationProof presentation_proof = 3;
+}
+
+message LauncherFile {
+  string relative_path = 1;
+  uint64 file_size = 2;
+  bytes sha256 = 3;
+  string download_uri = 4;
+  bool executable = 5;
+}
+
+message LauncherManifest {
+  uint32 schema_version = 1;
+  uint64 release_sequence = 2;
+  string product_id = 3;
+  string release_id = 4;
+  string build_id = 5;
+  string minecraft_version = 6;
+  LoaderType loader = 7;
+  string minimum_launcher_version = 8;
+  int64 issued_at_epoch_ms = 9;
+  int64 expires_at_epoch_ms = 10;
+  bytes signer_key_id_sha256 = 11;
+  repeated LauncherFile files = 12;
+}
+
+message LauncherSigningKey {
+  bytes key_id_sha256 = 1;
+  bytes public_key_x509 = 2;
+  int64 not_before_epoch_ms = 3;
+  int64 not_after_epoch_ms = 4;
+}
+
+message LauncherTrustStatement {
+  uint64 sequence = 1;
+  string product_id = 2;
+  int64 issued_at_epoch_ms = 3;
+  int64 expires_at_epoch_ms = 4;
+  bytes root_key_id_sha256 = 5;
+  repeated LauncherSigningKey release_signing_keys = 6;
+  repeated bytes revoked_key_ids_sha256 = 7;
+}
+
+message SignedLauncherTrustStatement {
+  bytes statement = 1;
+  bytes root_key_id_sha256 = 2;
+  bytes signature = 3;
+}
+
+message SignedLauncherManifest {
+  bytes manifest = 1;
+  bytes signer_key_id_sha256 = 2;
+  bytes signature = 3;
+  SignedLauncherTrustStatement trust_statement = 4;
+}
+
+message LauncherCacheState {
+  SignedLauncherManifest document = 1;
+  int64 accepted_at_epoch_ms = 2;
+  bytes document_sha256 = 3;
+}

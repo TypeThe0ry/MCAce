@@ -1,0 +1,17 @@
+package com.ellan.mcace.cloud.auth;
+
+public enum ApiScope {
+    RISK_WRITE,
+    EVIDENCE_WRITE,
+    REVOCATION_READ,
+    REVOCATION_WRITE,
+    TIMELINE_READ,
+    REVIEW_WRITE,
+    APPEAL_WRITE,
+    POLICY_READ,
+    POLICY_WRITE,
+    FEEDBACK_WRITE,
+    METRICS_READ,
+    WEB_OPERATOR_SESSION_WRITE,
+    WEB_PLAYER_SESSION_WRITE
+}

@@ -1,0 +1,27 @@
+# Behavior integrations are observational only. They never punish or alter admission.
+session-actions:
+  # MONITOR is the default. SESSION_ACTIONS only affects this current backend connection;
+  # LIMITED sends one bounded notice per accepted transition. BLOCKED ends only the
+  # current connection. It never bans an account or device.
+  mode: MONITOR
+  limited-message: "MCAce: this session has limited access. Please reconnect or contact staff."
+
+behavior:
+  enabled: false
+  minimum-flags: 3
+  window-seconds: 10
+  cooldown-seconds: 30
+  maximum-tracked-keys: 10000
+  grim:
+    enabled: true
+  vulcan:
+    enabled: true
+
+cloud:
+  enabled: false
+  endpoint: "https://mcace.example.invalid"
+  server-id: "paper-1"
+  # Raw PKCS#8 Ed25519 private key. Relative paths resolve under plugins/MCAce.
+  private-key-path: "cloud-server-private-key.pk8"
+  queue-capacity: 1024
+  request-timeout-ms: 5000

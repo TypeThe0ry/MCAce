@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Sign in · MCAce</title>
+  <link rel="stylesheet" href="/assets/mcace.css">
+</head>
+<body class="auth-shell">
+  <main class="auth-card" aria-labelledby="page-title">
+    <div class="brand-mark" aria-hidden="true">M</div>
+    <p class="eyebrow">MCAce trusted environment</p>
+    <h1 id="page-title">Secure handoff</h1>
+    <p class="lede">Verifying the one-time link issued by your trusted server or identity provider.</p>
+    <div id="login-status" class="status-panel" role="status" aria-live="polite">
+      <span class="spinner" aria-hidden="true"></span>
+      <span>Checking handoff…</span>
+    </div>
+    <p class="privacy-note">MCAce verifies the Minecraft environment. It does not scan personal files, record input, or access cameras and microphones.</p>
+  </main>
+  <script type="module" src="/assets/login.js"></script>
+</body>
+</html>

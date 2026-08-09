@@ -1,0 +1,14 @@
+package com.ellan.mcace.runtime;
+
+enum RuntimeScenario {
+    GOOD,
+    REPLAY_CLIENT_HELLO,
+    FORGED_CLIENT_SIGNATURE,
+    OVERSIZED_FRAME,
+    TRUNCATED_FRAME,
+    MALFORMED_PROTOBUF,
+    OUT_OF_ORDER_AUTH,
+    WRONG_PLAYER_UUID,
+    UNPINNED_SERVER,
+    INCOMPATIBLE_BUILD
+}

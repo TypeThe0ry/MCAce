@@ -1,0 +1,13 @@
+package com.ellan.mcace.core.risk;
+
+public enum RiskEventType {
+    MISSING_MCACE,
+    UNKNOWN_MOD,
+    MANIFEST_MISMATCH,
+    AUTH_REPLAY,
+    AGENT_UNAVAILABLE,
+    EVIDENCE_ANOMALY,
+    BEHAVIOR_HIGH_RISK,
+    POLICY_MISMATCH,
+    PROTOCOL_VIOLATION
+}

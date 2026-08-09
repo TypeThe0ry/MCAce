@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Appeals · MCAce</title>
+  <link rel="stylesheet" href="/assets/mcace.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/appeal" aria-label="MCAce appeal portal"><span class="brand-mark small">M</span><span>MCAce</span></a>
+    <div class="topbar-actions"><span id="player-name" class="identity"></span><button id="logout" class="button ghost" type="button">Sign out</button></div>
+  </header>
+  <main class="app-shell narrow">
+    <section class="hero compact">
+      <div><p class="eyebrow">Player self-service</p><h1>Your review & appeal record</h1><p class="lede">See the workflow state, submit one appeal for an eligible case, and track the human decision.</p></div>
+      <div class="trust-chip"><span class="dot"></span> UUID-bound session</div>
+    </section>
+    <div id="banner" class="banner hidden" role="alert"></div>
+    <div class="portal-grid">
+      <section class="panel" aria-labelledby="reviews-title"><div class="panel-heading"><div><p class="eyebrow">Case history</p><h2 id="reviews-title">Reviews and appeals</h2></div><button id="refresh" class="button secondary" type="button">Refresh</button></div><div id="case-list" class="review-list"></div></section>
+      <aside class="panel" aria-labelledby="notifications-title"><div class="panel-heading"><div><p class="eyebrow">Inbox</p><h2 id="notifications-title">Notifications</h2></div><span id="unread-count" class="count-badge">0</span></div><div id="notifications" class="notification-list"></div></aside>
+    </div>
+    <section class="panel appeal-form-panel" aria-labelledby="appeal-title">
+      <p class="eyebrow">One appeal per eligible case</p><h2 id="appeal-title">Submit an appeal</h2><p class="muted">Explain facts a reviewer can verify. Do not include passwords, private files, or unrelated personal information.</p>
+      <form id="appeal-form" class="stack-form"><label for="case-id">Eligible case</label><select id="case-id" required></select><label for="statement">Statement</label><textarea id="statement" rows="7" minlength="1" maxlength="8192" required placeholder="Describe the relevant circumstances and any reproducible evidence…"></textarea><button id="submit-appeal" class="button primary" type="submit">Submit appeal</button></form>
+    </section>
+    <section class="privacy-strip"><strong>Privacy boundary</strong><span>MCAce does not perform full-disk scans, keylogging, camera or microphone access, browser inspection, or kernel-driver monitoring.</span></section>
+  </main>
+  <script type="module" src="/assets/appeal.js"></script>
+</body>
+</html>

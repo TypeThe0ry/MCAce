@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Operator dashboard · MCAce</title>
+  <link rel="stylesheet" href="/assets/mcace.css">
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/dashboard" aria-label="MCAce dashboard"><span class="brand-mark small">M</span><span>MCAce</span></a>
+    <div class="topbar-actions"><span id="operator-name" class="identity"></span><button id="logout" class="button ghost" type="button">Sign out</button></div>
+  </header>
+  <main class="app-shell">
+    <section class="hero compact">
+      <div><p class="eyebrow">Human review control plane</p><h1>Security review queue</h1><p class="lede">Signals support investigation. No client signal shown here performs an automatic punishment.</p></div>
+      <div class="trust-chip"><span class="dot"></span> Audit-backed</div>
+    </section>
+    <div id="banner" class="banner hidden" role="alert"></div>
+    <section class="metric-grid" aria-label="Queue summary">
+      <article class="metric"><span>Open workload</span><strong id="metric-open">—</strong><small>Needs human attention</small></article>
+      <article class="metric"><span>Action proposed</span><strong id="metric-action">—</strong><small>Appeal remains available</small></article>
+      <article class="metric"><span>Visible cases</span><strong id="metric-total">—</strong><small>Current query window</small></article>
+    </section>
+    <div class="workspace-grid">
+      <section class="panel" aria-labelledby="queue-title">
+        <div class="panel-heading"><div><p class="eyebrow">Review operations</p><h2 id="queue-title">Cases</h2></div><button id="refresh-reviews" class="button secondary" type="button">Refresh</button></div>
+        <div id="review-list" class="review-list" aria-live="polite"></div>
+      </section>
+      <aside class="panel detail-panel" aria-labelledby="detail-title">
+        <div id="empty-detail" class="empty-state"><div class="empty-icon">↗</div><h2 id="detail-title">Select a case</h2><p>Inspect provenance and move the workflow only after a human decision.</p></div>
+        <div id="review-detail" class="hidden">
+          <p class="eyebrow">Selected review</p><h2 id="detail-heading"></h2>
+          <dl class="detail-list"><div><dt>Status</dt><dd id="detail-status"></dd></div><div><dt>Player</dt><dd id="detail-player"></dd></div><div><dt>Reason</dt><dd id="detail-reason"></dd></div><div><dt>Recommendation</dt><dd id="detail-recommendation"></dd></div></dl>
+          <form id="transition-form" class="stack-form">
+            <label for="target-status">Next state</label><select id="target-status" required></select>
+            <label for="transition-reason">Decision rationale</label><textarea id="transition-reason" rows="4" maxlength="4096" required></textarea>
+            <label for="transition-recommendation">Recommendation <span class="muted">(required when proposing action)</span></label><textarea id="transition-recommendation" rows="3" maxlength="1024"></textarea>
+            <button class="button primary" type="submit">Record audited transition</button>
+          </form>
+        </div>
+      </aside>
+    </div>
+    <section class="panel player-search" aria-labelledby="player-title">
+      <div class="panel-heading"><div><p class="eyebrow">Self-contained investigation</p><h2 id="player-title">Player timeline</h2></div></div>
+      <form id="player-form" class="inline-form"><label for="player-uuid">Player UUID</label><input id="player-uuid" type="text" inputmode="text" autocomplete="off" placeholder="00000000-0000-0000-0000-000000000000" required><button class="button secondary" type="submit">Load timeline</button></form>
+      <div id="timeline" class="timeline"></div>
+    </section>
+  </main>
+  <script type="module" src="/assets/dashboard.js"></script>
+</body>
+</html>
