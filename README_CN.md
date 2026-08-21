@@ -22,8 +22,8 @@ MCAce 是面向现代 Minecraft 网络的防御性信任、准入、证据与可
 | 版本兼容合同 | `3/3` | 协议、Java、metadata、nested JAR、拒绝未知版本 |
 | 反作弊回归 | `31` 项 | 特征分类、完整性、重放、行为关联、真实客户端加载 |
 
-当前提交为 `6acd6f8d578de82497c5c2e9ecb803c2f4458cb1`，分支为
-[`codex/release-2026-08-21`](https://github.com/TypeThe0ry/MCAce/tree/codex/release-2026-08-21)。
+当前分支为 [`codex/release-2026-08-21`](https://github.com/TypeThe0ry/MCAce/tree/codex/release-2026-08-21)，
+精确 source commit 记录在 `release-manifest.properties` 中。
 详细交接记录见 [下一轮迭代状态](docs/NEXT_ITERATION_2026-08-21.md)。
 
 ## 精确版本适配

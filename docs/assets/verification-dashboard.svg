@@ -2,7 +2,7 @@
   <title id="title">MCAce verification dashboard</title>
   <desc id="desc">Current build, server process matrix, and artifact verification results.</desc>
   <rect width="1200" height="520" rx="20" fill="#0b1220"/>
-  <text x="50" y="58" fill="#f8fafc" font-family="Segoe UI, sans-serif" font-size="30" font-weight="700">Verification dashboard · commit 6acd6f8</text>
+  <text x="50" y="58" fill="#f8fafc" font-family="Segoe UI, sans-serif" font-size="30" font-weight="700">Verification dashboard · source-bound release candidate</text>
   <g font-family="Segoe UI, sans-serif">
     <rect x="50" y="105" width="340" height="300" rx="18" fill="#102a1b" stroke="#4ade80" stroke-width="2"/>
     <text x="80" y="150" fill="#86efac" font-size="23" font-weight="700">Build + tests</text>
