@@ -1,0 +1,56 @@
+{
+  "schema": "MCACE_VERSION_COMPATIBILITY_CONTRACT_EVIDENCE_V1",
+  "generated_at": "2026-08-21T15:28:51Z",
+  "source_commit": "read_from_exact_release_manifest_at_execution",
+  "evidence_scope": "CONTRACT_SHAPE_AND_STATIC_CHECKS",
+  "contract_script": "scripts/version-compatibility-contract-smoke.ps1",
+  "static_checks": {
+    "powershell_7": true,
+    "windows_powershell_5_1": true,
+    "parser": true
+  },
+  "exact_bundle_entry_count": 8,
+  "unsupported_versions_are_fail_closed": true,
+  "unsupported_examples": ["1.21.1", "1.21.10", "26.1", "26.3"],
+  "targets": [
+    {
+      "minecraft_version": "1.21.11",
+      "protocol": 774,
+      "java_major": 21,
+      "artifact_mode": "FINAL_REMAP_JAR",
+      "artifact": "mcace-client-fabric-1.21.11.jar",
+      "nested_jar_count": 5,
+      "passed": true
+    },
+    {
+      "minecraft_version": "26.1.2",
+      "protocol": 775,
+      "java_major": 25,
+      "artifact_mode": "FINAL_NAMED_JAR",
+      "artifact": "mcace-client-fabric-26.1.2.jar",
+      "nested_jar_count": 1,
+      "passed": true
+    },
+    {
+      "minecraft_version": "26.2",
+      "protocol": 776,
+      "java_major": 25,
+      "artifact_mode": "FINAL_NAMED_JAR",
+      "artifact": "mcace-client-fabric-26.2.jar",
+      "nested_jar_count": 1,
+      "passed": true
+    }
+  ],
+  "passed": true,
+  "limitations": [
+    "This contract proves exact artifact metadata and fail-closed version selection; it does not claim every 1.21.x patch is supported.",
+    "Artifact bytes and source identity are intentionally read from the exact release manifest at execution time rather than copied into this durable contract description.",
+    "Full visible-client GUI consent remains a separate human gate."
+  ],
+  "sanitization": {
+    "absolute_paths": false,
+    "process_ids": false,
+    "network_endpoints": false,
+    "identity_values": false
+  }
+}

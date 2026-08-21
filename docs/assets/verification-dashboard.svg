@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
+  <title id="title">MCAce verification dashboard</title>
+  <desc id="desc">Current build, server process matrix, and artifact verification results.</desc>
+  <rect width="1200" height="520" rx="20" fill="#0b1220"/>
+  <text x="50" y="58" fill="#f8fafc" font-family="Segoe UI, sans-serif" font-size="30" font-weight="700">Verification dashboard · commit 6acd6f8</text>
+  <g font-family="Segoe UI, sans-serif">
+    <rect x="50" y="105" width="340" height="300" rx="18" fill="#102a1b" stroke="#4ade80" stroke-width="2"/>
+    <text x="80" y="150" fill="#86efac" font-size="23" font-weight="700">Build + tests</text>
+    <text x="80" y="198" fill="#f0fdf4" font-size="34" font-weight="700">171 / 755</text>
+    <text x="80" y="228" fill="#bbf7d0" font-size="17">suites / tests</text>
+    <text x="80" y="270" fill="#f0fdf4" font-size="18">0 failures · 0 errors</text>
+    <text x="80" y="304" fill="#f0fdf4" font-size="18">JDK 21 + JDK 25</text>
+    <text x="80" y="338" fill="#f0fdf4" font-size="18">exact-8 bundle</text>
+    <rect x="80" y="360" width="135" height="34" rx="17" fill="#166534"/>
+    <text x="147" y="383" text-anchor="middle" fill="#dcfce7" font-size="15" font-weight="700">PASS</text>
+    <rect x="430" y="105" width="340" height="300" rx="18" fill="#10243b" stroke="#38bdf8" stroke-width="2"/>
+    <text x="460" y="150" fill="#7dd3fc" font-size="23" font-weight="700">Server matrix</text>
+    <text x="460" y="198" fill="#e0f2fe" font-size="34" font-weight="700">12 / 12</text>
+    <text x="460" y="228" fill="#bae6fd" font-size="17">Paper/Folia × Velocity/Bungee</text>
+    <text x="460" y="270" fill="#e0f2fe" font-size="18">10 stable · 2 beta</text>
+    <text x="460" y="304" fill="#e0f2fe" font-size="18">cleanup residue: 0</text>
+    <text x="460" y="338" fill="#e0f2fe" font-size="18">ReportOnly revalidation</text>
+    <rect x="460" y="360" width="135" height="34" rx="17" fill="#075985"/>
+    <text x="527" y="383" text-anchor="middle" fill="#e0f2fe" font-size="15" font-weight="700">PASS</text>
+    <rect x="810" y="105" width="340" height="300" rx="18" fill="#2a1d12" stroke="#f59e0b" stroke-width="2"/>
+    <text x="840" y="150" fill="#fcd34d" font-size="23" font-weight="700">Anti-cheat smoke</text>
+    <text x="840" y="198" fill="#fffbeb" font-size="34" font-weight="700">31 checks</text>
+    <text x="840" y="228" fill="#fef3c7" font-size="17">fixture + real client load</text>
+    <text x="840" y="270" fill="#fffbeb" font-size="18">Meteor initialized: yes</text>
+    <text x="840" y="304" fill="#fffbeb" font-size="18">Xray pack reloaded: yes</text>
+    <text x="840" y="338" fill="#fde68a" font-size="18">server detection: pending</text>
+    <rect x="840" y="360" width="210" height="34" rx="17" fill="#92400e"/>
+    <text x="945" y="383" text-anchor="middle" fill="#fef3c7" font-size="15" font-weight="700">CLIENT-LOAD ONLY</text>
+  </g>
+  <text x="600" y="470" text-anchor="middle" fill="#94a3b8" font-family="Segoe UI, sans-serif" font-size="16">Green means verified by current evidence; amber means intentionally not claimed.</text>
+</svg>
