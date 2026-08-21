@@ -1,0 +1,95 @@
+{
+  "schema": "MCACE_ANTI_CHEAT_DETECTION_EVIDENCE_V1",
+  "generated_at": "2026-08-21T05:29:00Z",
+  "source_mode": "LOCAL_DEFENSIVE_UNIT_AND_INTEGRATION_TESTS",
+  "summary": {
+    "executed_tests": 30,
+    "skipped_tests": 1,
+    "failures": 0,
+    "errors": 0,
+    "automatic_ban_or_kick_asserted": false,
+    "client_report_alone_can_punish": false,
+    "real_cheat_binary_executed": false,
+    "genuine_licensed_vulcan_event_observed": false,
+    "controlled_fixture_junit_tests": 1,
+    "wrapper_static_checks_ps7_ps5": 2,
+    "wrapper_execute_ps7_ps5": true,
+    "wrapper_report_only_ps5": true
+  },
+  "coverage": [
+    {
+      "area": "controlled_meteor_and_xray_fixture_classification",
+      "tests": 1,
+      "passed": true,
+      "result": "A supplied Meteor 1.21.11 fixture and Spectator Xray resource-pack fixture were copied into an isolated temporary JUnit directory, metadata-validated, and classified as low-confidence CLIENT_REPORTED/OBSERVE.",
+      "fixture_sha256": {
+        "meteor": "93390cfdb1030e47f116357ba421c90a9b1ca4832b6551c2dec1ade5eeb42e71",
+        "xray_resource_pack": "d6c325f080da68131508896558d5ea909b4ac4550bb963eabf411200c7f83e43"
+      },
+      "executable_code_loaded": false,
+      "third_party_network_access": false,
+      "not_proven": "This is a static fixture regression, not a real Fabric client launch or cheat efficacy measurement."
+    },
+    {
+      "area": "artifact_feature_observation",
+      "tests": 3,
+      "passed": true,
+      "result": "Known fixture metadata is reported as low-confidence CLIENT_REPORTED/OBSERVE; malformed or oversized metadata becomes neutral unknown; an ungranted scope is rejected.",
+      "not_proven": "A mod identifier or public utility-client identity is not a cheat verdict and has no automatic enforcement."
+    },
+    {
+      "area": "scoped_integrity",
+      "tests": 10,
+      "passed": true,
+      "result": "Policy-scoped integrity collection and bounded scanner behavior pass, including tamper and scope-boundary rejection."
+    },
+    {
+      "area": "server_session_and_replay",
+      "tests": 7,
+      "passed": true,
+      "result": "End-to-end fixtures reject tamper, reorder, replay, expiry, and disconnect cases without creating a risk event."
+    },
+    {
+      "area": "behavior_feature_correlation",
+      "tests": 4,
+      "passed": true,
+      "result": "Behavior flags require the configured threshold and window; cooldown suppresses duplicate emissions; independent providers are marked corroborated only when both qualify; bounded state removal works."
+    },
+    {
+      "area": "vulcan_api_adapter_contract",
+      "tests": 2,
+      "passed": true,
+      "result": "Supported accessor and compatibility contracts pass without loading a licensed artifact."
+    },
+    {
+      "area": "licensed_vulcan_runtime_gate",
+      "tests": 2,
+      "executed": 1,
+      "skipped": 1,
+      "passed": true,
+      "result": "The gate refuses to claim runtime coverage when the explicitly supplied licensed artifact is absent."
+    }
+  ],
+  "false_positive_and_action_boundary": {
+    "client_reported_artifacts": "observation-only, low confidence",
+    "behavior_alerts": "SERVER_CONFIRMED observation pipeline only; policy/review still controls action",
+    "deny_scope": "current connection only",
+    "permanent_ban": false,
+    "manual_review_required_for_high_impact": true
+  },
+  "limitations": [
+    "No real cheat binary was launched; the supplied Meteor JAR and Xray pack were inspected only as isolated fixtures.",
+    "No injection, memory tool, packet exploit, or bypass implementation was executed.",
+    "No genuine licensed Vulcan event was delivered; the licensed runtime gate remains pending.",
+    "These tests establish defensive invariants and correlation behavior, not production precision/recall or a field false-positive rate.",
+    "A real SERVER_CONFIRMED production provider/profile/key/topology/producer remains a separate release gate."
+  ],
+  "sanitization": {
+    "identity_values_copied": false,
+    "process_ids_copied": false,
+    "network_endpoints_copied": false,
+    "absolute_paths_copied": false,
+    "keys_or_secrets_copied": false,
+    "raw_cheat_artifacts_copied": false
+  }
+}

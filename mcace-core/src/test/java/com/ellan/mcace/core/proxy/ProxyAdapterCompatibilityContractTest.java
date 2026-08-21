@@ -43,6 +43,10 @@ final class ProxyAdapterCompatibilityContractTest {
         assertEquals(ProxyAdapterTransportContract.InboundDecision.CONSUME_ONLY,
                 ProxyAdapterTransportContract.decide(ProtocolConstants.ADMISSION_CHANNEL, true));
         assertEquals(ProxyAdapterTransportContract.InboundDecision.CONSUME_ONLY,
+                ProxyAdapterTransportContract.decide(ProtocolConstants.BACKEND_CONTEXT_CHANNEL, true));
+        assertEquals(ProxyAdapterTransportContract.InboundDecision.BACKEND_CONTEXT,
+                ProxyAdapterTransportContract.decide(ProtocolConstants.BACKEND_CONTEXT_CHANNEL, false));
+        assertEquals(ProxyAdapterTransportContract.InboundDecision.CONSUME_ONLY,
                 ProxyAdapterTransportContract.decide(ProtocolConstants.HANDSHAKE_CHANNEL, false));
         assertEquals(ProxyAdapterTransportContract.InboundDecision.IGNORE,
                 ProxyAdapterTransportContract.decide("example:unowned", true));

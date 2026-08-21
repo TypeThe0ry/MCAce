@@ -58,7 +58,7 @@ final class VelocityFederationLifecycle implements AutoCloseable {
             Path configurationPath = dataDirectory.resolve(FederationConfiguration.FILE_NAME);
             return new VelocityFederationLifecycle(new FederationRuntime(
                     clock, random, persistedIdentity,
-                    FederationConfiguration.disabled(fallbackLocalNetworkId), FederationAuditSink.noop()),
+                    FederationConfiguration.disabled(fallbackLocalNetworkId), FederationAuditSink.unavailable()),
                     configurationPath, null);
         }
     }

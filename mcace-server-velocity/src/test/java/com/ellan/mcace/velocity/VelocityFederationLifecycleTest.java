@@ -34,6 +34,7 @@ final class VelocityFederationLifecycleTest {
                 directory, Clock.systemUTC(), new SecureRandom(), Ed25519Keys.generate(new SecureRandom()),
                 "mcace-velocity", ignored -> failures.incrementAndGet());
         assertFalse(lifecycle.runtime().status().enabled());
+        assertFalse(lifecycle.runtime().status().auditHealthy());
         assertEquals("mcace-velocity", lifecycle.runtime().status().localNetworkId());
         assertEquals(1, failures.get());
         lifecycle.close();
@@ -47,6 +48,7 @@ final class VelocityFederationLifecycleTest {
                 directory, Clock.systemUTC(), new SecureRandom(), Ed25519Keys.generate(new SecureRandom()),
                 "mcace-velocity", ignored -> failures.incrementAndGet());
         assertFalse(lifecycle.runtime().status().enabled());
+        assertFalse(lifecycle.runtime().status().auditHealthy());
         assertEquals("mcace-velocity", lifecycle.runtime().status().localNetworkId());
         assertEquals(1, failures.get());
         lifecycle.close();

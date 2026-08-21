@@ -1,0 +1,139 @@
+# MCAce release gates
+
+Status snapshot: August 20, 2026. Files below `build/` are mutable diagnostics.
+Only the bounded records copied to `docs/evidence/` are durable repository
+evidence, and a passing local record is not automatically an exact-commit release.
+
+## Product boundary
+
+The release product is exactly:
+
+- Fabric client Mods for `1.21.11`, `26.1.2`, and `26.2`;
+- Velocity and BungeeCord proxy plugins;
+- one Paper/Folia backend plugin.
+
+Cloud, Portal, PostgreSQL, and Launcher remain frozen legacy/optional source. No
+Agent, additional loader, standalone client, mandatory Cloud service, desktop or
+window capture, permanent automatic ban, or reconnect-spanning DENY is part of
+the release. `MONITOR` is the default. DENY closes only the current connection.
+
+The distribution boundary is exact-eight: six deployable JARs,
+`release-manifest.properties`, and `SHA256SUMS`. The root project uses JDK
+`21.0.7+6`; the isolated 26.x Fabric build uses JDK `25.0.3+9`; both use Gradle
+`9.6.1`. Root verification metadata contains 47 exact Loom-local trust entries
+and `fabric-modern` contains two exact named-Minecraft trust entries. There is no
+group-wide trust. The superseded 52-rule, exact-six, four-JAR Linux rehearsal is
+historical only and cannot be promoted to the current three-version release.
+
+## Gate matrix
+
+| Gate | State | Current evidence | Release interpretation |
+| --- | --- | --- | --- |
+| Strict offline Windows reproducibility | Passed locally | [`local-build-2026-08-20.json`](evidence/local-build-2026-08-20.json); independent clean August 20 A/D runs each completed 118/118 tasks. Root: 147 suites / 681 tests / 0 failures / 0 errors / 28 skipped. Modern: 24 / 74 / 0 / 0 / 0. Combined: 171 / 755 / 0 / 0 / 28. Exact-eight A/D bytes match. | Strong sanitized local reproducibility evidence. The manifest is `LOCAL_VERIFICATION`, `release_identity=false`, and `source_commit=LOCAL_UNSPECIFIED`; it is not a release candidate. |
+| Linux network-none rehearsal | Passed for current boundary | [`local-build-2026-08-20.json`](evidence/local-build-2026-08-20.json), run `cb6dc44ddad744b5a20dc2986c0a6d70`; strict offline network-none; exact JDK 21.0.7+6/JDK 25.0.3+9; 118 root actionable tasks plus 15/15 modern tasks; 171 suites / 755 tests / 0 failures / 0 errors / 33 environment-conditioned skips; unchanged 735-file source manifest; all eight entries stream-byte-identical to Windows A/D; cleanup zero at 0/30/60 seconds. | Current Linux parity is proven for the LOCAL exact-eight boundary. The detailed raw witness remains external; the repository record is sanitized. This is not exact-commit release identity. |
+| GitHub Actions / exact commit | Pending commit and protected push | Workflow pins Temurin `21.0.7+6` and `25.0.3+9`, SHA-pins third-party Actions, uses minimal read permissions, runs a fresh strict-offline final-candidate closure, and validates the exact-eight result. | Green status requires a passing canonical-main run for the exact reviewed commit. Local dirty-worktree output cannot substitute. |
+| Fabric packaging, all targets | Passed | 1.21.11 final remapped artifact; 26.1.2 and 26.2 final named artifacts; target-specific metadata, build IDs, CodeSource/hash contracts, and package tests passed. | Packaging support is current for exactly the three documented tuples. |
+| Paper/Folia × Velocity/Bungee version process matrix | Passed 12/12 | [`server-version-process-matrix-2026-08-20.json`](evidence/server-version-process-matrix-2026-08-20.json); `-Execute` plus `-ReportOnly`; Paper/Folia/Velocity/Bungee each 6/6; 10 stable and 2 beta cases; cleanup zero; source `80d7753f…` / 675 files. | Signed admission and shadow backend context are proven on all three versions while the peer remains live. Folia 26.2 build 4 remains the two-case BETA lane. Online-mode/public-network behavior is not claimed. |
+| Fabric server-only platform startup | Passed for all three targets | `platform-load-smoke.ps1 -FabricTarget <target>` passed for 1.21.11, 26.1.2, and 26.2 after full Minecraft asset prewarm. | Assets and server startup are not blockers. They are not visible-client consent evidence. |
+| Fabric explicit-file and frame consent | Pending six human clicks | Report schema 6 and binding `MCACE_FABRIC_GUI_EVIDENCE_BINDING_V4` are implemented, including exact `velocity_policy_minecraft_versions` and `velocity_policy_client_build_ids` bindings. Each target needs a visible explicit-file decision and a separate visible `GAME_RENDER_FRAME` decision. | Three targets × two prompts = six human approvals. Automation must not click or synthesize them. |
+| Client-origin enforcement guard | Passed current-source 24/24 | [`disposition-current-2026-08-21.json`](evidence/disposition-current-2026-08-21.json); 8/8 on each of 1.21.11, 26.1.2, and 26.2; Execute and ReportOnly both passed. | `CLIENT_REPORTED` LIMIT/QUARANTINE/DENY remained advisory and no high-impact route executed. This remains distinct from SERVER_CONFIRMED. |
+| Trusted administrator disposition | Passed current-source 18/18 | [`disposition-current-2026-08-21.json`](evidence/disposition-current-2026-08-21.json); 6/6 on each of 1.21.11, 26.1.2, and 26.2; Execute and ReportOnly both passed; `UUID_CONTEXT_COMMITMENT_V3`. | Durable authorization preceded execution, DENY remained current-connection-only, and the gate does not claim a real-process `SERVER_CONFIRMED` producer. |
+| Federation | V2 GUI implementation/static contract passed; real handoff pending | [`federation-durable-audit-2026-08-13.json`](evidence/federation-durable-audit-2026-08-13.json) remains the historical raw-peer 4/4 record. The three-target V2 wrapper and both UI decisions exist; PowerShell 7 and Windows PowerShell 5 static tests pass. | Static tests and the older raw peer do not prove human GUI coverage. A human must approve source export, disconnect/direct-connect to the exact target, approve target import, and keep the target session alive through expiry. Current-source raw-process evidence is also separate and pending. |
+| Vulcan | Historical preflight retained; current-source runtime pending | [`vulcan-licensed-api-preflight-2026-08-13.json`](evidence/vulcan-licensed-api-preflight-2026-08-13.json) is historical structural evidence only. | Current-source structural preflight, Paper enablement, and one genuine externally triggered Vulcan event all remain pending. MCAce neither downloads nor bundles the licensed artifact. |
+| SERVER_CONFIRMED producer | Pending operator freeze and real producer | The default-disabled codec/registry/journal/coordinator foundation is implemented and unit-tested. | Provider identity/domain, profile thresholds/windows/cooldown, backend/key/profile pins, topology, and action ceiling are not yet frozen. No production provider/channel/sender/executor or real-process producer evidence exists. |
+
+The Linux witness binds source manifest
+`b74c22ff187a1fcfe4d8e1d6da5a202bde67d72061bcb3c2f205532d3857f8c3`
+and exact-eight canonical manifest
+`289a59e56c6605e2f5ba7af160a9c94da506978e3c5db6e5c4102b578ce2ada3`.
+The five-skip Windows/Linux delta is confined to PostgreSQL integration cases
+because the isolated Linux container has no external PostgreSQL service; the
+skip boundary is record-only, not a failed gate.
+
+The current local-build and matrix repository JSON files hash to
+`ebbecbf1b322322f3ba78de89e00016e447ab2fca310a6889bbf9d9b1f086060`
+and `f62c2c846203bd8d6d411246ddeaddaa8d62dc81abb1ca3b135e7eaae021ea63`,
+respectively.
+The external Linux witness hashes to
+`de6d82fedace1c7b961ba9879b6e924df1bc8a1d085b851134194bac91d44b48`;
+it is not copied repository evidence.
+
+## Current local exact-eight bundle
+
+The byte-identical August 20 A/D local bundle recorded in
+[`local-build-2026-08-20.json`](evidence/local-build-2026-08-20.json) contains:
+
+| Entry | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `mcace-client-fabric-1.21.11.jar` | 3,385,438 | `e6b02463c4e65bc81a825626b98559d94ab5eed642fc84e6552a22bf7dc1d323` |
+| `mcace-client-fabric-26.1.2.jar` | 3,489,094 | `26de3b15fa56aff684f04076df4464fe409d9f0185147aec05efd0c296a72d35` |
+| `mcace-client-fabric-26.2.jar` | 3,489,092 | `4f6ee9077b3a9986f253c49db3e867c4ed480871c7e6023509d6b19d1ef4bc73` |
+| `mcace-server-velocity.jar` | 5,016,132 | `0f5afa9cc04aa3e3d21b7142fb2156ee4059d1f2f1f36508b33fbdd59c4323be` |
+| `mcace-server-bungeecord.jar` | 3,562,568 | `fc7ac9ac84a673bd08f15e5a68bbdaadd30af157ac154a20a14dcefbe6e4152a` |
+| `mcace-server-paper.jar` | 5,924,608 | `d133a093ff684490dcb3ae81e2751498c5fc9eeb9fe0c6f0bbce802f5dd23e7b` |
+| `release-manifest.properties` | 1,797 | `7e73e7cc99ea1f6328060697107caf308b0b3ecccead7c0c61621ed661cfc8f7` |
+| `SHA256SUMS` | 565 | `b0227412fe38ad781edf998a217f2338f16caa6589763e7447cb1f956a3ef6b1` |
+
+Build the dirty-safe local verification set with exact Java homes:
+
+```powershell
+$env:JAVA_HOME = '<Temurin 21.0.7+6 home>'
+.\gradlew.bat clean build localVerificationBundle `
+  "-PmcaceModernJavaHome=<Temurin 25.0.3+9 home>" `
+  --offline --dependency-verification=strict --rerun-tasks `
+  --no-build-cache --no-configuration-cache --no-daemon `
+  --no-parallel --max-workers=1 --console=plain
+```
+
+`localVerificationBundle` writes only to `build/local-verification-bundle/`.
+`releaseBundle` writes to `build/release-bundle/`, requires a clean worktree and
+an exact lowercase 40-hex HEAD via `-PmcaceSourceCommit`, and must be produced by
+the exact-commit CI/release path.
+
+## Authoritative process commands
+
+The current three-version proxy/backend gate is:
+
+```powershell
+.\scripts\server-version-process-matrix.ps1 -Execute
+.\scripts\server-version-process-matrix.ps1 -ReportOnly
+```
+
+It pins Velocity `3.5.1-615`, BungeeCord `2085`, Paper builds
+`1.21.11-132` / `26.1.2-74` / `26.2-112`, and Folia builds
+`1.21.11-14` / `26.1.2-8` / `26.2-4`. It verifies the runtime-assets and
+prepared-tree manifests, current source and product JARs, JDK/Gradle identities,
+12 raw process results, the sanitized report/binding/commit triplet, cleanup, and
+the absence of retained forwarding/private-key material.
+
+The earlier `platform-load-smoke.ps1` invocations without `-FabricTarget`,
+`bungee-paper-load-smoke.ps1`, `folia-process-smoke.ps1`,
+`proxy-admission-player-smoke.ps1`, and `proxy-folia-context-smoke.ps1` records
+for Minecraft 1.21.1/1.21.4 are legacy/historical. They remain useful debugging
+context but are not the three-version release gate.
+
+## Remaining execution order
+
+1. On an unlocked display-capable desktop, run
+   `platform-load-smoke.ps1 -FabricTarget <target> -WithFabricEvidence` once for
+   each target and complete the two visible consent decisions per run. Revalidate
+   each schema-6/V4 pair with `-ReportOnly` and independently reviewed hashes.
+2. Complete the separate real Fabric federation source-export and target-import
+   visible handoff gate. Raw-peer evidence must not be promoted to GUI coverage.
+3. Freeze the SERVER_CONFIRMED provider/profile/key/topology choices in
+   [SERVER_CONFIRMED_AUTHORITY.md](SERVER_CONFIRMED_AUTHORITY.md), wire a genuine
+   production provider, and pass Paper/Folia plus Velocity/Bungee process gates.
+4. Rerun the licensed Vulcan structural preflight against current source, then
+   pass isolated Paper enablement and one genuine externally triggered event.
+5. Review, commit, and push. Retain a passing protected-branch GitHub Actions run
+   and generate the clean exact-commit `releaseBundle` candidate.
+
+## Release decision
+
+The three Fabric targets, six deployables, strict local A/D build, post-fix
+12-case server matrix, and current Linux network-none rehearsal are green within
+their documented local boundaries. An unqualified release claim remains
+premature until the six visible GUI decisions and real Fabric federation handoff
+complete, current-source Vulcan gates and the genuine SERVER_CONFIRMED
+producer/configuration freeze complete, and exact-commit CI plus the clean
+exact-commit release bundle pass.

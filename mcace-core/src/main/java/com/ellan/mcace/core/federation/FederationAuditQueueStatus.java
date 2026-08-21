@@ -9,12 +9,23 @@ public record FederationAuditQueueStatus(
         long saturated,
         long handlerFailures,
         long rejectedAfterClose,
+        long rejectedAfterFault,
+        long commitTimeouts,
+        long discardedAfterFault,
         boolean closed,
+        boolean faulted,
         boolean workerAlive) {
     public FederationAuditQueueStatus {
         if (capacity <= 0 || queued < 0 || queued > capacity || accepted < 0L || processed < 0L
                 || saturated < 0L || handlerFailures < 0L || rejectedAfterClose < 0L) {
             throw new IllegalArgumentException("invalid federation audit queue status");
         }
+        if (rejectedAfterFault < 0L || commitTimeouts < 0L || discardedAfterFault < 0L) {
+            throw new IllegalArgumentException("invalid federation audit queue failure status");
+        }
+    }
+
+    public boolean healthy() {
+        return !closed && !faulted && workerAlive;
     }
 }

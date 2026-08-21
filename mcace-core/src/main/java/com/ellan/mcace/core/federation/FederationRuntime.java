@@ -29,6 +29,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
 /**
@@ -55,6 +57,9 @@ public final class FederationRuntime {
     private final NonceReplayGuard presentationReplayGuard;
     private final int maxPending;
     private final int maxObservations;
+    private final AtomicBoolean auditFaulted = new AtomicBoolean();
+    private final AtomicLong runtimeAuditCommitted = new AtomicLong();
+    private final AtomicLong runtimeAuditFailures = new AtomicLong();
     private final Map<UUID, PendingConsent> pendingByPlayer = new LinkedHashMap<>();
     private final Map<ObservationKey, FederationObservation> observations = new LinkedHashMap<>();
 
@@ -110,11 +115,13 @@ public final class FederationRuntime {
     }
 
     public synchronized FederationRuntimeState status() {
+        FederationAuditHealth auditHealth = effectiveAuditHealth();
         expireInternal(DEFAULT_SWEEP_LIMIT);
         FederationConfiguration current = configuration.get();
         return new FederationRuntimeState(
-                current.enabled(), current.localNetworkId(), current.peers().size(),
-                pendingByPlayer.size(), observations.size());
+                current.enabled() && auditHealth.available(), current.enabled(), auditHealth.available(),
+                current.localNetworkId(), current.peers().size(), pendingByPlayer.size(), observations.size(),
+                auditHealth.pending(), auditHealth.committed(), auditHealth.failures());
     }
 
     /** Offline pin summaries suitable for bounded operator status output. */
@@ -145,6 +152,9 @@ public final class FederationRuntime {
                     operatorId, sourceSubject.playerId(), current.localNetworkId(), targetNetworkId,
                     Optional.empty(), Optional.empty());
             return FederationIssueResult.rejected(FederationRuntimeStatus.DISABLED);
+        }
+        if (!auditAvailable()) {
+            return FederationIssueResult.rejected(FederationRuntimeStatus.AUDIT_FAILED);
         }
         if (!sourceSubject.localNetworkId().equals(current.localNetworkId())) {
             return FederationIssueResult.rejected(FederationRuntimeStatus.NO_CURRENT_SUBJECT);
@@ -204,6 +214,9 @@ public final class FederationRuntime {
         FederationConfiguration current = configuration.get();
         if (!current.enabled()) {
             return FederationGrantResult.rejected(FederationRuntimeStatus.DISABLED);
+        }
+        if (!auditAvailable()) {
+            return FederationGrantResult.rejected(FederationRuntimeStatus.AUDIT_FAILED);
         }
         if (!currentSourceSubject.localNetworkId().equals(current.localNetworkId())) {
             return FederationGrantResult.rejected(FederationRuntimeStatus.NO_CURRENT_SUBJECT);
@@ -278,6 +291,9 @@ public final class FederationRuntime {
                     operatorId, targetSubject.playerId(), "unknown", current.localNetworkId(),
                     Optional.empty(), Optional.empty());
             return FederationPresentationResult.rejected(FederationRuntimeStatus.DISABLED);
+        }
+        if (!auditAvailable()) {
+            return FederationPresentationResult.rejected(FederationRuntimeStatus.AUDIT_FAILED);
         }
         if (!targetSubject.localNetworkId().equals(current.localNetworkId())) {
             return FederationPresentationResult.rejected(FederationRuntimeStatus.NO_CURRENT_SUBJECT);
@@ -354,6 +370,9 @@ public final class FederationRuntime {
         if (limit <= 0 || limit > MAX_ADMIN_QUERY) {
             throw new IllegalArgumentException("federation observation query is outside bounds");
         }
+        if (!auditAvailable()) {
+            return List.of();
+        }
         expireInternal(DEFAULT_SWEEP_LIMIT);
         return observations.values().stream()
                 .filter(observation -> observation.playerId().equals(playerId))
@@ -403,6 +422,12 @@ public final class FederationRuntime {
     public synchronized int expire(int maximumEntries) {
         if (maximumEntries <= 0 || maximumEntries > ProtocolConstants.MAX_FEDERATION_REPLAY_ENTRIES) {
             throw new IllegalArgumentException("federation expiry sweep is outside bounds");
+        }
+        // Proxy adapters call this every second. Besides bounded cleanup, it is the periodic
+        // fail-closed health poll that notices an asynchronous disk failure even when no player
+        // sends another federation frame or an operator has not queried status yet.
+        if (!auditAvailable()) {
+            return 0;
         }
         return expireInternal(maximumEntries);
     }
@@ -476,7 +501,7 @@ public final class FederationRuntime {
             Optional<UUID> assertionId,
             Optional<String> peerKeyId) {
         try {
-            appendAudit(auditRecord(event, outcome, operatorId, playerId, sourceNetworkId,
+            offerAuditTelemetry(auditRecord(event, outcome, operatorId, playerId, sourceNetworkId,
                     targetNetworkId, assertionId, peerKeyId));
         } catch (RuntimeException ignored) {
             // The operation is already rejected. Audit failure cannot make it less restrictive.
@@ -498,10 +523,60 @@ public final class FederationRuntime {
 
     private boolean appendAudit(FederationAuditRecord record) {
         try {
-            return auditSink.offer(record);
-        } catch (RuntimeException exception) {
+            if (!auditAvailable()) {
+                return false;
+            }
+            auditSink.append(record);
+            runtimeAuditCommitted.incrementAndGet();
+            return true;
+        } catch (RuntimeException | LinkageError exception) {
+            tripAuditFault();
             return false;
         }
+    }
+
+    private void offerAuditTelemetry(FederationAuditRecord record) {
+        if (!auditAvailable()) {
+            return;
+        }
+        try {
+            if (!auditSink.offer(record)) {
+                tripAuditFault();
+            }
+        } catch (RuntimeException | LinkageError exception) {
+            tripAuditFault();
+        }
+    }
+
+    private boolean auditAvailable() {
+        return effectiveAuditHealth().available();
+    }
+
+    private FederationAuditHealth effectiveAuditHealth() {
+        FederationAuditHealth sinkHealth;
+        try {
+            sinkHealth = Objects.requireNonNull(auditSink.health(), "federation audit health");
+        } catch (RuntimeException | LinkageError exception) {
+            tripAuditFault();
+            sinkHealth = new FederationAuditHealth(false, 0, 0L, 1L);
+        }
+        if (!sinkHealth.available()) {
+            tripAuditFault();
+        }
+        long failures = Math.max(runtimeAuditFailures.get(), sinkHealth.failures());
+        long committed = Math.max(runtimeAuditCommitted.get(), sinkHealth.committed());
+        return new FederationAuditHealth(
+                !auditFaulted.get() && sinkHealth.available(), sinkHealth.pending(),
+                committed, failures);
+    }
+
+    /** A fault is sticky until process restart and discards all ephemeral federation state. */
+    private void tripAuditFault() {
+        if (auditFaulted.compareAndSet(false, true)) {
+            runtimeAuditFailures.incrementAndGet();
+        }
+        pendingByPlayer.clear();
+        observations.clear();
     }
 
     private static UUID canonicalUuid(String value) {

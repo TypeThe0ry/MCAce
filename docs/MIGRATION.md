@@ -63,11 +63,16 @@ restrict an already connected player.
 5. Keep every enforcement setting in `MONITOR` while pins, policies, and known
    good client flows are being checked.
 
-The following source-level suite is a useful pre-deployment regression check;
-it does not replace live process validation:
+Use the current three-target strict regression path before deployment; it does
+not replace live process validation:
 
 ```powershell
-.\gradlew.bat :mcace-client-common:test :mcace-client-fabric:test :mcace-server-velocity:test :mcace-server-bungeecord:test :mcace-server-paper:test --no-daemon
+$env:JAVA_HOME = '<Temurin 21.0.7+6 home>'
+.\gradlew.bat clean build localVerificationBundle `
+  "-PmcaceModernJavaHome=<Temurin 25.0.3+9 home>" `
+  --offline --dependency-verification=strict --rerun-tasks `
+  --no-build-cache --no-configuration-cache --no-daemon `
+  --no-parallel --max-workers=1 --console=plain
 ```
 
 ## Phase 1: install the supported components in monitor mode
@@ -122,32 +127,33 @@ Velocity/Bungee own NOTICE/WARN/LIMIT/QUARANTINE/DENY policy execution.
 
 For Folia, do not replace MCAce's scheduler path with direct asynchronous player
 access. The plugin routes player-facing work through the entity scheduler and
-expiry/cleanup through the global scheduler. Run the Folia process gate before
-using a new Folia version:
-
-```powershell
-.\scripts\folia-process-smoke.ps1
-```
-
-The recorded gate used official Folia `1.21.4-6 ALPHA`, because no official
-Folia `1.21.1` build was available. It is scheduler/admission evidence, not a
-claim of exact 1.21.1 Folia compatibility.
+expiry/cleanup through the global scheduler. Before deploying any supported
+version, run the authoritative three-version process matrix and confirm the exact
+target row. Folia 26.2 build 4 is a BETA lane and requires an explicit rollout
+decision; 1.21.11 and 26.1.2 use the reviewed STABLE Folia builds.
 
 ### Phase 1 verification and rollback
 
-Run the matching process gates from a controlled machine:
+Run the authoritative process gate from a controlled machine:
 
 ```powershell
-.\scripts\platform-load-smoke.ps1
-.\scripts\bungee-paper-load-smoke.ps1
-.\scripts\proxy-admission-player-smoke.ps1 -Proxy Velocity
-.\scripts\proxy-admission-player-smoke.ps1 -Proxy Bungee
+.\scripts\server-version-process-matrix.ps1 -Execute
+.\scripts\server-version-process-matrix.ps1 -ReportOnly
 ```
 
-These are loopback/offline gates. They prove the stated proxy-to-Paper paths and
-cleanup, not online-mode authentication or public-network deployment. Review the
-resulting reports under `build/platform-smoke/`,
-`build/platform-smoke-bungee/`, and `build/runtime-player-probe/`.
+This loopback/offline gate covers all 12 supported version/backend/proxy cases and
+binds current source, product JARs, fixed upstream assets, prepared trees, Java
+runtimes, raw reports, signed admission, shadow context, and cleanup. It does not
+prove online-mode identity or public-network deployment. The older 1.21.1/1.21.4
+platform, Bungee, Folia, and proxy-context wrappers are historical and cannot
+satisfy this migration gate.
+
+For a target-specific server-only Fabric startup, always include the target:
+
+```powershell
+.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11
+# or: -FabricTarget 26.1.2 / 26.2
+```
 
 If a pin or plugin enablement check fails, leave enforcement at `MONITOR`, stop
 the affected proxy/backend, restore the last verified public pin and matching
@@ -222,6 +228,16 @@ Then make all of the following true before changing either mode property:
    a disposition event.
 4. Operators understand that `DENY` disconnects only the current connection and
    that `LIMITED_ROUTE` is required for LIMIT/QUARANTINE execution.
+5. The proxy has initialized `trusted-disposition-authorizations.log`, and operators
+   understand that high-impact execution requires either a server-confirmed source
+   authorization or `/mcacedisposition review` with permission
+   `mcace.admin.disposition.review`. The review command supplies an exact artifact
+   hash and ticket but no action; the active signed policy selects the action and
+   the durable strict 16-column V3 journal write must succeed before execution is
+   queued. The record begins with `v3` and binds session, review input, and execution
+   context. At action time the proxy must still atomically validate the same physical
+   lifecycle, exact current session, `VERIFIED` admission, exact context commitment,
+   active policy identity/status/expiry, current winning rule, and action equality.
 
 Only then edit the matching property to `LIMITED_ROUTE` and restart that proxy
 so it reads the file. Test controlled accounts separately through the LIMIT route
@@ -232,6 +248,12 @@ DENY only disconnects the current connection. If either route target is absent,
 unregistered, or identical, the effective mode is `MONITOR`: the primary
 handshake remains usable and LIMIT, QUARANTINE, and DENY are not substituted with
 a kick, ban, or fallback route.
+
+Do not promote an older trusted smoke report while migrating. Release evidence must
+declare `authorization_contract=UUID_CONTEXT_COMMITMENT_V3`; V2 and contractless
+reports remain invalid. The current committed chains are in
+`docs/evidence/disposition-current-2026-08-21.json`; the August 13 file remains
+retained history.
 
 Rollback is a configuration rollback: set the same property back to `MONITOR`
 and restart the affected proxy. That immediately prevents further high-impact
@@ -375,10 +397,12 @@ The manual real Fabric UI evidence gate is still required for a release that
 depends on that flow:
 
 ```powershell
-.\scripts\platform-load-smoke.ps1 -WithFabricEvidence -FabricEvidencePlayerName Dev
+.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2 -WithFabricEvidence
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2 -WithFabricEvidence
 ```
 
-It requires a graphical local Fabric run and a human click. The script does not
+Each target requires a graphical local Fabric run and two distinct human clicks: one explicit-file decision and one frame decision. Across three targets that is six clicks. The script does not
 automate consent, mouse input, window capture, desktop capture, or account login.
 
 ## Phase 5: enable federation only after both operators pin each other
@@ -426,6 +450,14 @@ output with `mcace.admin.federation`:
 /mcacefederation issue <player> <target-network-id>
 ```
 
+Before issuing, require `configured=true enabled=true audit=HEALTHY` and
+`audit_failures=0`. `enabled=false configured=true audit=FAILED` means the
+process has latched an audit fault: stop issuing, preserve the restricted audit
+file for review, fix quota/path/storage health, and restart the proxy. The fault
+does not self-clear on configuration reload. Successful issue/grant/observation
+states are returned only after the audit worker confirms the durable file
+append; an accepted queue item is never treated as durable evidence.
+
 `issue` is an explicit source-operator action for a player that is currently
 locally `VERIFIED`. Fabric displays exact source/target information, short key
 fingerprints, expiry, and the observation-only disclosure with `Allow once` and
@@ -436,19 +468,33 @@ expiry, discard, or client shutdown.
 
 At the target, the player must independently complete local `VERIFIED`
 authentication with that same short-lived client key before the target accepts a
-session/challenge-bound proof of possession. An accepted remote statement is
+session/challenge-bound proof of possession. Fabric reserves that exact prepared
+presentation and shows a separate target-import prompt containing the exact
+source/target identities, fingerprints, disclosure, and expiry. The source
+decision is not reused: only a second visible target `Allow once` sends the
+presentation. Decline, close, connection change, or expiry sends nothing and
+cannot alter local admission. An accepted remote statement is
 only `FEDERATION_SOURCE_LOCALLY_VERIFIED` / remote corroboration. It cannot
 change local trust, risk, disposition, route, message, disconnect, ban, evidence
 handling, or Paper/Folia admission. Remove `enabled=true` or the relevant pin
 and restart the local proxy to stop new use; already signed grants cannot be
 instantly revoked and instead expire within their signed lifetime.
 
-The completed real-process matrix has one passing report for each proxy pair:
+The durable record `docs/evidence/federation-durable-audit-2026-08-13.json` shows
+that the historical schema-2 matrix passed all four proxy pairs (4/4) and then passed
+`-ReportOnly`. It binds older proxy artifacts/source and is not current release evidence:
 
-- `build/runtime-federation-matrix/runs/velocity-to-velocity-2026-08-09T04-17-26-161852200Z/report.json`
-- `build/runtime-federation-matrix/runs/velocity-to-bungee-2026-08-09T04-20-14-262646800Z/report.json`
-- `build/runtime-federation-matrix/runs/bungee-to-velocity-2026-08-09T04-23-30-338376200Z/report.json`
-- `build/runtime-federation-matrix/runs/bungee-to-bungee-2026-08-09T04-26-09-752830600Z/report.json`
+- Velocity to Velocity
+- Velocity to Bungee
+- Bungee to Velocity
+- Bungee to Bungee
+
+The separate target-restart gate passed on its first current-source execution and
+then passed `-ReportOnly`, recording `residual_reacceptance=true`,
+`durable_replay_protection=false`, and `fabric_gui_coverage=false`. The former P2
+cold-listener readiness race was fixed by waiting, after plugin initialization,
+for the exact selected-port loopback listener marker; the pure marker unit test
+also passed. The durable record copies no raw reports or identifiers.
 
 Re-run all four only as an explicit opt-in process gate:
 
@@ -459,10 +505,20 @@ Re-run all four only as an explicit opt-in process gate:
 The matrix proves source-local authentication, an explicit issue, in-memory grant
 carry after source disconnect, independent target authentication, observation,
 same-assertion replay rejection, unchanged local trust/risk/admission, signed
-Paper admission, content-free audit, and owned-process cleanup. It uses a
+Paper admission, content-free audit, healthy durable-audit state at source and
+target, and owned-process cleanup. It uses a
 test-only raw peer, not a rendered Fabric consent UI. Real Fabric federation
-consent, target-restart residual replay, and the complete privacy scan remain
-release gates; do not treat the matrix as proof of those rows.
+consent and the complete privacy scan remain release gates; do not treat the
+matrix as proof of those rows.
+
+The current `scripts/fabric-federation-gui-handoff-smoke.ps1` is a fail-closed V2
+wrapper for all three supported Fabric targets. Its PowerShell 7 and Windows
+PowerShell 5 static contract tests pass, and both source-export and target-import
+screens are implemented. A migration still needs a real human execution: approve
+source export, disconnect and use Direct Connection for the exact target, approve
+target import, then keep that connection alive through signed expiry while the
+wrapper verifies target observation, Paper admission, unchanged local state,
+cleanup, and privacy. No static or raw-peer record substitutes for that run.
 
 ## Completion checklist and rollback order
 

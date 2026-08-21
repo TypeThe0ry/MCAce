@@ -1,263 +1,206 @@
 # Platform process testing
 
-## Current gate
+## Current release gates
 
-`scripts/platform-load-smoke.ps1` starts real server distributions and loads the
-deployable MCAce shadow JARs. It is opt-in because the first run downloads and
-prepares Minecraft server artifacts.
+MCAce has two independent platform gates:
 
-Pinned upstream inputs:
+1. `server-version-process-matrix.ps1` proves the raw Minecraft peer, proxy,
+   backend, signed admission, shadow context, exact artifacts, and cleanup for
+   all supported server tuples.
+2. `platform-load-smoke.ps1 -FabricTarget ... -WithFabricEvidence` proves that
+   the exact final Fabric artifact starts in a real graphical client and that a
+   human sees and approves the two distinct consent prompts.
 
-| Platform | Build | SHA-256 |
+Neither gate replaces the other. The raw peer is bounded test tooling, not an
+independent client product. A server-only platform run does not prove GUI consent.
+
+## Supported target and artifact matrix
+
+| Minecraft | Protocol | Java | Paper | Folia | Fabric artifact |
+| --- | ---: | ---: | --- | --- | --- |
+| `1.21.11` | 774 | 21 | build 132, STABLE | build 14, STABLE | final remapped JAR |
+| `26.1.2` | 775 | 25 | build 74, STABLE | build 8, STABLE | final named JAR |
+| `26.2` | 776 | 25 | build 112, STABLE | build 4, **BETA** | final named JAR |
+
+Both proxy assets are shared across the matrix:
+
+| Platform | Version/build | SHA-256 |
 | --- | --- | --- |
-| Velocity | 3.5.1 build 615 | `b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3` |
-| Paper | 1.21.1 build 133 | `39bd8c00b9e18de91dcabd3cc3dcfa5328685a53b7187a2f63280c22e2d287b9` |
+| Velocity | `3.5.1-615` | `b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3` |
+| BungeeCord | `2085` | `e6914a29c0ae04c0ed6335f201e409322b3c67548906a91e92e832d665cd6fce` |
 
-Artifacts are downloaded from PaperMC's official Fill service with a named user
-agent and verified before execution. A mismatched cached file is quarantined
-rather than executed or overwritten.
+The backend pins are:
 
-## Run
+| Platform | Version/build | Channel | SHA-256 |
+| --- | --- | --- | --- |
+| Paper | `1.21.11-132` | STABLE | `5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba` |
+| Paper | `26.1.2-74` | STABLE | `1d70b1dab9cf4a6de615209a536f3a45a2186240253c428213ce2188ab95e5f7` |
+| Paper | `26.2-112` | STABLE | `bd3a58cf96874e5ea6643f5f6fe9b4f5bf9e34b795fa078c2f0ee8b98b2f907e` |
+| Folia | `1.21.11-14` | STABLE | `f52c408490a0225611e67907a3ca19f7e6da2c6bc899e715d5f46844e7103c39` |
+| Folia | `26.1.2-8` | STABLE | `607afd1c3320008e1ffd2eaee6780ace4419d5f8c527b75e79f259be79ebf57b` |
+| Folia | `26.2-4` | BETA | `19c81c308ba4de4b9fc0a61860c86281836d26ac046f696ea241766eea4b2468` |
 
-Requirements: Java 21, PowerShell, and network access on the first run.
+Artifacts are pinned in `build/runtime-assets/manifest.json`. Initialized
+server trees are bound by `build/runtime-assets/prepared-manifest.json`; only
+`cache`, `libraries`, and `versions` are copied into a case. Worlds and live
+state are never shared between cases.
 
-```powershell
-.\scripts\platform-load-smoke.ps1
-```
+## Run the 12-case server matrix
 
-The complete Phase 2 exit gate also starts a real Fabric client:
-
-```powershell
-.\scripts\platform-load-smoke.ps1 -WithFabricClient
-```
-
-An opt-in, display-capable evidence gate extends that run with one real signed
-`GAME_RENDER_FRAME` request. Supply the actual local Loom development profile
-name; the script does not guess it and never performs account login itself.
+Use PowerShell 7 for execution:
 
 ```powershell
-.\scripts\platform-load-smoke.ps1 -WithFabricEvidence -FabricEvidencePlayerName Dev
+.\scripts\server-version-process-matrix.ps1 -Execute
+.\scripts\server-version-process-matrix.ps1 -ReportOnly
 ```
 
-After the signed request arrives, the operator must see and choose `Allow once`
-in Minecraft. The script deliberately does not synthesize a click, capture a
-window, capture a desktop, or access a cursor. It waits for the Fabric log to
-confirm that the consent screen was shown, the server-signed `COMPLETE`
-acknowledgement received by the client, and Velocity's content-free `evidence-audit.log` summary for
-the requested `GAME_RENDER_FRAME`. It copies that audit file into the smoke run
-directory; default evidence storage discards raw bytes.
+The wrapper has no implicit mode. It fails unless exactly one of `-Execute` and
+`-ReportOnly` is present. `-Execute`:
 
-Fabric Loom may need to fetch the official Minecraft assets on the first client
-run. They can be prepared separately with:
+1. verifies the fixed asset and prepared-tree manifests;
+2. resolves exact JDK 21, JDK 25, and Gradle 9.6.1 installations;
+3. builds current Velocity, BungeeCord, and Paper/Folia MCAce plugins with root
+   JDK 21 under strict offline, rerun, no-cache, serial flags;
+4. executes 3 Minecraft versions × 2 backends × 2 proxies, one case at a time;
+5. binds every case to current source, product JARs, server/proxy JARs, protocol
+   profile, prepared-tree digest, and raw-report digest;
+6. requires authentication, signed backend admission, the content-free shadow
+   context audit, and zero run-owned processes;
+7. rejects residual forwarding secrets, delegated keys, private keys, staging
+   directories, or an incomplete evidence triplet; and
+8. publishes `report.json`, `binding.json`, and `commit.json` by a same-volume
+   atomic directory rename.
+
+The August 20 run `2026-08-20T12-01-09-3951618Z` passed 12/12 and then passed
+`-ReportOnly`: Paper 6/6, Folia 6/6, Velocity 6/6, Bungee 6/6, with 10 STABLE
+cases and the two Folia 26.2 BETA cases. It binds 675 source files under manifest
+`80d7753f8c7d47b9f779fde26c229f8df236ef192404708557925f31f0faada7`.
+Its current sanitized repository evidence is
+[`evidence/server-version-process-matrix-2026-08-20.json`](evidence/server-version-process-matrix-2026-08-20.json).
+
+`-ReportOnly` starts no server or proxy. It re-derives current source, asset,
+prepared-tree, product-JAR, Java, Gradle, wrapper, and raw-report bindings and
+accepts only the latest complete committed triplet. It rejects stale or partial
+evidence and any binding drift.
+
+## Run the per-target Fabric platform gate
+
+`-FabricTarget` is mandatory:
 
 ```powershell
-.\gradlew.bat :mcace-client-fabric:downloadAssets --no-daemon
+# Server-only startup. All three targets have passed this mode.
+.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2
+
+# Real client and handshake, without frame evidence.
+.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricClient
+
+# Full visible consent/evidence gate.
+.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence
 ```
 
-Every invocation creates `build/platform-smoke/runs/<UTC timestamp>/` and leaves
-earlier runs intact. It uses ephemeral loopback-only ports and performs:
+The last command must be repeated for `26.1.2` and `26.2`. All three targets'
+Mojang version metadata, asset indexes, and asset objects are already present in
+the validated cache. There is no remaining asset-download blocker.
 
-1. Builds the Velocity and Paper deployable shadow JARs.
-2. Starts Velocity with MCAce and waits for plugin initialization plus proxy
-   readiness.
-3. Copies only Velocity's public Ed25519 identity into the Paper plugin data
-   directory.
-4. Starts Paper, requires MCAce channel initialization and compares the logged
-   pin fingerprint with the generated Velocity key.
-5. With `-WithFabricClient`, starts Minecraft 1.21.1 with Fabric Loader 0.19.3,
-   connects through Velocity, and requires the client, proxy, and Paper backend
-   to agree on `VERIFIED` with risk 0.
-6. Gracefully stops Paper, temporarily moves the pin aside, and restarts Paper.
-7. Requires MCAce to fail plugin enablement with an explicit missing-pin error
-   while Paper itself still reaches `Done`.
-8. Restores the pin and gracefully stops both services; a timeout triggers
-   process-tree termination.
+The human operator must approve two distinct UI decisions in each run:
 
-The final `report.json`, positive/negative Paper logs, Velocity log, console
-captures, artifact hashes, bind addresses, and assertions remain in the run
-directory. A passing final line is:
+1. the signed-policy explicit-file prompt; and
+2. the later signed, one-shot `GAME_RENDER_FRAME` prompt.
 
-```text
-PLATFORM_LOAD_SMOKE_PASS|<absolute run path>
-```
+That is six visible human clicks across three targets. A request marker emitted
+before first render is not GUI evidence. The harness does not automate input,
+does not control an existing Minecraft process, and cannot convert a decline,
+close, expiry, or unsupported result into risk or enforcement.
 
-## Boundary
+A passing record uses report schema `6` and binding
+`MCACE_FABRIC_GUI_EVIDENCE_BINDING_V4`. It must bind:
 
-The base gate proves real artifact compatibility, plugin discovery/enable/disable,
-root identity generation, explicit backend pinning, and missing-pin fail-closed
-behavior. The `-WithFabricClient` gate additionally proves live custom-payload
-registration, signed policy verification, four scoped manifests, a server-signed
-authentication result, and the player-carried `mcace:admission` route into Paper.
-Unit tests separately verify malformed frames, replay rejection, carrier UUID
-binding, monotonic rollback protection, and local TTL expiry.
+- the target-specific final artifact and unique run build ID;
+- the loaded entrypoint's exact `CodeSource` SHA-256;
+- the exact rewritten `velocity_policy_minecraft_versions` and
+  `velocity_policy_client_build_ids` policy tuples;
+- current Velocity and Paper plugin JARs;
+- the pinned Velocity/Paper servers and prepared Paper tree;
+- the Minecraft version manifest, asset index, and complete cached asset-object
+  manifest;
+- isolated `options.txt`, exactly one explicit-file manifest entry, both consent
+  chains, bounded evidence transfer, and cleanup; and
+- zero Java processes carrying the exact CSPRNG run token after cleanup.
 
-## Proxy-to-Paper signed admission player gate
+For 1.21.11, artifact mode must be `FINAL_REMAP_JAR` /
+`LOOM_FINAL_REMAP_ARTIFACT`. For 26.x it must be `FINAL_NAMED_JAR` /
+`LOOM_FINAL_NAMED_JAR_ARTIFACT`. Development source output or a staged root
+fallback cannot satisfy either mode.
 
-The raw wire-peer gate starts a real Velocity or BungeeCord proxy process, a real
-Paper process, and a bounded loopback Minecraft 1.21.1 protocol peer. The peer
-completes configuration, receives the MCAce challenge, sends signed
-`CLIENT_HELLO`/`AUTH_REQUEST` frames, and remains connected while the proxy sends
-the player-carried signed `mcace:admission` snapshot to Paper. Paper must report
-that it accepted the signed admission state; the test also requires no child
-processes to remain.
-
-The gate uses the normal proxy-to-backend forwarding configuration for each
-adapter: Velocity `modern` forwarding with a per-run secret and Paper's matching
-`proxies.velocity` configuration; BungeeCord `ip_forward: true` with Paper's
-`settings.bungeecord: true`. The generated Velocity secret is never emitted in a
-report and is removed during harness cleanup. This remains a loopback,
-offline-mode transport test: it verifies forwarding compatibility and MCAce's
-signed admission/pin boundary, not Mojang/Microsoft account authentication.
+Report-only validation requires the target and independently reviewed hashes:
 
 ```powershell
-.\scripts\proxy-admission-player-smoke.ps1
-# Or run one adapter only:
-.\scripts\proxy-admission-player-smoke.ps1 -Proxy Velocity
-.\scripts\proxy-admission-player-smoke.ps1 -Proxy Bungee
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2 -ReportOnly `
+  -ExpectedFabricArtifactSha256 '<reviewed>' `
+  -ExpectedVelocityPluginSha256 '<reviewed>' `
+  -ExpectedPaperPluginSha256 '<reviewed>' `
+  -ExpectedVelocityServerSha256 '<reviewed>' `
+  -ExpectedPaperServerSha256 '<reviewed>' `
+  -ExpectedPaperPreparedManifestSha256 '<reviewed>' `
+  -ExpectedPaperPreparedTreeSha256 '<reviewed>' `
+  -ExpectedFabricVersionInfoSha256 '<reviewed>' `
+  -ExpectedFabricAssetIndexSha256 '<reviewed>' `
+  -ExpectedFabricAssetObjectManifestSha256 '<reviewed>'
 ```
 
-Each result is kept in `build/runtime-player-probe/runs/<adapter>-<timestamp>/`
-as `report.json` and `report.md`. The report records real TCP/login/configuration
-progress, the signed MCAce result, Paper backend admission, and cleanup status;
-it does not log raw signed frames or private keys.
+Do not source the expected values from the report being validated.
 
-This is a loopback-only, **offline-mode** integration gate. The peer uses a fixed
-test player name and an ephemeral client signing key; it is not a Mojang/Microsoft
-authenticated account and does not prove production online-mode forwarding. It
-does prove the concrete proxy-to-Paper plugin-message path and Paper verification
-against the per-run proxy public-key pin. Source-direction unit tests remain part
-of the gate: client handshake input is player-only, backend/server injection
-cannot reach the coordinator, and Paper rejects snapshots without a valid pinned
-proxy signature.
+## Other retained process gates
 
-The deterministic auto-connect and exit system properties are enabled only by
-the Loom smoke run configuration. They do not alter normal packaged-client
-connection behavior or weaken any signature, nonce, policy, or UUID check.
+The following opt-in gates remain valid for the narrow contracts stated in
+their own retained evidence, but they do not add Fabric-version support:
 
-## Incremental disposition matrix gate
+- `disposition-proxy-matrix-smoke.ps1 -Proxy Both -FabricTarget <1.21.11|26.1.2|26.2>`:
+  8/8 CLIENT_REPORTED advisory-origin guard per target; no requested
+  high-impact action executes. Repeat once for each target; retained 2026-08-13
+  evidence is historical until a current-source Execute+ReportOnly pair exists.
+- `trusted-disposition-proxy-matrix-smoke.ps1 -Proxy Both -FabricTarget <1.21.11|26.1.2|26.2>`:
+  6/6 ADMIN_REVIEWED V4 routes per target; LIMIT and QUARANTINE are distinct
+  and DENY closes only the current connection. Repeat once for each target;
+  retained 2026-08-13 evidence is historical until refreshed.
+- `federation-proxy-matrix-smoke.ps1 -Pair All`: 4/4 raw-peer federation
+  protocol/audit matrix. `fabric_gui_coverage=false` remains true.
+- `federation-target-restart-residual-smoke.ps1`: process-local replay-state
+  residual characterization; it truthfully records
+  `durable_replay_protection=false`.
 
-`scripts/disposition-proxy-matrix-smoke.ps1` is a separate, default-skipped
-gate enabled by `mcace.runtime.disposition.enabled=true`. It runs real cases
-strictly serially. Velocity and Bungee each use three named Paper backends and
-a harmless test-only exact-SHA manifest to cover monitor-inert LIMIT plus
-enforced LIMIT and QUARANTINE routing. The Bungee enforced cases are only
-credited when the early route is first reported as `*_DEFERRED`, its one-shot
-post-`ServerConnectedEvent` flush is reported as `DISPATCHED`, and Bungee's
-separate `MCAce disposition route completion=SUCCESS` callback is observed.
-`DISPATCHED` alone is deliberately not completion evidence.
+The separate Fabric federation V2 wrapper and both visible screens are
+implemented for all three targets. Its PowerShell 7 and Windows PowerShell 5
+static contract tests pass, including the six exact source-export/target-import
+runtime markers. A real run still needs a human to approve source export,
+disconnect and directly join the exact target, approve target import, and keep
+the target connection alive through signed expiry. Raw-peer or static evidence
+cannot be promoted to that coverage.
 
-The separately selected Velocity DENY reconnect case has a content-free
-pre-reconnect lifecycle barrier. A bounded loopback status ping must first
-observe an empty proxy registry; a test-only Velocity observer at
-`DisconnectEvent` `PostOrder.LAST` must then emit a new fixed marker. The
-observer never records player/event data, and LOGIN/CONFIGURATION disconnect
-components are not decoded. Failure is reported only as the fixed
-`clean_reconnect_stage`, `termination`, and `old_session_cleanup` enums; a
-timeout never opens the second socket.
+## Legacy wrappers and historical evidence
 
-Each run deletes the forwarding secret, per-run private material, client cache,
-signed policy/history, run-local observer JAR copy, and child stdout/stderr in `finally`. Only
-a content-free `report.json` remains. Unimplemented actions remain
-`NOT_EXECUTED`, `matrix_completed=false`, and `fabric_gui_coverage=false`; no
-hostile Paper admission or Bungee Phase 2 claim is implied.
-The evidence variant changes only the smoke shutdown point: it stays open after
-authentication until the operator's one-shot consent results in a signed
-`COMPLETE` acknowledgement. It never auto-consents.
+The following wrappers and their Minecraft 1.21.1/1.21.4 records predate the
+three-version matrix:
 
-## Federation proxy matrix gate
+- `bungee-paper-load-smoke.ps1`;
+- `folia-process-smoke.ps1`;
+- `proxy-admission-player-smoke.ps1`;
+- `proxy-folia-context-smoke.ps1`; and
+- `paper-folia-hostile-admission-smoke.ps1`, whose version allowlist is still
+  limited to the older 1.21.1–1.21.4 range.
 
-The client-carried federation path has a separate, explicit opt-in real-process
-matrix. It starts an independent source proxy + Paper and target proxy + Paper,
-using each of the four adapter combinations:
+They are retained as legacy debugging or historical evidence only. Their old
+Paper 1.21.1-133, BungeeCord 2028, and Folia 1.21.4-6 ALPHA pins are not current
+release inputs and cannot satisfy the 1.21.11/26.1.2/26.2 release gate.
 
-```powershell
-.\scripts\federation-proxy-matrix-smoke.ps1 -Pair VelocityToVelocity
-.\scripts\federation-proxy-matrix-smoke.ps1 -Pair VelocityToBungee
-.\scripts\federation-proxy-matrix-smoke.ps1 -Pair BungeeToVelocity
-.\scripts\federation-proxy-matrix-smoke.ps1 -Pair BungeeToBungee
-# Run all four sequentially:
-.\scripts\federation-proxy-matrix-smoke.ps1 -Pair All
-```
+## Evidence boundary
 
-The source raw peer first completes ordinary local `VERIFIED` authentication.
-The harness then sends an explicit console `mcacefederation issue` command and,
-only because this test itself was explicitly enabled, produces the same signed
-consent response that a real Fabric user may approve. After receiving the signed
-grant, the source client socket is closed. There is no source-to-target service
-or live broker. The target peer reuses the still-live in-memory source session
-key, completes a fresh local target authentication, signs the target-session PoP,
-and submits the presentation. The gate requires an `OBSERVED` content-free target
-audit, rejects a fresh-outer-envelope replay of the same assertion, keeps target
-trust/risk/Paper admission at local `VERIFIED`/`0`, removes per-run forwarding
-secrets, and leaves no owned process alive.
-
-Reports are written under
-`build/runtime-federation-matrix/runs/<source>-to-<target>-<timestamp>/`. They do
-not contain grants, signed frames, nonces, session keys, challenges, private keys,
-or raw federation presentations. The test is skipped during ordinary Gradle runs
-unless `mcace.runtime.federation.enabled=true` is explicitly set.
-
-This is a proxy/protocol matrix, not a Fabric GUI test. Its test-only raw peer
-automatically exercises consent after the explicit opt-in command; it does not
-claim that the real Fabric `Allow once` screen was rendered or clicked. That UI
-remains a separate manual gate.
-
-## Federation target-restart residual gate
-
-Run the restart residual gate separately and only by explicit operator choice:
-
-```powershell
-.\scripts\federation-target-restart-residual-smoke.ps1
-```
-
-This Velocity-to-Velocity real-process probe proves the current, documented
-residual rather than attempting to hide it: it stops the target proxy process
-while retaining the same target identity/configuration and running Paper,
-requires a newly authenticated target session to reject the old session-bound
-PoP, then uses a test-only in-memory retained grant/key to sign a fresh PoP.
-Because the target replay guard is intentionally in process memory, the fresh
-unexpired assertion is expected to become advisory `OBSERVED` after restart.
-The report therefore requires `residual_reacceptance=true`, content-free audit,
-local `VERIFIED`/risk `0`/Paper admission invariants, and zero owned processes.
-It is not durable cross-restart replay protection, not a Fabric GUI test, and
-does not create any risk, admission, disposition, routing, punishment, evidence,
-or source-target-network side effect.
-
-## Folia player/runtime gate
-
-Run the Folia-specific process gate separately:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\folia-process-smoke.ps1
-```
-
-The script asks PaperMC's official Fill API for Folia 1.21.1. Because no official
-1.21.1 build is available, the recorded gate resolves and pins Folia 1.21.4-6
-`ALPHA` with SHA-256
-`dcf2333211c1468c8eddc482bc8549600818cc661a709124a79c752f8fa2ac3a` rather
-than claiming exact 1.21.1 compatibility. It first proves missing-pin fail closed,
-then starts a valid pinned server and a bounded test-only offline wire peer. The peer
-completes login/configuration and sends one two-second, ephemeral-test-key-signed
-admission snapshot. The gate requires region/entity admission consumption, global
-expiry, PlayerQuit cleanup, no Folia thread-error marker, deletion of the private
-test key, and zero residual processes.
-
-Latest passing report:
-
-```text
-build/platform-smoke-folia/runs/20260808T202505461Z/report.json
-```
-
-This proves the backend scheduler and admission lifecycle against a real Folia
-process and player entity. It does not prove online-mode authentication, a real
-Fabric client on Folia, or production Velocity/Bungee forwarding into Folia.
-
-## Evidence gate boundary
-
-This gate is intentionally not suitable for headless CI. It requires a graphical
-Minecraft/Fabric 1.21.1 development run, the standard Loom assets that may be
-downloaded on first use, and an operator to inspect the consent UI. A passing
-run proves the actual Fabric process, signed request, visible consent-screen
-transition, one framebuffer capture, bounded chunk upload, client `COMPLETE`
-acknowledgement, and proxy audit summary. It does not prove the semantic content
-of the captured pixels, and it never requests `GAME_WINDOW` or `DESKTOP`.
+Current process evidence proves loopback/offline process behavior for exact
+reviewed artifacts. It does not prove Mojang/Microsoft online-mode identity,
+public-network forwarding, production firewall/ACL policy, a licensed Vulcan
+event, or a live SERVER_CONFIRMED producer. Context remains shadow-only and has
+no disposition callback. Fabric evidence remains CLIENT_REPORTED. `MONITOR`
+remains the default, no permanent automatic BAN exists, and DENY is limited to
+the current connection.

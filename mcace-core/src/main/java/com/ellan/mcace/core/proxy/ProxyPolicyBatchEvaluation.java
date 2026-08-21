@@ -10,13 +10,15 @@ public record ProxyPolicyBatchEvaluation(
         ProxyPolicyRefreshStatus refreshStatus,
         int totalObservations,
         Map<DispositionAction, Integer> actionCounts,
+        int advisoryEnforcementRuleBlocks,
         List<ProxyPolicyEvaluation> retainedEvaluations,
         boolean truncated) {
     public ProxyPolicyBatchEvaluation {
         Objects.requireNonNull(refreshStatus, "refreshStatus");
         Objects.requireNonNull(actionCounts, "actionCounts");
         Objects.requireNonNull(retainedEvaluations, "retainedEvaluations");
-        if (totalObservations < 0 || retainedEvaluations.size() > totalObservations) {
+        if (totalObservations < 0 || advisoryEnforcementRuleBlocks < 0
+                || retainedEvaluations.size() > totalObservations) {
             throw new IllegalArgumentException("invalid proxy policy batch evaluation");
         }
         actionCounts = Map.copyOf(actionCounts);

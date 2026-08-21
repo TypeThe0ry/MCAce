@@ -26,7 +26,7 @@ record BungeeBridgeConfiguration(
             # The built-in policy is Fabric-first. A custom bridge provider may be packaged when
             # compatibility requirements differ.
             server.id=mcace-bungeecord
-            minecraft.version=1.21.1
+            minecraft.version=1.21.11
             client.build-id=fabric-phase2-dev
             handshake.timeout.seconds=5
             disposition.enforcement.mode=MONITOR
@@ -107,7 +107,7 @@ record BungeeBridgeConfiguration(
         try {
             return new BungeeBridgeConfiguration(
                     properties.getProperty("server.id", "mcace-bungeecord").trim(),
-                    properties.getProperty("minecraft.version", "1.21.1").trim(),
+                    properties.getProperty("minecraft.version", "1.21.11").trim(),
                     properties.getProperty("client.build-id", "fabric-phase2-dev").trim(),
                     Duration.ofSeconds(timeout),
                     mode,

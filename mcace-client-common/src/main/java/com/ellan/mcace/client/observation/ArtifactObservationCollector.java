@@ -2,6 +2,7 @@ package com.ellan.mcace.client.observation;
 
 import com.ellan.mcace.client.integrity.ClientIntegrityBundle;
 import com.ellan.mcace.client.integrity.IntegrityEntry;
+import com.ellan.mcace.client.integrity.IntegrityScanCancellation;
 import com.ellan.mcace.client.integrity.IntegrityScanException;
 import com.ellan.mcace.client.integrity.ScopeIntegrityManifest;
 import com.ellan.mcace.core.disposition.ArtifactObservation;
@@ -42,13 +43,22 @@ public final class ArtifactObservationCollector {
      */
     public List<ArtifactObservation> collect(
             Path minecraftRoot, SecurityPolicy policy, ClientIntegrityBundle bundle) throws IntegrityScanException {
+        return collect(minecraftRoot, policy, bundle, IntegrityScanCancellation.NONE);
+    }
+
+    public List<ArtifactObservation> collect(
+            Path minecraftRoot, SecurityPolicy policy, ClientIntegrityBundle bundle,
+            IntegrityScanCancellation cancellation) throws IntegrityScanException {
         Objects.requireNonNull(minecraftRoot, "minecraftRoot");
         Objects.requireNonNull(policy, "policy");
         Objects.requireNonNull(bundle, "bundle");
+        Objects.requireNonNull(cancellation, "cancellation");
+        cancellation.check();
 
         Map<String, IntegrityScopeRule> rulesByScope = rulesByScope(policy);
         List<ArtifactObservation> observations = new ArrayList<>();
         for (ScopeIntegrityManifest scope : bundle.scopes()) {
+            cancellation.check();
             IntegrityScopeRule rule = rulesByScope.get(scope.scope());
             if (rule == null) {
                 throw new IntegrityScanException("integrity bundle contains a scope not granted by policy: " + scope.scope());
@@ -61,9 +71,12 @@ public final class ArtifactObservationCollector {
                 continue;
             }
             for (IntegrityEntry entry : scope.entries()) {
-                observations.add(observationFor(minecraftRoot, rule, type, entry));
+                cancellation.check();
+                observations.add(observationFor(
+                        minecraftRoot, rule, type, entry, cancellation));
             }
         }
+        cancellation.check();
         return observations.stream().sorted(Comparator
                         .comparing((ArtifactObservation observation) -> observation.type().name())
                         .thenComparing(ArtifactObservation::identifier)
@@ -84,13 +97,17 @@ public final class ArtifactObservationCollector {
     }
 
     private static ArtifactObservation observationFor(
-            Path minecraftRoot, IntegrityScopeRule rule, ArtifactType type, IntegrityEntry entry)
+            Path minecraftRoot, IntegrityScopeRule rule, ArtifactType type, IntegrityEntry entry,
+            IntegrityScanCancellation cancellation)
             throws IntegrityScanException {
         String identifier = "unknown";
         String version = "unknown";
         String metadataStatus = "not-applicable";
         if (type == ArtifactType.MOD) {
-            FabricModMetadata metadata = FabricModMetadata.read(resolveScannedFile(minecraftRoot, rule, entry));
+            cancellation.check();
+            FabricModMetadata metadata = FabricModMetadata.read(
+                    resolveScannedFile(minecraftRoot, rule, entry), cancellation);
+            cancellation.check();
             identifier = metadata.identifier();
             version = metadata.version();
             metadataStatus = metadata.status();

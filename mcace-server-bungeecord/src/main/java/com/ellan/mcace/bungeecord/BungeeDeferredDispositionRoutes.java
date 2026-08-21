@@ -87,9 +87,17 @@ final class BungeeDeferredDispositionRoutes {
         }
     }
 
+    /** Terminal DENY belongs to one physical login, even if its authenticated session id churns. */
+    private record DeniedLogin(LoginTicket ticket, Object playerIdentity) {
+        DeniedLogin {
+            Objects.requireNonNull(ticket, "ticket");
+            Objects.requireNonNull(playerIdentity, "playerIdentity");
+        }
+    }
+
     private final Map<UUID, Pending> pendingByPlayer = new LinkedHashMap<>();
     private final Map<UUID, ActiveLogin> activeLogins = new LinkedHashMap<>();
-    private final Map<UUID, String> deniedSessions = new LinkedHashMap<>();
+    private final Map<UUID, DeniedLogin> deniedLogins = new LinkedHashMap<>();
     private long nextLoginTicket;
 
     BungeeDeferredDispositionRoutes(Clock clock) {
@@ -104,7 +112,7 @@ final class BungeeDeferredDispositionRoutes {
         nextLoginTicket = next.value();
         activeLogins.put(playerId, new ActiveLogin(next, playerIdentity, false));
         pendingByPlayer.remove(playerId);
-        deniedSessions.remove(playerId);
+        deniedLogins.remove(playerId);
         return next;
     }
 
@@ -118,6 +126,21 @@ final class BungeeDeferredDispositionRoutes {
         }
         activeLogins.put(playerId, new ActiveLogin(active.ticket(), active.playerIdentity(), true));
         return Optional.of(active.ticket());
+    }
+
+    /** Closes the action window before Bungee starts changing this login's backend pointer. */
+    synchronized boolean markBackendConnecting(
+            UUID playerId, Object playerIdentity, LoginTicket loginTicket) {
+        Objects.requireNonNull(playerId, "playerId");
+        Objects.requireNonNull(playerIdentity, "playerIdentity");
+        Objects.requireNonNull(loginTicket, "loginTicket");
+        ActiveLogin active = activeLogins.get(playerId);
+        if (active == null || active.playerIdentity() != playerIdentity
+                || !active.ticket().equals(loginTicket)) {
+            return false;
+        }
+        activeLogins.put(playerId, new ActiveLogin(active.ticket(), active.playerIdentity(), false));
+        return true;
     }
 
     synchronized Optional<LoginTicket> ticketFor(UUID playerId, Object playerIdentity) {
@@ -182,8 +205,10 @@ final class BungeeDeferredDispositionRoutes {
             UUID playerId, String sessionId, Object playerIdentity, LoginTicket loginTicket) {
         Objects.requireNonNull(playerId, "playerId");
         Objects.requireNonNull(sessionId, "sessionId");
+        DeniedLogin denied = deniedLogins.get(playerId);
         return isCurrent(playerId, playerIdentity, loginTicket)
-                && !sessionId.equals(deniedSessions.get(playerId));
+                && (denied == null || !denied.ticket().equals(loginTicket)
+                        || denied.playerIdentity() != playerIdentity);
     }
 
     /** DENY is terminal for the current session and atomically discards a previously queued route. */
@@ -195,7 +220,7 @@ final class BungeeDeferredDispositionRoutes {
             return false;
         }
         pendingByPlayer.remove(playerId);
-        deniedSessions.put(playerId, sessionId);
+        deniedLogins.put(playerId, new DeniedLogin(loginTicket, playerIdentity));
         return true;
     }
 
@@ -219,7 +244,7 @@ final class BungeeDeferredDispositionRoutes {
         }
         pendingByPlayer.remove(required);
         activeLogins.remove(required);
-        deniedSessions.remove(required);
+        deniedLogins.remove(required);
         return true;
     }
 

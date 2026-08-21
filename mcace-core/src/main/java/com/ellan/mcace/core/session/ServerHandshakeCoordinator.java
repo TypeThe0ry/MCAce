@@ -277,7 +277,7 @@ public final class ServerHandshakeCoordinator {
             }
             return switch (envelope.getHeader().getPacketType()) {
                 case CLIENT_HELLO -> receiveClientHello(context, envelope);
-                case AUTH_REQUEST -> receiveAuthRequest(context, envelope);
+                case AUTH_REQUEST -> receiveOrDeferAuthRequest(context, envelope);
                 case PAYLOAD_BEGIN, PAYLOAD_CHUNK, PAYLOAD_COMMIT -> receiveBoundedPayload(context, envelope, encodedFrame);
                 case HEARTBEAT -> receiveHeartbeat(context, encodedFrame);
                 default -> violation(playerId, context, RiskEventType.PROTOCOL_VIOLATION);
@@ -488,7 +488,29 @@ public final class ServerHandshakeCoordinator {
         context.minecraftVersion = hello.getMinecraftVersion();
         context.loader = hello.getLoader();
         api.snapshot(context.session.playerId()).ifPresent(snapshot -> auditSession(context, snapshot));
-        return HandshakeAction.none();
+        SignedEnvelope deferred = context.deferredAuthRequest;
+        context.deferredAuthRequest = null;
+        return deferred == null ? HandshakeAction.none() : receiveAuthRequest(context, deferred);
+    }
+
+    /**
+     * Velocity may dispatch adjacent plugin-message events on different task workers. A valid
+     * AUTH_REQUEST can therefore enter this synchronized coordinator just before the preceding
+     * CLIENT_HELLO even though wire order was correct. Retain exactly one same-session envelope
+     * until CLIENT_HELLO establishes the signing key; duplicates and every other out-of-order
+     * packet remain protocol violations. The deferred envelope is still fully signature-, nonce-,
+     * policy-, and session-verified before authentication can succeed.
+     */
+    private HandshakeAction receiveOrDeferAuthRequest(SessionContext context, SignedEnvelope envelope)
+            throws EnvelopeException, InvalidProtocolBufferException {
+        if (context.session.stage() == SessionStage.CHALLENGE_SENT) {
+            if (context.deferredAuthRequest != null) {
+                return violation(context.session.playerId(), context, RiskEventType.PROTOCOL_VIOLATION);
+            }
+            context.deferredAuthRequest = envelope;
+            return HandshakeAction.none();
+        }
+        return receiveAuthRequest(context, envelope);
     }
 
     private HandshakeAction receiveAuthRequest(SessionContext context, SignedEnvelope envelope)
@@ -896,6 +918,7 @@ public final class ServerHandshakeCoordinator {
                 com.ellan.mcace.protocol.generated.LoaderType.LOADER_UNSPECIFIED;
         private boolean terminal;
         private BoundedPayloadTransferReceiver boundedPayloadReceiver;
+        private SignedEnvelope deferredAuthRequest;
         private BoundedPayloadTransferReceiver artifactObservationReceiver;
         private HeartbeatSessionStateMachine heartbeat;
         private HeartbeatHealth lastHeartbeatHealth = HeartbeatHealth.MISSING;

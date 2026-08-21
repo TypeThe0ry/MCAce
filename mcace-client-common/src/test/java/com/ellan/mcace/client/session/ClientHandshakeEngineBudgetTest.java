@@ -254,6 +254,8 @@ final class ClientHandshakeEngineBudgetTest {
         assertTrue(verified.retentionPolicyId().isEmpty());
         assertTrue(verified.retentionPurpose().isEmpty());
         ClientHandshakeEngine.EvidenceConsentGrant consent = client.grantEvidenceConsent(verified);
+        assertThrows(EnvelopeException.class, () -> client.grantEvidenceConsent(verified),
+                "one signed request must require one fresh visible decision");
         List<ClientHandshakeEngine.OutboundFrame> frames = client.createEvidenceTransferFrames(
                 verified, consent, CLOCK.millis(), 2, 2,
                 "frame-bytes".getBytes(java.nio.charset.StandardCharsets.UTF_8));
@@ -330,18 +332,28 @@ final class ClientHandshakeEngineBudgetTest {
     }
 
     @Test
-    void unsupportedScopeReturnsZeroContentUnavailableAndRequestCannotBeReused() throws Exception {
+    void gameWindowScopeReturnsZeroContentUnavailableAndRequestCannotBeReused() throws Exception {
+        assertUnsupportedScopeReturnsZeroContent(EvidenceCaptureScope.GAME_WINDOW, "game-window");
+    }
+
+    @Test
+    void desktopScopeReturnsZeroContentUnavailableAndRequestCannotBeReused() throws Exception {
+        assertUnsupportedScopeReturnsZeroContent(EvidenceCaptureScope.DESKTOP, "desktop");
+    }
+
+    private void assertUnsupportedScopeReturnsZeroContent(
+            EvidenceCaptureScope scope, String suffix) throws Exception {
         KeyPair server = Ed25519Keys.generate(new SecureRandom());
         ClientHandshakeEngine client = readyClient(server);
         client.createAuthentication(ClientIntegrityBundle.of(List.of(new ScopeIntegrityManifest(
                 "mods", "mods", true, CLOCK.instant(), List.of(), new byte[32]))));
         client.receiveAuthResult(authResult(server, true));
         EvidenceRequest request = EvidenceRequest.newBuilder()
-                .setEvidenceId("evidence-2")
-                .setRequestId("request-2")
+                .setEvidenceId("evidence-" + suffix)
+                .setRequestId("request-" + suffix)
                 .setPlayerId(clientPlayerId(client))
                 .setType(EvidenceType.SCREENSHOT)
-                .setCaptureScope(EvidenceCaptureScope.DESKTOP)
+                .setCaptureScope(scope)
                 .setExpiresAtEpochMs(CLOCK.millis() + Duration.ofMinutes(1).toMillis())
                 .build();
         byte[] encodedRequest = new EnvelopeCodec(
@@ -350,13 +362,17 @@ final class ClientHandshakeEngineBudgetTest {
                 .toByteArray();
 
         ClientHandshakeEngine.VerifiedEvidenceRequest verified = client.receiveEvidenceRequest(encodedRequest);
+        assertThrows(EnvelopeException.class, () -> client.grantEvidenceConsent(verified),
+                "unsupported scope must never produce a content authorization");
         EvidenceResponse response = EvidenceResponse.parseFrom(SignedEnvelope.parseFrom(
                 client.createEvidenceResponseFrames(
                         verified, EvidenceCollectionStatus.EVIDENCE_COLLECTION_UNAVAILABLE).getFirst().data())
                 .getPayload());
         assertEquals(EvidenceCollectionStatus.EVIDENCE_COLLECTION_UNAVAILABLE, response.getCollectionStatusCode());
         assertTrue(response.getContent().isEmpty());
-        assertEquals("request-2", response.getRequestId());
+        assertTrue(response.getContentSha256().isEmpty());
+        assertEquals(scope, response.getCaptureScope());
+        assertEquals("request-" + suffix, response.getRequestId());
         assertEquals(clientPlayerId(client), response.getPlayerId());
         client.completeEvidenceRequest(verified);
         assertThrows(EnvelopeException.class, () -> client.createEvidenceResponseFrames(

@@ -16,9 +16,9 @@
     "mcace:client_build_id": "${mcace_client_build_id}"
   },
   "depends": {
-    "fabricloader": ">=0.16.0",
-    "fabric-api": "*",
-    "minecraft": "~1.21.1",
+    "fabricloader": ">=0.19.3",
+    "fabric-api": "0.141.6+1.21.11",
+    "minecraft": "1.21.11",
     "java": ">=21"
   }
 }

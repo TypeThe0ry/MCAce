@@ -16,7 +16,7 @@ class BungeeBridgeConfigurationTest {
                 directory.resolve("mcace.properties"));
 
         assertEquals("mcace-bungeecord", configuration.serverId());
-        assertEquals("1.21.1", configuration.minecraftVersion());
+        assertEquals("1.21.11", configuration.minecraftVersion());
         assertEquals(Duration.ofSeconds(5), configuration.handshakeTimeout());
         assertEquals(false, configuration.heartbeatMissingPolicy().enabled());
         assertEquals(java.util.Optional.empty(), configuration.limitedServer());

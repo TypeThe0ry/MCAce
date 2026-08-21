@@ -10,8 +10,10 @@ import java.util.function.Consumer;
 import net.minecraft.client.gui.DrawContext;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.widget.ButtonWidget;
+import net.minecraft.client.input.KeyInput;
 import net.minecraft.text.Text;
 import net.minecraft.text.OrderedText;
+import org.lwjgl.glfw.GLFW;
 
 /** A per-request, visible consent prompt. Closing the prompt is always a decline. */
 final class EvidenceConsentScreen extends Screen {
@@ -21,16 +23,21 @@ final class EvidenceConsentScreen extends Screen {
     private static final int BUTTON_GAP = 12;
     private static final int BUTTON_HEIGHT = 20;
     private static final int BOTTOM_MARGIN = 8;
+    private static final int TOP_MARGIN = 8;
 
     private final Screen previous;
     private final VerifiedEvidenceRequest request;
     private final Consumer<Boolean> decision;
+    private final OneShotRenderMarker firstRender;
+    private int scrollOffset;
 
-    EvidenceConsentScreen(Screen previous, VerifiedEvidenceRequest request, Consumer<Boolean> decision) {
+    EvidenceConsentScreen(Screen previous, VerifiedEvidenceRequest request, Runnable rendered,
+            Consumer<Boolean> decision) {
         super(Text.literal("MCAce evidence request"));
         this.previous = previous;
         this.request = Objects.requireNonNull(request, "request");
         this.decision = Objects.requireNonNull(decision, "decision");
+        this.firstRender = new OneShotRenderMarker(rendered);
     }
 
     Screen previous() {
@@ -39,14 +46,14 @@ final class EvidenceConsentScreen extends Screen {
 
     @Override
     protected void init() {
-        ConsentLayout layout = layout();
-        int center = width / 2;
+        ActionRow actions = actionRow(width, height);
         addDrawableChild(ButtonWidget.builder(Text.literal("Allow once"), button -> decide(true))
-                .dimensions(center - 155, layout.buttonTop(), 150, BUTTON_HEIGHT)
+                .dimensions(actions.left(), actions.y(), actions.buttonWidth(), BUTTON_HEIGHT)
                 .build());
         addDrawableChild(ButtonWidget.builder(Text.literal("Decline"), button -> decide(false))
-                .dimensions(center + 5, layout.buttonTop(), 150, BUTTON_HEIGHT)
+                .dimensions(actions.right(), actions.y(), actions.buttonWidth(), BUTTON_HEIGHT)
                 .build());
+        scrollOffset = ConsentUiSupport.clampScroll(scrollOffset, layout().maxScroll());
     }
 
     @Override
@@ -54,8 +61,10 @@ final class EvidenceConsentScreen extends Screen {
         renderBackground(context, mouseX, mouseY, delta);
         int center = width / 2;
         ConsentLayout layout = layout();
-        int y = layout.contentTop();
+        scrollOffset = ConsentUiSupport.clampScroll(scrollOffset, layout.maxScroll());
+        int y = layout.maxScroll() == 0 ? layout.contentTop() : layout.viewportTop() - scrollOffset;
         List<List<OrderedText>> paragraphs = wrappedParagraphs(layout.maxWidth());
+        context.enableScissor(0, layout.viewportTop(), width, layout.viewportBottom());
         for (int paragraphIndex = 0; paragraphIndex < paragraphs.size(); paragraphIndex++) {
             for (OrderedText line : paragraphs.get(paragraphIndex)) {
                 context.drawCenteredTextWithShadow(textRenderer, line, center, y, paragraphIndex < 3 ? 0xFFFFFF : 0xAAAAAA);
@@ -65,7 +74,9 @@ final class EvidenceConsentScreen extends Screen {
                 y += PARAGRAPH_GAP;
             }
         }
+        context.disableScissor();
         super.render(context, mouseX, mouseY, delta);
+        firstRender.markRendered();
     }
 
     private List<Text> paragraphs() {
@@ -100,15 +111,7 @@ final class EvidenceConsentScreen extends Screen {
     }
 
     private static String safeDisplay(String value) {
-        StringBuilder sanitized = new StringBuilder(value.length());
-        value.codePoints().forEach(codePoint -> {
-            if (Character.isISOControl(codePoint) || codePoint == 0x2028 || codePoint == 0x2029) {
-                sanitized.append('\uFFFD');
-            } else {
-                sanitized.appendCodePoint(codePoint);
-            }
-        });
-        return sanitized.toString();
+        return ConsentUiSupport.safeDisplay(value);
     }
 
     private List<List<OrderedText>> wrappedParagraphs(int maxWidth) {
@@ -131,22 +134,68 @@ final class EvidenceConsentScreen extends Screen {
             int totalLines, int paragraphCount) {
         int safeFontHeight = Math.max(1, fontHeight);
         int lineStep = safeFontHeight + 2;
-        int safeLines = Math.max(1, totalLines);
-        int safeParagraphs = Math.max(1, paragraphCount);
-        int contentHeight = (safeLines * lineStep) - 2
-                + (Math.max(0, safeParagraphs - 1) * PARAGRAPH_GAP);
+        int contentHeight = ConsentUiSupport.contentHeight(
+                lineStep, totalLines, paragraphCount, PARAGRAPH_GAP);
         int maxWidth = Math.max(1, Math.min(MAX_CONTENT_WIDTH, screenWidth - (CONTENT_MARGIN * 2)));
         int buttonTop = Math.max(0, screenHeight - BOTTOM_MARGIN - BUTTON_HEIGHT);
-        int contentTop = Math.max(0, buttonTop - BUTTON_GAP - contentHeight);
-        int centeredTop = (screenHeight - contentHeight - BUTTON_GAP - BUTTON_HEIGHT) / 2;
-        if (centeredTop >= 0 && centeredTop + contentHeight + BUTTON_GAP + BUTTON_HEIGHT <= screenHeight - BOTTOM_MARGIN) {
-            contentTop = centeredTop;
-            buttonTop = contentTop + contentHeight + BUTTON_GAP;
+        int viewportTop = Math.min(TOP_MARGIN, buttonTop);
+        int viewportBottom = Math.max(viewportTop, buttonTop - BUTTON_GAP);
+        int viewportHeight = viewportBottom - viewportTop;
+        int contentTop = viewportTop;
+        if (contentHeight < viewportHeight) {
+            contentTop += (viewportHeight - contentHeight) / 2;
         }
-        return new ConsentLayout(maxWidth, contentTop, contentTop + contentHeight, buttonTop, lineStep);
+        return new ConsentLayout(maxWidth, contentTop, contentTop + contentHeight, buttonTop, lineStep,
+                viewportTop, viewportBottom, contentHeight,
+                ConsentUiSupport.maxScroll(contentHeight, viewportHeight));
     }
 
-    record ConsentLayout(int maxWidth, int contentTop, int contentBottom, int buttonTop, int lineStep) {}
+    static ActionRow actionRow(int screenWidth, int screenHeight) {
+        int available = Math.max(2, screenWidth - 16);
+        int gap = Math.min(6, Math.max(0, available - 2));
+        int buttonWidth = Math.max(1, Math.min(150, (available - gap) / 2));
+        int totalWidth = (buttonWidth * 2) + gap;
+        int left = Math.max(0, (screenWidth - totalWidth) / 2);
+        return new ActionRow(left, left + buttonWidth + gap, buttonWidth,
+                Math.max(0, screenHeight - BOTTOM_MARGIN - BUTTON_HEIGHT));
+    }
+
+    @Override
+    public boolean mouseScrolled(double mouseX, double mouseY,
+            double horizontalAmount, double verticalAmount) {
+        ConsentLayout layout = layout();
+        int next = ConsentUiSupport.wheelScroll(
+                scrollOffset, layout.maxScroll(), verticalAmount, layout.lineStep());
+        if (next != scrollOffset) {
+            scrollOffset = next;
+            return true;
+        }
+        return super.mouseScrolled(mouseX, mouseY, horizontalAmount, verticalAmount);
+    }
+
+    @Override
+    public boolean keyPressed(KeyInput input) {
+        ConsentLayout layout = layout();
+        int next = switch (input.getKeycode()) {
+            case GLFW.GLFW_KEY_PAGE_UP -> ConsentUiSupport.clampScroll(
+                    scrollOffset - (layout.viewportBottom() - layout.viewportTop()), layout.maxScroll());
+            case GLFW.GLFW_KEY_PAGE_DOWN -> ConsentUiSupport.clampScroll(
+                    scrollOffset + (layout.viewportBottom() - layout.viewportTop()), layout.maxScroll());
+            case GLFW.GLFW_KEY_HOME -> 0;
+            case GLFW.GLFW_KEY_END -> layout.maxScroll();
+            default -> scrollOffset;
+        };
+        if (next != scrollOffset) {
+            scrollOffset = next;
+            return true;
+        }
+        return super.keyPressed(input);
+    }
+
+    record ConsentLayout(int maxWidth, int contentTop, int contentBottom, int buttonTop, int lineStep,
+                         int viewportTop, int viewportBottom, int totalContentHeight, int maxScroll) { }
+
+    record ActionRow(int left, int right, int buttonWidth, int y) { }
 
     @Override
     public void close() {

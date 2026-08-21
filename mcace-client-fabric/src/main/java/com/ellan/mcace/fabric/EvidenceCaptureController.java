@@ -32,9 +32,13 @@ final class EvidenceCaptureController implements AutoCloseable {
                 int widthPixels, int heightPixels, byte[] encodedContent);
 
         void cancel(VerifiedEvidenceRequest request);
+
+        default void screenRendered(VerifiedEvidenceRequest request) { }
+
+        default void consentAllowed(VerifiedEvidenceRequest request) { }
     }
 
-    private enum State { CONSENT, ARMED, ENCODING }
+    private enum State { CONSENT, ARMED, CAPTURING, ENCODING }
 
     private final Clock clock;
     private final ExecutorService encoder = Executors.newVirtualThreadPerTaskExecutor();
@@ -59,7 +63,9 @@ final class EvidenceCaptureController implements AutoCloseable {
         }
         Pending next = new Pending(client, request, sender, client.currentScreen, State.CONSENT);
         pending = next;
-        client.setScreen(new EvidenceConsentScreen(next.previous(), request, allowed -> decide(next, allowed)));
+        client.setScreen(new EvidenceConsentScreen(
+                next.previous(), request, () -> sender.screenRendered(request),
+                allowed -> decide(next, allowed)));
     }
 
     void tick(MinecraftClient client) {
@@ -67,13 +73,14 @@ final class EvidenceCaptureController implements AutoCloseable {
         if (current == null || current.client() != client) {
             return;
         }
-        if ((current.state() == State.CONSENT || current.state() == State.ARMED)
+        if ((current.state() == State.CONSENT || current.state() == State.ARMED
+                || current.state() == State.CAPTURING)
                 && current.request().expiredAt(clock.millis())) {
             finishOutcome(client, current, EvidenceCollectionStatus.EVIDENCE_COLLECTION_EXPIRED);
         }
     }
 
-    /** Must be called from Fabric's WorldRenderEvents.END callback. */
+    /** Must be called from Fabric's WorldRenderEvents.END_MAIN callback. */
     void captureAtEndOfWorldRender(MinecraftClient client) {
         Pending current = pending;
         if (current == null || current.client() != client || current.state() != State.ARMED) {
@@ -87,16 +94,60 @@ final class EvidenceCaptureController implements AutoCloseable {
             finishOutcome(client, current, EvidenceCollectionStatus.EVIDENCE_COLLECTION_FAILED);
             return;
         }
-        current.state(State.ENCODING);
-        final FrameCopy copy;
+        current.state(State.CAPTURING);
+        final long capturedAt = clock.millis();
         try {
-            copy = copyRenderedFrame(client.getFramebuffer());
+            ScreenshotRecorder.takeScreenshot(client.getFramebuffer(),
+                    image -> receiveRenderedFrame(client, current, capturedAt, image));
         } catch (RuntimeException exception) {
-            finishOutcome(client, current, EvidenceCollectionStatus.EVIDENCE_COLLECTION_FAILED);
+            if (isCurrentConsentGeneration(pending, current) && current.state() == State.CAPTURING) {
+                finishOutcome(client, current, EvidenceCollectionStatus.EVIDENCE_COLLECTION_FAILED);
+            }
+        }
+    }
+
+    private void receiveRenderedFrame(MinecraftClient client, Pending current,
+            long capturedAt, NativeImage image) {
+        FrameCopy copy = null;
+        EvidenceCollectionStatus failure = null;
+        try (image) {
+            if (!isCurrentConsentGeneration(pending, current) || current.state() != State.CAPTURING) {
+                return;
+            }
+            if (current.request().expiredAt(clock.millis())) {
+                failure = EvidenceCollectionStatus.EVIDENCE_COLLECTION_EXPIRED;
+            } else {
+                copy = copyRenderedFrame(image);
+                if (!current.matchesArmedSize(new FramebufferSize(copy.width(), copy.height()))) {
+                    copy.clear();
+                    copy = null;
+                    failure = EvidenceCollectionStatus.EVIDENCE_COLLECTION_FAILED;
+                }
+            }
+        } catch (RuntimeException exception) {
+            if (copy != null) {
+                copy.clear();
+                copy = null;
+            }
+            failure = EvidenceCollectionStatus.EVIDENCE_COLLECTION_FAILED;
+        }
+        if (!isCurrentConsentGeneration(pending, current) || current.state() != State.CAPTURING) {
+            if (copy != null) {
+                copy.clear();
+            }
             return;
         }
+        if (failure != null) {
+            finishOutcome(client, current, failure);
+            return;
+        }
+        current.state(State.ENCODING);
         current.frameCopy(copy);
-        final long capturedAt = clock.millis();
+        submitEncoding(client, current, capturedAt, copy);
+    }
+
+    private void submitEncoding(MinecraftClient client, Pending current,
+            long capturedAt, FrameCopy copy) {
         try {
             encoder.submit(() -> {
                 byte[] encoded = null;
@@ -151,6 +202,7 @@ final class EvidenceCaptureController implements AutoCloseable {
             finishOutcome(client, current, EvidenceCollectionStatus.EVIDENCE_COLLECTION_DECLINED);
             return;
         }
+        current.sender().consentAllowed(current.request());
         if (current.request().expiredAt(clock.millis())) {
             finishOutcome(client, current, EvidenceCollectionStatus.EVIDENCE_COLLECTION_EXPIRED);
             return;
@@ -229,30 +281,19 @@ final class EvidenceCaptureController implements AutoCloseable {
                 && expectedWidth == currentWidth && expectedHeight == currentHeight;
     }
 
-    private static FrameCopy copyRenderedFrame(Framebuffer framebuffer) {
-        NativeImage image = ScreenshotRecorder.takeScreenshot(framebuffer);
-        try {
-            int width = image.getWidth();
-            int height = image.getHeight();
-            long pixels = (long) width * height;
-            if (width <= 0 || height <= 0 || pixels > ProtocolConstants.MAX_EVIDENCE_PIXELS) {
-                throw new IllegalArgumentException("render frame exceeds pixel bound");
-            }
-            int[] argb = new int[Math.multiplyExact(width, height)];
-            for (int y = 0; y < height; y++) {
-                for (int x = 0; x < width; x++) {
-                    int rgba = image.getColor(x, y);
-                    int red = rgba & 0xFF;
-                    int green = (rgba >>> 8) & 0xFF;
-                    int blue = (rgba >>> 16) & 0xFF;
-                    int alpha = (rgba >>> 24) & 0xFF;
-                    argb[y * width + x] = (alpha << 24) | (red << 16) | (green << 8) | blue;
-                }
-            }
-            return new FrameCopy(width, height, argb);
-        } finally {
-            image.close();
+    private static FrameCopy copyRenderedFrame(NativeImage image) {
+        int width = image.getWidth();
+        int height = image.getHeight();
+        long pixels = (long) width * height;
+        if (width <= 0 || height <= 0 || pixels > ProtocolConstants.MAX_EVIDENCE_PIXELS) {
+            throw new IllegalArgumentException("render frame exceeds pixel bound");
         }
+        int[] argb = image.copyPixelsArgb();
+        if (argb.length != Math.multiplyExact(width, height)) {
+            Arrays.fill(argb, 0);
+            throw new IllegalStateException("render frame pixel count changed during capture");
+        }
+        return new FrameCopy(width, height, argb);
     }
 
     private static FramebufferSize framebufferSize(MinecraftClient client) {

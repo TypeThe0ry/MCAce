@@ -16,9 +16,6 @@ import org.bukkit.event.Listener;
 import org.bukkit.plugin.Plugin;
 
 public final class VulcanBehaviorIntegration implements AutoCloseable {
-    private static final List<String> EVENT_TYPES = List.of(
-            "me.frep.vulcan.api.event.VulcanFlagEvent",
-            "me.frep.vulcan.api.event.VulcanViolationEvent");
 
     private final Listener listener = new Listener() { };
     private final AtomicBoolean extractionWarningLogged = new AtomicBoolean();
@@ -33,7 +30,8 @@ public final class VulcanBehaviorIntegration implements AutoCloseable {
         Objects.requireNonNull(clock, "clock");
         Objects.requireNonNull(logger, "logger");
         Objects.requireNonNull(scheduler, "scheduler");
-        Class<? extends Event> eventType = findEventType(vulcan);
+        Class<? extends Event> eventType = VulcanApiCompatibility.inspect(
+                vulcan.getClass().getClassLoader()).eventClass();
         owner.getServer().getPluginManager().registerEvent(
                 eventType, listener, EventPriority.MONITOR,
                 (ignored, event) -> {
@@ -53,18 +51,6 @@ public final class VulcanBehaviorIntegration implements AutoCloseable {
     @Override
     public void close() {
         HandlerList.unregisterAll(listener);
-    }
-
-    private static Class<? extends Event> findEventType(Plugin vulcan) throws ClassNotFoundException {
-        ClassLoader loader = vulcan.getClass().getClassLoader();
-        for (String candidate : EVENT_TYPES) {
-            try {
-                return Class.forName(candidate, false, loader).asSubclass(Event.class);
-            } catch (ClassNotFoundException ignored) {
-                // Try the next known API generation.
-            }
-        }
-        throw new ClassNotFoundException("no supported Vulcan flag event was found");
     }
 
     private static ExtractedAlert extract(Event event, Plugin vulcan, Clock clock)

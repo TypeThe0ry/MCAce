@@ -4,11 +4,27 @@ For the staged migration order, legacy-component freeze boundary, policy rollbac
 evidence retention transition, and optional federation rollout, see
 [MIGRATION.md](MIGRATION.md).
 
+Historical durable federation process evidence is retained at
+`docs/evidence/federation-durable-audit-2026-08-13.json`. The four-pair matrix
+passed 4/4 plus `-ReportOnly`. That retained run binds older proxy artifacts/source;
+current-source matrix and restart execution are pending. The restart gate passed on its first historical
+execution and then passed `-ReportOnly`. The former P2 cold-listener readiness race
+was fixed by waiting for the exact selected-port loopback listener marker after
+proxy-plugin initialization, with a passing pure marker unit test. The current
+restart result records
+`residual_reacceptance=true`, `durable_replay_protection=false`, and
+`fabric_gui_coverage=false`.
+The separate V2 graphical handoff wrapper and source-export/target-import screens
+are now implemented for all three targets, with PowerShell 7 and Windows
+PowerShell 5 static contract tests passing. No human-executed V2 PASS exists yet.
+
 ## Components
 
 - Put either the Velocity or BungeeCord artifact in the proxy `plugins` directory.
-- Put the Fabric artifact and Fabric API 0.116.15+1.21.1 in the client's `mods`
-  directory. The current client targets Minecraft 1.21.1 and Java 21.
+- Put exactly one target-matched Fabric artifact and its exact Fabric API in the
+  client's `mods` directory: `1.21.11` / `0.141.6+1.21.11` on Java 21,
+  `26.1.2` / `0.155.2+26.1.2` on Java 25, or `26.2` /
+  `0.157.0+26.2` on Java 25. All are built and tested with Loader `0.19.3`.
 - Put the Paper artifact in every Paper/Folia backend's `plugins` directory and
   install the selected proxy public-key pin described below. The backend exposes
   the SDK/status command and consumes short-lived signed admission snapshots.
@@ -164,36 +180,105 @@ sequences, and places the former key ID in the root-signed revocation list. Acti
 handshakes retain at most their configured short timeout; new handshakes receive
 the replacement trust state.
 
-The generated development policy permits only Minecraft 1.21.1 Fabric build
-`fabric-phase2-dev`. Before publishing a release, build the Mod with an immutable
-release identifier and configure both proxies to accept that exact identifier:
+The generated development policy is a bounded exact allowlist. For development,
+choose one supported Minecraft/build-ID pair. A three-target release uses the
+target-specific immutable commit-bound IDs documented in
+`FABRIC_COMPATIBILITY.md`:
 
 ```text
-.\gradlew.bat :mcace-client-fabric:build -PmcaceClientBuildId=fabric-release-2026-08-09.1
-
 # Velocity plugins/<MCAce data>/mcace.properties
 policy.server-id=network-east
-policy.minecraft-versions=1.21.1
-policy.client-build-ids=fabric-release-2026-08-09.1
+policy.minecraft-versions=1.21.11,26.1.2,26.2
+policy.client-build-ids=fabric-1.21.11-<commit>,fabric-26.1.2-<commit>,fabric-26.2-<commit>
 
 # Bungee plugins/MCAce/mcace.properties
 server.id=network-east
-minecraft.version=1.21.1
-client.build-id=fabric-release-2026-08-09.1
+minecraft.version=1.21.11
+client.build-id=fabric-1.21.11-<commit>
 ```
 
 Fabric embeds the Gradle build ID plus the resolved Mod and Minecraft versions in
 `fabric.mod.json`, then reads those processed values into the signed hello. Do not
 reuse the development ID for distinct release bytes. Velocity accepts bounded,
-comma-separated version/build lists for staged migration. A configuration change
-immediately publishes a higher-sequence policy; changing `server-id` also rotates
-the delegated signer so the trust statement cannot retain the old network ID.
+comma-separated version/build lists for staged migration. Bungee accepts one exact
+Minecraft version and one exact client build ID per configuration; use the matching
+`26.1.2` or `26.2` tuple instead when that proxy serves a modern target, rather than
+placing comma-separated values in those fields. A configuration change immediately
+publishes a higher-sequence policy; changing `server-id` also rotates the delegated
+signer so the trust statement cannot retain the old network ID.
 
-The policy requires `mods`, optionally inventories
-`resourcepacks`/`shaderpacks`, and may request `options.txt`, which is also in the
-client's local consent set. Editing a signed binary policy by hand invalidates its
-signature. Use the bounded textproto publisher described below for disposition
-rules; the handshake policy remains separately signed and managed.
+## Reproducible supply chain
+
+Use Temurin `21.0.7+6` for the root project and Temurin `25.0.3+9` for the
+isolated `fabric-modern/` build. Both require Gradle `9.6.1`. Auto-download is
+disabled for the modern Java toolchain; pass the reviewed JDK 25 home explicitly.
+
+The root verification metadata has 47 exact Loom-local trust entries. The modern
+metadata has two exact named-Minecraft trust entries. Every rule fixes the exact
+coordinate and file; there is no broad group trust. POMs, mappings, upstream
+modules, Fabric dependencies, and native `protoc` artifacts remain SHA-256
+verified. The old 52-rule figure belongs to the superseded 1.21.1 build and must
+not be used as the current trust inventory.
+
+Run dirty-safe local verification with:
+
+```powershell
+$env:JAVA_HOME = '<Temurin 21.0.7+6 home>'
+.\gradlew.bat clean build localVerificationBundle `
+  "-PmcaceModernJavaHome=<Temurin 25.0.3+9 home>" `
+  --offline --dependency-verification=strict --rerun-tasks `
+  --no-build-cache --no-configuration-cache --no-daemon `
+  --no-parallel --max-workers=1 --console=plain
+```
+
+The August 20 A/D runs each completed 118/118 tasks. Root results were 147
+suites / 681 tests / 0 failures / 0 errors / 28 skipped; modern results were
+24 / 74 / 0 / 0 / 0; combined results were 171 / 755 / 0 / 0 / 28. Both runs
+produced byte-identical exact-eight bundles. Durable sanitized evidence is
+[`evidence/local-build-2026-08-20.json`](evidence/local-build-2026-08-20.json);
+files below `build/` remain mutable diagnostics.
+
+`build/local-verification-bundle/` contains exactly:
+
+| File | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `mcace-client-fabric-1.21.11.jar` | 3,385,438 | `e6b02463c4e65bc81a825626b98559d94ab5eed642fc84e6552a22bf7dc1d323` |
+| `mcace-client-fabric-26.1.2.jar` | 3,489,094 | `26de3b15fa56aff684f04076df4464fe409d9f0185147aec05efd0c296a72d35` |
+| `mcace-client-fabric-26.2.jar` | 3,489,092 | `4f6ee9077b3a9986f253c49db3e867c4ed480871c7e6023509d6b19d1ef4bc73` |
+| `mcace-server-velocity.jar` | 5,016,132 | `0f5afa9cc04aa3e3d21b7142fb2156ee4059d1f2f1f36508b33fbdd59c4323be` |
+| `mcace-server-bungeecord.jar` | 3,562,568 | `fc7ac9ac84a673bd08f15e5a68bbdaadd30af157ac154a20a14dcefbe6e4152a` |
+| `mcace-server-paper.jar` | 5,924,608 | `d133a093ff684490dcb3ae81e2751498c5fc9eeb9fe0c6f0bbce802f5dd23e7b` |
+| `release-manifest.properties` | 1,797 | `7e73e7cc99ea1f6328060697107caf308b0b3ecccead7c0c61621ed661cfc8f7` |
+| `SHA256SUMS` | 565 | `b0227412fe38ad781edf998a217f2338f16caa6589763e7447cb1f956a3ef6b1` |
+
+The local manifest is `MCACE_LOCAL_VERIFICATION_BUNDLE_V1`, has
+`bundle_profile=LOCAL_VERIFICATION`, `release_identity=false`, and
+`source_commit=LOCAL_UNSPECIFIED`. Never label it as a release candidate.
+
+After review and commit, create the release candidate with the same strict flags,
+`releaseBundle`, `-PmcaceModernJavaHome=<reviewed JDK 25 home>`, and
+`-PmcaceSourceCommit=<exact lowercase 40-hex HEAD>`. `releaseBundle` requires the
+tracked and untracked worktree to be clean, requires the supplied commit to equal
+`git rev-parse HEAD`, and re-reads all exact-eight entries. Exact-commit protected
+CI must pass before publication.
+
+Current Linux run `cb6dc44ddad744b5a20dc2986c0a6d70` passed with the
+repository mounted read-only, network mode `none`, strict offline dependency
+verification, root JDK 21.0.7+6, and modern JDK 25.0.3+9. It covered 118 root
+actionable tasks (105 executed, 13 up-to-date), 15/15 modern tasks, and 171
+suites / 755 tests / 0 failures / 0 errors / 33 environment-conditioned skips.
+The 735-file, 6,375,429-byte source manifest
+`b74c22ff187a1fcfe4d8e1d6da5a202bde67d72061bcb3c2f205532d3857f8c3`
+was identical before and after the run. Exact-eight canonical manifest
+`289a59e56c6605e2f5ba7af160a9c94da506978e3c5db6e5c4102b578ce2ada3`
+matched Windows A/D by name, size, SHA-256, and direct stream bytes. Cleanup left
+zero containers and zero run-scoped Java processes at 0/30/60 seconds, and
+the disposable cache was removed. Linux has five additional recorded skips
+because the isolated container has no external PostgreSQL service; they are not
+failures. The external witness SHA-256 is
+`de6d82fedace1c7b961ba9879b6e924df1bc8a1d085b851134194bac91d44b48`;
+it is not repository evidence. The old exact-six and pre-fix exact-eight runs
+are historical.
 
 ## Detection/disposition policy source
 
@@ -324,6 +409,50 @@ disposition.quarantine.server=quarantine
   `disposition.limited.server`; it never configures or authorizes QUARANTINE.
 - The timeout is constrained to 2–30 seconds.
 
+## Administrator-reviewed high-impact authorization
+
+Use the review command only after the player has a current `VERIFIED` admission and
+the expected signed policy sequence is active:
+
+```text
+/mcacedisposition review <player> <ticket> <mod|resource-pack|shader-pack|config> <identifier> <version> <sha256>
+```
+
+The source requires `mcace.admin.disposition.review`. Prefer the proxy console or a
+narrowly authorized operator role. `<ticket>`, identifier, and version are bounded
+single tokens; never put secrets or private file paths in them. The SHA-256 must be
+exactly 64 hexadecimal characters. There is intentionally no action parameter: the
+active signed policy selects the action, rule, and policy sequence. Check the
+returned authorization UUID and
+`session-bound=true execution-context-bound=true execution-queued=true` marker.
+Any other status means no action was authorized.
+
+Before queuing the event, MCAce force-appends a bounded audit record to:
+
+- Velocity: `plugins/mcace/trusted-disposition-authorizations.log`
+- BungeeCord: `plugins/MCAce/trusted-disposition-authorizations.log`
+
+The current journal is strict 16-column TSV: column one is `v3`, and the record
+contains authorization/player IDs, time, trusted origin, operator and ticket,
+selected action/rule, policy identity, plus session, review-input, and
+execution-context commitments. It contains no artifact hash, identifier, version,
+manifest, path, or raw evidence. Before action, MCAce revalidates the same physical
+lifecycle, exact current session, `VERIFIED` admission, and exact context commitment,
+then atomically verifies the active policy identity/status/expiry, current winning
+rule, and that the rule action equals the event action. An unsafe path, initialization
+failure, write failure, or exhausted 8 MiB quota fails closed. Protect and retain the
+journal as operator audit metadata. Roll back new high-impact execution by returning
+the proxy to `MONITOR` and restarting it; this does not erase prior audit records.
+DENY remains current-connection-only and never creates a permanent ban.
+
+Release evidence for this path must report
+`authorization_contract=UUID_CONTEXT_COMMITMENT_V3`. The current three-target V3
+matrix passed 18/18 administrator-reviewed cases (6/6 per target), with Execute
+and ReportOnly both passing. The sanitized committed chains are recorded in
+`docs/evidence/disposition-current-2026-08-21.json`; the August 13 aggregate remains
+retained history.
+V2 and contractless reports remain invalid for release evidence.
+
 ## Optional missing-heartbeat session control
 
 Both proxy property files default to disabled:
@@ -376,108 +505,64 @@ output, and platform-test boundary.
 
 ## Real platform load verification
 
-These are opt-in, process-level gates. Every server binds only to an ephemeral
-loopback listener, uses an independent `build/platform-smoke*/runs/<run-id>`
-root, and records cleanup. The final recorded runs all report `passed` and
-cleanup zero run-owned processes.
+### Three-version proxy/backend matrix
 
-Velocity + Paper:
+The authoritative release wrapper is:
 
 ```powershell
-.\scripts\platform-load-smoke.ps1
+.\scripts\server-version-process-matrix.ps1 -Execute
+.\scripts\server-version-process-matrix.ps1 -ReportOnly
 ```
 
-Report: `build/platform-smoke/runs/20260808T171235524Z/report.json`.
-The run used official PaperMC Fill artifacts Velocity `3.5.1-615`
-(`https://fill-data.papermc.io/v1/objects/b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3/velocity-3.5.1-615.jar`,
-SHA-256 `b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3`)
-and Paper `1.21.1-133`
-(`https://fill-data.papermc.io/v1/objects/39bd8c00b9e18de91dcabd3cc3dcfa5328685a53b7187a2f63280c22e2d287b9/paper-1.21.1-133.jar`,
-SHA-256 `39bd8c00b9e18de91dcabd3cc3dcfa5328685a53b7187a2f63280c22e2d287b9`).
-The report contains the source object URLs, plugin hashes, loopback binds,
-missing-pin fail-closed result, and cleanup result. The default command does
-not start Fabric and does not inspect or control an existing user process.
+It executes the complete 3 versions × Paper/Folia × Velocity/Bungee matrix. The
+August 20 run `2026-08-20T12-01-09-3951618Z` passed 12/12 and then passed `-ReportOnly`: Paper
+6/6, Folia 6/6, Velocity 6/6, Bungee 6/6, with 10 STABLE cases and two Folia
+26.2 BETA cases. Current durable evidence is
+[`evidence/server-version-process-matrix-2026-08-20.json`](evidence/server-version-process-matrix-2026-08-20.json).
 
-BungeeCord + Paper:
+`-ReportOnly` starts no process. It validates only the latest complete committed
+report/binding/commit triplet against current inputs. Any source, wrapper, asset,
+prepared-tree, Java, Gradle, product-JAR, or raw-report drift fails closed.
+
+The old 1.21.1/1.21.4 `bungee-paper-load-smoke.ps1`,
+`folia-process-smoke.ps1`, `proxy-admission-player-smoke.ps1`, and
+`proxy-folia-context-smoke.ps1` results are historical. Their old Paper 1.21.1-133,
+BungeeCord 2028, and Folia 1.21.4-6 ALPHA assets cannot satisfy the current
+1.21.11/26.1.2/26.2 release gate.
+
+### Fabric platform and consent gate
+
+`-FabricTarget` is mandatory:
 
 ```powershell
-.\scripts\bungee-paper-load-smoke.ps1
+# Server-only startup; passed for all three targets.
+.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2
+
+# Visible full evidence gate; run once for every target.
+.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2 -WithFabricEvidence
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2 -WithFabricEvidence
 ```
 
-Report: `build/platform-smoke-bungee/runs/20260808T173618257Z/report.json`.
-The fixed artifacts were BungeeCord Jenkins build `2028`
-(`https://hub.spigotmc.org/jenkins/job/BungeeCord/2028/artifact/bootstrap/target/BungeeCord.jar`,
-SHA-256 `45a5aa27b9f2446c320447148913aee5673ec23ddf30c81d6dafa9dd910a91eb`)
-and Paper `1.21.1-133`
-(`https://fill-data.papermc.io/v1/objects/39bd8c00b9e18de91dcabd3cc3dcfa5328685a53b7187a2f63280c22e2d287b9/paper-1.21.1-133.jar`,
-SHA-256 `39bd8c00b9e18de91dcabd3cc3dcfa5328685a53b7187a2f63280c22e2d287b9`).
-The report records the Spigot Jenkins/PaperMC Fill source URLs, loopback-only
-endpoints, preferred and legacy pin acceptance, missing-pin fail closed, and
-cleanup. No real player was connected, so live handshake and live Bungee
-backend forwarding remain untested; the backend gate was fixture-based.
+All target version manifests, asset indexes, and asset objects are already in the
+validated cache. The remaining gate is human input: one visible explicit-file
+approval and one separate visible frame approval per target, six clicks total.
+The wrapper does not automate those decisions or control an existing Minecraft
+process.
 
-Folia + Paper plugin:
+A passing pair uses report schema 6 and binding
+`MCACE_FABRIC_GUI_EVIDENCE_BINDING_V4`. It must load only the exact final
+artifact, bind the entrypoint CodeSource SHA-256, bind current server/JDK/Gradle/
+asset/prepared-tree inputs, bind `velocity_policy_minecraft_versions` and
+`velocity_policy_client_build_ids`, prove both consent chains, and leave zero
+exact run-token Java processes. 1.21.11 uses the final remapped JAR; both 26.x
+targets use final named JARs.
 
-```powershell
-.\scripts\folia-process-smoke.ps1
-```
-
-Report: `build/platform-smoke-folia/runs/20260808T173923329Z/report.json`.
-The official Fill API had no exact Folia `1.21.1` build, so the smoke tested
-official Folia `1.21.4-6` `ALPHA`
-(`https://fill-data.papermc.io/v1/objects/dcf2333211c1468c8eddc482bc8549600818cc661a709124a79c752f8fa2ac3a/folia-1.21.4-6.jar`,
-SHA-256 `dcf2333211c1468c8eddc482bc8549600818cc661a709124a79c752f8fa2ac3a`); the
-report preserves both the requested version and the fallback source URL. The
-run proved valid-pin loading, missing-pin fail closed, the real global scheduler,
-and a safe console status read with no positive thread-error markers. It did not
-create a player, so entity scheduler execution is covered by unit tests only.
-
-The smoke also found and the Paper scheduler now fixes a Folia compatibility
-issue where reflective invocation on Folia's non-public scheduled-task
-implementation failed with `IllegalAccessException`. Cancellation now uses the
-public `ScheduledTask` contract and shutdown is idempotent when the scheduler is
-already halted.
-
-The full Fabric player-flow gate is explicit:
-
-```powershell
-.\scripts\platform-load-smoke.ps1 -WithFabricClient
-```
-
-It is opt-in and must not control an existing user Minecraft process. It is a
-separate gate from the default platform smoke and still does not constitute a
-real evidence-consent, `GAME_RENDER_FRAME` upload, retention, or reviewer-flow
-smoke. These platform reports prove process-load boundaries; they do not claim
-complete player-flow coverage.
-
-The separate test-only raw Minecraft 1.21.1 peer is run with:
-
-```powershell
-.\gradlew.bat :mcace-runtime-integration:test --tests com.ellan.mcace.runtime.MinecraftProxyPlayerProbeTest
-```
-
-The latest passing reports are `velocity-2026-08-08T18-46-57-039870Z` and
-`bungee-2026-08-08T18-46-12-984562400Z`. Their repository-relative paths are:
-
-- `build/runtime-player-probe/runs/velocity-2026-08-08T18-46-57-039870Z/report.json`
-- `build/runtime-player-probe/runs/velocity-2026-08-08T18-46-57-039870Z/report.md`
-- `build/runtime-player-probe/runs/bungee-2026-08-08T18-46-12-984562400Z/report.json`
-- `build/runtime-player-probe/runs/bungee-2026-08-08T18-46-12-984562400Z/report.md`
-
-The corresponding absolute paths under this checkout are:
-
-- `C:\Users\TT\Documents\GitHub\MCAce\build\runtime-player-probe\runs\velocity-2026-08-08T18-46-57-039870Z\report.json`
-- `C:\Users\TT\Documents\GitHub\MCAce\build\runtime-player-probe\runs\velocity-2026-08-08T18-46-57-039870Z\report.md`
-- `C:\Users\TT\Documents\GitHub\MCAce\build\runtime-player-probe\runs\bungee-2026-08-08T18-46-12-984562400Z\report.json`
-- `C:\Users\TT\Documents\GitHub\MCAce\build\runtime-player-probe\runs\bungee-2026-08-08T18-46-12-984562400Z\report.md`
-
-Both reports record accepted `AUTH_RESULT`, and their Paper logs record
-`admission=VERIFIED, trust=VERIFIED, risk=0`; both report
-`remaining_run_processes=[]`. This is a test-only raw peer, not an independent
-client product. It does not cover real Fabric GUI/framebuffer capture, online-mode,
-or production forwarding. The Fabric evidence client remains client-reported;
-common/Fabric tests cover ACK sequence, resize/generation cancellation, and buffer
-clearing (49 tests), but real GUI/framebuffer consent and upload smoke remains open.
+The GUI pair is LOCAL process evidence, not automatic release identity. Revalidate
+it with `-ReportOnly`, the same `-FabricTarget`, and independently reviewed
+expected hashes. Current output must not act as its own expected value.
 
 ## Root-key backup and recovery
 
@@ -511,8 +596,27 @@ automatic trust transfer away from the key the player pinned.
 | Expired/rolled-back/incompatible policy | Client does not scan or answer | Check clocks, persisted policy, build ID, and pin |
 | Revoked/unauthorized policy signer | Client does not scan or answer | Inspect policy/trust sequences and delegated-key directory; do not delete the root identity |
 | Missing limited server | Player remains connected and an error is logged | Fix Velocity server registration |
-## Backend-local session actions
 
+## Backend context shadow audit
+
+After accepting the latest signed admission snapshot, Paper/Folia publishes its Bukkit-derived
+world key and game mode on `mcace:context`. The payload contains no backend claim. Velocity/Bungee
+derive backend identity from the event-supplied server connection that carries the target player,
+then require the exact physical login/session, player UUID, admission transport sequence, monotonic
+report sequence, and bounded age. This deliberately avoids depending on an eventually consistent
+current-server pointer during an early backend plugin message. Client-originated frames on this
+channel are consumed without parsing and cannot create context.
+
+Accepted context produces only the aggregate log marker `backend context shadow audit`. It cannot
+change admission, route, disconnect, ban, or invoke a disposition executor. A transient
+`REJECTED_BINDING` may appear when a newer signed admission sequence supersedes an older backend
+report; it is fail-closed diagnostic output, and the release gate still requires a later accepted
+aggregate audit marker. Operators must investigate version, clock, and sequence continuity without
+automatic player action.
+
+Current real-process evidence covers Paper and Folia 1.21.11, 26.1.2, and 26.2 through both Velocity and BungeeCord. The authoritative 12-case aggregate is linked above; Folia 26.2 remains a BETA lane. This does not establish online-mode identity, GUI consent, public-network behavior, or production-configuration compatibility.
+
+## Backend-local session actions
 Paper and Folia consume only an admission snapshot that has already passed the
 pinned proxy signature, replay, freshness, and carrier-UUID checks. Backend-local
 actions are explicitly disabled by default:

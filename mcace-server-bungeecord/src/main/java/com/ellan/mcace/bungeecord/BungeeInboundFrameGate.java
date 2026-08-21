@@ -7,6 +7,7 @@ final class BungeeInboundFrameGate {
     enum Decision {
         IGNORE,
         CONSUME_ONLY,
+        BACKEND_CONTEXT,
         CLIENT_AUTH
     }
 
@@ -17,6 +18,7 @@ final class BungeeInboundFrameGate {
         return switch (ProxyAdapterTransportContract.decide(channel, playerSource)) {
             case IGNORE -> Decision.IGNORE;
             case CONSUME_ONLY -> Decision.CONSUME_ONLY;
+            case BACKEND_CONTEXT -> Decision.BACKEND_CONTEXT;
             case CLIENT_AUTH -> Decision.CLIENT_AUTH;
         };
     }

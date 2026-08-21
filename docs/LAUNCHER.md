@@ -1,5 +1,9 @@
 # MCAce Launcher trust and atomic update
 
+> **Frozen legacy/optional scope.** The Launcher is retained as prior research. It
+> is not a supported client, prerequisite, release deployable, or alternate trust
+> path for the three Fabric targets.
+
 ## Delivered boundary
 
 `mcace-launcher` establishes the file/build portion of Level 2 `TRUSTED`. It does

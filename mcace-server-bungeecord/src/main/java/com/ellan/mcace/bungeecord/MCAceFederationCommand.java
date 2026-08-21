@@ -41,6 +41,11 @@ final class MCAceFederationCommand extends Command {
         if (arguments.length == 1 && "status".equalsIgnoreCase(arguments[0])) {
             FederationRuntimeState status = operations.status();
             send(sender, "MCAce: federation enabled=" + status.enabled()
+                    + " configured=" + status.configuredEnabled()
+                    + " audit=" + (status.auditHealthy() ? "HEALTHY" : "FAILED")
+                    + " audit_backlog=" + status.auditBacklog()
+                    + " audit_committed=" + status.auditCommitted()
+                    + " audit_failures=" + status.auditFailures()
                     + " local=" + status.localNetworkId()
                     + " peers=" + status.pinnedPeers()
                     + " pending=" + status.pendingConsentRequests()

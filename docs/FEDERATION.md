@@ -101,7 +101,7 @@ exists.
 
 ## Player consent and Fabric vault
 
-Before signing step 2, Fabric displays a real in-game prompt containing:
+Before signing step 2, Fabric displays the source-export in-game prompt containing:
 
 - exact source and target network names/IDs;
 - short source and target key fingerprints;
@@ -116,12 +116,23 @@ approval, or approval inherited from server terms. Closing the prompt produces
 no signed response. A request changed after display is not the request the
 player approved.
 
+After the target independently authenticates the same short-lived client key,
+Fabric prepares one target-session/challenge-bound presentation and displays a
+second, distinct target-import prompt. It repeats the exact source/target IDs,
+key fingerprints, disclosed observation, and expiry; says that target-local
+authentication succeeded first; and says that only this exact prepared
+presentation will be sent. Target import has its own `Allow once` and `Decline`.
+It does not inherit the source decision. Closing, ignoring, declining, expiry,
+or a changed connection sends nothing and cannot change local admission.
+
 After validating a grant, Fabric keeps only the grant and the associated
 short-lived source-session private key in a bounded in-memory vault. This is a
 session credential, not a device identifier. It is never written to disk,
 config, log, chat, URL, audit, clipboard, or server-list metadata. The vault is
-cleared on successful presentation, explicit local discard, expiry, client
-shutdown, or bounded-capacity rejection.
+cleared when the exact allowed target presentation is handed to transport, when
+the target prompt is declined, on explicit local discard, expiry, client
+shutdown, or bounded-capacity rejection. A local send failure releases only the
+exact reservation and exposes no signing key.
 
 The vault intentionally survives disconnect from the source after the complete
 grant has been received. Source disconnect or source proxy restart does not
@@ -148,6 +159,12 @@ proof binds:
 - current target authenticated session ID;
 - current target 32-byte server challenge;
 - presentation time within the short proof-freshness window.
+
+The proof and grant are then held behind a single exact
+`PreparedPresentation` reservation while the target-import screen is visible.
+Only the matching unexpired object shown to the player can be committed to the
+current plugin channel. A second connection, wrong target key, superseded screen,
+decline, close, or expired reservation cannot send it.
 
 The target verifies the proof using `grant.client_public_key_x509`, verifies that
 key's SHA-256 against the signed consent/assertion and its current authenticated
@@ -178,7 +195,10 @@ stateDiagram-v2
     CARRIED --> EXPIRED: grant deadline
     CARRIED --> DISCARDED: local discard or client shutdown
     CARRIED --> TARGET_LOCAL_VERIFIED: target independently verifies same client key
-    TARGET_LOCAL_VERIFIED --> PRESENTING: Fabric signs current target session/challenge PoP
+    TARGET_LOCAL_VERIFIED --> IMPORT_PENDING: Fabric prepares PoP and renders target import
+    IMPORT_PENDING --> PRESENTING: distinct target Allow once
+    IMPORT_PENDING --> DISCARDED: target Decline or close
+    IMPORT_PENDING --> EXPIRED: assertion deadline
     PRESENTING --> OBSERVED: target validates all fields then atomically consumes replay state
     PRESENTING --> FAILED: any mismatch, replay, capacity, or freshness failure
     OBSERVED --> EXPIRED: assertion or target-session deadline
@@ -197,7 +217,8 @@ stateDiagram-v2
 | `CONSENT_SIGNED -> GRANT_READY` | Source verifies client signature, pending request, local session, both configured key IDs, time, and local verification | Sign only `FEDERATION_SOURCE_LOCALLY_VERIFIED` |
 | `GRANT_READY -> CARRIED` | Fabric verifies source signature, consent signature, consent hash, all bindings, original request, key, audience, and time | Store bounded grant/key only in memory |
 | `CARRIED -> TARGET_LOCAL_VERIFIED` | Target independently returns local `VERIFIED` using the same short-lived client key | Preserve local trust; make PoP possible |
-| `TARGET_LOCAL_VERIFIED -> PRESENTING` | Current target session ID and fresh server challenge available | Sign one complete presentation proof |
+| `TARGET_LOCAL_VERIFIED -> IMPORT_PENDING` | Current target session ID and fresh server challenge available | Sign and reserve one complete presentation; show the distinct target-import prompt |
+| `IMPORT_PENDING -> PRESENTING` | Exact reservation remains current/unexpired and the player selects target `Allow once` | Send only that prepared presentation and burn the vault entry on transport handoff |
 | `PRESENTING -> OBSERVED` | All validation succeeds and replay accept wins atomically | Install bounded remote-observation summary only |
 | Any error/absence | Bounds, capacity, direction, pin, signature, time, session, challenge, player, or replay failure | Install nothing; do not alter local player state |
 
@@ -247,8 +268,17 @@ and validation result.
 Audit must not contain the grant or presentation bytes, signatures, private or
 public key encodings, nonce/challenge values, raw policy hashes, mod/resource
 data, risk data, evidence, IP addresses, paths, screenshots, or free-form player
-content. Audit failure may make federation unavailable but cannot alter local
-trust/admission/risk/disposition.
+content. Every transition that would return `CONSENT_ISSUED`, `GRANT_READY`, or
+`OBSERVED` waits for a bounded worker acknowledgement of the durable local file
+append; queue admission alone is not success. Any queue saturation, commit
+timeout, worker death, or delegate/file failure permanently faults federation
+for that proxy process, clears pending/observation state, and rejects later
+federation work with `AUDIT_FAILED`. The normal one-second proxy expiry sweep
+also polls this health, so a background fault is noticed without waiting for a
+new federation frame or operator command. It never changes the normal local
+trust/admission/risk/disposition path. `/mcacefederation status` exposes only
+content-free `configured`, `enabled`, `audit`, backlog, committed, and failure
+counters so operators can distinguish a configured feature from a healthy one.
 
 ## Threat matrix
 
@@ -279,7 +309,7 @@ trust/admission/risk/disposition.
 | --- | --- | --- |
 | `FED-PROTO-01` | Four distinct packet types and exact directions | Wrong-direction and partial messages rejected |
 | `FED-BIND-01` | Source/target IDs and key IDs, player, client key, source session, assertion ID/nonce, policy, disclosure, issue/expiry | Every one-field mismatch rejected |
-| `FED-CONSENT-01` | Real Fabric `Allow once`, decline, close, timeout | Fingerprints/fields/expiry visible; only explicit allow signs; all other outcomes have no player effect |
+| `FED-CONSENT-01` | Real Fabric source-export and target-import `Allow once`, decline, close, timeout | Both distinct prompts render exact fingerprints/fields/expiry; only each explicit allow advances its step; all other outcomes have no player effect |
 | `FED-GRANT-01` | Valid grant and mixed-consent/assertion, wrong source key, stale, oversized, unknown enum/field | Only exact pinned grant enters Fabric vault |
 | `FED-LOCAL-01` | Target local unknown/failed/missing vs local `VERIFIED` | Presentation accepted only after independent local `VERIFIED`; remote state never changes result |
 | `FED-POP-01` | Wrong target/player/session/challenge/key, tampered proof, stale proof | Rejected; valid presentation still succeeds afterward |
@@ -297,6 +327,37 @@ trust/admission/risk/disposition.
 Unit tests prove protocol mechanics, not the real Fabric GUI or four proxy-pair
 runtime gates. Federation remains disabled by default with empty peer pins until
 the applicable integration rows pass.
+
+The retained evidence is
+`docs/evidence/federation-durable-audit-2026-08-13.json`. The historical schema-2
+matrix completed `FED-PROXY-01` for all four Velocity/Bungee source-target combinations (4/4)
+and then passed `-ReportOnly` validation. It binds older proxy artifacts/source,
+so current-source process execution is pending. The retained run proved source disconnect after
+in-memory grant delivery, independent target local authentication, target
+observation, same-process replay rejection, content-free durable audit health at
+both ends, unchanged target trust/risk/Paper admission, and zero owned processes.
+It intentionally records `fabric_gui_coverage=false`, so `FED-CONSENT-01` and
+`FED-E2E-01` still require a real Fabric GUI transition.
+
+`scripts/fabric-federation-gui-handoff-smoke.ps1` is now the default-deny V2
+contract for exactly `1.21.11`, `26.1.2`, or `26.2`. It reuses the platform
+wrapper's exact target/cache/artifact authority, launches current Velocity or
+Bungee source and target proxies plus source/target Paper, loads only the selected
+final Fabric artifact, and publishes a target-bound report/binding/commit triplet.
+Its PowerShell 7 and Windows PowerShell 5 static contract tests pass. The six
+required runtime markers are requested/rendered/allowed-once for source export
+and requested/rendered/allowed-once for target import. Static validation is not a
+human-executed PASS, and no such V2 PASS is retained yet.
+
+A passing execution still requires two separately rendered,
+human-selected decisions: source export `Allow once`, then target import/handoff
+`Allow once`; independent target-local `VERIFIED`; target observation; Paper
+admission; unchanged local trust/risk/admission; privacy cleanup; and zero
+run-owned process residue. The operator must disconnect from source, use Direct
+Connection to join the exact target, and keep that target connection alive
+through the signed TTL so pre-expiry observation and post-expiry cleanup are both
+observed. Raw-peer matrix/restart/static evidence cannot satisfy these fields and
+must retain `fabric_gui_coverage=false`.
 
 ### Opt-in target-restart residual gate
 
@@ -328,8 +389,15 @@ session/challenge. The expected current result is `OBSERVED`, because the target
 replay guard is intentionally process-memory-only and was cleared by the proxy
 restart. The generated content-free report records
 `residual_reacceptance=true`, local `VERIFIED`/risk `0`/Paper admission invariants,
-and owned-process cleanup. It never contains signed frames, grants, keys,
-sessions, nonces, challenges, hashes, evidence, or forwarding secrets.
+and owned-process cleanup. The former P2 cold-listener readiness race was fixed in
+`startProxy`: after the MCAce plugin initialization marker, the fixture waits for
+the exact selected-port platform marker `Listening on /127.0.0.1:<port>` before it
+returns. Its pure readiness-marker unit test passed. The current-source schema-2
+restart gate passed on its first execution and then passed `-ReportOnly`, recorded
+healthy durable audit at both ends, `residual_reacceptance=true`, and explicitly
+recorded `durable_replay_protection=false`. It never contains signed
+frames, grants, keys, sessions, nonces, challenges, hashes, evidence, or
+forwarding secrets.
 
 This verifies and honestly records the residual; it does **not** add persistence
 to the replay guard, change production replay semantics, make the source

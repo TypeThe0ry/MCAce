@@ -1,0 +1,480 @@
+{
+  "schema": "MCACE_SERVER_VERSION_PROCESS_MATRIX_DURABLE_EVIDENCE_V1",
+  "generated_at": "2026-08-14T10:12:50.039023Z",
+  "source_mode": "EXECUTED_AND_REPORT_ONLY_VALIDATED",
+  "release_evidence": false,
+  "target_versions": [
+    "1.21.11",
+    "26.1.2",
+    "26.2"
+  ],
+  "matrix": {
+    "expected_case_count": 12,
+    "observed_case_count": 12,
+    "stable_case_count": 10,
+    "beta_case_count": 2,
+    "paper_case_count": 6,
+    "folia_case_count": 6,
+    "velocity_case_count": 6,
+    "bungee_case_count": 6,
+    "all_cases_passed": true,
+    "cleanup_all_zero": true,
+    "sensitive_artifact_count": 0,
+    "live_java_process_count_after": 0
+  },
+  "evidence_triplet": {
+    "report": {
+      "schema": "MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V1",
+      "bytes": 18532,
+      "sha256": "24a853f1008e3b1d8cfb24a3d55b3ea9cf71043ff4534419b139f4c6818f5f81"
+    },
+    "binding": {
+      "schema": "MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V1",
+      "current_sha256": "5df14270a295627496ff25c7492256600e261914acb76d0b78f80aec46a0902b",
+      "bytes": 14219,
+      "sha256": "830328df1a741c5398eafb91d15dda28df3f15b58d38056405f8678a923aa2a0",
+      "passed": true
+    },
+    "commit": {
+      "schema": "MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V1",
+      "bytes": 424,
+      "sha256": "23f58714469f974d272811e0b60eb4ef8ea08c865db39b795a1b8aedd10a6ee7",
+      "committed": true
+    },
+    "atomic_triplet_publication": true,
+    "report_only_validated": true
+  },
+  "source_binding": {
+    "source_manifest_sha256": "de64133b12f75678c0f3190ef636a13af5a4f640e4192c81abc21b8f96df1aff",
+    "source_file_count": 671,
+    "wrapper_sha256": "b8f10439b0165fa2a962252dda91d5a4375f5864c78dac2f164edddfde907ba1",
+    "wrapper_test_sha256": "b8ded4a03679dede11bf05ae22df95b98a0e1b5bec096f22b12b58ab4b6bff34",
+    "runtime_assets_manifest_sha256": "1f33c2e0e6c621059ff58f6594d59e2e37a628ac2b9d86720c68aab65e062c6d",
+    "prepared_manifest_sha256": "21ccbdccc252bd43c268054b4887bbba4da6b2265489d11c3036a391497c18dd"
+  },
+  "toolchains": {
+    "root_jdk": {
+      "feature": 21,
+      "version": "21.0.7",
+      "java_executable_sha256": "9f8d9893143b74849253c1fc323d095bfbf6dc9c7761caa9c5b62d44d9ee21e1",
+      "java_executable_size": 49768,
+      "release_sha256": "d05c1f5557888c0e32d63630208590f3c4b57772a5050dafe2b580ade145f909",
+      "modules_sha256": "f4a60a9285c84032ac3380e04696cfcba9a90a4d4b3e3614017664cd2a91bc4c",
+      "modules_size": 140696375,
+      "jvm_sha256": "4d61aba6cacb6b6d5bf82f88616e330e505fc3ee8907fa7cd200e8216a42fec3",
+      "jvm_size": 13847144
+    },
+    "server_jdks": [
+      {
+        "feature": 21,
+        "version": "21.0.7",
+        "java_executable_sha256": "9f8d9893143b74849253c1fc323d095bfbf6dc9c7761caa9c5b62d44d9ee21e1",
+        "java_executable_size": 49768,
+        "release_sha256": "d05c1f5557888c0e32d63630208590f3c4b57772a5050dafe2b580ade145f909",
+        "modules_sha256": "f4a60a9285c84032ac3380e04696cfcba9a90a4d4b3e3614017664cd2a91bc4c",
+        "modules_size": 140696375,
+        "jvm_sha256": "4d61aba6cacb6b6d5bf82f88616e330e505fc3ee8907fa7cd200e8216a42fec3",
+        "jvm_size": 13847144
+      },
+      {
+        "feature": 25,
+        "version": "25.0.3",
+        "java_executable_sha256": "d5f1b9e03e298ebfb04d2326ecc1e2af3e6817f9b4d7f9f151fe856d56975650",
+        "java_executable_size": 50344,
+        "release_sha256": "de67b271327ff2059d2cd4ee0d94fa9e4387af18f0cfaf700504f091a3a4113e",
+        "modules_sha256": "9f715db742c59445339601abf0f19b6f3932158335c18dee45d8ec580fe77c2c",
+        "modules_size": 144925330,
+        "jvm_sha256": "cc41822287eaee64f23763819100155b3a2bd55768bffd45c67be03dbbe91520",
+        "jvm_size": 15437992
+      }
+    ],
+    "gradle": {
+      "version": "9.6.1",
+      "command_sha256": "619717e564dc38320e4a73f615cc6c45931ac25f6df0567b303dddd7e7cad9f7",
+      "launcher_sha256": "d20e0cee243419ef001d2c3646acfc603447d2ce585b03f204afaa6caa898acd",
+      "core_sha256": "c352d684342fd477131368e6bc2149caf9ba2fd5fca975fc4b8678a549f0d16c",
+      "installation_manifest_sha256": "99d88ecd68d23fe9a6986b37f4109562f50eaa9bd62d7275118b14a0e5a967e8",
+      "installation_file_count": 701,
+      "installation_total_size": 156462363
+    }
+  },
+  "product_jars": {
+    "velocity": {
+      "file": "mcace-server-velocity-0.1.0-SNAPSHOT.jar",
+      "bytes": 5012453,
+      "sha256": "c5f753f72da38d1f433e9470e493e9e151ae85cdb1b3c0e193fb9e6336c2b4cf"
+    },
+    "bungee": {
+      "file": "mcace-server-bungeecord-0.1.0-SNAPSHOT.jar",
+      "bytes": 3558880,
+      "sha256": "e557a17f47e654a84bd08cf7bd55911af4db99cf0367076221eb91f744c63695"
+    },
+    "paper": {
+      "file": "mcace-server-paper-0.1.0-SNAPSHOT.jar",
+      "bytes": 5921029,
+      "sha256": "c9743d3e6e298588d9aabc8ee8d5478cd6a610e85ed7e750f919831fca141b97"
+    }
+  },
+  "upstream_assets": [
+    {
+      "project": "paper",
+      "version": "1.21.11",
+      "build": "132",
+      "sha256": "5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba",
+      "size": 54846016,
+      "channel": "STABLE",
+      "java_major": 21
+    },
+    {
+      "project": "paper",
+      "version": "26.1.2",
+      "build": "74",
+      "sha256": "1d70b1dab9cf4a6de615209a536f3a45a2186240253c428213ce2188ab95e5f7",
+      "size": 52893229,
+      "channel": "STABLE",
+      "java_major": 25
+    },
+    {
+      "project": "paper",
+      "version": "26.2",
+      "build": "112",
+      "sha256": "bd3a58cf96874e5ea6643f5f6fe9b4f5bf9e34b795fa078c2f0ee8b98b2f907e",
+      "size": 61859678,
+      "channel": "STABLE",
+      "java_major": 25
+    },
+    {
+      "project": "folia",
+      "version": "1.21.11",
+      "build": "14",
+      "sha256": "f52c408490a0225611e67907a3ca19f7e6da2c6bc899e715d5f46844e7103c39",
+      "size": 55082693,
+      "channel": "STABLE",
+      "java_major": 21
+    },
+    {
+      "project": "folia",
+      "version": "26.1.2",
+      "build": "8",
+      "sha256": "607afd1c3320008e1ffd2eaee6780ace4419d5f8c527b75e79f259be79ebf57b",
+      "size": 53184326,
+      "channel": "STABLE",
+      "java_major": 25
+    },
+    {
+      "project": "folia",
+      "version": "26.2",
+      "build": "4",
+      "sha256": "19c81c308ba4de4b9fc0a61860c86281836d26ac046f696ea241766eea4b2468",
+      "size": 62126906,
+      "channel": "BETA",
+      "java_major": 25
+    },
+    {
+      "project": "velocity",
+      "version": "3.5.1-615",
+      "build": "615",
+      "sha256": "b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3",
+      "size": 18932366,
+      "channel": "REVIEWED",
+      "java_major": 21
+    },
+    {
+      "project": "bungeecord",
+      "version": "2085",
+      "build": "2085",
+      "sha256": "e6914a29c0ae04c0ed6335f201e409322b3c67548906a91e92e832d665cd6fce",
+      "size": 25599274,
+      "channel": "REVIEWED",
+      "java_major": 21
+    }
+  ],
+  "prepared_trees": [
+    {
+      "project": "paper",
+      "version": "1.21.11",
+      "build": "132",
+      "server_sha256": "5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba",
+      "prepared_tree_sha256": "db29ac6443ecef6d633a7576fe003974f6e826cb042cc15752e3b18514ee2922",
+      "file_count": 116,
+      "total_size": 162267451
+    },
+    {
+      "project": "paper",
+      "version": "26.1.2",
+      "build": "74",
+      "server_sha256": "1d70b1dab9cf4a6de615209a536f3a45a2186240253c428213ce2188ab95e5f7",
+      "prepared_tree_sha256": "135440652cdcc94d6fc09c4aae7cd59a626fa60eaf48a398e8ae86bee8ef7d97",
+      "file_count": 106,
+      "total_size": 164910810
+    },
+    {
+      "project": "paper",
+      "version": "26.2",
+      "build": "112",
+      "server_sha256": "bd3a58cf96874e5ea6643f5f6fe9b4f5bf9e34b795fa078c2f0ee8b98b2f907e",
+      "prepared_tree_sha256": "c88abb4e25a5f400282b2d5d9fff5e1701259f26c1f609062f14310f20f0218a",
+      "file_count": 105,
+      "total_size": 173678638
+    },
+    {
+      "project": "folia",
+      "version": "1.21.11",
+      "build": "14",
+      "server_sha256": "f52c408490a0225611e67907a3ca19f7e6da2c6bc899e715d5f46844e7103c39",
+      "prepared_tree_sha256": "424e27b91364e58cffd61ce49117caf25cab92edd42d9459438739bd3b3029f2",
+      "file_count": 116,
+      "total_size": 162515974
+    },
+    {
+      "project": "folia",
+      "version": "26.1.2",
+      "build": "8",
+      "server_sha256": "607afd1c3320008e1ffd2eaee6780ace4419d5f8c527b75e79f259be79ebf57b",
+      "prepared_tree_sha256": "a41a1f867c3c783289efea5131544992ab749f50152e54e620e52d331f739e47",
+      "file_count": 107,
+      "total_size": 165203683
+    },
+    {
+      "project": "folia",
+      "version": "26.2",
+      "build": "4",
+      "server_sha256": "19c81c308ba4de4b9fc0a61860c86281836d26ac046f696ea241766eea4b2468",
+      "prepared_tree_sha256": "2f2c07c320ee6dbdd290cf71cbf3cb216114c51cab805044414de5059a2988fa",
+      "file_count": 105,
+      "total_size": 173953141
+    }
+  ],
+  "cases": [
+    {
+      "case_id": "1.21.11-paper-velocity",
+      "raw_schema": 4,
+      "minecraft_version": "1.21.11",
+      "minecraft_protocol": 774,
+      "server_java_feature": 21,
+      "backend": "PAPER",
+      "proxy": "VELOCITY",
+      "lane": "STABLE",
+      "raw_report_bytes": 1627,
+      "raw_report_sha256": "ff441fd6ed3d3cecb559d169765b9dc30c3476da32edf7ac05d38ddf227b158f",
+      "cleanup_process_count": 2,
+      "remaining_run_process_count": 0,
+      "sensitive_artifact_count": 0,
+      "passed": true
+    },
+    {
+      "case_id": "1.21.11-paper-bungee",
+      "raw_schema": 4,
+      "minecraft_version": "1.21.11",
+      "minecraft_protocol": 774,
+      "server_java_feature": 21,
+      "backend": "PAPER",
+      "proxy": "BUNGEE",
+      "lane": "STABLE",
+      "raw_report_bytes": 1624,
+      "raw_report_sha256": "bb315bfdd5989b65cbe6fd2477f83bd346ce3e481cfd3a258c96da4ea3e073e9",
+      "cleanup_process_count": 2,
+      "remaining_run_process_count": 0,
+      "sensitive_artifact_count": 0,
+      "passed": true
+    },
+    {
+      "case_id": "1.21.11-folia-velocity",
+      "raw_schema": 4,
+      "minecraft_version": "1.21.11",
+      "minecraft_protocol": 774,
+      "server_java_feature": 21,
+      "backend": "FOLIA",
+      "proxy": "VELOCITY",
+      "lane": "STABLE",
+      "raw_report_bytes": 1627,
+      "raw_report_sha256": "9e5fe7d8da71addf7cb95e4f0b6e26784c92e4c912e50b4550fe00e5fdbf9e41",
+      "cleanup_process_count": 2,
+      "remaining_run_process_count": 0,
+      "sensitive_artifact_count": 0,
+      "passed": true
+    },
+    {
+      "case_id": "1.21.11-folia-bungee",
+      "raw_schema": 4,
+      "minecraft_version": "1.21.11",
+      "minecraft_protocol": 774,
+      "server_java_feature": 21,
+      "backend": "FOLIA",
+      "proxy": "BUNGEE",
+      "lane": "STABLE",
+      "raw_report_bytes": 1603,
+      "raw_report_sha256": "07b75a025dee2291d3f32f93f4e25542abc6b8e1318e23321c357b0391204924",
+      "cleanup_process_count": 2,
+      "remaining_run_process_count": 0,
+      "sensitive_artifact_count": 0,
+      "passed": true
+    },
+    {
+      "case_id": "26.1.2-paper-velocity",
+      "raw_schema": 4,
+      "minecraft_version": "26.1.2",
+      "minecraft_protocol": 775,
+      "server_java_feature": 25,
+      "backend": "PAPER",
+      "proxy": "VELOCITY",
+      "lane": "STABLE",
+      "raw_report_bytes": 1710,
+      "raw_report_sha256": "d5082f19724f8b01cbb9147f0241877acdaa223ee5373c24c0b2c4fcbfe97dad",
+      "cleanup_process_count": 2,
+      "remaining_run_process_count": 0,
+      "sensitive_artifact_count": 0,
+      "passed": true
+    },
+    {
+      "case_id": "26.1.2-paper-bungee",
+      "raw_schema": 4,
+      "minecraft_version": "26.1.2",
+      "minecraft_protocol": 775,
+      "server_java_feature": 25,
+      "backend": "PAPER",
+      "proxy": "BUNGEE",
+      "lane": "STABLE",
+      "raw_report_bytes": 1707,
+      "raw_report_sha256": "0f926d2fd5f2f6e523e3034f5c303733a8f2e082b95c54e830ce499a7d29b753",
+      "cleanup_process_count": 2,
+      "remaining_run_process_count": 0,
+      "sensitive_artifact_count": 0,
+      "passed": true
+    },
+    {
+      "case_id": "26.1.2-folia-velocity",
+      "raw_schema": 4,
+      "minecraft_version": "26.1.2",
+      "minecraft_protocol": 775,
+      "server_java_feature": 25,
+      "backend": "FOLIA",
+      "proxy": "VELOCITY",
+      "lane": "STABLE",
+      "raw_report_bytes": 1758,
+      "raw_report_sha256": "c26d4159f7d6a8aa58becbb1d7b4c66f545d3615075e965b4b0c219443f286a2",
+      "cleanup_process_count": 2,
+      "remaining_run_process_count": 0,
+      "sensitive_artifact_count": 0,
+      "passed": true
+    },
+    {
+      "case_id": "26.1.2-folia-bungee",
+      "raw_schema": 4,
+      "minecraft_version": "26.1.2",
+      "minecraft_protocol": 775,
+      "server_java_feature": 25,
+      "backend": "FOLIA",
+      "proxy": "BUNGEE",
+      "lane": "STABLE",
+      "raw_report_bytes": 1686,
+      "raw_report_sha256": "546340b61189d8a6f6b029d1719bb0dbfde7cd2c0f12d2dbe7607ea0da2d73fa",
+      "cleanup_process_count": 2,
+      "remaining_run_process_count": 0,
+      "sensitive_artifact_count": 0,
+      "passed": true
+    },
+    {
+      "case_id": "26.2-paper-velocity",
+      "raw_schema": 4,
+      "minecraft_version": "26.2",
+      "minecraft_protocol": 776,
+      "server_java_feature": 25,
+      "backend": "PAPER",
+      "proxy": "VELOCITY",
+      "lane": "STABLE",
+      "raw_report_bytes": 1750,
+      "raw_report_sha256": "9f27411d9f4e414a544e01a84fdef396662282e7cddef1670a99825cdbe7200e",
+      "cleanup_process_count": 2,
+      "remaining_run_process_count": 0,
+      "sensitive_artifact_count": 0,
+      "passed": true
+    },
+    {
+      "case_id": "26.2-paper-bungee",
+      "raw_schema": 4,
+      "minecraft_version": "26.2",
+      "minecraft_protocol": 776,
+      "server_java_feature": 25,
+      "backend": "PAPER",
+      "proxy": "BUNGEE",
+      "lane": "STABLE",
+      "raw_report_bytes": 1704,
+      "raw_report_sha256": "a67b3d528d09aad3f9a3117e4027febe6313af6793c259cac6fc34b93ce42cfb",
+      "cleanup_process_count": 2,
+      "remaining_run_process_count": 0,
+      "sensitive_artifact_count": 0,
+      "passed": true
+    },
+    {
+      "case_id": "26.2-folia-velocity",
+      "raw_schema": 4,
+      "minecraft_version": "26.2",
+      "minecraft_protocol": 776,
+      "server_java_feature": 25,
+      "backend": "FOLIA",
+      "proxy": "VELOCITY",
+      "lane": "BETA",
+      "raw_report_bytes": 1750,
+      "raw_report_sha256": "e0388dfac09e1d923023d36acebf58533caab5017b52494ca9cf7c1b3ca1f444",
+      "cleanup_process_count": 2,
+      "remaining_run_process_count": 0,
+      "sensitive_artifact_count": 0,
+      "passed": true
+    },
+    {
+      "case_id": "26.2-folia-bungee",
+      "raw_schema": 4,
+      "minecraft_version": "26.2",
+      "minecraft_protocol": 776,
+      "server_java_feature": 25,
+      "backend": "FOLIA",
+      "proxy": "BUNGEE",
+      "lane": "BETA",
+      "raw_report_bytes": 1704,
+      "raw_report_sha256": "a829fe361bc200f96ef1d7a922a08a263b5d55e966c5addec2a109d4f90b1e18",
+      "cleanup_process_count": 2,
+      "remaining_run_process_count": 0,
+      "sensitive_artifact_count": 0,
+      "passed": true
+    }
+  ],
+  "coverage": {
+    "offline_loopback_real_processes": true,
+    "real_velocity_process": true,
+    "real_bungeecord_process": true,
+    "real_paper_process": true,
+    "real_folia_process": true,
+    "test_only_raw_minecraft_peer": true,
+    "signed_proxy_authentication": true,
+    "signed_backend_admission": true,
+    "backend_context_shadow_audit": true,
+    "current_source_and_jar_binding": true,
+    "prepared_runtime_tree_binding": true,
+    "report_only_current_binding_revalidation": true,
+    "folia_26_2_beta": true,
+    "fabric_gui_coverage": false,
+    "online_mode_identity_coverage": false,
+    "public_network_coverage": false,
+    "production_forwarding_configuration_coverage": false,
+    "exact_commit_release_identity": false
+  },
+  "limitations": [
+    "TEST_ONLY_RAW_MINECRAFT_PEER_NOT_FABRIC_GUI",
+    "OFFLINE_LOOPBACK_NOT_ONLINE_MODE_OR_PUBLIC_NETWORK",
+    "PRODUCTION_FORWARDING_CONFIGURATION_NOT_COVERED",
+    "FOLIA_26_2_IS_BETA",
+    "LOCAL_PROCESS_EVIDENCE_NOT_EXACT_COMMIT_RELEASE_IDENTITY"
+  ],
+  "sanitization": {
+    "absolute_path_value_count": 0,
+    "raw_report_path_copied": false,
+    "run_root_copied": false,
+    "packet_trace_copied": false,
+    "uuid_value_count": 0,
+    "pid_value_count": 0,
+    "port_value_count": 0,
+    "secret_material_copied": false,
+    "raw_world_or_log_copied": false
+  }
+}

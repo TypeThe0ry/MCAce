@@ -51,6 +51,15 @@ public final class SignedAdmissionSnapshotCodec {
             Duration transportTtl,
             long transportSequence,
             PrivateKey privateKey) throws EnvelopeException {
+        return signWithExpiry(snapshot, transportTtl, transportSequence, privateKey).encodedFrame();
+    }
+
+    /** Signs one transport frame and returns the exact expiry encoded into its signed payload. */
+    public SignedAdmissionSnapshot signWithExpiry(
+            PlayerSecuritySnapshot snapshot,
+            Duration transportTtl,
+            long transportSequence,
+            PrivateKey privateKey) throws EnvelopeException {
         Objects.requireNonNull(snapshot, "snapshot");
         Objects.requireNonNull(transportTtl, "transportTtl");
         Objects.requireNonNull(privateKey, "privateKey");
@@ -61,11 +70,15 @@ public final class SignedAdmissionSnapshotCodec {
         if (transportSequence <= 0) {
             throw new EnvelopeException("admission transport sequence must be positive");
         }
-        validateSnapshot(snapshot, clock.instant().plus(ProtocolConstants.DEFAULT_CLOCK_SKEW));
+        Instant now = clock.instant();
+        validateSnapshot(snapshot, now.plus(ProtocolConstants.DEFAULT_CLOCK_SKEW));
 
         Instant expiresAt;
         try {
-            expiresAt = clock.instant().plus(transportTtl);
+            // The protobuf wire field is epoch milliseconds. Return that same canonical instant
+            // so proxy-side backend bindings cannot outlive the signed frame by a fractional
+            // millisecond that was discarded during serialization.
+            expiresAt = Instant.ofEpochMilli(now.plus(transportTtl).toEpochMilli());
         } catch (DateTimeException | ArithmeticException exception) {
             throw new EnvelopeException("invalid admission transport expiry", exception);
         }
@@ -87,11 +100,24 @@ public final class SignedAdmissionSnapshotCodec {
                     .setObservedAtEpochMs(reason.observedAt().toEpochMilli())
                     .setCorroborated(reason.corroborated()));
         }
-        return envelopeCodec.sign(
+        byte[] encodedFrame = envelopeCodec.sign(
                 PacketType.ADMISSION_UPDATE,
                 snapshot.playerId().toString(),
                 update.build().toByteArray(),
                 privateKey).toByteArray();
+        return new SignedAdmissionSnapshot(encodedFrame, expiresAt);
+    }
+
+    public record SignedAdmissionSnapshot(byte[] encodedFrame, Instant expiresAt) {
+        public SignedAdmissionSnapshot {
+            encodedFrame = Objects.requireNonNull(encodedFrame, "encodedFrame").clone();
+            Objects.requireNonNull(expiresAt, "expiresAt");
+        }
+
+        @Override
+        public byte[] encodedFrame() {
+            return encodedFrame.clone();
+        }
     }
 
     public VerifiedAdmissionSnapshot verify(

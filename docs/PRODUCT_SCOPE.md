@@ -2,10 +2,11 @@
 
 ## Authoritative delivery shape
 
-MCAce is delivered primarily as one client Mod plus server plugins:
+MCAce is delivered as three target-specific Fabric client Mod artifacts plus
+server plugins. A deployment installs exactly the artifact matching its target:
 
 ```text
-Fabric client Mod (priority)
+Target-matched Fabric client Mod
         |
         | signed mcace:handshake / heartbeat / scoped integrity manifest
         v
@@ -24,7 +25,9 @@ the authoritative policy, replay, correlation, and admission boundary.
 
 ## Required platforms
 
-- Client priority: Fabric for Minecraft 1.21.1 and subsequent supported releases.
+- Client: Fabric for the exact supported targets `1.21.11`, `26.1.2`, and
+  `26.2`. The first is a Java 21 final-remap build; both 26.x clients are
+  isolated Java 25 official-namespace final named JARs.
 - Proxy plugins: Velocity and BungeeCord.
 - Backend plugin: one Paper-compatible implementation with explicit Folia-safe
   scheduling and runtime validation.
@@ -86,6 +89,14 @@ does not automatically ban, punish, or create a confirmed-cheat label.
   `UNSUPPORTED`/`DECLINED` outcomes. Closing, declining, expiry, and unavailable
   capture carry no punishment or admission penalty.
 - A screenshot is client-reported evidence, never a standalone cheat conclusion.
-  The current repository has bounded encrypted storage controls, but no raw-image
-  reviewer retrieval UI. Real Minecraft UI/proxy evidence-flow smoke remains a
-  release gate.
+  The current repository has bounded encrypted storage controls and an optional
+  loopback-only, console-issued local reviewer; it has no public raw-image portal.
+  Real Minecraft UI/proxy evidence-flow smoke remains a
+  release gate. Server-only startup and asset prewarm have passed for all three
+  targets; visible explicit-file plus frame consent still requires two human
+  decisions per target (six total).
+
+The three-version server process matrix itself is current and passed 12/12 under
+the August 20 Execute+ReportOnly record. Separately, all three Fabric clients now
+contain distinct source-export and target-import federation consent screens, but
+the real human-carried source-to-target GUI run remains pending.

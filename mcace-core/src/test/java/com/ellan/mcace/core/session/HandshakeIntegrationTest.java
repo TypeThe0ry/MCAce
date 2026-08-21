@@ -245,14 +245,50 @@ final class HandshakeIntegrationTest {
     }
 
     @Test
-    void rejectsAuthenticationBeforeClientIdentification() throws Exception {
+    void defersOneEarlyAuthenticationFrameUntilClientIdentification() throws Exception {
         ClientHandshakeEngine client = client(serverKeys);
         List<byte[]> frames = frames(client, server.begin(playerId));
 
-        HandshakeAction outOfOrder = server.receive(playerId, frames.get(1));
+        HandshakeAction deferred = server.receive(playerId, frames.get(1));
+        HandshakeAction completed = server.receive(playerId, frames.get(0));
+        AuthResult result = client.receiveAuthResult(completed.outboundFrames().getFirst());
 
-        assertTrue(outOfOrder.protocolViolation());
-        assertEquals(AdmissionStatus.LIMITED, outOfOrder.snapshot().orElseThrow().admissionStatus());
+        assertFalse(deferred.protocolViolation());
+        assertTrue(deferred.outboundFrames().isEmpty());
+        assertTrue(deferred.snapshot().isEmpty());
+        assertTrue(result.getAccepted());
+        assertEquals(AdmissionStatus.VERIFIED, completed.snapshot().orElseThrow().admissionStatus());
+        assertTrue(api.isVerified(playerId));
+    }
+
+    @Test
+    void rejectsDuplicateAuthenticationFramesBeforeClientIdentification() throws Exception {
+        ClientHandshakeEngine client = client(serverKeys);
+        List<byte[]> frames = frames(client, server.begin(playerId));
+
+        HandshakeAction deferred = server.receive(playerId, frames.get(1));
+        HandshakeAction duplicate = server.receive(playerId, frames.get(1));
+
+        assertFalse(deferred.protocolViolation());
+        assertTrue(duplicate.protocolViolation());
+        assertEquals(AdmissionStatus.LIMITED, duplicate.snapshot().orElseThrow().admissionStatus());
+        assertFalse(api.isVerified(playerId));
+    }
+    @Test
+    void rejectsForgedDeferredAuthenticationAfterClientIdentification() throws Exception {
+        ClientHandshakeEngine client = client(serverKeys);
+        List<byte[]> frames = frames(client, server.begin(playerId));
+        SignedEnvelope original = SignedEnvelope.parseFrom(frames.get(1));
+        byte[] signature = original.getSignature().toByteArray();
+        signature[0] ^= 0x01;
+        byte[] forged = original.toBuilder().setSignature(ByteString.copyFrom(signature)).build().toByteArray();
+
+        HandshakeAction deferred = server.receive(playerId, forged);
+        HandshakeAction rejected = server.receive(playerId, frames.get(0));
+
+        assertFalse(deferred.protocolViolation());
+        assertTrue(rejected.protocolViolation());
+        assertEquals(AdmissionStatus.LIMITED, rejected.snapshot().orElseThrow().admissionStatus());
         assertFalse(api.isVerified(playerId));
     }
 

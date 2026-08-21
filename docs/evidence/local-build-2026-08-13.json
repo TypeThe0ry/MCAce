@@ -1,0 +1,158 @@
+{
+  "schema": "MCACE_LOCAL_BUILD_EVIDENCE_V1",
+  "generated_at": "2026-08-13T18:39:31.1500156Z",
+  "source_commit": "LOCAL_UNSPECIFIED",
+  "java_version": "21.0.7",
+  "gradle_version": "9.6.1",
+  "build_command_profile": "clean build releaseBundle; offline; strict dependency verification; rerun tasks; no build cache; no configuration cache; no daemon; no parallel; max workers 1",
+  "build_successful": true,
+  "executed_gradle_tasks": 113,
+  "test_suites": 145,
+  "tests": 660,
+  "failures": 0,
+  "errors": 0,
+  "skipped": 28,
+  "release_bundle_entry_count": 6,
+  "release_bundle_contract": "four deployable JARs plus SHA256SUMS and release-manifest.properties",
+  "release_bundle_metadata": {
+    "release_manifest_bytes": 807,
+    "release_manifest_sha256": "17e04fbb1dbbcc14199bdd1d48f7dfefc5f0389b578fbc46371a9e3e60b32dc6",
+    "sha256sums_bytes": 372,
+    "sha256sums_sha256": "7e5bf0a7f5b13592bbdcde93b44588ec4664dd7fa4091b298c82b9601d698c1e",
+    "source_commit": "LOCAL_UNSPECIFIED"
+  },
+  "windows_reproducibility": {
+    "os": "Windows",
+    "run_a": {
+      "executed_gradle_tasks": 113,
+      "successful_gradle_tasks": 113,
+      "build_successful": true
+    },
+    "run_c": {
+      "executed_gradle_tasks": 113,
+      "successful_gradle_tasks": 113,
+      "build_successful": true,
+      "test_suites": 145,
+      "tests": 660,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 28
+    },
+    "run_a_run_c_artifact_parity": true
+  },
+  "artifacts": [
+    {
+      "file": "mcace-client-fabric-1.21.1.jar",
+      "bytes": 3370617,
+      "sha256": "92c40c056f8b62431894fada581e06d99cd1cb31d49007def9f6fed44ff4dbab"
+    },
+    {
+      "file": "mcace-server-velocity.jar",
+      "bytes": 5012447,
+      "sha256": "cdbb5380616a00ee1f5cf6a5516ab7189c4bce57ea3bd1fa896283e8b04cde8c"
+    },
+    {
+      "file": "mcace-server-bungeecord.jar",
+      "bytes": 3558878,
+      "sha256": "4f1c270da246e9251bb467144f72ad4538b1c5cfd71187b76075af386e1e85bf"
+    },
+    {
+      "file": "mcace-server-paper.jar",
+      "bytes": 5921029,
+      "sha256": "c9743d3e6e298588d9aabc8ee8d5478cd6a610e85ed7e750f919831fca141b97"
+    }
+  ],
+  "linux_network_none_rehearsal": {
+    "build_successful": true,
+    "build_command_profile": "clean build releaseBundle; offline; strict dependency verification; rerun tasks; no build cache; no configuration cache; no daemon; no parallel; max workers 1",
+    "container_image": "eclipse-temurin:21-jdk",
+    "container_image_id": "sha256:efd34b940f2d5a621605c8531c2afb7759c936b6c2ef637a69aa3bf3e1e789d1",
+    "platform": "linux/amd64",
+    "network_mode": "none",
+    "observed_network_interfaces": [
+      "lo"
+    ],
+    "dependency_verification_mode": "strict",
+    "offline": true,
+    "fresh_project_loom_regeneration": true,
+    "project_loom_cache_injected": false,
+    "global_dependency_cache_preseeded": true,
+    "gradle_tasks": {
+      "total": 113,
+      "executed": 102,
+      "up_to_date": 11
+    },
+    "test_suites": 145,
+    "tests": 660,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 33,
+    "release_bundle_entry_count": 6,
+    "artifact_parity_with_windows": true,
+    "artifacts": [
+      {
+        "file": "mcace-client-fabric-1.21.1.jar",
+        "bytes": 3370617,
+        "sha256": "92c40c056f8b62431894fada581e06d99cd1cb31d49007def9f6fed44ff4dbab"
+      },
+      {
+        "file": "mcace-server-velocity.jar",
+        "bytes": 5012447,
+        "sha256": "cdbb5380616a00ee1f5cf6a5516ab7189c4bce57ea3bd1fa896283e8b04cde8c"
+      },
+      {
+        "file": "mcace-server-bungeecord.jar",
+        "bytes": 3558878,
+        "sha256": "4f1c270da246e9251bb467144f72ad4538b1c5cfd71187b76075af386e1e85bf"
+      },
+      {
+        "file": "mcace-server-paper.jar",
+        "bytes": 5921029,
+        "sha256": "c9743d3e6e298588d9aabc8ee8d5478cd6a610e85ed7e750f919831fca141b97"
+      }
+    ]
+  },
+  "dependency_verification_boundary": {
+    "metadata_file": "gradle/verification-metadata.xml",
+    "metadata_sha256": "331a705b83f55290270ab6b38214d418d32b1c8508839eaa2d364f66ab528358",
+    "mode": "strict",
+    "loom_locally_generated_jar_trust": {
+      "rule_count": 52,
+      "match_fields": [
+        "group",
+        "name",
+        "version",
+        "file"
+      ],
+      "regex": false,
+      "artifact_type": "jar",
+      "scope": "Fabric Loom locally generated and remapped JARs only"
+    },
+    "checksum_verification_retained_for": [
+      "upstream artifacts",
+      "POM metadata",
+      "mapping artifacts",
+      "native protoc binaries"
+    ]
+  },
+  "phase_2_6_directed_verification": {
+    "test_suites": 8,
+    "tests": 51,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1,
+    "skip_boundary": "Windows symbolic-link host capability"
+  },
+  "external_gates": {
+    "exact_commit_ci": false,
+    "human_fabric_gui_consent": false,
+    "licensed_vulcan_structural_preflight": false,
+    "licensed_vulcan_structural_preflight_current_source": false,
+    "licensed_vulcan_structural_preflight_historical_retained": true,
+    "licensed_vulcan_paper_enablement": false,
+    "licensed_vulcan_real_event_delivery": false,
+    "server_confirmed_high_impact_process_producer": false,
+    "folia_1_21_4_fallback_runtime": true,
+    "folia_exact_1_21_1_runtime": false
+  }
+}

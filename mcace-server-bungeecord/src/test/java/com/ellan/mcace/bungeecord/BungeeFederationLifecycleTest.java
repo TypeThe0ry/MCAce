@@ -34,6 +34,7 @@ final class BungeeFederationLifecycleTest {
                 directory, Clock.systemUTC(), new SecureRandom(), Ed25519Keys.generate(new SecureRandom()),
                 "mcace-bungeecord", ignored -> failures.incrementAndGet());
         assertFalse(lifecycle.runtime().status().enabled());
+        assertFalse(lifecycle.runtime().status().auditHealthy());
         assertEquals("mcace-bungeecord", lifecycle.runtime().status().localNetworkId());
         assertEquals(1, failures.get());
         lifecycle.close();
@@ -47,6 +48,7 @@ final class BungeeFederationLifecycleTest {
                 directory, Clock.systemUTC(), new SecureRandom(), Ed25519Keys.generate(new SecureRandom()),
                 "mcace-bungeecord", ignored -> failures.incrementAndGet());
         assertFalse(lifecycle.runtime().status().enabled());
+        assertFalse(lifecycle.runtime().status().auditHealthy());
         assertEquals("mcace-bungeecord", lifecycle.runtime().status().localNetworkId());
         assertEquals(1, failures.get());
         lifecycle.close();

@@ -2,9 +2,11 @@ package com.ellan.mcace.core.proxy;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.ellan.mcace.core.disposition.DispositionAction;
+import com.ellan.mcace.core.disposition.ObservationOrigin;
 import java.time.Instant;
 import java.util.EnumMap;
 import java.util.List;
@@ -25,7 +27,7 @@ final class AuthenticatedManifestDispositionEventTest {
         AuthenticatedManifestAuditResult audit = new AuthenticatedManifestAuditResult(
                 PLAYER, "session-a", NOW,
                 new ProxyPolicyBatchEvaluation(
-                        ProxyPolicyRefreshStatus.ACTIVE, 5, counts, List.of(), true),
+                        ProxyPolicyRefreshStatus.ACTIVE, 5, counts, 0, List.of(), true),
                 List.of());
 
         AuthenticatedManifestDispositionEvent first = audit.dispositionEvent();
@@ -38,8 +40,24 @@ final class AuthenticatedManifestDispositionEventTest {
         AuthenticatedManifestDispositionEvent explainable = new AuthenticatedManifestDispositionEvent(
                 PLAYER, "session-a", NOW, DispositionAction.DENY, Optional.of("rule-a"),
                 ProxyPolicyRefreshStatus.ACTIVE, Optional.of("policy-a"), Optional.of(1L),
-                Optional.of(NOW.plusSeconds(60)));
+                Optional.of(NOW.plusSeconds(60)), ObservationOrigin.ADMIN_REVIEWED,
+                Optional.of(UUID.fromString("00000000-0000-0000-0000-000000000002")),
+                Optional.of("CASE-42"), Optional.of("11".repeat(32)));
         assertTrue(explainable.hasAdmissionEffect());
+        assertTrue(explainable.hasExecutionEvidence());
+        AuthenticatedManifestDispositionEvent independentReview = new AuthenticatedManifestDispositionEvent(
+                PLAYER, "session-a", NOW, DispositionAction.DENY, Optional.of("rule-a"),
+                ProxyPolicyRefreshStatus.ACTIVE, Optional.of("policy-a"), Optional.of(1L),
+                Optional.of(NOW.plusSeconds(60)), ObservationOrigin.ADMIN_REVIEWED,
+                Optional.of(UUID.fromString("00000000-0000-0000-0000-000000000004")),
+                Optional.of("CASE-43"), Optional.of("22".repeat(32)));
+        assertFalse(explainable.idempotencyKey().equals(independentReview.idempotencyKey()));
+        AuthenticatedManifestDispositionEvent clientOnly = new AuthenticatedManifestDispositionEvent(
+                PLAYER, "session-a", NOW, DispositionAction.DENY, Optional.of("rule-a"),
+                ProxyPolicyRefreshStatus.ACTIVE, Optional.of("policy-a"), Optional.of(1L),
+                Optional.of(NOW.plusSeconds(60)));
+        assertFalse(clientOnly.hasAdmissionEffect());
+        assertFalse(clientOnly.hasExecutionEvidence());
     }
 
     @Test
@@ -51,5 +69,33 @@ final class AuthenticatedManifestDispositionEventTest {
 
         assertFalse(event.policyIsActive());
         assertFalse(event.hasAdmissionEffect());
+    }
+
+    @Test
+    void activeStatusWithoutACompleteExpiringPolicyIdentityIsAuditOnly() {
+        AuthenticatedManifestDispositionEvent event = new AuthenticatedManifestDispositionEvent(
+                PLAYER, "session-a", NOW, DispositionAction.DENY, Optional.of("rule-a"),
+                ProxyPolicyRefreshStatus.ACTIVE,
+                Optional.empty(), Optional.empty(), Optional.empty(),
+                ObservationOrigin.SERVER_CONFIRMED,
+                Optional.of(UUID.fromString("00000000-0000-0000-0000-000000000003")),
+                Optional.empty(), Optional.of("33".repeat(32)));
+
+        assertTrue(event.policyIsActive());
+        assertFalse(event.hasBoundActivePolicyIdentity());
+        assertFalse(event.policyIsActiveAt(NOW));
+        assertFalse(event.hasAdmissionEffect());
+        assertFalse(event.hasExecutionEvidence());
+    }
+
+    @Test
+    void trustedAuthorityWithoutExecutionContextCommitmentIsRejected() {
+        assertThrows(IllegalArgumentException.class, () ->
+                new AuthenticatedManifestDispositionEvent(
+                        PLAYER, "session-a", NOW, DispositionAction.DENY, Optional.of("rule-a"),
+                        ProxyPolicyRefreshStatus.ACTIVE, Optional.of("policy-a"), Optional.of(1L),
+                        Optional.of(NOW.plusSeconds(60)), ObservationOrigin.SERVER_CONFIRMED,
+                        Optional.of(UUID.fromString("00000000-0000-0000-0000-000000000003")),
+                        Optional.empty(), Optional.empty()));
     }
 }

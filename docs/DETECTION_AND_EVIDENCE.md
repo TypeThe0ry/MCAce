@@ -36,6 +36,16 @@ with `mcace.admin.audit` may use `/mcaceobservation status` or
 `/mcaceobservation player <uuid> [1-100]`; both commands are strictly read-only
 and have no risk, admission, or disposition effect.
 
+Paper/Folia world and game mode are available to a separate shadow comparison path. The backend
+report is bound to the latest proxy-signed admission transport sequence, while Velocity/Bungee
+derive backend identity from the event-supplied backend connection that carries the target player.
+The adapters do not depend on an eventually consistent current-server pointer; the runtime still
+requires the exact authenticated session, backend, UUID, admission sequence, monotonic report
+sequence, and freshness binding. The shadow runtime evaluates the latest authenticated manifest with
+`proxy/backend/world/gameMode` populated but emits only aggregate counts; it cannot create
+`AuthenticatedManifestDispositionEvent` or call either proxy disposition executor. This context
+does not upgrade a client-reported artifact into `SERVER_CONFIRMED` provenance.
+
 The opt-in real-process Fabric evidence smoke uses the ordinary signed proxy
 request and the same consent screen. It waits for a human `Allow once` action,
 then verifies bounded Begin/Chunk/Commit upload and the server-signed `COMPLETE` ACK,
@@ -56,8 +66,52 @@ Every observation must retain one provenance value:
 - `UNAVAILABLE`: the requested observation was declined, unsupported, expired,
   or failed for an operational reason.
 
-`CLIENT_REPORTED`, `INFERRED`, and `UNAVAILABLE` observations are never a sole
-basis for a permanent ban. The product has no automatic `BAN` disposition.
+`CLIENT_REPORTED`, `INFERRED`, and `UNAVAILABLE` observations are rejected by the
+evaluator as sole candidates for `LIMIT`, `QUARANTINE`, or current-connection
+`DENY`; their rule explanation is `advisory-origin-cannot-enforce`. The product
+has no automatic or permanent `BAN` disposition. High-impact selection requires
+`SERVER_CONFIRMED` or `ADMIN_REVIEWED` provenance in addition to all ordinary
+policy, scope, confidence, admission, and execution-mode gates.
+
+### Trusted high-impact authorization
+
+A trusted provenance label alone is insufficient for execution. Every high-impact
+event must also carry a session-bound authorization ID and the V3 session,
+review-input, and execution-context commitments produced by the trusted authorization
+runtime. For administrator review, an operator with
+`mcace.admin.disposition.review` submits:
+
+```text
+/mcacedisposition review <player> <ticket> <mod|resource-pack|shader-pack|config> <identifier> <version> <sha256>
+```
+
+The command accepts bounded single-token metadata and an exact SHA-256, but it does
+not accept an action. It resolves the player's current authenticated `VERIFIED`
+session, evaluates the observation against the active signed policy, appends the
+strict 16-column TSV record beginning with `v3` to
+`trusted-disposition-authorizations.log`. The record includes the authorization ID,
+operator/ticket, selected action/rule, policy identity, and three commitments. The
+runtime forces that record to disk and only then queues the event. Missing policy,
+no winning rule, stale/non-verified session,
+journal initialization/write/quota failure, or unavailable execution queue results
+in no action.
+
+Immediately before execution, the proxy revalidates the exact current session and
+`VERIFIED` admission inside the same physical lifecycle. In one policy-atomic
+boundary it also requires the exact execution-context commitment, active policy
+identity/status/expiry, current winning rule, and `rule.action == event.action`.
+
+The current three-target Velocity/Bungee V3 matrix passed 18/18 administrator-reviewed
+exact-hash cases (6/6 on 1.21.11, 26.1.2, and 26.2). LIMIT and QUARANTINE completed
+on their distinct routes, while DENY closed only the current connection and allowed
+a clean independent-session lobby reconnect. Every strict 16-column V3 authorization
+journal entry was persisted before execution, and Execute plus ReportOnly passed. The
+sanitized current triplets are in
+`docs/evidence/disposition-current-2026-08-21.json` and declare
+`authorization_contract=UUID_CONTEXT_COMMITMENT_V3`.
+This is real-process `ADMIN_REVIEWED` coverage; no real-process producer currently
+upgrades an artifact observation to `SERVER_CONFIRMED`, and the shadow backend context
+path must not do so. The August 13 aggregate remains retained history.
 
 ## Detection categories
 
@@ -235,4 +289,35 @@ Before any disposition affects players, tests must demonstrate:
 - bounded evidence transfer rejects truncation, replay, tampering, and resource
   exhaustion without retaining partial sensitive content;
 - dynamic observation refresh rejects stale, replayed, root-mismatched,
-  out-of-scope, and oversized snapshots while a verified admission remains intact.
+  out-of-scope, and oversized snapshots while a verified admission remains intact;
+- on real Velocity and Bungee processes, an exact-policy `CLIENT_REPORTED` match
+  remains advisory in both MONITOR and LIMITED_ROUTE configurations, with lobby-only
+  admission and no disposition route lifecycle;
+- on both real proxies, an exact-hash `ADMIN_REVIEWED` V3 authorization is durably
+  journaled before execution; execution-time lifecycle/context/policy/action bindings
+  hold; LIMIT/QUARANTINE use distinct reversible routes; and DENY ends only the
+  current connection before a clean independent-session reconnect.
+
+The current three-target disposition evidence is
+`docs/evidence/disposition-current-2026-08-21.json`: 24/24 advisory-origin
+cases and 18/18 trusted administrator cases passed with Execute and ReportOnly.
+The August 13 aggregates remain retained history and are not substituted for the
+current chains.
+
+The defensive detection regression record is
+`docs/evidence/anti-cheat-detection-2026-08-21.json`. It covers scoped integrity,
+artifact-feature neutrality, replay/tamper/expiry rejection, and multi-provider
+behavior correlation. It does not claim a production cheat precision/recall rate;
+the licensed Vulcan runtime event remains an explicit pending gate.
+For reproducible public-fixture checks, use
+`scripts/anticheat-fixture-smoke.ps1 -Execute` with explicit, locally reviewed
+Meteor and Xray-pack paths plus SHA-256 values. The wrapper runs only the
+metadata/classification JUnit fixture in a temporary directory, requires JDK 21,
+and records `STATIC_FIXTURE_ONLY_NO_THIRD_PARTY_CODE_EXECUTION`; it never launches
+Meteor, a resource-pack client, or arbitrary third-party code. Revalidate a saved
+record with `-ReportOnly -ReportPath <report.json> -ExpectedReportSha256 <sha256>`.
+The remaining distinct gates are a real-process `SERVER_CONFIRMED` artifact/behavior
+authorization producer, the three-target explicit-file/frame GUI flow (six human
+decisions), and the separate two-decision Fabric federation source-export/target-
+import handoff. The federation V2 UI/wrapper static contract passes, but no real
+human handoff PASS exists.

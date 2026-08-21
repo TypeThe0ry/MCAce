@@ -14,6 +14,8 @@ final class BungeeInboundFrameGateTest {
                 BungeeInboundFrameGate.decide(BungeeMCAceChannels.PAYLOAD, true));
         assertEquals(BungeeInboundFrameGate.Decision.CONSUME_ONLY,
                 BungeeInboundFrameGate.decide(BungeeMCAceChannels.ADMISSION, true));
+        assertEquals(BungeeInboundFrameGate.Decision.CONSUME_ONLY,
+                BungeeInboundFrameGate.decide(BungeeMCAceChannels.BACKEND_CONTEXT, true));
     }
 
     @Test
@@ -24,6 +26,8 @@ final class BungeeInboundFrameGateTest {
                 BungeeInboundFrameGate.decide(BungeeMCAceChannels.PAYLOAD, false));
         assertEquals(BungeeInboundFrameGate.Decision.CONSUME_ONLY,
                 BungeeInboundFrameGate.decide(BungeeMCAceChannels.ADMISSION, false));
+        assertEquals(BungeeInboundFrameGate.Decision.BACKEND_CONTEXT,
+                BungeeInboundFrameGate.decide(BungeeMCAceChannels.BACKEND_CONTEXT, false));
         assertEquals(BungeeInboundFrameGate.Decision.IGNORE,
                 BungeeInboundFrameGate.decide("example:unrelated", true));
     }

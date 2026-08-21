@@ -3,7 +3,6 @@ package com.ellan.mcace.bungeecord;
 import com.ellan.mcace.core.disposition.DispositionAction;
 import com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent;
 import java.time.Clock;
-import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -12,6 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 
 /**
  * Bounded handoff from the manifest audit worker to the Bungee scheduler.
@@ -45,12 +45,19 @@ final class BungeeDispositionExecutor implements AutoCloseable {
 
         boolean isVerifiedAdmission(UUID playerId);
 
+        /** Revalidates the trusted authorization scope against the current physical login. */
+        boolean isCurrentAuthorizationContext(AuthenticatedManifestDispositionEvent event);
+
         /** Sends a fixed message only if this exact authenticated session remains current. */
         boolean sendMessage(UUID playerId, String sessionId, String message);
 
         RouteOutcome routeToServer(AuthenticatedManifestDispositionEvent event, String server);
 
         boolean deny(UUID playerId, String sessionId, String message);
+
+        default boolean deny(AuthenticatedManifestDispositionEvent event, String message) {
+            return deny(event.playerId(), event.sessionId(), message);
+        }
     }
 
     enum Status {
@@ -66,6 +73,7 @@ final class BungeeDispositionExecutor implements AutoCloseable {
         NO_VALID_POLICY,
         STALE_SESSION,
         BASELINE_PROTECTED,
+        STALE_AUTHORIZATION_CONTEXT,
         NOT_ENFORCED,
         DUPLICATE,
         ACTION_UNAVAILABLE,
@@ -86,7 +94,9 @@ final class BungeeDispositionExecutor implements AutoCloseable {
     private final Consumer<Runnable> schedulerSubmitter;
     private final Actions actions;
     private final Clock clock;
+    private final Predicate<AuthenticatedManifestDispositionEvent> currentPolicy;
     private final BiConsumer<AuthenticatedManifestDispositionEvent, Result> resultSink;
+    private final int maxAppliedKeys;
     private final Set<AppliedKey> appliedKeys = ConcurrentHashMap.newKeySet();
     private final AtomicBoolean drainScheduled = new AtomicBoolean();
     private final AtomicBoolean closed = new AtomicBoolean();
@@ -97,10 +107,14 @@ final class BungeeDispositionExecutor implements AutoCloseable {
             int capacity,
             Consumer<Runnable> schedulerSubmitter,
             Actions actions,
-            Clock clock) {
-        this(mode, routeTargets, capacity, schedulerSubmitter, actions, clock, (ignored, result) -> { });
+            Clock clock,
+            Predicate<AuthenticatedManifestDispositionEvent> currentPolicy,
+            BiConsumer<AuthenticatedManifestDispositionEvent, Result> resultSink) {
+        this(mode, routeTargets, capacity, schedulerSubmitter, actions, clock, currentPolicy,
+                resultSink, MAX_APPLIED_KEYS);
     }
 
+    /** Test seam for exercising the idempotency bound without thousands of platform actions. */
     BungeeDispositionExecutor(
             BungeeDispositionExecutionMode mode,
             BungeeDispositionRouteTargets routeTargets,
@@ -108,17 +122,21 @@ final class BungeeDispositionExecutor implements AutoCloseable {
             Consumer<Runnable> schedulerSubmitter,
             Actions actions,
             Clock clock,
-            BiConsumer<AuthenticatedManifestDispositionEvent, Result> resultSink) {
+            Predicate<AuthenticatedManifestDispositionEvent> currentPolicy,
+            BiConsumer<AuthenticatedManifestDispositionEvent, Result> resultSink,
+            int maxAppliedKeys) {
         this.mode = Objects.requireNonNull(mode, "mode");
         this.routeTargets = Objects.requireNonNull(routeTargets, "routeTargets");
-        if (capacity < 1) {
+        if (capacity < 1 || maxAppliedKeys < 1) {
             throw new IllegalArgumentException("invalid Bungee disposition executor bounds");
         }
         this.queue = new ArrayBlockingQueue<>(capacity);
         this.schedulerSubmitter = Objects.requireNonNull(schedulerSubmitter, "schedulerSubmitter");
         this.actions = Objects.requireNonNull(actions, "actions");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.currentPolicy = Objects.requireNonNull(currentPolicy, "currentPolicy");
         this.resultSink = Objects.requireNonNull(resultSink, "resultSink");
+        this.maxAppliedKeys = maxAppliedKeys;
     }
 
     boolean offer(AuthenticatedManifestDispositionEvent event) {
@@ -160,7 +178,10 @@ final class BungeeDispositionExecutor implements AutoCloseable {
 
     synchronized Result apply(AuthenticatedManifestDispositionEvent event) {
         Objects.requireNonNull(event, "event");
-        if (!event.policyIsActiveAt(clock.instant())) {
+        if (closed.get()) {
+            return new Result(event.highestAction(), Status.ACTION_UNAVAILABLE);
+        }
+        if (!event.policyIsActiveAt(clock.instant()) || !currentPolicy.test(event)) {
             return new Result(event.highestAction(), Status.NO_VALID_POLICY);
         }
         if (!event.hasExecutionEvidence()) {
@@ -176,6 +197,10 @@ final class BungeeDispositionExecutor implements AutoCloseable {
         if (!actions.isVerifiedAdmission(event.playerId())) {
             return new Result(event.highestAction(), Status.BASELINE_PROTECTED);
         }
+        if (event.highestAction().severity() >= DispositionAction.LIMIT.severity()
+                && !actions.isCurrentAuthorizationContext(event)) {
+            return new Result(event.highestAction(), Status.STALE_AUTHORIZATION_CONTEXT);
+        }
         if (mode != BungeeDispositionExecutionMode.LIMITED_ROUTE
                 && event.highestAction().severity() >= DispositionAction.LIMIT.severity()) {
             return new Result(event.highestAction(), Status.NOT_ENFORCED);
@@ -183,6 +208,11 @@ final class BungeeDispositionExecutor implements AutoCloseable {
         AppliedKey key = AppliedKey.from(event);
         if (appliedKeys.contains(key)) {
             return new Result(event.highestAction(), Status.DUPLICATE);
+        }
+        if (appliedKeys.size() >= maxAppliedKeys) {
+            // Never evict an active session's one-shot key: eviction could make an old trusted
+            // authorization executable again. Exact session cleanup is the only reclamation path.
+            return new Result(event.highestAction(), Status.ACTION_UNAVAILABLE);
         }
         boolean completed;
         Status status;
@@ -214,7 +244,7 @@ final class BungeeDispositionExecutor implements AutoCloseable {
                         ? Status.QUARANTINED_DEFERRED : Status.QUARANTINED_DISPATCHED;
             }
             case DENY -> {
-                completed = actions.deny(event.playerId(), event.sessionId(), DENY_MESSAGE);
+                completed = actions.deny(event, DENY_MESSAGE);
                 status = Status.DENIED;
             }
             case ALLOW, OBSERVE -> {
@@ -227,7 +257,6 @@ final class BungeeDispositionExecutor implements AutoCloseable {
             return new Result(event.highestAction(), Status.ACTION_UNAVAILABLE);
         }
         appliedKeys.add(key);
-        trimAppliedKeys();
         return new Result(event.highestAction(), status);
     }
 
@@ -248,7 +277,7 @@ final class BungeeDispositionExecutor implements AutoCloseable {
     }
 
     @Override
-    public void close() {
+    public synchronized void close() {
         if (closed.compareAndSet(false, true)) {
             queue.clear();
             appliedKeys.clear();
@@ -267,16 +296,6 @@ final class BungeeDispositionExecutor implements AutoCloseable {
         }
     }
 
-    private void trimAppliedKeys() {
-        while (appliedKeys.size() > MAX_APPLIED_KEYS) {
-            Iterator<AppliedKey> iterator = appliedKeys.iterator();
-            if (!iterator.hasNext()) {
-                return;
-            }
-            appliedKeys.remove(iterator.next());
-        }
-    }
-
     /**
      * Exact idempotency identity for one authenticated disposition delivery.
      *
@@ -287,21 +306,33 @@ final class BungeeDispositionExecutor implements AutoCloseable {
     private record AppliedKey(
             UUID playerId,
             String sessionId,
+            java.util.Optional<String> activePolicyVersion,
             java.util.Optional<Long> activePolicySequence,
-            DispositionAction action) {
+            java.util.Optional<java.time.Instant> activePolicyExpiresAt,
+            java.util.Optional<String> winningRuleId,
+            DispositionAction action,
+            java.util.Optional<UUID> authorizationId) {
         private AppliedKey {
             Objects.requireNonNull(playerId, "playerId");
             Objects.requireNonNull(sessionId, "sessionId");
+            Objects.requireNonNull(activePolicyVersion, "activePolicyVersion");
             Objects.requireNonNull(activePolicySequence, "activePolicySequence");
+            Objects.requireNonNull(activePolicyExpiresAt, "activePolicyExpiresAt");
+            Objects.requireNonNull(winningRuleId, "winningRuleId");
             Objects.requireNonNull(action, "action");
+            Objects.requireNonNull(authorizationId, "authorizationId");
         }
 
         static AppliedKey from(AuthenticatedManifestDispositionEvent event) {
             return new AppliedKey(
                     event.playerId(),
                     event.sessionId(),
+                    event.activePolicyVersion(),
                     event.activePolicySequence(),
-                    event.highestAction());
+                    event.activePolicyExpiresAt(),
+                    event.winningRuleId(),
+                    event.highestAction(),
+                    event.authorizationId());
         }
     }
 }

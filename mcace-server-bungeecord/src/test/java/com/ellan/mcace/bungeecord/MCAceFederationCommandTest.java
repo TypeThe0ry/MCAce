@@ -32,6 +32,8 @@ final class MCAceFederationCommandTest {
         command.execute(sender(true, messages), new String[] {"peers"});
         String output = String.join(" ", messages).toLowerCase(java.util.Locale.ROOT);
         assertTrue(output.contains("network-b"));
+        assertTrue(output.contains("audit=healthy"));
+        assertTrue(output.contains("audit_backlog=0"));
         assertFalse(output.contains("secret-material"));
         assertFalse(output.contains("sha256"));
         assertFalse(output.contains("token"));
@@ -41,7 +43,8 @@ final class MCAceFederationCommandTest {
     private static MCAceFederationCommand command(AtomicInteger issues) {
         return new MCAceFederationCommand(new MCAceFederationCommand.Operations() {
             @Override public FederationRuntimeState status() {
-                return new FederationRuntimeState(true, "network-a", 1, 0, 0);
+                return new FederationRuntimeState(
+                        true, true, true, "network-a", 1, 0, 0, 0, 2L, 0L);
             }
             @Override public List<String> peers() { return List.of("network-b"); }
             @Override public FederationRuntimeStatus issue(UUID playerId, String target, String operator) {

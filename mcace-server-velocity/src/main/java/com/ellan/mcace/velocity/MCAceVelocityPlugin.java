@@ -30,8 +30,13 @@ import com.ellan.mcace.core.proxy.AuthenticatedManifestObservationDeriver;
 import com.ellan.mcace.core.proxy.BoundedAuthenticatedManifestAuditQueue;
 import com.ellan.mcace.core.proxy.ArtifactObservationAuditSink;
 import com.ellan.mcace.core.proxy.ArtifactObservationAuditRecord;
+import com.ellan.mcace.core.proxy.AdministratorDispositionReviewRequest;
+import com.ellan.mcace.core.proxy.FileTrustedDispositionAuthorizationSink;
+import com.ellan.mcace.core.proxy.TrustedDispositionAuthorizationRuntime;
+import com.ellan.mcace.core.proxy.TrustedDispositionCommitments;
 import com.ellan.mcace.core.proxy.FileArtifactObservationAuditSink;
 import com.ellan.mcace.core.proxy.ProxyPolicyRefreshStatus;
+import com.ellan.mcace.core.proxy.ShadowBackendContextRuntime;
 import com.ellan.mcace.core.risk.RiskEngine;
 import com.ellan.mcace.core.risk.RiskPolicy;
 import com.ellan.mcace.core.session.HandshakeAction;
@@ -63,6 +68,7 @@ import com.velocitypowered.api.plugin.Plugin;
 import com.velocitypowered.api.plugin.annotation.DataDirectory;
 import com.velocitypowered.api.proxy.Player;
 import com.velocitypowered.api.proxy.ProxyServer;
+import com.velocitypowered.api.proxy.ServerConnection;
 import net.kyori.adventure.text.Component;
 import java.io.IOException;
 import java.net.InetAddress;
@@ -120,6 +126,7 @@ public final class MCAceVelocityPlugin {
     private BoundedAuthenticatedManifestAuditQueue manifestAuditQueue;
     private BoundedAuthenticatedManifestAuditQueue artifactObservationAuditQueue;
     private AuthenticatedManifestEvaluator manifestEvaluator;
+    private ShadowBackendContextRuntime backendContextRuntime;
     private VelocityDispositionExecutor dispositionExecutor;
     private VelocityDeferredDispositionRoutes deferredDispositionRoutes;
     private VelocityDeferredAdmissionRoutes deferredAdmissionRoutes;
@@ -130,6 +137,7 @@ public final class MCAceVelocityPlugin {
     private EvidenceAuditSink evidenceAuditSink;
     private LoopbackEvidenceReviewService evidenceReviewService;
     private ArtifactObservationAuditSink artifactObservationAudit;
+    private TrustedDispositionAuthorizationRuntime trustedDispositionAuthorizations;
     private VelocityFederationLifecycle federationLifecycle;
     private FederationRuntime federationRuntime;
 
@@ -167,12 +175,33 @@ public final class MCAceVelocityPlugin {
             lastDispositionPolicyStatus = dispositionPolicies.refresh();
             manifestEvaluator = new AuthenticatedManifestEvaluator(
                     new AuthenticatedManifestObservationDeriver(), dispositionPolicies.coreRuntime(), clock);
+            backendContextRuntime = new ShadowBackendContextRuntime(
+                    "velocity",
+                    new AuthenticatedManifestObservationDeriver(),
+                    dispositionPolicies.coreRuntime(),
+                    clock,
+                    record -> logger.info(
+                            "MCAce backend context shadow audit: player={} backend={} world={} gameMode={} "
+                                    + "observations={} actions={} issues={} status={} (no admission or disposition effect)",
+                            record.playerId(), record.backendId(), record.worldId(), record.gameMode(),
+                            record.observationCount(), record.actionCounts(), record.consistencyIssueCount(),
+                            record.policyStatus()));
             manifestAuditQueue = new BoundedAuthenticatedManifestAuditQueue(
                     1, 32, this::auditAuthenticatedManifest);
             artifactObservationAuditQueue = new BoundedAuthenticatedManifestAuditQueue(
                     1, 32, this::auditArtifactObservationUpdate);
             artifactObservationAudit = new FileArtifactObservationAuditSink(
                     dataDirectory.resolve("artifact-observation-audit.log"), 8L * 1024 * 1024);
+            try {
+                trustedDispositionAuthorizations = new TrustedDispositionAuthorizationRuntime(
+                        dispositionPolicies.coreRuntime(),
+                        new FileTrustedDispositionAuthorizationSink(
+                                dataDirectory.resolve("trusted-disposition-authorizations.log"),
+                                8L * 1024 * 1024));
+            } catch (IOException exception) {
+                trustedDispositionAuthorizations = null;
+                logger.warn("MCAce administrator-reviewed disposition is disabled because its durable audit is unavailable");
+            }
             dispositionPublisher = VelocityDispositionPolicyPublisher.create(
                     dataDirectory, clock, identity, dispositionPolicies);
             try {
@@ -226,6 +255,14 @@ public final class MCAceVelocityPlugin {
                         }
 
                         @Override
+                        public boolean isCurrentAuthorizationContext(
+                                AuthenticatedManifestDispositionEvent event) {
+                            synchronized (connectionLifecycleLock) {
+                                return currentAuthorizationContextMatchesLocked(event);
+                            }
+                        }
+
+                        @Override
                         public boolean sendMessage(UUID playerId, String sessionId, String message) {
                             synchronized (connectionLifecycleLock) {
                                 Optional<PhysicalLogin> login = currentAuthenticatedLoginLocked(playerId, sessionId);
@@ -242,9 +279,33 @@ public final class MCAceVelocityPlugin {
                         }
 
                         @Override
+                        public VelocityDispositionExecutor.RouteOutcome routeToLimited(
+                                AuthenticatedManifestDispositionEvent event) {
+                            synchronized (connectionLifecycleLock) {
+                                return executeWithCurrentDispositionPolicy(event, () ->
+                                        routeDispositionOutcome(
+                                                event.playerId(), event.sessionId(),
+                                                event.highestAction(), event.authorizationId()))
+                                        .orElse(VelocityDispositionExecutor.RouteOutcome.UNAVAILABLE);
+                            }
+                        }
+
+                        @Override
                         public VelocityDispositionExecutor.RouteOutcome routeToQuarantine(UUID playerId, String sessionId) {
                             return routeDispositionOutcome(
                                     playerId, sessionId, com.ellan.mcace.core.disposition.DispositionAction.QUARANTINE);
+                        }
+
+                        @Override
+                        public VelocityDispositionExecutor.RouteOutcome routeToQuarantine(
+                                AuthenticatedManifestDispositionEvent event) {
+                            synchronized (connectionLifecycleLock) {
+                                return executeWithCurrentDispositionPolicy(event, () ->
+                                        routeDispositionOutcome(
+                                                event.playerId(), event.sessionId(),
+                                                event.highestAction(), event.authorizationId()))
+                                        .orElse(VelocityDispositionExecutor.RouteOutcome.UNAVAILABLE);
+                            }
                         }
 
                         @Override
@@ -262,7 +323,16 @@ public final class MCAceVelocityPlugin {
                                 return true;
                             }
                         }
-                    }, clock);
+
+                        @Override
+                        public boolean deny(AuthenticatedManifestDispositionEvent event, String message) {
+                            synchronized (connectionLifecycleLock) {
+                                return executeWithCurrentDispositionPolicy(
+                                        event, () -> deny(event.playerId(), event.sessionId(), message))
+                                        .orElse(false);
+                            }
+                        }
+                    }, clock, this::isCurrentDispositionPolicy);
             deferredDispositionRoutes = new VelocityDeferredDispositionRoutes(clock);
             deferredAdmissionRoutes = new VelocityDeferredAdmissionRoutes(clock);
             admissionSnapshotCodec = new SignedAdmissionSnapshotCodec(clock, new SecureRandom());
@@ -271,6 +341,7 @@ public final class MCAceVelocityPlugin {
             server.getChannelRegistrar().register(MCAceVelocityChannels.HANDSHAKE);
             server.getChannelRegistrar().register(MCAceVelocityChannels.PAYLOAD);
             server.getChannelRegistrar().register(MCAceVelocityChannels.ADMISSION);
+            server.getChannelRegistrar().register(MCAceVelocityChannels.BACKEND_CONTEXT);
             server.getCommandManager().register(
                     server.getCommandManager().metaBuilder("mcacepolicy").plugin(this).build(),
                     new MCAcePolicyCommand(
@@ -335,6 +406,9 @@ public final class MCAceVelocityPlugin {
                     server.getCommandManager().metaBuilder("mcaceobservation").plugin(this).build(),
                     new MCAceObservationCommand(artifactObservationAudit));
             server.getCommandManager().register(
+                    server.getCommandManager().metaBuilder("mcacedisposition").plugin(this).build(),
+                    new MCAceDispositionReviewCommand(this::reviewDisposition));
+            server.getCommandManager().register(
                     server.getCommandManager().metaBuilder("mcacefederation").plugin(this).build(),
                     new MCAceFederationCommand(federationOperations(), name ->
                             server.getPlayer(name).map(Player::getUniqueId)));
@@ -361,6 +435,7 @@ public final class MCAceVelocityPlugin {
                     .schedule();
             logger.info("MCAce Phase 2 handshake initialized with enforcement.mode={} effective.mode={}; server key fingerprint={}",
                     admissionConfig.mode(), dispositionRoutes.effectiveMode(), ServerIdentityStore.fingerprint(identity));
+            logger.info("MCAce backend/world/game-mode context enabled in shadow-only mode");
             logger.info("Active delegated policy sequence={} trust-sequence={} expires={}",
                     activePolicy.policy().getSequence(), activePolicy.trustSequence(),
                     java.time.Instant.ofEpochMilli(activePolicy.policy().getExpiresAtEpochMs()));
@@ -436,6 +511,10 @@ public final class MCAceVelocityPlugin {
         if (artifactObservationAuditQueue != null) {
             artifactObservationAuditQueue.close();
         }
+        if (backendContextRuntime != null) {
+            backendContextRuntime.close();
+            backendContextRuntime = null;
+        }
         if (dispositionExecutor != null) {
             for (Player player : server.getAllPlayers()) {
                 dispositionExecutor.clear(player.getUniqueId());
@@ -479,6 +558,7 @@ public final class MCAceVelocityPlugin {
             challengedPlayers.remove(playerId);
             ticket = loginLifecycle.beginLogin(playerId, player);
             lastBackendPublish.remove(playerId);
+            if (backendContextRuntime != null) backendContextRuntime.clear(playerId);
             if (deferredDispositionRoutes != null) deferredDispositionRoutes.clear(playerId);
             if (deferredAdmissionRoutes != null) deferredAdmissionRoutes.clear(playerId);
             backendReadyBarrier.clear(playerId);
@@ -504,6 +584,8 @@ public final class MCAceVelocityPlugin {
 
     @Subscribe
     public void onPluginMessage(PluginMessageEvent event) {
+
+
         com.ellan.mcace.core.proxy.ProxyAdapterTransportContract.InboundDecision decision =
                 MCAceVelocityChannels.inboundDecision(event.getIdentifier(),
                         MCAceVelocityChannels.isPlayerSource(event.getSource()));
@@ -514,6 +596,10 @@ public final class MCAceVelocityPlugin {
         // receive a client-authentication or bounded-payload frame through this proxy.
         event.setResult(PluginMessageEvent.ForwardResult.handled());
         if (decision == com.ellan.mcace.core.proxy.ProxyAdapterTransportContract.InboundDecision.CONSUME_ONLY) {
+            return;
+        }
+        if (decision == com.ellan.mcace.core.proxy.ProxyAdapterTransportContract.InboundDecision.BACKEND_CONTEXT) {
+            receiveBackendContext(event);
             return;
         }
         Player player = (Player) event.getSource();
@@ -625,6 +711,7 @@ public final class MCAceVelocityPlugin {
             removeTicketBoundChallenge(challengedPlayers, playerId, ticket);
             if (!loginLifecycle.clear(playerId, player, ticket)) return;
             lastBackendPublish.remove(playerId);
+            if (backendContextRuntime != null) backendContextRuntime.clear(playerId);
             if (deferredDispositionRoutes != null) deferredDispositionRoutes.clear(playerId);
             if (deferredAdmissionRoutes != null) deferredAdmissionRoutes.clear(playerId);
             backendReadyBarrier.clear(playerId);
@@ -647,6 +734,7 @@ public final class MCAceVelocityPlugin {
     }
 
     private void expireHandshakes() {
+        if (backendContextRuntime != null) backendContextRuntime.expire();
         for (PlayerSecuritySnapshot snapshot : coordinator().expireTimedOut()) {
             Player player = server.getPlayer(snapshot.playerId()).orElse(null);
             Optional<PhysicalLogin> login = player == null ? Optional.empty() : currentPhysicalLogin(player);
@@ -853,6 +941,8 @@ public final class MCAceVelocityPlugin {
 
     /** Queue saturation or evaluation failure is audit-only and cannot affect a verified session. */
     private void enqueueManifestAudit(com.ellan.mcace.core.session.AuthenticatedManifest manifest) {
+
+        if (backendContextRuntime != null) backendContextRuntime.rememberManifest(manifest);
         if (!manifestAuditQueue.offer(manifest)) {
             logger.warn("MCAce manifest audit queue is saturated; audit was dropped without changing admission");
         }
@@ -863,14 +953,16 @@ public final class MCAceVelocityPlugin {
                 manifest,
                 new EvaluationContext(
                         manifest.playerId(), "velocity", null, null, null, Set.of(), clock.instant()));
-        logger.info("MCAce manifest audit: player={} observations={} actions={} issues={} status={} truncated={}",
+        AuthenticatedManifestDispositionEvent event = audit.dispositionEvent();
+        logger.info("MCAce manifest audit: player={} observations={} actions={} advisoryBlocks={} policyVersion={} issues={} status={} truncated={}",
                 audit.playerId(),
                 audit.evaluation().totalObservations(),
                 audit.evaluation().actionCounts(),
+                audit.evaluation().advisoryEnforcementRuleBlocks(),
+                event.activePolicyVersion().orElse("none"),
                 audit.consistencyIssues().size(),
                 audit.evaluation().refreshStatus(),
                 audit.evaluation().truncated());
-        AuthenticatedManifestDispositionEvent event = audit.dispositionEvent();
         // The audit worker carries only immutable content-free data across this handoff. Player
         // lookup and all connection mutations happen in the Velocity scheduler task.
         server.getScheduler().buildTask(this, () -> executeDisposition(event)).schedule();
@@ -878,6 +970,7 @@ public final class MCAceVelocityPlugin {
 
     /** Dynamic updates are audit-only: they deliberately do not emit a disposition event. */
     private void enqueueArtifactObservationAudit(com.ellan.mcace.core.session.AuthenticatedManifest manifest) {
+        if (backendContextRuntime != null) backendContextRuntime.rememberManifest(manifest);
         if (!artifactObservationAuditQueue.offer(manifest)) {
             logger.warn("MCAce artifact observation audit queue is saturated; update dropped without changing admission");
         }
@@ -894,6 +987,69 @@ public final class MCAceVelocityPlugin {
                 audit.consistencyIssues().size(), audit.evaluation().actionCounts(), audit.evaluation().refreshStatus()));
     }
 
+    private MCAceDispositionReviewCommand.ReviewResult reviewDisposition(
+            String playerName,
+            String operatorId,
+            AdministratorDispositionReviewRequest request) {
+        TrustedDispositionAuthorizationRuntime authorizations = trustedDispositionAuthorizations;
+        if (authorizations == null) {
+            return MCAceDispositionReviewCommand.ReviewResult.status(
+                    MCAceDispositionReviewCommand.Status.AUTHORIZATION_AUDIT_UNAVAILABLE);
+        }
+        Player player = server.getPlayer(playerName).orElse(null);
+        if (player == null) {
+            return MCAceDispositionReviewCommand.ReviewResult.status(
+                    MCAceDispositionReviewCommand.Status.UNKNOWN_PLAYER);
+        }
+        String sessionId;
+        String backendId;
+        synchronized (connectionLifecycleLock) {
+            Optional<VelocityLoginLifecycle.LoginTicket> ticket = ticketForCurrentPlayerLocked(player);
+            Optional<String> session = coordinator().currentAuthenticatedSessionId(player.getUniqueId());
+            boolean verified = api.snapshot(player.getUniqueId())
+                    .map(snapshot -> snapshot.verified()
+                            && snapshot.admissionStatus() == AdmissionStatus.VERIFIED)
+                    .orElse(false);
+            if (ticket.isEmpty() || session.isEmpty() || !verified
+                    || !coordinator().isCurrentAuthenticatedSession(
+                    player.getUniqueId(), session.orElseThrow())) {
+                return MCAceDispositionReviewCommand.ReviewResult.status(
+                        MCAceDispositionReviewCommand.Status.NO_CURRENT_AUTHENTICATED_SESSION);
+            }
+            sessionId = session.orElseThrow();
+            backendId = player.getCurrentServer()
+                    .map(connection -> connection.getServerInfo().getName()).orElse(null);
+        }
+        AuthenticatedManifestDispositionEvent event;
+        try {
+            event = authorizations.authorizeAdministratorReview(
+                    player.getUniqueId(), sessionId,
+                    new EvaluationContext(
+                            player.getUniqueId(), "velocity", backendId, null, null, Set.of(), clock.instant()),
+                    request.observation(), operatorId, request.reviewTicket());
+            logger.info("MCAce trusted disposition authorization persisted: authorization={} "
+                            + "journal-durable=true execution-context-bound=true "
+                            + "player={} action={} policy-sequence={}",
+                    event.authorizationId().orElseThrow(), event.playerId(), event.highestAction(),
+                    event.activePolicySequence().orElseThrow());
+        } catch (IOException | RuntimeException exception) {
+            logger.warn("MCAce administrator-reviewed disposition authorization failed closed: {}",
+                    exception.getClass().getSimpleName());
+            return MCAceDispositionReviewCommand.ReviewResult.status(
+                    MCAceDispositionReviewCommand.Status.FAILED);
+        }
+        try {
+            server.getScheduler().buildTask(this, () -> executeDisposition(event)).schedule();
+        } catch (RuntimeException exception) {
+            logger.warn("MCAce administrator-reviewed disposition execution queue is unavailable");
+            return MCAceDispositionReviewCommand.ReviewResult.status(
+                    MCAceDispositionReviewCommand.Status.EXECUTION_QUEUE_UNAVAILABLE);
+        }
+        return new MCAceDispositionReviewCommand.ReviewResult(
+                MCAceDispositionReviewCommand.Status.AUTHORIZED,
+                Optional.of(event.highestAction()), event.winningRuleId(),
+                event.activePolicySequence(), event.authorizationId());
+    }
     private void executeDisposition(AuthenticatedManifestDispositionEvent event) {
         Optional<PhysicalLogin> before = currentAuthenticatedLogin(event.playerId(), event.sessionId());
         long eventGeneration = 0L;
@@ -926,14 +1082,84 @@ public final class MCAceVelocityPlugin {
                             event, target, eventGeneration, login.ticket(), login.player());
                 }
             }
-            logger.info("MCAce manifest disposition: action={} result=DEFERRED player={} queue={}",
-                    result.action(), event.playerId(), deferred);
+            logger.info("MCAce manifest disposition: action={} result=DEFERRED player={} queue={} authorization={} "
+                            + "session-bound=true execution-context-bound={}",
+                    result.action(), event.playerId(), deferred,
+                    event.authorizationId().map(Object::toString).orElse("none"),
+                    event.authorizationContextCommitmentSha256().isPresent());
             return;
         }
         if (result.status() != VelocityDispositionExecutor.Status.OBSERVE) {
-            logger.info("MCAce manifest disposition: action={} result={} player={} session-bound=true",
-                    result.action(), result.status(), event.playerId());
+            logger.info("MCAce manifest disposition: action={} result={} player={} authorization={} "
+                            + "session-bound=true execution-context-bound={}",
+                    result.action(), result.status(), event.playerId(),
+                    event.authorizationId().map(Object::toString).orElse("none"),
+                    event.authorizationContextCommitmentSha256().isPresent());
         }
+    }
+
+    private boolean isCurrentDispositionPolicy(AuthenticatedManifestDispositionEvent event) {
+        if (dispositionPolicies == null
+                || event.activePolicyVersion().isEmpty()
+                || event.activePolicySequence().isEmpty()
+                || event.activePolicyExpiresAt().isEmpty()
+                || event.winningRuleId().isEmpty()) {
+            return false;
+        }
+        return dispositionPolicies.coreRuntime().isCurrentActivePolicy(
+                event.activePolicyVersion().orElseThrow(),
+                event.activePolicySequence().orElseThrow(),
+                event.activePolicyExpiresAt().orElseThrow(),
+                event.winningRuleId().orElseThrow(),
+                event.highestAction());
+    }
+
+    private <T> Optional<T> executeWithCurrentDispositionPolicy(
+            AuthenticatedManifestDispositionEvent event,
+            java.util.function.Supplier<T> operation) {
+        if (dispositionPolicies == null
+                || event.activePolicyVersion().isEmpty()
+                || event.activePolicySequence().isEmpty()
+                || event.activePolicyExpiresAt().isEmpty()
+                || event.winningRuleId().isEmpty()) {
+            return Optional.empty();
+        }
+        if (!Thread.holdsLock(connectionLifecycleLock)
+                || !currentAuthorizationContextMatchesLocked(event)) {
+            return Optional.empty();
+        }
+        return dispositionPolicies.coreRuntime().executeIfCurrentActivePolicy(
+                event.activePolicyVersion().orElseThrow(),
+                event.activePolicySequence().orElseThrow(),
+                event.activePolicyExpiresAt().orElseThrow(),
+                event.winningRuleId().orElseThrow(), event.highestAction(), operation);
+    }
+
+    /** Call only while holding the physical-login lifecycle boundary. */
+    private boolean currentAuthorizationContextMatchesLocked(
+            AuthenticatedManifestDispositionEvent event) {
+        if (!Thread.holdsLock(connectionLifecycleLock)
+                || event.authorizationId().isEmpty()
+                || event.authorizationContextCommitmentSha256().isEmpty()) {
+            return false;
+        }
+        Optional<PhysicalLogin> current = currentAuthenticatedLoginLocked(
+                event.playerId(), event.sessionId());
+        boolean verified = api.snapshot(event.playerId())
+                .map(snapshot -> snapshot.verified()
+                        && snapshot.admissionStatus() == AdmissionStatus.VERIFIED)
+                .orElse(false);
+        if (current.isEmpty() || !verified || !backendReadyBarrier.isReady(event.playerId())) {
+            return false;
+        }
+        Player player = current.orElseThrow().player();
+        String backend = player.getCurrentServer()
+                .map(connection -> connection.getServerInfo().getName()).orElse(null);
+        EvaluationContext context = new EvaluationContext(
+                event.playerId(), "velocity", backend, null, null, Set.of(), clock.instant());
+        return TrustedDispositionCommitments.executionContextMatches(
+                event.authorizationId().orElseThrow(), context,
+                event.authorizationContextCommitmentSha256().orElseThrow());
     }
 
     /** All guards are repeated because the original audit was asynchronous and Velocity handoffs may overlap. */
@@ -979,8 +1205,11 @@ public final class MCAceVelocityPlugin {
             return;
         }
         VelocityDispositionExecutor.Result result = dispositionExecutor.apply(event);
-        logger.info("MCAce deferred disposition route retry: action={} result={} player={} target-bound=true",
-                result.action(), result.status(), playerId);
+        logger.info("MCAce deferred disposition route retry: action={} result={} player={} authorization={} "
+                        + "target-bound=true execution-context-bound={}",
+                result.action(), result.status(), playerId,
+                event.authorizationId().map(Object::toString).orElse("none"),
+                event.authorizationContextCommitmentSha256().isPresent());
     }
 
     private void retryDeferredAdmissionRoute(
@@ -1017,13 +1246,23 @@ public final class MCAceVelocityPlugin {
         if (!isCurrentPhysicalLogin(player, ticket)) return;
         player.getCurrentServer().ifPresent(connection -> {
             try {
-                byte[] encoded = admissionSnapshotCodec.sign(
+                long transportSequence = nextAdmissionSequence();
+                SignedAdmissionSnapshotCodec.SignedAdmissionSnapshot signed =
+                        admissionSnapshotCodec.signWithExpiry(
                         snapshot,
                         BACKEND_SNAPSHOT_TTL,
-                        nextAdmissionSequence(),
+                        transportSequence,
                         admissionSigningKey);
                 if (!isCurrentPhysicalLogin(player, ticket)) return;
-                if (connection.sendPluginMessage(MCAceVelocityChannels.ADMISSION, encoded)
+                ShadowBackendContextRuntime contextRuntime = backendContextRuntime;
+                if (contextRuntime != null) {
+                    coordinator().currentAuthenticatedSessionId(player.getUniqueId()).ifPresent(sessionId ->
+                            contextRuntime.expectBackend(
+                                    player.getUniqueId(), sessionId,
+                                    connection.getServerInfo().getName(),
+                                    transportSequence, signed.expiresAt()));
+                }
+                if (connection.sendPluginMessage(MCAceVelocityChannels.ADMISSION, signed.encodedFrame())
                         && isCurrentPhysicalLogin(player, ticket)) {
                     lastBackendPublish.put(player.getUniqueId(), clock.instant());
                 } else {
@@ -1033,6 +1272,34 @@ public final class MCAceVelocityPlugin {
                 logger.error("Could not sign MCAce backend admission snapshot for {}", player.getUsername(), exception);
             }
         });
+    }
+
+    private void receiveBackendContext(PluginMessageEvent event) {
+        ShadowBackendContextRuntime runtime = backendContextRuntime;
+        if (runtime == null || !(event.getSource() instanceof ServerConnection connection)
+                || !(event.getTarget() instanceof Player player) || connection.getPlayer() != player) {
+            return;
+        }
+        ShadowBackendContextRuntime.ReceiveResult result;
+        synchronized (connectionLifecycleLock) {
+            Optional<VelocityLoginLifecycle.LoginTicket> ticket = ticketForCurrentPlayerLocked(player);
+            if (ticket.isEmpty()
+                    || coordinator().currentAuthenticatedSessionId(player.getUniqueId()).isEmpty()) {
+                return;
+            }
+            // A backend can answer before Velocity publishes it through getCurrentServer(). The
+            // exact authenticated session, backend id and admission sequence remain fail-closed
+            // inside ShadowBackendContextRuntime, so early or stale connections cannot bind.
+            result = runtime.receive(
+                    player.getUniqueId(), connection.getServerInfo().getName(), event.getData());
+        }
+        if (result.acceptedContext().isPresent()) {
+            logger.debug("MCAce accepted backend context for {} status={} (shadow-only)",
+                    player.getUsername(), result.status());
+        } else {
+            logger.warn("MCAce rejected backend context for {} status={} (admission unchanged)",
+                    player.getUsername(), result.status());
+        }
     }
 
     private long nextAdmissionSequence() {
@@ -1288,6 +1555,13 @@ public final class MCAceVelocityPlugin {
 
     private VelocityDispositionExecutor.RouteOutcome routeDispositionOutcome(
             UUID playerId, String sessionId, com.ellan.mcace.core.disposition.DispositionAction action) {
+        return routeDispositionOutcome(playerId, sessionId, action, Optional.empty());
+    }
+
+    private VelocityDispositionExecutor.RouteOutcome routeDispositionOutcome(
+            UUID playerId, String sessionId,
+            com.ellan.mcace.core.disposition.DispositionAction action,
+            Optional<UUID> authorizationId) {
         if (deferredDispositionRoutes == null) {
             return VelocityDispositionExecutor.RouteOutcome.UNAVAILABLE;
         }
@@ -1296,14 +1570,15 @@ public final class MCAceVelocityPlugin {
         PhysicalLogin login = current.orElseThrow();
         return deferredDispositionRoutes.executeIfPermitted(
                 playerId, sessionId, login.ticket(), login.player(),
-                () -> routeDispositionPermitted(login, sessionId, action));
+                () -> routeDispositionPermitted(login, sessionId, action, authorizationId));
     }
 
     /** Called under the route-state lock; it may only initiate a Velocity request, never wait. */
     private VelocityDispositionExecutor.RouteOutcome routeDispositionPermitted(
             PhysicalLogin login,
             String sessionId,
-            com.ellan.mcace.core.disposition.DispositionAction action) {
+            com.ellan.mcace.core.disposition.DispositionAction action,
+            Optional<UUID> authorizationId) {
         Player player = login.player();
         UUID playerId = player.getUniqueId();
         if (!isCurrentAuthenticatedLoginSnapshot(player, login.ticket(), sessionId)) {
@@ -1337,25 +1612,37 @@ public final class MCAceVelocityPlugin {
                     server.getScheduler().buildTask(this, () -> {
                             if (!isCurrentAuthenticatedLogin(player, login.ticket(), sessionId)) return;
                             if (failure != null || result == null || !result.isSuccessful()) {
-                                logger.info("MCAce manifest disposition route result=FAIL player={} action={} target={}",
-                                        playerId, action, targetName);
+                                logger.info("MCAce manifest disposition route result=FAIL player={} action={} target={} "
+                                                + "authorization={} execution-context-bound={}",
+                                        playerId, action, targetName,
+                                        authorizationId.map(Object::toString).orElse("none"),
+                                        authorizationId.isPresent());
                             } else {
-                                logger.info("MCAce manifest disposition route result=SUCCESS player={} action={} target={} status={}",
-                                        playerId, action, targetName, result.getStatus());
+                                logger.info("MCAce manifest disposition route result=SUCCESS player={} action={} target={} status={} "
+                                                + "authorization={} execution-context-bound={}",
+                                        playerId, action, targetName, result.getStatus(),
+                                        authorizationId.map(Object::toString).orElse("none"),
+                                        authorizationId.isPresent());
                             }
                         }).schedule();
                 });
             } catch (RuntimeException exception) {
-                logger.info("MCAce manifest disposition route result=FAIL player={} action={} target={}",
-                        playerId, action, targetName);
+                logger.info("MCAce manifest disposition route result=FAIL player={} action={} target={} "
+                                + "authorization={} execution-context-bound={}",
+                        playerId, action, targetName,
+                        authorizationId.map(Object::toString).orElse("none"), authorizationId.isPresent());
                 return VelocityDispositionExecutor.RouteOutcome.UNAVAILABLE;
             }
         } else {
-            logger.info("MCAce manifest disposition route result=SUCCESS player={} action={} target={} already-current=true",
-                    playerId, action, targetName);
+            logger.info("MCAce manifest disposition route result=SUCCESS player={} action={} target={} "
+                            + "already-current=true authorization={} execution-context-bound={}",
+                    playerId, action, targetName,
+                    authorizationId.map(Object::toString).orElse("none"), authorizationId.isPresent());
         }
-        logger.info("MCAce manifest disposition route result=DISPATCHED player={} action={} target={}",
-                playerId, action, targetName);
+        logger.info("MCAce manifest disposition route result=DISPATCHED player={} action={} target={} "
+                        + "authorization={} execution-context-bound={}",
+                playerId, action, targetName,
+                authorizationId.map(Object::toString).orElse("none"), authorizationId.isPresent());
         return VelocityDispositionExecutor.RouteOutcome.DISPATCHED;
     }
 }

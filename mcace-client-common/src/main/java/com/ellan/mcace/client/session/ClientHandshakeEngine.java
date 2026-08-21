@@ -2,6 +2,7 @@ package com.ellan.mcace.client.session;
 
 import com.ellan.mcace.client.integrity.IntegrityEntry;
 import com.ellan.mcace.client.integrity.ClientIntegrityBundle;
+import com.ellan.mcace.client.integrity.IntegrityScanCancellation;
 import com.ellan.mcace.client.integrity.IntegrityScanException;
 import com.ellan.mcace.client.integrity.PolicyDrivenIntegrityCollector;
 import com.ellan.mcace.client.observation.ArtifactObservationCollector;
@@ -99,6 +100,8 @@ public final class ClientHandshakeEngine {
     private byte[] lastArtifactObservationAggregateRoot;
     /** Verified, one-shot evidence requests for this authenticated session. */
     private final Map<String, VerifiedEvidenceRequest> pendingEvidenceRequests = new HashMap<>();
+    /** Request IDs for which the visible UI has already produced its sole in-memory grant. */
+    private final Set<String> issuedEvidenceConsents = new HashSet<>();
     /** Last wire sequence that must be observed before a signed COMPLETE can finish a request. */
     private final Map<String, Long> pendingEvidenceFinalSequences = new HashMap<>();
     /** Last strictly increasing server acknowledgement/error sequence per request. */
@@ -196,6 +199,7 @@ public final class ClientHandshakeEngine {
             lastArtifactObservationAtEpochMs = 0;
             lastArtifactObservationAggregateRoot = null;
             pendingEvidenceRequests.clear();
+            issuedEvidenceConsents.clear();
             pendingEvidenceFinalSequences.clear();
             pendingEvidenceServerSequences.clear();
             pendingFederationConsentRequests.clear();
@@ -565,16 +569,32 @@ public final class ClientHandshakeEngine {
         }
     }
 
-    /** Re-scans exactly the already signed policy scopes; no caller-provided path list is accepted. */
-    public synchronized PreparedArtifactObservationUpdate prepareRescannedArtifactObservationUpdate(Path minecraftRoot)
+    /**
+     * Re-scans exactly the already signed policy scopes. Explicit files additionally require the
+     * caller's current, connection-bound authorization; the set cannot expand the signed policy.
+     */
+    public synchronized PreparedArtifactObservationUpdate prepareRescannedArtifactObservationUpdate(
+            Path minecraftRoot, Set<String> consentedExplicitFiles)
+            throws EnvelopeException, IntegrityScanException {
+        return prepareRescannedArtifactObservationUpdate(
+                minecraftRoot, consentedExplicitFiles, IntegrityScanCancellation.NONE);
+    }
+
+    public synchronized PreparedArtifactObservationUpdate prepareRescannedArtifactObservationUpdate(
+            Path minecraftRoot, Set<String> consentedExplicitFiles,
+            IntegrityScanCancellation cancellation)
             throws EnvelopeException, IntegrityScanException {
         if (verifiedPolicy == null) {
             throw new EnvelopeException("artifact observations require a verified policy");
         }
+        Objects.requireNonNull(cancellation, "cancellation").check();
         ClientIntegrityBundle bundle = new PolicyDrivenIntegrityCollector(clock)
-                .collect(Objects.requireNonNull(minecraftRoot, "minecraftRoot"), verifiedPolicy.policy());
+                .collect(Objects.requireNonNull(minecraftRoot, "minecraftRoot"), verifiedPolicy.policy(),
+                        Objects.requireNonNull(consentedExplicitFiles, "consentedExplicitFiles"), cancellation);
+        cancellation.check();
         return prepareArtifactObservationUpdate(bundle,
-                new ArtifactObservationCollector().collect(minecraftRoot, verifiedPolicy.policy(), bundle));
+                new ArtifactObservationCollector().collect(
+                        minecraftRoot, verifiedPolicy.policy(), bundle, cancellation));
     }
 
     /** Commits a prepared update exactly once after every fragment was accepted by the transport. */
@@ -839,6 +859,9 @@ public final class ClientHandshakeEngine {
         if (request.captureScope() != EvidenceCaptureScope.GAME_RENDER_FRAME) {
             throw new EnvelopeException("consent is unavailable for this capture scope");
         }
+        if (!issuedEvidenceConsents.add(request.requestId())) {
+            throw new EnvelopeException("evidence consent was already issued for this request");
+        }
         return new EvidenceConsentGrant(this, request);
     }
 
@@ -847,6 +870,7 @@ public final class ClientHandshakeEngine {
             throws EnvelopeException {
         requirePendingEvidenceRequest(request);
         pendingEvidenceRequests.remove(request.requestId());
+        issuedEvidenceConsents.remove(request.requestId());
         pendingEvidenceFinalSequences.remove(request.requestId());
         pendingEvidenceServerSequences.remove(request.requestId());
     }
@@ -855,6 +879,7 @@ public final class ClientHandshakeEngine {
     public synchronized void cancelEvidenceRequest(VerifiedEvidenceRequest request) {
         if (request != null && request.equals(pendingEvidenceRequests.get(request.requestId()))) {
             pendingEvidenceRequests.remove(request.requestId());
+            issuedEvidenceConsents.remove(request.requestId());
             pendingEvidenceFinalSequences.remove(request.requestId());
             pendingEvidenceServerSequences.remove(request.requestId());
         }

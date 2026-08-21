@@ -1,5 +1,10 @@
 # Architecture
 
+The current release path is the three target-specific Fabric clients plus
+Velocity/BungeeCord and Paper/Folia. The Cloud, Portal, PostgreSQL, and Launcher
+sections below document retained frozen foundations; they are not prerequisites,
+alternate trust paths, or release gates for that primary topology.
+
 ## Trust boundaries
 
 1. The Minecraft client is attacker-controlled until a signed session is verified.
@@ -31,7 +36,12 @@ Envelope validation -> replay guard -> session transition -> risk evaluation
 
 Every signed envelope binds protocol version, packet type, session ID, timestamp,
 nonce, payload length, checksum, and payload. The server rejects oversized,
-expired, future-dated, corrupt, invalidly signed, or replayed messages.
+expired, future-dated, corrupt, invalidly signed, or replayed messages. Because
+Velocity may schedule adjacent plugin-message events on different workers, the
+coordinator can defer exactly one same-session direct `AUTH_REQUEST` seen before
+`CLIENT_HELLO`; it publishes no state until the hello establishes the signing key
+and the retained request passes every normal signature, nonce, policy, manifest,
+and scope check. Duplicates and other early packet types fail closed.
 
 ## Mod-to-proxy handshake
 
@@ -46,8 +56,10 @@ expired, future-dated, corrupt, invalidly signed, or replayed messages.
 3. Fabric generates an ephemeral session key and sends a signed `CLIENT_HELLO`
    that binds the original challenge, public key, loader, Minecraft version, and build.
 4. Fabric scans only the policy-requested built-in directory allowlist
-   (`mods`, `resourcepacks`, and `shaderpacks`) plus locally consented explicit
-   files (currently `options.txt`). It sends a separately signed `AUTH_REQUEST`
+   (`mods`, `resourcepacks`, and `shaderpacks`). A verified policy that requests
+   explicit files such as `options.txt` first opens a paged visible disclosure;
+   the player may authorize those exact paths for the current connection only.
+   No file is pre-consented or persisted as consent. It sends a separately signed `AUTH_REQUEST`
    binding every scope to the accepted policy digest and sequence.
 5. The proxy validates size, checksum, timestamp, signature, nonce uniqueness,
    session ID, packet order, player UUID, policy compatibility, exact scope set,
@@ -88,8 +100,9 @@ classes, and final snapshots; it does not dump protocol payloads or private keys
 
 This verifies the protocol across real process and TCP boundaries, including
 concurrent connection isolation. It does not load Velocity, Fabric, Paper, or a
-Minecraft server; the separate platform gate now covers that complete live
-player route.
+Minecraft server. The 12-case server matrix covers real proxies/backends with a
+bounded raw peer; the separate per-target Fabric GUI route still requires its
+six human consent decisions.
 
 ## Proxy-to-Paper/Folia admission bridge
 
@@ -124,11 +137,47 @@ carrier-player binding. Missing or invalid pins prevent the Paper plugin from
 enabling. This bridge communicates an admission decision; it does not turn a
 client integrity result into an automatic ban.
 
+After Paper/Folia accepts a signed admission snapshot, it may return a separate, tiny
+`mcace:context` report containing only the carrier UUID, accepted admission transport sequence,
+monotonic report sequence, Bukkit world key, Bukkit game mode, and observation time. The payload
+has no backend field. Velocity/Bungee obtain the backend name from the event-supplied backend
+connection and require that connection to carry the target player. This accepts a legitimate early
+backend plugin message without waiting for an eventually consistent current-server pointer; the
+runtime still requires the exact physical login/session, player UUID, backend, admission sequence,
+report sequence, and freshness binding. Client-originated frames on the same channel are consumed
+without parsing. Fabric registers the S2C channel only so the backend can return the player-carried
+message; its receiver never parses, trusts, or acts on context.
+
+```text
+Proxy-signed admission sequence N -> authenticated session + expected backend/player binding
+                                      |
+                                      v
+Paper/Folia world + game mode + N -> mcace:context (no backend claim)
+                                      |
+                                      v
+Event source/backend + UUID + session + N + report sequence + age checks
+                                      |
+                                      v
+Bounded worker compares the latest authenticated manifest under the full context
+                                      |
+                                      +-- content-free aggregate shadow audit only
+                                      +-- no disposition event/executor/admission/routing callback
+```
+
+The report is not independently signed: its authority is the proxy-authenticated current backend
+connection plus its echo of a fresh proxy-signed admission sequence. A compromised backend can
+misreport its own world or game mode, but cannot choose the proxy-derived backend identity, reuse
+an older admission sequence, target another current player, or directly invoke enforcement. The
+accepted context and latest manifest are bounded, in-memory, session-scoped, and cleared on
+replacement/disconnect; reports and bindings expire after two minutes.
+
 The BungeeCord adapter reuses `ServerHandshakeCoordinator`, `RiskEngine`, and
 `SignedAdmissionSnapshotCodec`; it does not maintain a second risk policy. Its
-built-in configuration is monitor-only. Velocity retains the opt-in limited-route
-adapter. Both adapters use the shared proxy transport contract: only a player may
+built-in configuration defaults to `MONITOR`. Both proxies retain the opt-in
+`LIMITED_ROUTE` adapter with distinct limited and quarantine targets. Both
+adapters use the shared proxy transport contract: only a player may
 reach authentication/payload handling; `mcace:admission` is consumed at the proxy;
+`mcace:context` is consumed from players and reaches only the shadow runtime from a current backend;
 and evidence, heartbeat, and bounded payload frames retain their fixed routing.
 The compatibility suite verifies those boundaries, pinned signed admission output,
 disconnect cleanup, and that `MONITOR` never executes a high-impact disposition.
@@ -136,8 +185,15 @@ disconnect cleanup, and that `MONITOR` never executes a high-impact disposition.
 The backend artifact declares Folia support and selects Paper or Folia scheduling
 at runtime. Expiry work runs on the global scheduler; player-bound delivery and
 cleanup use the owning entity scheduler; future location work has an explicit
-region scheduler entry point. Real Folia process validation remains a release
-gate rather than an inferred claim from unit tests.
+region scheduler entry point. The August 20 authoritative process matrix passed
+all 12 combinations of 1.21.11/26.1.2/26.2, Paper/Folia, and Velocity/Bungee,
+then passed `-ReportOnly`. Standard-backend admission and context are accepted
+only while the same raw-peer connection remains live; post-close log fallback is
+not evidence. Folia 26.2 build 4 remains the explicit two-case BETA lane. The
+current 675-file source-bound aggregate is
+`docs/evidence/server-version-process-matrix-2026-08-20.json`; compatibility is
+never inferred from unit tests, a stale source binding, or a nearby Minecraft
+version.
 
 ## Proxy-safe transport budget
 
@@ -290,8 +346,13 @@ ledger must retain exact requests and deduplicate by anchor ID.
 
 ## Compatibility baseline
 
-- Minecraft/Paper: 1.21.1
-- Java: 21
-- Velocity API: 3.5.1 (last stable Java 21-compatible baseline selected for this milestone)
-- Fabric Loom: 1.14.10 remap plugin
-- Fabric API: 0.116.15+1.21.1
+| Target | Namespace/artifact | Java | Fabric Loader | Fabric API |
+| --- | --- | ---: | --- | --- |
+| Minecraft/Fabric `1.21.11` | Yarn + final remapped JAR | 21 | 0.19.3 | 0.141.6+1.21.11 |
+| Minecraft/Fabric `26.1.2` | official named + final named JAR | 25 | 0.19.3 | 0.155.2+26.1.2 |
+| Minecraft/Fabric `26.2` | official named + final named JAR | 25 | 0.19.3 | 0.157.0+26.2 |
+
+The root and server plugin build uses JDK 21.0.7+6; the isolated modern Fabric
+build uses JDK 25.0.3+9. Both use Gradle 9.6.1. Server validation pins Velocity
+3.5.1-615, BungeeCord 2085, exact Paper/Folia builds for each target, and marks
+only the two Folia 26.2 combinations BETA.

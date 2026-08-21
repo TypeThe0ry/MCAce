@@ -46,7 +46,7 @@ final class AuthenticatedManifestContentRootRuntimeTest {
     private static final Clock CLOCK = Clock.fixed(Instant.ofEpochMilli(NOW), ZoneOffset.UTC);
 
     @Test
-    void signedCatalogContentRootHitsWarnAndQuarantineForDerivedDirectoryPackage() throws Exception {
+    void signedCatalogContentRootCanWarnButCannotQuarantineFromClientReportAlone() throws Exception {
         ArtifactObservation packageObservation = derivePackage();
         String root = packageObservation.metadata().get("content_root_sha256");
         KeyPair keyPair = Ed25519Keys.generate(new SecureRandom());
@@ -54,15 +54,20 @@ final class AuthenticatedManifestContentRootRuntimeTest {
         ProxyPolicyEvaluation warn = runtime(keyPair, root,
                 com.ellan.mcace.protocol.generated.DispositionAction.DISPOSITION_WARN)
                 .evaluate(context(), packageObservation);
-        ProxyPolicyEvaluation quarantine = runtime(keyPair, root,
-                com.ellan.mcace.protocol.generated.DispositionAction.DISPOSITION_QUARANTINE)
-                .evaluate(context(), packageObservation);
+        SharedProxyDispositionPolicyRuntime quarantineRuntime = runtime(keyPair, root,
+                com.ellan.mcace.protocol.generated.DispositionAction.DISPOSITION_QUARANTINE);
+        ProxyPolicyEvaluation quarantine = quarantineRuntime.evaluate(context(), packageObservation);
+        ProxyPolicyBatchEvaluation quarantineBatch = quarantineRuntime.evaluateCachedBatch(
+                context(), java.util.List.of(packageObservation), 1);
 
         assertEquals(ArtifactType.RESOURCE_PACK, packageObservation.type());
         assertEquals(ObservationOrigin.CLIENT_REPORTED, packageObservation.origin());
         assertEquals(Confidence.LOW, packageObservation.confidence());
         assertEquals(DispositionAction.WARN, warn.decision().action());
-        assertEquals(DispositionAction.QUARANTINE, quarantine.decision().action());
+        assertEquals(DispositionAction.OBSERVE, quarantine.decision().action());
+        assertEquals("advisory-origin-cannot-enforce",
+                quarantine.decision().explanations().getFirst().outcome());
+        assertEquals(1, quarantineBatch.advisoryEnforcementRuleBlocks());
     }
 
     @Test

@@ -1,6 +1,7 @@
 package com.ellan.mcace.fabric;
 
 import com.ellan.mcace.client.integrity.ClientIntegrityBundle;
+import com.ellan.mcace.client.integrity.IntegrityScanCancellation;
 import com.ellan.mcace.client.integrity.IntegrityScanException;
 import com.ellan.mcace.client.integrity.PolicyDrivenIntegrityCollector;
 import com.ellan.mcace.client.observation.ArtifactObservationCollector;
@@ -25,12 +26,13 @@ import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
-import net.fabricmc.fabric.api.client.rendering.v1.WorldRenderEvents;
+import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
 import net.fabricmc.fabric.api.networking.v1.PayloadTypeRegistry;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.gui.screen.multiplayer.ConnectScreen;
@@ -43,6 +45,8 @@ import org.slf4j.LoggerFactory;
 
 public final class MCAceFabricClient implements ClientModInitializer {
     public static final String MOD_ID = "mcace";
+    private static final String EXPECTED_ARTIFACT_SHA256_PROPERTY =
+            "mcace.platform-smoke.expected-artifact-sha256";
     private static final Logger LOGGER = LoggerFactory.getLogger(MOD_ID);
 
     private ServerKeyPins serverKeyPins;
@@ -56,9 +60,15 @@ public final class MCAceFabricClient implements ClientModInitializer {
             Clock.systemUTC(), ProtocolConstants.HEARTBEAT_INTERVAL);
     private final ArtifactObservationSendSchedule observationSchedule = new ArtifactObservationSendSchedule(
             Clock.systemUTC(), ProtocolConstants.ARTIFACT_OBSERVATION_INTERVAL);
+    private final ConnectionBoundIntegrityTask authenticationIntegrityTask = new ConnectionBoundIntegrityTask();
+    private final ConnectionBoundIntegrityTask observationIntegrityTask = new ConnectionBoundIntegrityTask();
     private EvidenceCaptureController evidenceCapture;
     private final FederationTokenVault federationVault = new FederationTokenVault();
     private final FederationConsentController federationConsent = new FederationConsentController(Clock.systemUTC());
+    private final FederationImportConsentController federationImportConsent =
+            new FederationImportConsentController(Clock.systemUTC());
+    private final ExplicitFileConsentController explicitFileConsent = new ExplicitFileConsentController();
+    private volatile ExplicitFileAuthorization explicitFileAuthorization;
     private final ArrayDeque<QueuedEvidenceFrames> evidenceFrames = new ArrayDeque<>();
 
     @Override
@@ -71,9 +81,12 @@ public final class MCAceFabricClient implements ClientModInitializer {
                 gameDirectory.resolve("config").resolve("mcace").resolve("policies"), Clock.systemUTC());
         evidenceCapture = new EvidenceCaptureController(Clock.systemUTC());
         PayloadTypeRegistry.playS2C().register(MCAcePayload.ID, MCAcePayload.CODEC);
+        PayloadTypeRegistry.playS2C().register(MCAceBackendContextPayload.ID, MCAceBackendContextPayload.CODEC);
         PayloadTypeRegistry.playC2S().register(MCAcePayload.ID, MCAcePayload.CODEC);
         PayloadTypeRegistry.playC2S().register(MCAceTransferPayload.ID, MCAceTransferPayload.CODEC);
         ClientPlayNetworking.registerGlobalReceiver(MCAcePayload.ID, this::receivePayload);
+        ClientPlayNetworking.registerGlobalReceiver(
+                MCAceBackendContextPayload.ID, this::receiveBackendContext);
         ClientTickEvents.END_CLIENT_TICK.register(client -> {
             resumePendingChallenge(client);
             scheduleHeartbeat(client);
@@ -81,17 +94,40 @@ public final class MCAceFabricClient implements ClientModInitializer {
             evidenceCapture.tick(client);
             pumpEvidenceFrames(client);
             federationConsent.tick(client);
+            federationImportConsent.tick(client);
+            federationVault.discardExpired(Clock.systemUTC());
         });
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> cancelAuthentication("disconnect"));
-        WorldRenderEvents.END.register(context -> evidenceCapture.captureAtEndOfWorldRender(MinecraftClient.getInstance()));
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            cancelAuthentication("disconnect");
+            federationVault.onConnectionClosed();
+        });
+        WorldRenderEvents.END_MAIN.register(
+                context -> evidenceCapture.captureAtEndOfWorldRender(MinecraftClient.getInstance()));
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
+            authenticationAttempts.cancel();
+            authenticationIntegrityTask.close();
+            observationIntegrityTask.close();
+            explicitFileConsent.cancel(client);
+            explicitFileAuthorization = null;
             federationConsent.cancel(client);
+            federationImportConsent.cancel(client);
             federationVault.close();
             evidenceCapture.close();
         });
         configurePlatformSmokeConnection();
+        LOGGER.info("{}", artifactLoadedMarker());
         LOGGER.info("MCAce Fabric client initialized; {} server key pin(s) available",
                 serverKeyPins.empty() ? "no" : "configured");
+    }
+
+    private String artifactLoadedMarker() {
+        String expectedArtifactSha256 = System.getProperty(EXPECTED_ARTIFACT_SHA256_PROPERTY, "").strip();
+        if (expectedArtifactSha256.isEmpty()) {
+            return buildMetadata.artifactLoadedMarker();
+        }
+        String actualArtifactSha256 = FabricClientBuildMetadata.verifiedCodeSourceSha256(
+                MCAceFabricClient.class, expectedArtifactSha256);
+        return buildMetadata.artifactLoadedMarker(actualArtifactSha256);
     }
 
     private void configurePlatformSmokeConnection() {
@@ -110,6 +146,12 @@ public final class MCAceFabricClient implements ClientModInitializer {
                     false,
                     null);
         }));
+    }
+
+    private void receiveBackendContext(
+            MCAceBackendContextPayload payload, ClientPlayNetworking.Context context) {
+        // Backend context is server-owned and must terminate at the proxy. Never parse or act on it.
+        LOGGER.warn("MCAce ignored a backend-only context frame that escaped the proxy boundary");
     }
 
     private void receivePayload(MCAcePayload payload, ClientPlayNetworking.Context context) {
@@ -140,8 +182,16 @@ public final class MCAceFabricClient implements ClientModInitializer {
     }
 
     private void receiveServerHello(MCAcePayload payload, ClientPlayNetworking.Context context) {
+        authenticationAttempts.cancel();
+        authenticationIntegrityTask.cancel();
+        observationIntegrityTask.cancel();
         cancelQueuedEvidenceFrames();
         evidenceCapture.cancel(context.client());
+        explicitFileConsent.cancel(context.client());
+        explicitFileAuthorization = null;
+        federationConsent.cancel(context.client());
+        federationImportConsent.cancel(context.client());
+        federationVault.cancelTargetClaims();
         long generation = authenticationAttempts.begin();
         heartbeatSchedule.cancel();
         observationSchedule.cancel();
@@ -166,7 +216,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
                 payload.data(),
                 address,
                 pinnedKey.orElseThrow(),
-                networkHandler.getProfile().getId(),
+                networkHandler.getProfile().id(),
                 context.client(),
                 generation);
     }
@@ -185,7 +235,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
                 pending.frame(),
                 pending.address(),
                 pending.pinnedKey(),
-                networkHandler.getProfile().getId(),
+                networkHandler.getProfile().id(),
                 client,
                 pending.generation());
     }
@@ -197,7 +247,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
             java.util.UUID playerId,
             MinecraftClient client,
             long generation) {
-        Thread.ofVirtual().name("mcace-policy-integrity-scan").start(() -> {
+        Thread.ofVirtual().name("mcace-policy-verification").start(() -> {
             try {
                 // Never use the payload's provisional serverId to look inside the federation
                 // vault. A server can send an arbitrary plugin message before SERVER_HELLO's
@@ -218,23 +268,84 @@ public final class MCAceFabricClient implements ClientModInitializer {
                     policy = candidate.prepareServerHello(frame, address, policyCache);
                 }
                 VerifiedPolicy verifiedPolicy = policy;
-                ClientIntegrityBundle bundle = new PolicyDrivenIntegrityCollector(Clock.systemUTC())
-                        .collect(gameDirectory, verifiedPolicy.policy());
-                List<ClientHandshakeEngine.OutboundFrame> responses = candidate.createAuthenticationFrames(
-                        bundle,
-                        new ArtifactObservationCollector().collect(gameDirectory, verifiedPolicy.policy(), bundle));
+                Set<String> requestedFiles = requestedExplicitFiles(verifiedPolicy);
+                if (requestedFiles.isEmpty()) {
+                    continueAuthentication(candidate, verifiedPolicy, client, generation, Set.of());
+                    return;
+                }
                 client.execute(() -> {
                     if (!authenticationAttempts.isActive(generation) || client.getNetworkHandler() == null) {
+                        federationVault.cancelTargetClaims();
+                        return;
+                    }
+                    LOGGER.info("MCAce explicit-file consent requested for {} signed policy path(s)",
+                            requestedFiles.size());
+                    explicitFileConsent.accept(client, verifiedPolicy, requestedFiles,
+                            () -> LOGGER.info("MCAce explicit-file consent screen rendered"), allowed -> {
+                        if (!authenticationAttempts.isActive(generation) || client.getNetworkHandler() == null) return;
+                        explicitFileAuthorization = new ExplicitFileAuthorization(candidate, generation, allowed);
+                        LOGGER.info("MCAce explicit-file authorization accepted for the current connection");
+                        continueAuthentication(candidate, verifiedPolicy, client, generation, allowed);
+                    }, () -> {
+                        if (authenticationAttempts.isActive(generation)) {
+                            LOGGER.info("MCAce explicit-file authorization was declined; no explicit file was read");
+                        }
+                        federationVault.cancelTargetClaims();
+                    });
+                });
+            } catch (EnvelopeException | RuntimeException exception) {
+                federationVault.cancelTargetClaims();
+                LOGGER.warn("MCAce rejected the signed challenge or policy: {}", exception.getMessage());
+            }
+        });
+    }
+
+    private void continueAuthentication(ClientHandshakeEngine candidate, VerifiedPolicy verifiedPolicy,
+            MinecraftClient client, long generation, Set<String> consentedExplicitFiles) {
+        Set<String> authorizedFiles = Set.copyOf(consentedExplicitFiles);
+        authenticationIntegrityTask.submit(taskCancellation -> {
+            IntegrityScanCancellation cancellation = () ->
+                    taskCancellation.cancelled() || !authenticationAttempts.isActive(generation)
+                            || (!authorizedFiles.isEmpty()
+                                    && !isAuthorized(candidate, generation, authorizedFiles));
+            List<ClientHandshakeEngine.OutboundFrame> responses = List.of();
+            try {
+                cancellation.check();
+                ClientIntegrityBundle bundle = new PolicyDrivenIntegrityCollector(Clock.systemUTC())
+                        .collect(gameDirectory, verifiedPolicy.policy(), authorizedFiles, cancellation);
+                cancellation.check();
+                if (!authorizedFiles.isEmpty()) {
+                    int explicitEntries = verifiedPolicy.policy().getIntegrityScopesList().stream()
+                            .filter(rule -> rule.getExplicitRelativeFilesCount() > 0)
+                            .map(rule -> bundle.scope(rule.getScope().toLowerCase(java.util.Locale.ROOT)))
+                            .flatMap(Optional::stream)
+                            .mapToInt(scope -> scope.entries().size())
+                            .sum();
+                    LOGGER.info("MCAce explicit-file manifest prepared entries={}", explicitEntries);
+                }
+                responses = candidate.createAuthenticationFrames(
+                        bundle,
+                        new ArtifactObservationCollector().collect(
+                                gameDirectory, verifiedPolicy.policy(), bundle, cancellation));
+                cancellation.check();
+                List<ClientHandshakeEngine.OutboundFrame> readyResponses = responses;
+                client.execute(() -> {
+                    if (!authenticationAttempts.isActive(generation) || client.getNetworkHandler() == null
+                            || (!authorizedFiles.isEmpty()
+                                    && !isAuthorized(candidate, generation, authorizedFiles))) {
+                        readyResponses.forEach(ClientHandshakeEngine.OutboundFrame::clear);
                         LOGGER.info("MCAce discarded a superseded authentication response");
                         return;
                     }
                     handshake = candidate;
                     if (!OrderedMCAceFrameSender.send(
-                            responses,
+                            readyResponses,
                             () -> authenticationAttempts.isActive(generation)
                                     && client.getNetworkHandler() != null,
                             new FabricFrameSink())) {
                         handshake = null;
+                        readyResponses.forEach(ClientHandshakeEngine.OutboundFrame::clear);
+                        federationVault.cancelTargetClaims();
                         LOGGER.warn("MCAce stopped authentication frame delivery because the connection changed or a channel was unavailable");
                         return;
                     }
@@ -242,10 +353,28 @@ public final class MCAceFabricClient implements ClientModInitializer {
                             verifiedPolicy.policy().getPolicyVersion(), verifiedPolicy.policy().getSequence(),
                             bundle.scopes().size());
                 });
-            } catch (EnvelopeException | IntegrityScanException exception) {
-                LOGGER.warn("MCAce rejected the challenge or scoped integrity request: {}", exception.getMessage());
+            } catch (EnvelopeException | IntegrityScanException | RuntimeException exception) {
+                responses.forEach(ClientHandshakeEngine.OutboundFrame::clear);
+                federationVault.cancelTargetClaims();
+                if (cancellation.cancelled()) {
+                    LOGGER.debug("MCAce cancelled a superseded scoped integrity read");
+                } else {
+                    LOGGER.warn("MCAce rejected the scoped integrity request: {}", exception.getMessage());
+                }
             }
         });
+    }
+
+    private static Set<String> requestedExplicitFiles(VerifiedPolicy verifiedPolicy) {
+        return verifiedPolicy.policy().getIntegrityScopesList().stream()
+                .flatMap(rule -> rule.getExplicitRelativeFilesList().stream())
+                .collect(java.util.stream.Collectors.toUnmodifiableSet());
+    }
+
+    private boolean isAuthorized(ClientHandshakeEngine candidate, long generation, Set<String> files) {
+        ExplicitFileAuthorization authorization = explicitFileAuthorization;
+        return authorization != null && authorization.candidate() == candidate
+                && authorization.generation() == generation && authorization.files().equals(files);
     }
 
     private void receiveAuthResult(MCAcePayload payload, ClientPlayNetworking.Context context) {
@@ -263,7 +392,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
                 if (authenticationAttempts.isActive(attempt) && handshake == candidate && candidate.heartbeatReady()) {
                     heartbeatSchedule.activate(attempt);
                     observationSchedule.activate(attempt);
-                    sendFederationPresentation(candidate, context.client(), attempt);
+                    requestFederationImportConsent(candidate, context.client(), attempt);
                 } else {
                     // A connection transition raced the result. Never let it revive an old session.
                     cancelAuthentication("superseded authentication result");
@@ -292,8 +421,13 @@ public final class MCAceFabricClient implements ClientModInitializer {
         try {
             ClientHandshakeEngine.VerifiedFederationConsentRequest request =
                     candidate.receiveFederationConsentRequest(payload.data());
-            federationConsent.accept(context.client(), request, new FederationConsentController.Sender() {
+            federationImportConsent.cancel(context.client());
+            LOGGER.info("MCAce federation source export consent requested");
+            federationConsent.accept(context.client(), request,
+                    () -> LOGGER.info("MCAce federation source export consent screen rendered"),
+                    new FederationConsentController.Sender() {
                 @Override public void allowed(ClientHandshakeEngine.VerifiedFederationConsentRequest allowed) {
+                    LOGGER.info("MCAce federation source export consent allowed once");
                     Thread.ofVirtual().name("mcace-federation-consent").start(() -> {
                         try {
                             byte[] response = candidate.createFederationConsentFrame(allowed);
@@ -334,15 +468,17 @@ public final class MCAceFabricClient implements ClientModInitializer {
         }
     }
 
-    private void sendFederationPresentation(ClientHandshakeEngine candidate, MinecraftClient client, long attempt) {
+    private void requestFederationImportConsent(
+            ClientHandshakeEngine candidate, MinecraftClient client, long attempt) {
         Thread.ofVirtual().name("mcace-federation-presentation").start(() -> {
             FederationTokenVault.PreparedPresentation prepared = null;
             try {
+                ClientPlayNetworkHandler networkHandler = client.getNetworkHandler();
+                if (networkHandler == null || networkHandler.getProfile() == null) return;
                 prepared = federationVault.preparePresentation(candidate.authenticatedServerId(),
-                        client.getNetworkHandler().getProfile().getId(), candidate.authenticatedSessionId(),
+                        networkHandler.getProfile().id(), candidate.authenticatedSessionId(),
                         candidate.federationChallengeNonce(), Clock.systemUTC()).orElse(null);
                 if (prepared == null) return;
-                byte[] frame = candidate.createFederationPresentationFrame(prepared.encoded());
                 FederationTokenVault.PreparedPresentation reserved = prepared;
                 client.execute(() -> {
                     if (!authenticationAttempts.isActive(attempt) || handshake != candidate
@@ -350,16 +486,59 @@ public final class MCAceFabricClient implements ClientModInitializer {
                         federationVault.sendFailed(reserved);
                         return;
                     }
-                    try {
-                        ClientPlayNetworking.send(new MCAcePayload(frame));
-                        federationVault.commit(reserved);
-                    } catch (RuntimeException exception) {
-                        federationVault.sendFailed(reserved);
-                    }
+                    if (!federationVault.isReserved(reserved, Clock.systemUTC())) return;
+                    federationConsent.cancel(client);
+                    LOGGER.info("MCAce federation target import consent requested");
+                    federationImportConsent.accept(client, reserved,
+                            () -> LOGGER.info("MCAce federation target import consent screen rendered"),
+                            new FederationImportConsentController.Sender() {
+                                @Override public void allowed(
+                                        FederationTokenVault.PreparedPresentation allowed) {
+                                    LOGGER.info("MCAce federation target import consent allowed once");
+                                    sendAllowedFederationPresentation(candidate, client, attempt, allowed);
+                                }
+
+                                @Override public void declined(
+                                        FederationTokenVault.PreparedPresentation declined) {
+                                    federationVault.decline(declined);
+                                }
+
+                                @Override public void cancelled(
+                                        FederationTokenVault.PreparedPresentation cancelled) {
+                                    federationVault.sendFailed(cancelled);
+                                }
+                            });
                 });
             } catch (Exception exception) {
                 if (prepared != null) federationVault.sendFailed(prepared);
                 LOGGER.debug("MCAce federation presentation is unavailable: {}", exception.getMessage());
+            }
+        });
+    }
+
+    private void sendAllowedFederationPresentation(ClientHandshakeEngine candidate,
+            MinecraftClient client, long attempt, FederationTokenVault.PreparedPresentation prepared) {
+        Thread.ofVirtual().name("mcace-federation-presentation-send").start(() -> {
+            try {
+                if (!federationVault.isReserved(prepared, Clock.systemUTC())) return;
+                byte[] frame = candidate.createFederationPresentationFrame(prepared.encoded());
+                client.execute(() -> {
+                    if (!authenticationAttempts.isActive(attempt) || handshake != candidate
+                            || client.getNetworkHandler() == null || !ClientPlayNetworking.canSend(MCAcePayload.ID)) {
+                        federationVault.sendFailed(prepared);
+                        return;
+                    }
+                    if (!federationVault.isReserved(prepared, Clock.systemUTC())) return;
+                    try {
+                        ClientPlayNetworking.send(new MCAcePayload(frame));
+                        federationVault.commit(prepared);
+                    } catch (RuntimeException exception) {
+                        federationVault.sendFailed(prepared);
+                    }
+                });
+            } catch (EnvelopeException | RuntimeException exception) {
+                federationVault.sendFailed(prepared);
+                LOGGER.debug("MCAce federation presentation send was cancelled: {}", exception.getMessage());
             }
         });
     }
@@ -375,8 +554,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
             long attempt = authenticationAttempts.activeAttempt();
             evidenceCapture.accept(context.client(), request, new EvidenceSender(context.client(), candidate, attempt));
             if (request.captureScope() == com.ellan.mcace.protocol.generated.EvidenceCaptureScope.GAME_RENDER_FRAME) {
-                LOGGER.info("MCAce evidence consent screen shown for signed GAME_RENDER_FRAME request id={}",
-                        request.requestId());
+                LOGGER.info("MCAce evidence consent requested for signed GAME_RENDER_FRAME request");
             }
         } catch (EnvelopeException exception) {
             LOGGER.warn("MCAce rejected the evidence request: {}", exception.getMessage());
@@ -440,16 +618,22 @@ public final class MCAceFabricClient implements ClientModInitializer {
     }
 
     private void cancelAuthentication(String reason) {
+        authenticationAttempts.cancel();
+        authenticationIntegrityTask.cancel();
+        observationIntegrityTask.cancel();
         cancelQueuedEvidenceFrames();
         if (evidenceCapture != null) {
             evidenceCapture.cancel(MinecraftClient.getInstance());
         }
-        authenticationAttempts.cancel();
+        explicitFileConsent.cancel(MinecraftClient.getInstance());
+        explicitFileAuthorization = null;
         heartbeatSchedule.cancel();
         observationSchedule.cancel();
         pendingChallenge = null;
         handshake = null;
         federationConsent.cancel(MinecraftClient.getInstance());
+        federationImportConsent.cancel(MinecraftClient.getInstance());
+        federationVault.cancelTargetClaims();
         LOGGER.debug("MCAce cancelled pending authentication: {}", reason);
     }
 
@@ -511,6 +695,16 @@ public final class MCAceFabricClient implements ClientModInitializer {
         public void cancel(ClientHandshakeEngine.VerifiedEvidenceRequest request) {
             removeQueuedEvidenceFrames(request);
             candidate.cancelEvidenceRequest(request);
+        }
+
+        @Override
+        public void screenRendered(ClientHandshakeEngine.VerifiedEvidenceRequest request) {
+            LOGGER.info("MCAce evidence consent screen rendered for signed GAME_RENDER_FRAME request");
+        }
+
+        @Override
+        public void consentAllowed(ClientHandshakeEngine.VerifiedEvidenceRequest request) {
+            LOGGER.info("MCAce evidence consent allowed once for signed GAME_RENDER_FRAME request");
         }
 
         private void enqueueEvidenceFrames(ClientHandshakeEngine.VerifiedEvidenceRequest request,
@@ -694,37 +888,71 @@ public final class MCAceFabricClient implements ClientModInitializer {
             return;
         }
         if (!observationSchedule.takeDue(attempt)) return;
-        Thread.ofVirtual().name("mcace-artifact-observation").start(() -> {
-            final ClientHandshakeEngine.PreparedArtifactObservationUpdate prepared;
+        ExplicitFileAuthorization authorization = explicitFileAuthorization;
+        Set<String> authorizedFiles = authorization != null && authorization.candidate() == candidate
+                && authorization.generation() == attempt ? authorization.files() : Set.of();
+        observationIntegrityTask.submit(taskCancellation -> {
+            IntegrityScanCancellation cancellation = () ->
+                    taskCancellation.cancelled() || !authenticationAttempts.isActive(attempt)
+                            || !observationSchedule.isActive(attempt)
+                            || (!authorizedFiles.isEmpty()
+                                    && !isAuthorized(candidate, attempt, authorizedFiles));
+            ClientHandshakeEngine.PreparedArtifactObservationUpdate prepared = null;
             try {
-                prepared = candidate.prepareRescannedArtifactObservationUpdate(gameDirectory);
+                cancellation.check();
+                prepared = candidate.prepareRescannedArtifactObservationUpdate(
+                        gameDirectory, authorizedFiles, cancellation);
+                cancellation.check();
             } catch (EnvelopeException | IntegrityScanException | RuntimeException exception) {
+                if (prepared != null) {
+                    prepared.frames().forEach(ClientHandshakeEngine.OutboundFrame::clear);
+                }
                 observationSchedule.cancel();
-                LOGGER.warn("MCAce stopped optional artifact observation refresh: {}", exception.getMessage());
+                if (cancellation.cancelled()) {
+                    LOGGER.debug("MCAce cancelled a superseded artifact observation read");
+                } else {
+                    LOGGER.warn("MCAce stopped optional artifact observation refresh: {}", exception.getMessage());
+                }
                 return;
             }
-            client.execute(() -> {
-                if (!authenticationAttempts.isActive(attempt) || handshake != candidate
-                        || !observationSchedule.isActive(attempt) || client.getNetworkHandler() == null) {
-                    prepared.frames().forEach(ClientHandshakeEngine.OutboundFrame::clear);
-                    observationSchedule.cancel();
-                    return;
-                }
-                boolean sent = OrderedMCAceFrameSender.send(prepared.frames(),
-                        () -> authenticationAttempts.isActive(attempt) && handshake == candidate
-                                && observationSchedule.isActive(attempt) && client.getNetworkHandler() != null,
-                        new FabricFrameSink());
-                if (sent) {
-                    try {
-                        candidate.commitArtifactObservationUpdate(prepared);
-                        observationSchedule.complete(attempt);
-                    } catch (EnvelopeException exception) {
+            ClientHandshakeEngine.PreparedArtifactObservationUpdate ready = prepared;
+            try {
+                client.execute(() -> {
+                    if (!authenticationAttempts.isActive(attempt) || handshake != candidate
+                            || !observationSchedule.isActive(attempt) || client.getNetworkHandler() == null) {
+                        ready.frames().forEach(ClientHandshakeEngine.OutboundFrame::clear);
                         observationSchedule.cancel();
-                        LOGGER.warn("MCAce discarded an uncommittable artifact observation update: {}", exception.getMessage());
+                        return;
                     }
-                } else observationSchedule.cancel();
-            });
+                    boolean sent = OrderedMCAceFrameSender.send(ready.frames(),
+                            () -> authenticationAttempts.isActive(attempt) && handshake == candidate
+                                    && observationSchedule.isActive(attempt) && client.getNetworkHandler() != null,
+                            new FabricFrameSink());
+                    if (sent) {
+                        try {
+                            candidate.commitArtifactObservationUpdate(ready);
+                            observationSchedule.complete(attempt);
+                        } catch (EnvelopeException exception) {
+                            observationSchedule.cancel();
+                            LOGGER.warn("MCAce discarded an uncommittable artifact observation update: {}", exception.getMessage());
+                        }
+                    } else observationSchedule.cancel();
+                });
+            } catch (RuntimeException exception) {
+                ready.frames().forEach(ClientHandshakeEngine.OutboundFrame::clear);
+                observationSchedule.cancel();
+                if (!cancellation.cancelled()) {
+                    LOGGER.warn("MCAce could not schedule the artifact observation result: {}", exception.getMessage());
+                }
+            }
         });
+    }
+
+    private record ExplicitFileAuthorization(
+            ClientHandshakeEngine candidate, long generation, Set<String> files) {
+        private ExplicitFileAuthorization {
+            files = Set.copyOf(files);
+        }
     }
 
     private static final class FabricFrameSink implements OrderedMCAceFrameSender.FrameSink {

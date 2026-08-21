@@ -2,6 +2,7 @@ package com.ellan.mcace.core.proxy;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.ellan.mcace.core.disposition.ArtifactObservation;
 import com.ellan.mcace.core.disposition.ArtifactType;
@@ -27,8 +28,12 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -58,6 +63,130 @@ final class SharedProxyDispositionPolicyRuntimeTest {
         assertEquals(velocity.activePolicySequence(), bungee.activePolicySequence());
         assertEquals(ProxyPolicyRefreshStatus.ACTIVE, velocity.refreshStatus());
         assertEquals(ProxyFamily.BUNGEECORD, bungee.proxyFamily());
+    }
+
+    @Test
+    void executionIdentityMustStillMatchTheCurrentlyActivePolicy() throws Exception {
+        DispositionPolicyDocument document = policy(1, null,
+                com.ellan.mcace.protocol.generated.DispositionAction.DISPOSITION_WARN,
+                NOW - 1_000, NOW + 86_400_000);
+        AtomicReference<SignedDispositionPolicyDocument> source = new AtomicReference<>(signed(document));
+        SharedProxyDispositionPolicyRuntime runtime = runtime(ProxyFamily.VELOCITY, source);
+
+        runtime.evaluate(context(), observation());
+
+        Instant expiresAt = Instant.ofEpochMilli(document.getExpiresAtEpochMs());
+        assertTrue(runtime.isCurrentActivePolicy(
+                document.getVersion(), document.getSequence(), expiresAt, "example-mod",
+                DispositionAction.WARN));
+        assertFalse(runtime.isCurrentActivePolicy(
+                "superseded", document.getSequence(), expiresAt, "example-mod",
+                DispositionAction.WARN));
+        assertFalse(runtime.isCurrentActivePolicy(
+                document.getVersion(), document.getSequence() + 1L, expiresAt, "example-mod",
+                DispositionAction.WARN));
+        assertFalse(runtime.isCurrentActivePolicy(
+                document.getVersion(), document.getSequence(), expiresAt.plusMillis(1L), "example-mod",
+                DispositionAction.WARN));
+        assertFalse(runtime.isCurrentActivePolicy(
+                document.getVersion(), document.getSequence(), expiresAt, "another-rule",
+                DispositionAction.WARN));
+        assertFalse(runtime.isCurrentActivePolicy(
+                document.getVersion(), document.getSequence(), expiresAt, "example-mod",
+                DispositionAction.LIMIT));
+    }
+
+    @Test
+    void executionIdentityRejectsARuleThatExpiredBeforeTheDocument() throws Exception {
+        DispositionPolicyDocument document = policyWithRuleWindow(
+                1, null, com.ellan.mcace.protocol.generated.DispositionAction.DISPOSITION_WARN,
+                NOW - 1_000, NOW + 86_400_000, NOW - 1_000, NOW + 30_000);
+        AtomicReference<SignedDispositionPolicyDocument> source = new AtomicReference<>(signed(document));
+        Clock afterRuleExpiry = Clock.fixed(Instant.ofEpochMilli(NOW + 60_000), ZoneOffset.UTC);
+        SharedProxyDispositionPolicyRuntime runtime = new SharedProxyDispositionPolicyRuntime(
+                ProxyFamily.VELOCITY, source::get, identity.getPublic(),
+                afterRuleExpiry, Duration.ofSeconds(30));
+
+        runtime.evaluate(context(), observation());
+
+        assertFalse(runtime.isCurrentActivePolicy(
+                document.getVersion(), document.getSequence(),
+                Instant.ofEpochMilli(document.getExpiresAtEpochMs()), "example-mod",
+                DispositionAction.WARN));
+    }
+
+    @Test
+    void rejectedRefreshSuspendsExecutionEvenWhenLastKnownGoodBytesRemain() throws Exception {
+        DispositionPolicyDocument document = policy(1, null,
+                com.ellan.mcace.protocol.generated.DispositionAction.DISPOSITION_WARN,
+                NOW - 1_000, NOW + 86_400_000);
+        AtomicReference<SignedDispositionPolicyDocument> source = new AtomicReference<>(signed(document));
+        SharedProxyDispositionPolicyRuntime runtime = runtime(ProxyFamily.VELOCITY, source);
+        runtime.evaluate(context(), observation());
+        Instant expiresAt = Instant.ofEpochMilli(document.getExpiresAtEpochMs());
+
+        source.set(source.get().toBuilder().setSignature(ByteString.copyFrom(new byte[64])).build());
+        assertEquals(ProxyPolicyRefreshStatus.REJECTED_INVALID, runtime.refresh());
+
+        assertFalse(runtime.isCurrentActivePolicy(
+                document.getVersion(), document.getSequence(), expiresAt, "example-mod",
+                DispositionAction.WARN));
+    }
+
+    @Test
+    void refreshCannotInterleaveBetweenPolicyValidationAndActionInitiation() throws Exception {
+        DispositionPolicyDocument document = policy(1, null,
+                com.ellan.mcace.protocol.generated.DispositionAction.DISPOSITION_WARN,
+                NOW - 1_000, NOW + 86_400_000);
+        AtomicReference<SignedDispositionPolicyDocument> source = new AtomicReference<>(signed(document));
+        SharedProxyDispositionPolicyRuntime runtime = runtime(ProxyFamily.VELOCITY, source);
+        runtime.evaluate(context(), observation());
+        Instant expiresAt = Instant.ofEpochMilli(document.getExpiresAtEpochMs());
+        CountDownLatch actionEntered = new CountDownLatch(1);
+        CountDownLatch releaseAction = new CountDownLatch(1);
+        CountDownLatch refreshStarted = new CountDownLatch(1);
+        AtomicBoolean refreshFinished = new AtomicBoolean();
+        AtomicReference<Optional<Boolean>> actionResult = new AtomicReference<>();
+
+        Thread action = new Thread(() -> actionResult.set(runtime.executeIfCurrentActivePolicy(
+                document.getVersion(), document.getSequence(), expiresAt, "example-mod",
+                DispositionAction.WARN, () -> {
+                    actionEntered.countDown();
+                    try {
+                        if (!releaseAction.await(2, TimeUnit.SECONDS)) {
+                            throw new IllegalStateException("test action release timed out");
+                        }
+                    } catch (InterruptedException exception) {
+                        Thread.currentThread().interrupt();
+                        throw new IllegalStateException(exception);
+                    }
+                    return true;
+                })), "policy-bound-action");
+        action.start();
+        assertTrue(actionEntered.await(2, TimeUnit.SECONDS));
+
+        source.set(source.get().toBuilder().setSignature(ByteString.copyFrom(new byte[64])).build());
+        Thread refresh = new Thread(() -> {
+            refreshStarted.countDown();
+            runtime.refresh();
+            refreshFinished.set(true);
+        }, "policy-refresh");
+        refresh.start();
+        assertTrue(refreshStarted.await(2, TimeUnit.SECONDS));
+        assertTrue(awaitThreadState(refresh, Thread.State.BLOCKED),
+                "refresh thread must actually block on the policy monitor before action release");
+        assertFalse(refreshFinished.get(), "refresh must wait while action initiation owns the policy monitor");
+        releaseAction.countDown();
+        action.join(2_000);
+        refresh.join(2_000);
+
+        assertFalse(action.isAlive());
+        assertFalse(refresh.isAlive());
+        assertEquals(Optional.of(true), actionResult.get());
+        assertTrue(refreshFinished.get());
+        assertFalse(runtime.isCurrentActivePolicy(
+                document.getVersion(), document.getSequence(), expiresAt, "example-mod",
+                DispositionAction.WARN));
     }
 
     @Test
@@ -111,11 +240,11 @@ final class SharedProxyDispositionPolicyRuntimeTest {
         AtomicReference<SignedDispositionPolicyDocument> source = new AtomicReference<>(signed(first));
         SharedProxyDispositionPolicyRuntime runtime = runtime(ProxyFamily.VELOCITY, source);
 
-        assertEquals(DispositionAction.WARN, runtime.evaluate(context(), observation()).decision().action());
+        assertEquals(DispositionAction.WARN, runtime.evaluate(context(), confirmedObservation()).decision().action());
         source.set(signed(second));
-        assertEquals(DispositionAction.LIMIT, runtime.evaluate(context(), observation()).decision().action());
+        assertEquals(DispositionAction.LIMIT, runtime.evaluate(context(), confirmedObservation()).decision().action());
         source.set(signed(first));
-        ProxyPolicyEvaluation replay = runtime.evaluate(context(), observation());
+        ProxyPolicyEvaluation replay = runtime.evaluate(context(), confirmedObservation());
 
         assertEquals(ProxyPolicyRefreshStatus.REJECTED_ROLLBACK, replay.refreshStatus());
         assertEquals(DispositionAction.LIMIT, replay.decision().action());
@@ -138,6 +267,18 @@ final class SharedProxyDispositionPolicyRuntimeTest {
             com.ellan.mcace.protocol.generated.DispositionAction action,
             long issuedAt,
             long expiresAt) throws Exception {
+        return policyWithRuleWindow(
+                sequence, predecessor, action, issuedAt, expiresAt, issuedAt, expiresAt);
+    }
+
+    private DispositionPolicyDocument policyWithRuleWindow(
+            long sequence,
+            byte[] predecessor,
+            com.ellan.mcace.protocol.generated.DispositionAction action,
+            long issuedAt,
+            long expiresAt,
+            long ruleEffectiveFrom,
+            long ruleExpiresAt) throws Exception {
         return DispositionPolicyDocument.newBuilder()
                 .setSchemaVersion(1)
                 .setPolicyId("network-default")
@@ -149,7 +290,7 @@ final class SharedProxyDispositionPolicyRuntimeTest {
                 .setRolloutStage("OBSERVE")
                 .setSignerKeyIdSha256(ByteString.copyFrom(PolicyDocuments.keyId(identity.getPublic())))
                 .setPreviousDocumentSha256(predecessor == null ? ByteString.EMPTY : ByteString.copyFrom(predecessor))
-                .addRules(rule(action, issuedAt, expiresAt))
+                .addRules(rule(action, ruleEffectiveFrom, ruleExpiresAt))
                 .build();
     }
 
@@ -181,5 +322,23 @@ final class SharedProxyDispositionPolicyRuntimeTest {
         return new ArtifactObservation(
                 ArtifactType.MOD, "example.mod", "1.0.0", "00".repeat(32), Map.of(),
                 ObservationOrigin.CLIENT_REPORTED, Confidence.HIGH, false);
+    }
+
+    private static ArtifactObservation confirmedObservation() {
+        return new ArtifactObservation(
+                ArtifactType.MOD, "example.mod", "1.0.0", "00".repeat(32), Map.of(),
+                ObservationOrigin.SERVER_CONFIRMED, Confidence.CONFIRMED, false);
+    }
+
+    private static boolean awaitThreadState(Thread thread, Thread.State expected)
+            throws InterruptedException {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(2);
+        while (System.nanoTime() < deadline) {
+            if (thread.getState() == expected) {
+                return true;
+            }
+            Thread.sleep(1L);
+        }
+        return thread.getState() == expected;
     }
 }

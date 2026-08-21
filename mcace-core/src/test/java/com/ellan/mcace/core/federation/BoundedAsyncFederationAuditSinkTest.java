@@ -2,8 +2,10 @@ package com.ellan.mcace.core.federation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import java.nio.file.Path;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
@@ -12,10 +14,13 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.api.io.TempDir;
 
 final class BoundedAsyncFederationAuditSinkTest {
+    @TempDir Path directory;
+
     @Test
-    void saturationRejectsImmediatelyWithoutRunningDelegateOnCallerThread() throws Exception {
+    void saturationRejectsImmediatelyAndFaultsWithoutRunningDelegateOnCallerThread() throws Exception {
         CountDownLatch workerEntered = new CountDownLatch(1);
         CountDownLatch releaseWorker = new CountDownLatch(1);
         String callerThread = Thread.currentThread().getName();
@@ -32,27 +37,95 @@ final class BoundedAsyncFederationAuditSinkTest {
             assertFalse(sink.offer(record()));
             assertTrue(Duration.ofNanos(System.nanoTime() - started).compareTo(Duration.ofSeconds(1)) < 0);
             assertEquals(1L, sink.status().saturated());
-            assertEquals(1, sink.status().queued());
+            assertTrue(sink.status().faulted());
+            assertEquals(0, sink.status().queued());
+            assertEquals(1L, sink.status().discardedAfterFault());
+            assertFalse(sink.health().available());
             releaseWorker.countDown();
         }
     }
 
     @Test
-    void handlerFailureIsCountedAndWorkerContinuesWithLaterRecords() throws Exception {
+    void backgroundHandlerFailureFaultsTheSinkAndRejectsFutureDurableAppends() throws Exception {
         AtomicInteger calls = new AtomicInteger();
-        CountDownLatch successfulRecord = new CountDownLatch(1);
+        CountDownLatch failingRecordEntered = new CountDownLatch(1);
         try (BoundedAsyncFederationAuditSink sink = new BoundedAsyncFederationAuditSink(record -> {
-            if (calls.incrementAndGet() == 1) {
-                throw new IllegalStateException("injected audit failure");
-            }
-            successfulRecord.countDown();
+            calls.incrementAndGet();
+            failingRecordEntered.countDown();
+            throw new IllegalStateException("injected audit failure");
         }, 4, "mcace-federation-audit-recovery-test")) {
+            // True is queue admission only and cannot be interpreted as a durable append.
             assertTrue(sink.offer(record()));
+            assertTrue(failingRecordEntered.await(5, TimeUnit.SECONDS));
+            awaitFaulted(sink);
+
+            assertFalse(sink.health().available());
+            assertEquals(0L, sink.status().processed());
+            assertEquals(1L, sink.status().handlerFailures());
+            assertThrows(IllegalStateException.class, () -> sink.append(record()));
+            assertEquals(1, calls.get());
+        }
+    }
+
+    @Test
+    void durableAppendReturnsOnlyAfterTheDelegateCommits() throws Exception {
+        CountDownLatch delegateEntered = new CountDownLatch(1);
+        CountDownLatch releaseDelegate = new CountDownLatch(1);
+        try (BoundedAsyncFederationAuditSink sink = new BoundedAsyncFederationAuditSink(record -> {
+            delegateEntered.countDown();
+            await(releaseDelegate);
+        }, 2, "mcace-federation-audit-durable-test")) {
+            java.util.concurrent.CompletableFuture<Void> append =
+                    java.util.concurrent.CompletableFuture.runAsync(() -> sink.append(record()));
+            assertTrue(delegateEntered.await(5, TimeUnit.SECONDS));
+            assertFalse(append.isDone());
+
+            releaseDelegate.countDown();
+            append.get(5, TimeUnit.SECONDS);
+            assertEquals(1L, sink.status().processed());
+            assertTrue(sink.health().available());
+        }
+    }
+
+    @Test
+    void realFileQuotaFailureInBackgroundLatchesAnUnavailableHealthState() throws Exception {
+        FileFederationAuditSink file = new FileFederationAuditSink(
+                directory.resolve("federation-audit.log"), 1L);
+        try (BoundedAsyncFederationAuditSink sink = new BoundedAsyncFederationAuditSink(
+                file, 2, "mcace-federation-audit-file-fault-test")) {
             assertTrue(sink.offer(record()));
-            assertTrue(successfulRecord.await(5, TimeUnit.SECONDS));
-            awaitStatus(sink, 1L, 1L);
-            assertEquals(2L, sink.status().accepted());
-            assertTrue(sink.status().workerAlive());
+            awaitFaulted(sink);
+
+            assertFalse(sink.health().available());
+            assertEquals(1L, sink.status().handlerFailures());
+            assertEquals(0L, sink.status().processed());
+            assertThrows(IllegalStateException.class, () -> sink.append(record()));
+        }
+    }
+
+    @Test
+    void commitTimeoutFaultsTheSinkAndUnblocksTheCallerWithoutAuthorizingSuccess() throws Exception {
+        CountDownLatch delegateEntered = new CountDownLatch(1);
+        CountDownLatch releaseDelegate = new CountDownLatch(1);
+        try (BoundedAsyncFederationAuditSink sink = new BoundedAsyncFederationAuditSink(record -> {
+            delegateEntered.countDown();
+            await(releaseDelegate);
+        }, 2, "mcace-federation-audit-timeout-test", Duration.ofMillis(50L))) {
+            java.util.concurrent.CompletableFuture<Throwable> result =
+                    java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                        try {
+                            sink.append(record());
+                            return null;
+                        } catch (Throwable exception) {
+                            return exception;
+                        }
+                    });
+            assertTrue(delegateEntered.await(5, TimeUnit.SECONDS));
+            assertTrue(result.get(5, TimeUnit.SECONDS) instanceof IllegalStateException);
+            assertTrue(sink.status().faulted());
+            assertEquals(1L, sink.status().commitTimeouts());
+            assertFalse(sink.health().available());
+            releaseDelegate.countDown();
         }
     }
 
@@ -96,21 +169,17 @@ final class BoundedAsyncFederationAuditSinkTest {
         }
     }
 
-    private static void awaitStatus(
-            BoundedAsyncFederationAuditSink sink,
-            long expectedProcessed,
-            long expectedFailures) throws InterruptedException {
+    private static void awaitFaulted(BoundedAsyncFederationAuditSink sink) throws InterruptedException {
         long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
         while (System.nanoTime() < deadline) {
             FederationAuditQueueStatus status = sink.status();
-            if (status.processed() == expectedProcessed
-                    && status.handlerFailures() == expectedFailures) {
+            if (status.faulted() && !status.workerAlive()) {
                 return;
             }
             Thread.sleep(10L);
         }
         FederationAuditQueueStatus status = sink.status();
-        assertEquals(expectedProcessed, status.processed());
-        assertEquals(expectedFailures, status.handlerFailures());
+        assertTrue(status.faulted());
+        assertFalse(status.workerAlive());
     }
 }

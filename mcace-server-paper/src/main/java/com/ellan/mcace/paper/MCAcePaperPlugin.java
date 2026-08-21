@@ -18,7 +18,10 @@ import java.util.Objects;
 import org.bukkit.command.PluginCommand;
 import org.bukkit.event.EventHandler;
 import org.bukkit.event.Listener;
+import org.bukkit.event.player.PlayerRegisterChannelEvent;
 import org.bukkit.event.player.PlayerQuitEvent;
+import org.bukkit.event.player.PlayerChangedWorldEvent;
+import org.bukkit.event.player.PlayerGameModeChangeEvent;
 import org.bukkit.plugin.ServicePriority;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
@@ -31,6 +34,9 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
     private BehaviorAlertPipeline behaviorPipeline;
     private MCAceRuntimeScheduler runtimeScheduler;
     private BackendLocalSessionActionAdapter sessionActions;
+    private PaperBackendContextPublisher backendContextPublisher;
+    // Phase 2 seam only: default-disabled, no authority channel registration or sender.
+    private PaperServerAuthorityLifecycle serverAuthorityLifecycle;
 
     @Override
     public void onEnable() {
@@ -42,6 +48,8 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
         BackendLocalSessionActionAdapter localSessionActions =
                 new BackendLocalSessionActionAdapter(sessionActionConfiguration, getLogger());
         sessionActions = localSessionActions;
+        backendContextPublisher = new PaperBackendContextPublisher(this, Clock.systemUTC(), getLogger());
+        serverAuthorityLifecycle = PaperServerAuthorityLifecycle.disabled(Clock.systemUTC());
         PublicKey proxyPublicKey;
         ProxyIdentityPinPaths.Selection selectedPin = ProxyIdentityPinPaths.select(getDataFolder().toPath());
         Path preferredProxyPin = getDataFolder().toPath().resolve(ProxyIdentityPinPaths.PREFERRED_FILE_NAME);
@@ -64,11 +72,17 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
                     @Override public void accept(org.bukkit.entity.Player carrier,
                             PaperAdmissionReceiver.AcceptedAdmission update) {
                         localSessionActions.accept(carrier, update);
+                        backendContextPublisher.accept(carrier, update);
                     }
-                    @Override public void remove(java.util.UUID playerId) { localSessionActions.remove(playerId); }
+                    @Override public void remove(java.util.UUID playerId) {
+                        localSessionActions.remove(playerId);
+                        backendContextPublisher.remove(playerId);
+                    }
                 });
         getServer().getMessenger().registerIncomingPluginChannel(
                 this, ProtocolConstants.ADMISSION_CHANNEL, admissionReceiver);
+        getServer().getMessenger().registerOutgoingPluginChannel(
+                this, ProtocolConstants.BACKEND_CONTEXT_CHANNEL);
         getServer().getPluginManager().registerEvents(this, this);
         runtimeScheduler.repeatGlobal(admissionReceiver::expire, 20L, 20L);
         getServer().getServicesManager().register(MCAceApi.class, api, this, ServicePriority.Normal);
@@ -76,6 +90,7 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
         command.setExecutor(new MCAceCommand(api, runtimeScheduler));
         getLogger().info("MCAce signed proxy admission channel enabled; pinned key fingerprint="
                 + ProxyIdentityStore.fingerprint(proxyPublicKey));
+        getLogger().info("MCAce backend world/game-mode context channel enabled in shadow-only mode");
         getLogger().info("MCAce task runtime=" + runtimeScheduler.runtimeFlavor());
         getLogger().info("MCAce backend session actions mode=" + sessionActionConfiguration.mode());
         enableBehaviorIntegrations(integrationConfiguration);
@@ -100,6 +115,12 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
             cloudRiskClient = null;
         }
         getServer().getMessenger().unregisterIncomingPluginChannel(this);
+        getServer().getMessenger().unregisterOutgoingPluginChannel(this);
+        backendContextPublisher = null;
+        if (serverAuthorityLifecycle != null) {
+            serverAuthorityLifecycle.clear();
+            serverAuthorityLifecycle = null;
+        }
         if (runtimeScheduler != null) {
             runtimeScheduler.close();
             runtimeScheduler = null;
@@ -119,6 +140,14 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
     }
 
     @EventHandler
+    public void onPlayerRegisterChannel(PlayerRegisterChannelEvent event) {
+        if (backendContextPublisher != null
+                && ProtocolConstants.BACKEND_CONTEXT_CHANNEL.equals(event.getChannel())) {
+            backendContextPublisher.channelRegistered(event.getPlayer());
+        }
+    }
+
+    @EventHandler
     public void onPlayerQuit(PlayerQuitEvent event) {
         if (runtimeScheduler == null) {
             return;
@@ -128,12 +157,32 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
         runtimeScheduler.executeForPlayer(event.getPlayer(), cleanup, () -> runtimeScheduler.executeGlobal(cleanup));
     }
 
+    @EventHandler
+    public void onPlayerChangedWorld(PlayerChangedWorldEvent event) {
+        if (backendContextPublisher != null) {
+            backendContextPublisher.publishCurrent(event.getPlayer());
+        }
+    }
+
+    @EventHandler
+    public void onPlayerGameModeChange(PlayerGameModeChangeEvent event) {
+        if (backendContextPublisher != null) {
+            backendContextPublisher.publishGameMode(event.getPlayer(), event.getNewGameMode());
+        }
+    }
+
     private void removePlayerState(java.util.UUID playerId) {
         if (admissionReceiver != null) {
             admissionReceiver.remove(playerId);
         }
+        if (backendContextPublisher != null) {
+            backendContextPublisher.remove(playerId);
+        }
         if (behaviorPipeline != null) {
             behaviorPipeline.remove(playerId);
+        }
+        if (serverAuthorityLifecycle != null) {
+            serverAuthorityLifecycle.remove(playerId);
         }
         getLogger().info("MCAce player state cleanup completed for " + playerId);
     }

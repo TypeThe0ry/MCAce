@@ -14,11 +14,26 @@ public final class DispositionEngine {
             .thenComparing(Comparator.comparing(DispositionRule::scope, Comparator.comparing(RuleScope::exactException)).reversed())
             .thenComparing(Comparator.comparingInt((DispositionRule r) -> r.action().severity()).reversed())
             .thenComparing(DispositionRule::ruleId);
+
     public DispositionDecision evaluate(DispositionPolicy policy, EvaluationContext context, ArtifactObservation observation) {
-        Objects.requireNonNull(policy, "policy"); Objects.requireNonNull(context, "context"); Objects.requireNonNull(observation, "observation");
-        List<DispositionRule> candidates = new ArrayList<>(); List<RuleMatchExplanation> details = new ArrayList<>();
-        for (DispositionRule rule : policy.rules()) { boolean active = rule.activeAt(context.evaluatedAt()); boolean scope = active && rule.scope().matches(context); boolean selector = scope && rule.selector().matches(observation); boolean confidence = selector && observation.confidence().ordinal() >= rule.minimumConfidence().ordinal(); boolean eligible = confidence;
-            if (eligible) candidates.add(rule); details.add(new RuleMatchExplanation(rule.ruleId(), active, scope, selector, confidence, false, eligible ? "candidate" : inactiveReason(active, scope, selector, confidence))); }
+        Objects.requireNonNull(policy, "policy");
+        Objects.requireNonNull(context, "context");
+        Objects.requireNonNull(observation, "observation");
+        List<DispositionRule> candidates = new ArrayList<>();
+        List<RuleMatchExplanation> details = new ArrayList<>();
+        for (DispositionRule rule : policy.rules()) {
+            boolean active = rule.activeAt(context.evaluatedAt());
+            boolean scope = active && rule.scope().matches(context);
+            boolean selector = scope && rule.selector().matches(observation);
+            boolean confidence = selector
+                    && observation.confidence().ordinal() >= rule.minimumConfidence().ordinal();
+            boolean provenance = confidence && provenanceAllows(rule.action(), observation.origin());
+            if (provenance) candidates.add(rule);
+            details.add(new RuleMatchExplanation(rule.ruleId(), active, scope, selector, confidence,
+                    false, provenance ? "candidate"
+                            : inactiveReason(active, scope, selector, confidence,
+                                    provenance, rule.action(), observation.origin())));
+        }
         // Foundation observations are evaluated only by foundation rules. Conversely, an ordinary
         // artifact can never inherit a foundation rule merely because its selector was too broad.
         List<DispositionRule> considered = candidates.stream()
@@ -32,5 +47,24 @@ public final class DispositionEngine {
         List<RuleMatchExplanation> complete = details.stream().map(d -> new RuleMatchExplanation(d.ruleId(), d.active(), d.scopeMatched(), d.selectorMatched(), d.confidenceMatched(), winner != null && d.ruleId().equals(winner.ruleId()), winner != null && d.ruleId().equals(winner.ruleId()) ? "selected" : d.outcome())).toList();
         return new DispositionDecision(observation, winner == null ? DispositionAction.OBSERVE : winner.action(), winner == null ? Optional.empty() : Optional.of(winner.ruleId()), complete);
     }
-    private static String inactiveReason(boolean active, boolean scope, boolean selector, boolean confidence) { if (!active) return "inactive"; if (!scope) return "scope-mismatch"; if (!selector) return "selector-mismatch"; if (!confidence) return "confidence-too-low"; return "not-selected"; }
+
+    /** Client and inferred observations remain advisory until independently corroborated. */
+    private static boolean provenanceAllows(DispositionAction action, ObservationOrigin origin) {
+        if (action.severity() < DispositionAction.LIMIT.severity()) return true;
+        return origin == ObservationOrigin.SERVER_CONFIRMED || origin == ObservationOrigin.ADMIN_REVIEWED;
+    }
+
+    private static String inactiveReason(boolean active, boolean scope, boolean selector,
+            boolean confidence, boolean provenance, DispositionAction action, ObservationOrigin origin) {
+        if (!active) return "inactive";
+        if (!scope) return "scope-mismatch";
+        if (!selector) return "selector-mismatch";
+        if (!confidence) return "confidence-too-low";
+        if (!provenance && action.severity() >= DispositionAction.LIMIT.severity()
+                && origin != ObservationOrigin.SERVER_CONFIRMED
+                && origin != ObservationOrigin.ADMIN_REVIEWED) {
+            return "advisory-origin-cannot-enforce";
+        }
+        return "not-selected";
+    }
 }

@@ -41,16 +41,33 @@ final class SignedAdmissionSnapshotCodecTest {
 
     @Test
     void roundTripsAndRejectsReplay() throws Exception {
-        byte[] frame = codec.sign(snapshot(), Duration.ofSeconds(15), 42, identity.getPrivate());
+        SignedAdmissionSnapshotCodec.SignedAdmissionSnapshot signed = codec.signWithExpiry(
+                snapshot(), Duration.ofSeconds(15), 42, identity.getPrivate());
+        byte[] frame = signed.encodedFrame();
 
         SignedAdmissionSnapshotCodec.VerifiedAdmissionSnapshot verified = codec.verify(
                 frame, playerId, identity.getPublic(), replayGuard);
 
         assertEquals(snapshot(), verified.snapshot());
+        assertEquals(clock.instant().plusSeconds(15), signed.expiresAt());
         assertEquals(clock.instant().plusSeconds(15), verified.expiresAt());
         assertEquals(42, verified.transportSequence());
         assertThrows(EnvelopeException.class,
                 () -> codec.verify(frame, playerId, identity.getPublic(), replayGuard));
+    }
+
+    @Test
+    void returnedExpiryExactlyMatchesMillisecondPrecisionWireExpiry() throws Exception {
+        clock.advance(Duration.ofNanos(987_654_321L));
+        SignedAdmissionSnapshotCodec.SignedAdmissionSnapshot signed = codec.signWithExpiry(
+                snapshot(), Duration.ofSeconds(15), 43, identity.getPrivate());
+
+        SignedAdmissionSnapshotCodec.VerifiedAdmissionSnapshot verified = codec.verify(
+                signed.encodedFrame(), playerId, identity.getPublic(), replayGuard);
+        Instant expected = Instant.ofEpochMilli(clock.instant().plusSeconds(15).toEpochMilli());
+
+        assertEquals(expected, signed.expiresAt());
+        assertEquals(expected, verified.expiresAt());
     }
 
     @Test

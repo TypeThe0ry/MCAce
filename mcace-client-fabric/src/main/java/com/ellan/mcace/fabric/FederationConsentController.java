@@ -17,9 +17,11 @@ final class FederationConsentController {
 
     FederationConsentController(Clock clock) { this.clock = Objects.requireNonNull(clock, "clock"); }
 
-    void accept(MinecraftClient client, VerifiedFederationConsentRequest request, Sender sender) {
+    void accept(MinecraftClient client, VerifiedFederationConsentRequest request,
+            Runnable firstRendered, Sender sender) {
         Objects.requireNonNull(client, "client");
         Objects.requireNonNull(request, "request");
+        Objects.requireNonNull(firstRendered, "firstRendered");
         Objects.requireNonNull(sender, "sender");
         cancel(client);
         if (expired(request)) {
@@ -27,23 +29,31 @@ final class FederationConsentController {
             return;
         }
         Pending next = new Pending(request, sender, client.currentScreen);
+        FederationConsentScreen screen = new FederationConsentScreen(
+                next.previous, request, firstRendered, allowed -> decide(client, next, allowed));
+        next.screen = screen;
         pending = next;
-        client.setScreen(new FederationConsentScreen(next.previous(), request, allowed -> decide(client, next, allowed)));
+        client.setScreen(screen);
     }
 
     void tick(MinecraftClient client) {
         Pending current = pending;
-        if (current != null && expired(current.request())) decide(client, current, false);
+        if (current == null) return;
+        if (expired(current.request)) {
+            decide(client, current, false);
+        } else if (client.currentScreen != current.screen) {
+            cancel(client);
+        }
     }
 
     void cancel(MinecraftClient client) {
         Pending current = pending;
         pending = null;
         if (current != null) {
-            if (client.currentScreen instanceof FederationConsentScreen screen && screen.previous() == current.previous()) {
-                client.setScreen(current.previous());
+            if (client.currentScreen == current.screen) {
+                client.setScreen(current.previous);
             }
-            current.sender().declined(current.request());
+            current.sender.declined(current.request);
         }
     }
 
@@ -52,15 +62,28 @@ final class FederationConsentController {
     private void decide(MinecraftClient client, Pending current, boolean allowed) {
         if (!isCurrent(pending, current)) return;
         pending = null;
-        client.setScreen(current.previous());
-        if (allowed && !expired(current.request())) current.sender().allowed(current.request());
-        else current.sender().declined(current.request());
+        if (client.currentScreen == current.screen) {
+            client.setScreen(current.previous);
+        }
+        if (allowed && !expired(current.request)) current.sender.allowed(current.request);
+        else current.sender.declined(current.request);
     }
 
     private boolean expired(VerifiedFederationConsentRequest request) {
         return request.request().getExpiresAtEpochMs() <= clock.millis();
     }
 
-    private record Pending(VerifiedFederationConsentRequest request, Sender sender,
-                           net.minecraft.client.gui.screen.Screen previous) { }
+    private static final class Pending {
+        private final VerifiedFederationConsentRequest request;
+        private final Sender sender;
+        private final net.minecraft.client.gui.screen.Screen previous;
+        private FederationConsentScreen screen;
+
+        private Pending(VerifiedFederationConsentRequest request, Sender sender,
+                net.minecraft.client.gui.screen.Screen previous) {
+            this.request = request;
+            this.sender = sender;
+            this.previous = previous;
+        }
+    }
 }

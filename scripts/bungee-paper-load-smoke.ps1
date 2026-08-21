@@ -97,8 +97,78 @@ function Test-TextContains([string]$Content, [string]$Needle) {
     return $null -ne $Content -and $Content.IndexOf($Needle, [StringComparison]::Ordinal) -ge 0
 }
 
+function Get-JavaVersionText([string]$Executable) {
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $Executable
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    Set-ProcessArguments $startInfo @('-version')
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) { return '' }
+        $stdout = $process.StandardOutput.ReadToEnd()
+        $stderr = $process.StandardError.ReadToEnd()
+        $process.WaitForExit()
+        return $stdout + $stderr
+    } finally {
+        $process.Dispose()
+    }
+}
+
+function Set-ProcessArguments(
+        [System.Diagnostics.ProcessStartInfo]$StartInfo,
+        [string[]]$Arguments) {
+    if ($null -ne $StartInfo.PSObject.Properties['ArgumentList']) {
+        foreach ($argument in $Arguments) {
+            [void]$StartInfo.ArgumentList.Add($argument)
+        }
+        return
+    }
+
+    $StartInfo.Arguments = (@($Arguments | ForEach-Object {
+        '"' + ([string]$_).Replace('"', '\"') + '"'
+    }) -join ' ')
+}
+
+function Get-SmokeJava {
+    $candidates = [System.Collections.Generic.List[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($env:JAVA_HOME)) {
+        $candidates.Add((Join-Path $env:JAVA_HOME 'bin\java.exe'))
+    }
+    foreach ($path in @(Get-ChildItem 'C:\Program Files\Java\jdk*\bin\java.exe' -File -ErrorAction SilentlyContinue |
+            Select-Object -ExpandProperty FullName)) {
+        $candidates.Add($path)
+    }
+    if (-not [string]::IsNullOrWhiteSpace($env:USERPROFILE)) {
+        foreach ($path in @(Get-ChildItem (Join-Path $env:USERPROFILE '.gradle\jdks\*\bin\java.exe') -File -ErrorAction SilentlyContinue |
+                Select-Object -ExpandProperty FullName)) {
+            $candidates.Add($path)
+        }
+    }
+    foreach ($command in @(Get-Command java.exe -All -ErrorAction SilentlyContinue)) {
+        $candidates.Add($command.Source)
+    }
+    $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $fallback = $null
+    foreach ($candidate in $candidates) {
+        if (([string]::IsNullOrWhiteSpace($candidate)) -or (-not (Test-Path -LiteralPath $candidate)) -or
+                (-not $seen.Add($candidate))) { continue }
+        $versionText = Get-JavaVersionText $candidate
+        $match = [regex]::Match($versionText, 'version "(?<major>\d+)')
+        if (-not $match.Success) { continue }
+        $major = [int]$match.Groups['major'].Value
+        if ($major -eq 21) { return $candidate }
+        if ($major -ge 21 -and $null -eq $fallback) { $fallback = $candidate }
+    }
+    if ($null -ne $fallback) { return $fallback }
+    throw 'A Java 21+ executable is required for the real Bungee/Paper smoke'
+}
+
 function Start-JavaService([string]$Name, [string]$WorkingDirectory, [string]$Jar, [string]$MaximumHeap, [string[]]$ExtraArguments) {
-    $java = (Get-Command java.exe -ErrorAction Stop).Source
+    $java = $script:SmokeJavaPath
     $stdoutPath = Join-Path $WorkingDirectory "$Name.stdout.log"
     $stderrPath = Join-Path $WorkingDirectory "$Name.stderr.log"
     $arguments = @('-Xms128m', "-Xmx$MaximumHeap", '-jar', $Jar) + $ExtraArguments
@@ -228,7 +298,7 @@ function Write-Reports {
     $report = [ordered]@{
         schema = 1; status = $status; run_id = $runId; run_root = $runRoot
         completed_at = (Get-Date).ToUniversalTime().ToString('o')
-        java = (Get-Command java.exe -ErrorAction Stop).FileVersionInfo.ProductVersion
+        java = ([System.Diagnostics.FileVersionInfo]::GetVersionInfo($script:SmokeJavaPath)).ProductVersion
         artifacts = [ordered]@{
             bungeecord = [ordered]@{ version = '1.21'; url = $bungeeArtifact.Url; sha256 = $bungeeArtifact.Sha256 }
             paper = [ordered]@{ version = '1.21.1-133'; url = $paperArtifact.Url; sha256 = $paperArtifact.Sha256 }
@@ -263,6 +333,8 @@ function Write-Reports {
     Write-Utf8 $markdownPath $markdown
 }
 
+$script:SmokeJavaPath = Get-SmokeJava
+$env:JAVA_HOME = Split-Path -Parent (Split-Path -Parent $script:SmokeJavaPath)
 New-Item -ItemType Directory -Force -Path $cacheRoot, $runRoot, $bungeeRoot, $paperRoot, $paperLegacyRoot, $paperNoPinRoot | Out-Null
 
 try {

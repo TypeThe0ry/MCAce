@@ -63,6 +63,8 @@ import java.util.zip.ZipFile;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.Timeout;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.condition.EnabledIfSystemProperty;
+import org.junit.jupiter.api.io.TempDir;
 
 /**
  * Test-only real Minecraft wire peer. It deliberately does not launch a Minecraft client.
@@ -70,7 +72,6 @@ import org.junit.jupiter.api.Assumptions;
  * boundary if a proxy/server requires behavior outside this bounded implementation.
  */
 final class MinecraftProxyPlayerProbeTest {
-    private static final int MINECRAFT_PROTOCOL_1_21_1 = 767;
     private static final int MAX_PACKET_BYTES = 2 * 1024 * 1024;
     private static final String PLAYER_NAME = "MCAceProbe";
     private static final String BUILD_ID = "fabric-phase2-dev";
@@ -93,7 +94,44 @@ final class MinecraftProxyPlayerProbeTest {
     }
 
     @Test
+    void temporaryProxyPrivateKeyCleanupCoversIdentityAndDelegatedPolicyKeys(
+            @TempDir Path temporaryDirectory) throws Exception {
+        Path velocityData = temporaryDirectory.resolve("velocity");
+        List<Path> velocityPrivateKeys = ProbeHarness.temporaryProxyPrivateKeyPaths(velocityData);
+        assertEquals(List.of(
+                velocityData.resolve("identity/server-private-key.pk8"),
+                velocityData.resolve("policy/delegated-key/delegated-private-key.pk8")),
+                velocityPrivateKeys);
+        for (Path privateKey : velocityPrivateKeys) {
+            Files.createDirectories(privateKey.getParent());
+            Files.write(privateKey, new byte[] {1, 2, 3});
+        }
+        ProbeHarness.deleteTemporaryProxyPrivateKeys(velocityPrivateKeys);
+        assertTrue(velocityPrivateKeys.stream().noneMatch(Files::exists));
+
+        Path bungeeData = temporaryDirectory.resolve("bungee");
+        List<Path> bungeePrivateKeys = ProbeHarness.temporaryProxyPrivateKeyPaths(bungeeData);
+        Path bungeeIdentity = bungeePrivateKeys.get(0);
+        Files.createDirectories(bungeeIdentity.getParent());
+        Files.write(bungeeIdentity, new byte[] {4, 5, 6});
+        assertTrue(!Files.exists(bungeePrivateKeys.get(1)));
+        ProbeHarness.deleteTemporaryProxyPrivateKeys(bungeePrivateKeys);
+        assertTrue(bungeePrivateKeys.stream().noneMatch(Files::exists));
+    }
+
+    @Test
+    void verifiedBackendAdmissionCounterBindsMarkerAndStateToTheSameLine() {
+        String verified = "[INFO] Accepted signed MCAce admission state: "
+                + "admission=VERIFIED, trust=VERIFIED, risk=0";
+        assertEquals(2, ProbeHarness.verifiedAdmissionCount(verified + "\n" + verified));
+        assertEquals(0, ProbeHarness.verifiedAdmissionCount(
+                "Accepted signed MCAce admission state\n"
+                        + "unrelated admission=VERIFIED, trust=VERIFIED\n"));
+    }
+
+    @Test
     @Timeout(180)
+    @EnabledIfSystemProperty(named = "mcace.runtime.player-probe.enabled", matches = "true")
     void realVelocityModernForwardingOfflinePlayerProbeReachesMCAceChannel() throws Exception {
         ProbeReport report = run(ProxyKind.VELOCITY);
         assertTrue(report.forwardingConfigured(), report.toJson());
@@ -102,10 +140,12 @@ final class MinecraftProxyPlayerProbeTest {
         assertTrue(report.authResult(), report.toJson());
         assertTrue(report.authAccepted(), report.toJson());
         assertTrue(report.backendAdmission(), report.toJson());
+        assertTrue(report.backendContextShadowAudit(), report.toJson());
     }
 
     @Test
     @Timeout(180)
+    @EnabledIfSystemProperty(named = "mcace.runtime.player-probe.enabled", matches = "true")
     void realBungeeIpForwardingOfflinePlayerProbeReachesMCAceChannel() throws Exception {
         ProbeReport report = run(ProxyKind.BUNGEE);
         assertTrue(report.forwardingConfigured(), report.toJson());
@@ -114,6 +154,72 @@ final class MinecraftProxyPlayerProbeTest {
         assertTrue(report.authResult(), report.toJson());
         assertTrue(report.authAccepted(), report.toJson());
         assertTrue(report.backendAdmission(), report.toJson());
+        assertTrue(report.backendContextShadowAudit(), report.toJson());
+    }
+
+    @Test
+    @Timeout(300)
+    @EnabledIfSystemProperty(named = "mcace.runtime.folia-context.enabled", matches = "true")
+    void realVelocityModernForwardingToFoliaReturnsShadowContext() throws Exception {
+        assertPassingPlayerProbe(run(ProxyKind.VELOCITY, BackendKind.FOLIA));
+    }
+
+    @Test
+    @Timeout(300)
+    @EnabledIfSystemProperty(named = "mcace.runtime.folia-context.enabled", matches = "true")
+    void realBungeeIpForwardingToFoliaReturnsShadowContext() throws Exception {
+        assertPassingPlayerProbe(run(ProxyKind.BUNGEE, BackendKind.FOLIA));
+    }
+
+    private static void assertPassingPlayerProbe(ProbeReport report) {
+        assertTrue(report.forwardingConfigured(), report.toJson());
+        assertTrue(report.loginSuccess(), report.toJson());
+        assertTrue(report.serverHello(), report.toJson());
+        assertTrue(report.authResult(), report.toJson());
+        assertTrue(report.authAccepted(), report.toJson());
+        assertTrue(report.backendAdmission(), report.toJson());
+        assertTrue(report.backendContextShadowAudit(), report.toJson());
+    }
+
+    @Test
+    void federationFixtureUsesThirtySecondHandshakeWindow() {
+        assertEquals("policy.server-id=velocity-network\n"
+                        + "policy.minecraft-versions=1.21.11\n"
+                        + "policy.client-build-ids=fabric-phase2-dev\n"
+                        + "handshake.timeout.seconds=30\n",
+                federationLocalConfiguration(
+                        ProxyKind.VELOCITY, "velocity-network", "1.21.11"));
+        assertEquals("server.id=bungee-network\n"
+                        + "minecraft.version=1.21.11\n"
+                        + "client.build-id=fabric-phase2-dev\n"
+                        + "handshake.timeout.seconds=30\n",
+                federationLocalConfiguration(
+                        ProxyKind.BUNGEE, "bungee-network", "1.21.11"));
+    }
+
+    @Test
+    void proxyReadinessMarkerIsBoundToTheSelectedLoopbackPort() {
+        assertEquals("Listening on /127.0.0.1:25565",
+                proxyListenerReadyMarker(ProxyKind.VELOCITY, 25565));
+        assertEquals("Listening on /127.0.0.1:25566",
+                proxyListenerReadyMarker(ProxyKind.BUNGEE, 25566));
+    }
+
+    @Test
+    void federationPlayServerHelloWaitsForBackendGameJoin() {
+        assertTrue(shouldDeferFederationServerHello(State.PLAY, false, PacketType.SERVER_HELLO));
+        assertTrue(!shouldDeferFederationServerHello(
+                State.PLAY, true, PacketType.SERVER_HELLO));
+        assertTrue(!shouldDeferFederationServerHello(
+                State.CONFIGURATION, false, PacketType.SERVER_HELLO));
+        assertTrue(!shouldDeferFederationServerHello(
+                State.PLAY, false, PacketType.AUTH_RESULT));
+        assertTrue(!shouldRequestFederationIssue(
+                FederationPeerRole.SOURCE, true, State.PLAY, false, false));
+        assertTrue(shouldRequestFederationIssue(
+                FederationPeerRole.SOURCE, true, State.PLAY, true, false));
+        assertTrue(!shouldRequestFederationIssue(
+                FederationPeerRole.SOURCE, true, State.PLAY, true, true));
     }
 
     @Test
@@ -167,6 +273,42 @@ final class MinecraftProxyPlayerProbeTest {
                 "target-restart federation residual gate is opt-in");
     }
 
+    private static String federationLocalConfiguration(
+            ProxyKind kind, String localNetworkId, String minecraftVersion) {
+        return kind == ProxyKind.VELOCITY
+                ? "policy.server-id=" + localNetworkId
+                        + "\npolicy.minecraft-versions=" + minecraftVersion
+                        + "\npolicy.client-build-ids=" + BUILD_ID
+                        + "\nhandshake.timeout.seconds=30\n"
+                : "server.id=" + localNetworkId
+                        + "\nminecraft.version=" + minecraftVersion
+                        + "\nclient.build-id=" + BUILD_ID
+                        + "\nhandshake.timeout.seconds=30\n";
+    }
+
+    private static String proxyListenerReadyMarker(ProxyKind kind, int port) {
+        Objects.requireNonNull(kind, "kind");
+        if (port < 1 || port > 65_535) {
+            throw new IllegalArgumentException("proxy listener port is outside the TCP range");
+        }
+        return "Listening on /127.0.0.1:" + port;
+    }
+
+    private static boolean shouldDeferFederationServerHello(
+            State state, boolean playJoinSeen, PacketType packetType) {
+        return state == State.PLAY && !playJoinSeen && packetType == PacketType.SERVER_HELLO;
+    }
+
+    private static boolean shouldRequestFederationIssue(
+            FederationPeerRole role,
+            boolean authAccepted,
+            State state,
+            boolean playJoinSeen,
+            boolean federationIssueSent) {
+        return role == FederationPeerRole.SOURCE && authAccepted && state == State.PLAY
+                && playJoinSeen && !federationIssueSent;
+    }
+
     private FederationTargetRestartReport runFederationTargetRestartResidual(ProxyKind targetKind)
             throws Exception {
         Path repository = repositoryRoot();
@@ -200,6 +342,8 @@ final class MinecraftProxyPlayerProbeTest {
         boolean residualReacceptance = false;
         boolean postRestartSameProcessReplayRejected = false;
         boolean contentFreeAudit = false;
+        boolean sourceAuditHealthy = false;
+        boolean targetAuditHealthy = false;
         boolean localStateUnchanged = false;
         boolean targetBackendAdmission = false;
         boolean temporaryProxyPrivateKeysRemoved = false;
@@ -215,6 +359,8 @@ final class MinecraftProxyPlayerProbeTest {
                     sourceIdentity.getPublic(), "ACCEPT_FROM");
             source.start();
             target.start();
+            sourceAuditHealthy = source.federationAuditHealthy();
+            targetAuditHealthy = target.federationAuditHealthy();
 
             FederationPeerResult sourceResult = new MinecraftWirePeer(source).federationSourceProbe(
                     vault, sourceSessionKey, targetNetworkId);
@@ -260,6 +406,8 @@ final class MinecraftProxyPlayerProbeTest {
             target.waitForProxyMarker("federation presentation status=INVALID_FRAME", 30);
             target.waitForProxyMarker("federation presentation status=INVALID_PRESENTATION", 30);
             target.waitForProxyMarker("federation presentation status=OBSERVED", 30);
+            sourceAuditHealthy = sourceAuditHealthy && source.federationAuditHealthy();
+            targetAuditHealthy = target.federationAuditHealthy();
             String audit = target.waitForFederationAudit(30,
                     "PRESENTATION_REJECTED\tINVALID_PRESENTATION",
                     "PRESENTATION_REJECTED\tREPLAYED",
@@ -306,7 +454,8 @@ final class MinecraftProxyPlayerProbeTest {
                 targetConfigurationPreserved, targetTwoAuthenticated, targetSessionChanged,
                 targetChallengeChanged, oldOuterSessionRejected, oldSessionProofRejected,
                 invalidOldProofsNoObservation, residualReacceptance, postRestartSameProcessReplayRejected,
-                contentFreeAudit, localStateUnchanged, targetBackendAdmission,
+                contentFreeAudit, sourceAuditHealthy, targetAuditHealthy,
+                localStateUnchanged, targetBackendAdmission,
                 temporaryProxyPrivateKeysRemoved,
                 List.copyOf(limitations), List.copyOf(cleanupIds), List.copyOf(remaining));
         Files.writeString(runRoot.resolve("report.json"), report.toJson(), StandardCharsets.UTF_8);
@@ -344,6 +493,8 @@ final class MinecraftProxyPlayerProbeTest {
         boolean observed = false;
         boolean replayRejected = false;
         boolean contentFreeAudit = false;
+        boolean sourceAuditHealthy = false;
+        boolean targetAuditHealthy = false;
         boolean localStateUnchanged = false;
         boolean targetBackendAdmission = false;
         List<String> limitations = new ArrayList<>();
@@ -355,6 +506,8 @@ final class MinecraftProxyPlayerProbeTest {
                     sourceIdentity.getPublic(), "ACCEPT_FROM");
             source.start();
             target.start();
+            sourceAuditHealthy = source.federationAuditHealthy();
+            targetAuditHealthy = target.federationAuditHealthy();
 
             FederationPeerResult sourceResult = new MinecraftWirePeer(source).federationSourceProbe(
                     vault, clientSessionKey, targetNetworkId);
@@ -362,6 +515,7 @@ final class MinecraftProxyPlayerProbeTest {
                     && sourceResult.authResult().getAccepted();
             grantStored = sourceResult.grantStored();
             sourceDisconnected = sourceResult.socketClosed();
+            sourceAuditHealthy = sourceAuditHealthy && source.federationAuditHealthy();
             if (!sourceAuthenticated || !grantStored || !sourceDisconnected) {
                 throw new IOException("source federation phase incomplete: " + sourceResult);
             }
@@ -381,6 +535,7 @@ final class MinecraftProxyPlayerProbeTest {
             observed = true;
             target.waitForProxyMarker("federation presentation status=REPLAYED", 30);
             replayRejected = true;
+            targetAuditHealthy = target.federationAuditHealthy();
             targetBackendAdmission = target.waitForPaperAdmission(20);
 
             String audit = target.waitForFederationAudit(30,
@@ -416,7 +571,8 @@ final class MinecraftProxyPlayerProbeTest {
                 sourceKind, targetKind, sourceNetworkId, targetNetworkId,
                 sourceAuthenticated, grantStored, sourceDisconnected, targetAuthenticated,
                 presentationSent, firstOuterLength, innerLength, nonceDistinctAttempted,
-                observed, replayRejected, contentFreeAudit, localStateUnchanged,
+                observed, replayRejected, contentFreeAudit, sourceAuditHealthy, targetAuditHealthy,
+                localStateUnchanged,
                 targetBackendAdmission, List.copyOf(limitations), List.copyOf(cleanupIds),
                 List.copyOf(remaining));
         Files.writeString(runRoot.resolve("report.json"), report.toJson(), StandardCharsets.UTF_8);
@@ -446,11 +602,18 @@ final class MinecraftProxyPlayerProbeTest {
     }
 
     private ProbeReport run(ProxyKind kind) throws Exception {
+        return run(kind, BackendKind.PAPER);
+    }
+
+    private ProbeReport run(ProxyKind kind, BackendKind backendKind) throws Exception {
         Path repository = repositoryRoot();
         String runId = Instant.now().toString().replace(':', '-').replace('.', '-');
-        Path runRoot = repository.resolve("build/runtime-player-probe/runs").resolve(kind.name().toLowerCase() + "-" + runId);
+        String runPrefix = kind.name().toLowerCase()
+                + (backendKind == BackendKind.FOLIA ? "-folia" : "");
+        Path runRoot = repository.resolve("build/runtime-player-probe/runs")
+                .resolve(runPrefix + "-" + runId);
         Files.createDirectories(runRoot);
-        ProbeHarness harness = new ProbeHarness(repository, runRoot, kind);
+        ProbeHarness harness = new ProbeHarness(repository, runRoot, kind, backendKind);
         ProbeReport report = null;
         Exception failure = null;
         try {
@@ -458,7 +621,8 @@ final class MinecraftProxyPlayerProbeTest {
             harness.start();
             report = new MinecraftWirePeer(harness).probe();
         } catch (Exception exception) {
-            report = ProbeReport.failure(kind, harness.proxyPort, harness.paperPort,
+            report = ProbeReport.failure(kind, backendKind, harness.backendMinecraftVersion,
+                    harness.proxyPort, harness.paperPort,
                     List.of(exception.getClass().getSimpleName() + ": " + safeMessage(exception)));
             failure = exception;
         } finally {
@@ -466,6 +630,8 @@ final class MinecraftProxyPlayerProbeTest {
         }
         assertTrue(!harness.sensitiveForwardingFileRetained(),
                 "temporary proxy forwarding secret was retained after cleanup");
+        assertTrue(!harness.temporaryProxyPrivateKeyRetained(),
+                "temporary proxy private key was retained after cleanup");
         report = report.withCleanup(harness.cleanupProcessIds, harness.remainingRunProcesses());
         Files.writeString(runRoot.resolve("report.json"), report.toJson(), StandardCharsets.UTF_8);
         Files.writeString(runRoot.resolve("report.md"), report.toMarkdown(), StandardCharsets.UTF_8);
@@ -501,6 +667,7 @@ final class MinecraftProxyPlayerProbeTest {
         boolean lobbyAdmission = false;
         boolean limitedAdmission = false;
         boolean quarantineAdmission = false;
+        boolean anyRouteLifecycleObserved = false;
         RouteCompletion routeCompletion = RouteCompletion.NONE;
         boolean connectionRetained = false;
         boolean cleanupZero = false;
@@ -521,11 +688,12 @@ final class MinecraftProxyPlayerProbeTest {
             DispositionPeerResult peer = new MinecraftWirePeer(harness, true)
                     .dispositionProbe(scenario);
             syntheticManifestSent = peer.syntheticManifestSent();
-            authenticationAccepted = peer.authenticationAccepted();
+            authenticationAccepted = peer.authenticationAcceptedAnyPhase();
             dispositionResultObserved = peer.dispositionResultObserved();
             lobbyAdmission = peer.lobbyAdmission();
             limitedAdmission = peer.limitedAdmission();
             quarantineAdmission = peer.quarantineAdmission();
+            anyRouteLifecycleObserved = peer.anyRouteLifecycleObserved();
             routeCompletion = peer.routeCompletion();
             connectionRetained = peer.connectionRetained();
         } catch (Exception ignored) {
@@ -548,14 +716,13 @@ final class MinecraftProxyPlayerProbeTest {
         return new DispositionCaseOutcome(
                 scenario, forwardingConfigured, publisherActive, syntheticManifestSent,
                 authenticationAccepted, dispositionResultObserved, lobbyAdmission,
-                limitedAdmission, quarantineAdmission, routeCompletion, connectionRetained,
-                cleanupZero, workMaterialRemoved);
+                limitedAdmission, quarantineAdmission, anyRouteLifecycleObserved,
+                routeCompletion, connectionRetained, cleanupZero, workMaterialRemoved);
     }
 
     /**
-     * Runs Bungee's Phase-2 equivalent in a separate disposable process tree. Unlike Velocity,
-     * Bungee may receive the signed result before its initial backend is connected, so an enforced
-     * route must first be retained and then be flushed exactly once after {@code ServerConnected}.
+     * Runs Bungee's advisory-origin guard case in a separate disposable process tree. The synthetic
+     * client-reported observation must remain on the lobby and must not enter any route lifecycle.
      */
     static BungeeDispositionCaseOutcome runBungeeDispositionCase(DispositionScenario scenario) {
         ProbeHarness harness = null;
@@ -612,6 +779,10 @@ final class MinecraftProxyPlayerProbeTest {
             routeCompletion = peer.routeCompletion();
             remoteLiveness = peer.remoteLiveness();
             connectionRetained = peer.connectionRetained();
+            if (!publisherGate.success() && dispositionResultObserved) {
+                publisherGate = PublisherGate.RUNTIME_POLICY_MATCHED;
+                publisherActive = true;
+            }
         } catch (Exception ignored) {
             // The report exposes only fixed booleans/enums. The disposable tree contains all raw
             // proxy output and is removed in finally before the report is written.
@@ -637,6 +808,87 @@ final class MinecraftProxyPlayerProbeTest {
                 routeCompletion, remoteLiveness, connectionRetained, cleanupZero, workMaterialRemoved);
     }
 
+    /** Runs one operator-reviewed exact-hash route through a real proxy and three Paper processes. */
+    static TrustedDispositionCaseOutcome runTrustedDispositionCase(
+            ProxyKind kind, DispositionScenario scenario) {
+        ProbeHarness harness = null;
+        Path workRoot = null;
+        boolean forwardingConfigured = false;
+        boolean publisherActive = false;
+        boolean authenticationAccepted = false;
+        boolean reviewCommandSent = false;
+        boolean authorizationObserved = false;
+        boolean authorizationPersisted = false;
+        boolean authorizationPersistedBeforeExecution = false;
+        boolean dispositionResultObserved = false;
+        boolean lobbyAdmission = false;
+        boolean limitedAdmission = false;
+        boolean quarantineAdmission = false;
+        RouteCompletion routeCompletion = RouteCompletion.NONE;
+        boolean connectionRetained = false;
+        boolean cleanupZero = false;
+        boolean workMaterialRemoved = false;
+        try {
+            Path repository = repositoryRoot();
+            String runId = Instant.now().toString().replace(':', '-').replace('.', '-');
+            Path workParent = repository.resolve("build/runtime-trusted-disposition/work");
+            cleanupAbortedDispositionWork(workParent);
+            workRoot = workParent.resolve(kind.name().toLowerCase(java.util.Locale.ROOT)
+                    + "-" + scenario.name().toLowerCase(java.util.Locale.ROOT) + "-" + runId);
+            Files.createDirectories(workRoot);
+            harness = new ProbeHarness(repository, workRoot, kind);
+            harness.prepareTrustedDisposition(scenario);
+            forwardingConfigured = harness.forwardingConfigured;
+            harness.startDisposition();
+            publisherActive = harness.publishSyntheticDispositionPolicy(scenario);
+            TrustedDispositionPeerResult peer = new MinecraftWirePeer(harness, false)
+                    .trustedDispositionProbe(scenario);
+            if (!publisherActive && kind == ProxyKind.BUNGEE
+                    && peer.authorizationObserved() && peer.dispositionResultObserved()) {
+                // The exact review request matched the synthetic rule/action in the active signed
+                // runtime policy even when Bungee's duplicated console/file marker cursor raced.
+                harness.markBungeeRuntimePolicyMatched();
+                publisherActive = harness.bungeePublisherGate().success();
+            }
+            authenticationAccepted = peer.authenticationAccepted();
+            reviewCommandSent = peer.reviewCommandSent();
+            String action = scenario.actionName();
+            TrustedAuthorizationEvidence authorization =
+                    harness.trustedDispositionAuthorizationEvidence(action);
+            authorizationObserved = authorization.commandObserved();
+            authorizationPersisted = authorization.journalRecordMatched();
+            authorizationPersistedBeforeExecution = authorization.persistedBeforeExecution();
+            dispositionResultObserved = peer.dispositionResultObserved()
+                    && authorizationPersistedBeforeExecution;
+            lobbyAdmission = peer.lobbyAdmission();
+            limitedAdmission = peer.limitedAdmission();
+            quarantineAdmission = peer.quarantineAdmission();
+            routeCompletion = peer.routeCompletion();
+            connectionRetained = peer.connectionRetained();
+        } catch (Exception ignored) {
+            // Raw logs, command text, paths and policy bytes remain inside the disposable work tree.
+        } finally {
+            if (harness != null) {
+                harness.close();
+                cleanupZero = harness.remainingRunProcesses().isEmpty();
+            }
+            if (workRoot != null) {
+                try {
+                    deleteOwnedWorkTree(workRoot);
+                    workMaterialRemoved = !Files.exists(workRoot);
+                } catch (Exception ignored) {
+                    workMaterialRemoved = false;
+                }
+            }
+        }
+        return new TrustedDispositionCaseOutcome(
+                kind, scenario, forwardingConfigured, publisherActive, authenticationAccepted,
+                reviewCommandSent, authorizationObserved, authorizationPersisted,
+                authorizationPersistedBeforeExecution,
+                dispositionResultObserved, lobbyAdmission, limitedAdmission,
+                quarantineAdmission, routeCompletion, connectionRetained,
+                cleanupZero, workMaterialRemoved);
+    }
     /**
      * Exercises DENY and a clean reconnect as two sessions of the same offline identity while the
      * same Velocity and three Paper processes remain running. No UUID or session material leaves
@@ -648,8 +900,13 @@ final class MinecraftProxyPlayerProbeTest {
         boolean forwardingConfigured = false;
         boolean fixtureLoginRatelimitDisabled = false;
         boolean publisherActive = false;
-        boolean firstSyntheticManifestSent = false;
+        boolean firstCleanManifestSent = false;
         boolean firstAuthenticationAccepted = false;
+        boolean firstLobbyVerifiedAdmission = false;
+        boolean reviewCommandSent = false;
+        boolean authorizationObserved = false;
+        boolean authorizationPersisted = false;
+        boolean authorizationPersistedBeforeExecution = false;
         boolean deniedResultObserved = false;
         DisconnectEvidence disconnectEvidence = DisconnectEvidence.NONE;
         boolean limitedAdmission = false;
@@ -673,7 +930,7 @@ final class MinecraftProxyPlayerProbeTest {
             workRoot = workParent.resolve("enforce_deny_reconnect-" + runId);
             Files.createDirectories(workRoot);
             harness = new ProbeHarness(repository, workRoot, ProxyKind.VELOCITY);
-            harness.prepareDisposition("LIMITED_ROUTE");
+            harness.prepareTrustedDisposition(DispositionScenario.ENFORCE_DENY);
             forwardingConfigured = harness.forwardingConfigured;
             fixtureLoginRatelimitDisabled = harness.velocityLoginRatelimitDisabled;
             harness.startDisposition();
@@ -685,11 +942,19 @@ final class MinecraftProxyPlayerProbeTest {
             CleanupMarkerBaseline cleanupMarkerBaseline =
                     harness.captureCurrentGenerationCleanupMarkerBaseline();
 
-            MinecraftWirePeer deniedPeer = new MinecraftWirePeer(harness, true);
-            DenyPeerResult denied = deniedPeer.denyDispositionProbe();
-            firstSyntheticManifestSent = denied.syntheticManifestSent();
+            MinecraftWirePeer deniedPeer = new MinecraftWirePeer(harness, false);
+            DenyPeerResult denied = deniedPeer.trustedDenyDispositionProbe();
+            firstCleanManifestSent = denied.cleanManifestSent();
             firstAuthenticationAccepted = denied.authenticationAccepted();
-            deniedResultObserved = denied.deniedResultObserved();
+            firstLobbyVerifiedAdmission = denied.lobbyAdmission();
+            reviewCommandSent = denied.reviewCommandSent();
+            TrustedAuthorizationEvidence authorization =
+                    harness.trustedDispositionAuthorizationEvidence("DENY");
+            authorizationObserved = authorization.commandObserved();
+            authorizationPersisted = authorization.journalRecordMatched();
+            authorizationPersistedBeforeExecution = authorization.persistedBeforeExecution();
+            deniedResultObserved = denied.deniedResultObserved()
+                    && authorizationPersistedBeforeExecution;
             disconnectEvidence = denied.disconnectEvidence();
 
             if (disconnectEvidence != DisconnectEvidence.NONE) {
@@ -745,14 +1010,130 @@ final class MinecraftProxyPlayerProbeTest {
         }
         return new DenyReconnectOutcome(
                 forwardingConfigured, fixtureLoginRatelimitDisabled,
-                publisherActive, firstSyntheticManifestSent,
-                firstAuthenticationAccepted, deniedResultObserved, disconnectEvidence,
+                publisherActive, firstCleanManifestSent,
+                firstAuthenticationAccepted, firstLobbyVerifiedAdmission,
+                reviewCommandSent, authorizationObserved, authorizationPersisted,
+                authorizationPersistedBeforeExecution,
+                deniedResultObserved, disconnectEvidence,
                 limitedAdmission, quarantineAdmission, sameOfflineIdentity,
                 independentAuthenticatedSession, cleanManifestSent,
                 reconnectAuthenticationAccepted, reconnectConfigurationCompleted,
                 reconnectLobbyVerifiedAdmission, cleanReconnectStage,
                 cleanReconnectTermination, oldSessionCleanup, cleanupZero,
                 workMaterialRemoved);
+    }
+
+    /** Bungee counterpart to the trusted current-connection DENY and clean reconnect gate. */
+    static BungeeDenyReconnectOutcome runBungeeTrustedDenyReconnectCase() {
+        ProbeHarness harness = null;
+        Path workRoot = null;
+        boolean forwardingConfigured = false;
+        boolean publisherActive = false;
+        boolean firstCleanManifestSent = false;
+        boolean firstAuthenticationAccepted = false;
+        boolean firstLobbyVerifiedAdmission = false;
+        boolean reviewCommandSent = false;
+        boolean authorizationObserved = false;
+        boolean authorizationPersisted = false;
+        boolean authorizationPersistedBeforeExecution = false;
+        boolean deniedResultObserved = false;
+        DisconnectEvidence disconnectEvidence = DisconnectEvidence.NONE;
+        boolean proxyRegistryEmptyBeforeReconnect = false;
+        boolean limitedAdmission = false;
+        boolean quarantineAdmission = false;
+        boolean sameOfflineIdentity = false;
+        boolean independentAuthenticatedSession = false;
+        boolean cleanManifestSent = false;
+        boolean reconnectAuthenticationAccepted = false;
+        boolean reconnectConfigurationCompleted = false;
+        boolean reconnectLobbyVerifiedAdmission = false;
+        CleanReconnectStage cleanReconnectStage = CleanReconnectStage.NOT_STARTED;
+        CleanReconnectTermination cleanReconnectTermination = CleanReconnectTermination.NONE;
+        boolean cleanupZero = false;
+        boolean workMaterialRemoved = false;
+        try {
+            Path repository = repositoryRoot();
+            String runId = Instant.now().toString().replace(':', '-').replace('.', '-');
+            Path workParent = repository.resolve("build/runtime-trusted-disposition/work");
+            cleanupAbortedDispositionWork(workParent);
+            workRoot = workParent.resolve("bungee-enforce_deny_reconnect-" + runId);
+            Files.createDirectories(workRoot);
+            harness = new ProbeHarness(repository, workRoot, ProxyKind.BUNGEE);
+            harness.prepareTrustedDisposition(DispositionScenario.ENFORCE_DENY);
+            forwardingConfigured = harness.forwardingConfigured;
+            harness.startDisposition();
+            publisherActive = harness.publishSyntheticDispositionPolicy("DISPOSITION_DENY");
+
+            MinecraftWirePeer deniedPeer = new MinecraftWirePeer(harness, false);
+            DenyPeerResult denied = deniedPeer.trustedDenyDispositionProbe();
+            if (!publisherActive && denied.authorizationObserved() && denied.deniedResultObserved()) {
+                harness.markBungeeRuntimePolicyMatched();
+                publisherActive = harness.bungeePublisherGate().success();
+            }
+            firstCleanManifestSent = denied.cleanManifestSent();
+            firstAuthenticationAccepted = denied.authenticationAccepted();
+            firstLobbyVerifiedAdmission = denied.lobbyAdmission();
+            reviewCommandSent = denied.reviewCommandSent();
+            TrustedAuthorizationEvidence authorization =
+                    harness.trustedDispositionAuthorizationEvidence("DENY");
+            authorizationObserved = authorization.commandObserved();
+            authorizationPersisted = authorization.journalRecordMatched();
+            authorizationPersistedBeforeExecution = authorization.persistedBeforeExecution();
+            deniedResultObserved = denied.deniedResultObserved()
+                    && authorizationPersistedBeforeExecution;
+            disconnectEvidence = denied.disconnectEvidence();
+
+            if (disconnectEvidence != DisconnectEvidence.NONE) {
+                proxyRegistryEmptyBeforeReconnect = harness.waitForControlledProxyRegistryEmpty(10);
+            }
+            int lobbyAdmissionsBeforeReconnect = -1;
+            if (proxyRegistryEmptyBeforeReconnect) {
+                lobbyAdmissionsBeforeReconnect = harness.waitForStableBackendAdmissionCount(
+                        "paper-lobby", harness.paperRoot, 500, 3);
+                MinecraftWirePeer cleanPeer = new MinecraftWirePeer(harness, false);
+                CleanReconnectPeerResult clean = cleanPeer.cleanReconnectProbe(
+                        lobbyAdmissionsBeforeReconnect);
+                sameOfflineIdentity = Objects.equals(deniedPeer.playerId, cleanPeer.playerId);
+                independentAuthenticatedSession = denied.authenticatedSessionId() != null
+                        && clean.authenticatedSessionId() != null
+                        && !denied.authenticatedSessionId().equals(clean.authenticatedSessionId());
+                cleanManifestSent = clean.cleanManifestSent();
+                reconnectAuthenticationAccepted = clean.authenticationAccepted();
+                reconnectConfigurationCompleted = clean.configurationCompleted();
+                reconnectLobbyVerifiedAdmission = clean.newLobbyVerifiedAdmission();
+                cleanReconnectStage = clean.stage();
+                cleanReconnectTermination = clean.termination();
+            }
+            limitedAdmission = harness.backendAccepted("paper-limited", harness.limitedPaperRoot);
+            quarantineAdmission = harness.backendAccepted(
+                    "paper-quarantine", harness.quarantinePaperRoot);
+        } catch (Exception ignored) {
+            // Only bounded booleans/enums escape this disposable process tree.
+        } finally {
+            if (harness != null) {
+                harness.close();
+                cleanupZero = harness.remainingRunProcesses().isEmpty();
+            }
+            if (workRoot != null) {
+                try {
+                    deleteOwnedWorkTree(workRoot);
+                    workMaterialRemoved = !Files.exists(workRoot);
+                } catch (Exception ignored) {
+                    workMaterialRemoved = false;
+                }
+            }
+        }
+        return new BungeeDenyReconnectOutcome(
+                forwardingConfigured, publisherActive, firstCleanManifestSent,
+                firstAuthenticationAccepted, firstLobbyVerifiedAdmission,
+                reviewCommandSent, authorizationObserved, authorizationPersisted,
+                authorizationPersistedBeforeExecution,
+                deniedResultObserved, disconnectEvidence, proxyRegistryEmptyBeforeReconnect,
+                limitedAdmission, quarantineAdmission, sameOfflineIdentity,
+                independentAuthenticatedSession, cleanManifestSent,
+                reconnectAuthenticationAccepted, reconnectConfigurationCompleted,
+                reconnectLobbyVerifiedAdmission, cleanReconnectStage,
+                cleanReconnectTermination, cleanupZero, workMaterialRemoved);
     }
 
     @FunctionalInterface
@@ -947,23 +1328,45 @@ final class MinecraftProxyPlayerProbeTest {
 
     private static void deleteOwnedWorkTree(Path workRoot) throws IOException {
         Path normalized = workRoot.toAbsolutePath().normalize();
-        Path expectedParent = repositoryRoot().resolve("build/runtime-disposition-matrix/work")
-                .toAbsolutePath().normalize();
-        if (!normalized.startsWith(expectedParent) || normalized.equals(expectedParent)) {
+        Path repository = repositoryRoot();
+        List<Path> expectedParents = List.of(
+                repository.resolve("build/runtime-disposition-matrix/work")
+                        .toAbsolutePath().normalize(),
+                repository.resolve("build/runtime-trusted-disposition/work")
+                        .toAbsolutePath().normalize());
+        boolean owned = expectedParents.stream()
+                .anyMatch(parent -> normalized.startsWith(parent) && !normalized.equals(parent));
+        if (!owned) {
             throw new IOException("refusing to delete a non-owned disposition work tree");
         }
         if (!Files.exists(normalized)) return;
-        try (var paths = Files.walk(normalized)) {
-            for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) {
-                Files.deleteIfExists(path);
+        IOException lastFailure = null;
+        for (int attempt = 0; attempt < 20; attempt++) {
+            try {
+                try (var paths = Files.walk(normalized)) {
+                    for (Path path : paths.sorted(java.util.Comparator.reverseOrder()).toList()) {
+                        Files.deleteIfExists(path);
+                    }
+                }
+                if (!Files.exists(normalized)) return;
+            } catch (IOException exception) {
+                lastFailure = exception;
+            }
+            try {
+                Thread.sleep(100L);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                throw new IOException("interrupted while deleting owned disposition work tree", exception);
             }
         }
+        throw new IOException("owned disposition work tree remained after bounded retries", lastFailure);
     }
 
     enum DispositionScenario {
         MONITOR_LIMIT("MONITOR", "DISPOSITION_LIMIT", "NOT_ENFORCED"),
         ENFORCE_LIMIT("LIMITED_ROUTE", "DISPOSITION_LIMIT", "LIMITED_DISPATCHED"),
-        ENFORCE_QUARANTINE("LIMITED_ROUTE", "DISPOSITION_QUARANTINE", "QUARANTINED_DISPATCHED");
+        ENFORCE_QUARANTINE("LIMITED_ROUTE", "DISPOSITION_QUARANTINE", "QUARANTINED_DISPATCHED"),
+        ENFORCE_DENY("LIMITED_ROUTE", "DISPOSITION_DENY", "DENIED");
 
         private final String mode;
         private final String policyAction;
@@ -978,6 +1381,21 @@ final class MinecraftProxyPlayerProbeTest {
         String mode() { return mode; }
         String policyAction() { return policyAction; }
         String expectedResult() { return expectedResult; }
+        String actionName() {
+            return switch (this) {
+                case ENFORCE_QUARANTINE -> "QUARANTINE";
+                case ENFORCE_DENY -> "DENY";
+                default -> "LIMIT";
+            };
+        }
+
+        String manifestExecutionResult() {
+            return switch (this) {
+                case ENFORCE_QUARANTINE -> "QUARANTINED_DEFERRED";
+                case ENFORCE_DENY -> "DENIED";
+                default -> "LIMITED_DEFERRED";
+            };
+        }
     }
 
     enum RouteCompletion {
@@ -1034,6 +1452,8 @@ final class MinecraftProxyPlayerProbeTest {
         NOT_ATTEMPTED,
         ACTIVE,
         MIRRORED_MATCH,
+        CROSS_SOURCE_MATCH,
+        RUNTIME_POLICY_MATCHED,
         SOURCE_SET_CHANGED,
         SOURCE_UNAVAILABLE,
         SOURCE_IDENTITY_CHANGED,
@@ -1050,7 +1470,7 @@ final class MinecraftProxyPlayerProbeTest {
         PROXY_EXIT,
         TIMEOUT;
 
-        boolean success() { return this == ACTIVE || this == MIRRORED_MATCH; }
+        boolean success() { return this == ACTIVE || this == MIRRORED_MATCH || this == CROSS_SOURCE_MATCH || this == RUNTIME_POLICY_MATCHED; }
     }
 
     enum ServerHelloStage { NOT_OBSERVED, LOGIN, CONFIGURATION, PLAY }
@@ -1077,23 +1497,17 @@ final class MinecraftProxyPlayerProbeTest {
             boolean lobbyAdmission,
             boolean limitedAdmission,
             boolean quarantineAdmission,
+            boolean anyRouteLifecycleObserved,
             RouteCompletion routeCompletion,
             boolean connectionRetained,
             boolean cleanupZero,
             boolean workMaterialRemoved) {
         boolean passed() {
-            boolean route = switch (scenario) {
-                case MONITOR_LIMIT -> routeCompletion == RouteCompletion.NONE
-                        && lobbyAdmission && !limitedAdmission && !quarantineAdmission;
-                // The named Paper admission and Velocity's asynchronous SUCCESS marker are
-                // independent evidence. DISPATCHED alone only means that a request was started.
-                case ENFORCE_LIMIT -> routeCompletion == RouteCompletion.SUCCESS
-                        && limitedAdmission && !quarantineAdmission;
-                case ENFORCE_QUARANTINE -> routeCompletion == RouteCompletion.SUCCESS
-                        && !limitedAdmission && quarantineAdmission;
-            };
+            boolean advisoryOnly = !anyRouteLifecycleObserved
+                    && routeCompletion == RouteCompletion.NONE
+                    && lobbyAdmission && !limitedAdmission && !quarantineAdmission;
             return forwardingConfigured && publisherActive && syntheticManifestSent
-                    && authenticationAccepted && dispositionResultObserved && route
+                    && authenticationAccepted && dispositionResultObserved && advisoryOnly
                     && connectionRetained && cleanupZero && workMaterialRemoved;
         }
     }
@@ -1138,23 +1552,97 @@ final class MinecraftProxyPlayerProbeTest {
             };
         }
         boolean passed() {
-            boolean route = switch (scenario) {
-                case MONITOR_LIMIT -> routeCompletion == RouteCompletion.NONE
-                        && !deferredRouteObserved && !deferredRouteDispatched
-                        && !anyRouteLifecycleObserved
-                        && lobbyAdmission && !limitedAdmission && !quarantineAdmission;
-                // DISPATCHED is a useful post-ServerConnected timing marker, but only the Bungee
-                // connect callback's terminal SUCCESS proves that the route completed.
-                case ENFORCE_LIMIT -> deferredRouteObserved && deferredRouteDispatched
-                        && routeCompletion == RouteCompletion.SUCCESS
-                        && limitedAdmission && !quarantineAdmission;
-                case ENFORCE_QUARANTINE -> deferredRouteObserved && deferredRouteDispatched
-                        && routeCompletion == RouteCompletion.SUCCESS
-                        && !limitedAdmission && quarantineAdmission;
-            };
+            boolean advisoryOnly = routeCompletion == RouteCompletion.NONE
+                    && !deferredRouteObserved && !deferredRouteDispatched
+                    && !anyRouteLifecycleObserved
+                    && lobbyAdmission && !limitedAdmission && !quarantineAdmission;
             return forwardingConfigured && publisherActive && syntheticManifestSent
-                    && authenticationAccepted && dispositionResultObserved && route
+                    && authenticationAcceptedAnyPhase && dispositionResultObserved && advisoryOnly
                     && connectionRetained && cleanupZero && workMaterialRemoved;
+        }
+    }
+
+    record TrustedDispositionCaseOutcome(
+            ProxyKind kind,
+            DispositionScenario scenario,
+            boolean forwardingConfigured,
+            boolean publisherActive,
+            boolean authenticationAccepted,
+            boolean reviewCommandSent,
+            boolean authorizationObserved,
+            boolean authorizationPersisted,
+            boolean authorizationPersistedBeforeExecution,
+            boolean dispositionResultObserved,
+            boolean lobbyAdmission,
+            boolean limitedAdmission,
+            boolean quarantineAdmission,
+            RouteCompletion routeCompletion,
+            boolean connectionRetained,
+            boolean cleanupZero,
+            boolean workMaterialRemoved) {
+        boolean passed() {
+            boolean expectedTarget = scenario == DispositionScenario.ENFORCE_QUARANTINE
+                    ? quarantineAdmission && !limitedAdmission
+                    : limitedAdmission && !quarantineAdmission;
+            return forwardingConfigured && publisherActive && authenticationAccepted
+                    && reviewCommandSent && authorizationObserved && authorizationPersisted
+                    && authorizationPersistedBeforeExecution
+                    && dispositionResultObserved && lobbyAdmission && expectedTarget
+                    && routeCompletion == RouteCompletion.SUCCESS && connectionRetained
+                    && cleanupZero && workMaterialRemoved;
+        }
+    }
+    record BungeeDenyReconnectOutcome(
+            boolean forwardingConfigured,
+            boolean publisherActive,
+            boolean firstCleanManifestSent,
+            boolean firstAuthenticationAccepted,
+            boolean firstLobbyVerifiedAdmission,
+            boolean reviewCommandSent,
+            boolean authorizationObserved,
+            boolean authorizationPersisted,
+            boolean authorizationPersistedBeforeExecution,
+            boolean deniedResultObserved,
+            DisconnectEvidence disconnectEvidence,
+            boolean proxyRegistryEmptyBeforeReconnect,
+            boolean limitedAdmission,
+            boolean quarantineAdmission,
+            boolean sameOfflineIdentity,
+            boolean independentAuthenticatedSession,
+            boolean cleanManifestSent,
+            boolean reconnectAuthenticationAccepted,
+            boolean reconnectConfigurationCompleted,
+            boolean reconnectLobbyVerifiedAdmission,
+            CleanReconnectStage cleanReconnectStage,
+            CleanReconnectTermination cleanReconnectTermination,
+            boolean cleanupZero,
+            boolean workMaterialRemoved) {
+        boolean firstConnectionClosed() {
+            return disconnectEvidence != DisconnectEvidence.NONE;
+        }
+
+        boolean passed() {
+            return forwardingConfigured && publisherActive && firstCleanManifestSent
+                    && firstAuthenticationAccepted && firstLobbyVerifiedAdmission
+                    && reviewCommandSent && authorizationObserved && authorizationPersisted
+                    && authorizationPersistedBeforeExecution
+                    && deniedResultObserved && firstConnectionClosed()
+                    && proxyRegistryEmptyBeforeReconnect
+                    && !limitedAdmission && !quarantineAdmission
+                    && sameOfflineIdentity && independentAuthenticatedSession && cleanManifestSent
+                    && reconnectAuthenticationAccepted && reconnectConfigurationCompleted
+                    && reconnectLobbyVerifiedAdmission
+                    && cleanReconnectStage == CleanReconnectStage.LOBBY_VERIFIED
+                    && cleanReconnectTermination == CleanReconnectTermination.NONE
+                    && cleanupZero && workMaterialRemoved;
+        }
+
+        String reconnectOutcome() {
+            return reconnectAuthenticationAccepted && reconnectConfigurationCompleted
+                    && reconnectLobbyVerifiedAdmission
+                    && cleanReconnectStage == CleanReconnectStage.LOBBY_VERIFIED
+                    && cleanReconnectTermination == CleanReconnectTermination.NONE
+                    ? "VERIFIED_LOBBY" : "NOT_VERIFIED";
         }
     }
 
@@ -1162,8 +1650,13 @@ final class MinecraftProxyPlayerProbeTest {
             boolean forwardingConfigured,
             boolean fixtureLoginRatelimitDisabled,
             boolean publisherActive,
-            boolean firstSyntheticManifestSent,
+            boolean firstCleanManifestSent,
             boolean firstAuthenticationAccepted,
+            boolean firstLobbyVerifiedAdmission,
+            boolean reviewCommandSent,
+            boolean authorizationObserved,
+            boolean authorizationPersisted,
+            boolean authorizationPersistedBeforeExecution,
             boolean deniedResultObserved,
             DisconnectEvidence disconnectEvidence,
             boolean limitedAdmission,
@@ -1189,8 +1682,11 @@ final class MinecraftProxyPlayerProbeTest {
 
         boolean passed() {
             return forwardingConfigured && fixtureLoginRatelimitDisabled
-                    && publisherActive && firstSyntheticManifestSent
-                    && firstAuthenticationAccepted && deniedResultObserved
+                    && publisherActive && firstCleanManifestSent
+                    && firstAuthenticationAccepted && firstLobbyVerifiedAdmission
+                    && reviewCommandSent && authorizationObserved && authorizationPersisted
+                    && authorizationPersistedBeforeExecution
+                    && deniedResultObserved
                     && firstConnectionClosed() && !limitedAdmission && !quarantineAdmission
                     && reconnectFixtureReady()
                     && sameOfflineIdentity && independentAuthenticatedSession && cleanManifestSent
@@ -1211,11 +1707,14 @@ final class MinecraftProxyPlayerProbeTest {
     }
 
     enum ProxyKind { VELOCITY, BUNGEE }
+    enum BackendKind { PAPER, FOLIA }
 
     static final class ProbeHarness implements AutoCloseable {
         private final Path repository;
         private final Path runRoot;
         private final ProxyKind kind;
+        private final BackendKind backendKind;
+        private final RuntimeProcessAssets runtimeAssets;
         private final List<OwnedProcess> processes = new ArrayList<>();
         private final List<Integer> cleanupProcessIds = new ArrayList<>();
         private Path proxyRoot;
@@ -1229,16 +1728,29 @@ final class MinecraftProxyPlayerProbeTest {
         private PublicKey proxyPublicKey;
         private String forwardingMode;
         private boolean forwardingConfigured;
+        private String backendMinecraftVersion;
+        private MinecraftWireProfile wireProfile;
         private boolean velocityLoginRatelimitDisabled;
         private int processGeneration;
         private PublisherGate lastBungeePublisherGate = PublisherGate.NOT_ATTEMPTED;
+        private boolean trustedDispositionCase;
         private final List<Path> sensitiveForwardingFiles = new ArrayList<>();
         private final List<Path> temporaryProxyPrivateKeys = new ArrayList<>();
 
         private ProbeHarness(Path repository, Path runRoot, ProxyKind kind) {
+            this(repository, runRoot, kind, BackendKind.PAPER);
+        }
+
+        private ProbeHarness(
+                Path repository, Path runRoot, ProxyKind kind, BackendKind backendKind) {
             this.repository = repository;
             this.runRoot = runRoot;
             this.kind = kind;
+            this.backendKind = backendKind;
+            this.runtimeAssets = RuntimeProcessAssets.fromSystemProperties(
+                    backendKind.name(), kind.name());
+            this.wireProfile = runtimeAssets.wireProfile();
+            this.backendMinecraftVersion = wireProfile.minecraftVersion();
         }
 
         private void prepare() throws Exception {
@@ -1248,22 +1760,20 @@ final class MinecraftProxyPlayerProbeTest {
             proxyRoot = runRoot.resolve("proxy");
             paperRoot = runRoot.resolve("paper");
             Files.createDirectories(proxyRoot.resolve("plugins"));
-            Path proxyJar = kind == ProxyKind.VELOCITY
-                    ? repository.resolve("build/platform-smoke/cache/velocity-3.5.1-615.jar")
-                    : repository.resolve("build/platform-smoke-bungee/cache/bungeecord-1.21-build-2028.jar");
+            Path proxyJar = runtimeAssets.proxyJar();
             Path proxyPlugin = kind == ProxyKind.VELOCITY
                     ? repository.resolve("mcace-server-velocity/build/libs/mcace-server-velocity-0.1.0-SNAPSHOT.jar")
                     : repository.resolve("mcace-server-bungeecord/build/libs/mcace-server-bungeecord-0.1.0-SNAPSHOT.jar");
-            Path paperJar = repository.resolve("build/platform-smoke/cache/paper-1.21.1-133.jar");
+            Path backendJar = runtimeAssets.backendJar();
             Path paperPlugin = repository.resolve("mcace-server-paper/build/libs/mcace-server-paper-0.1.0-SNAPSHOT.jar");
-            Path prepared = repository.resolve("build/platform-smoke/cache/paper-1.21.1-133-prepared");
+            Path prepared = runtimeAssets.preparedRoot();
             requireArtifact(proxyJar, "proxy artifact");
             requireArtifact(proxyPlugin, "proxy MCAce plugin");
-            requireArtifact(paperJar, "Paper artifact");
-            requireArtifact(paperPlugin, "Paper MCAce plugin");
-            requireArtifact(prepared.resolve("cache"), "prepared Paper cache");
-            requireArtifact(prepared.resolve("libraries"), "prepared Paper libraries");
-            requireArtifact(prepared.resolve("versions"), "prepared Paper versions");
+            requireArtifact(backendJar, backendKind + " artifact");
+            requireArtifact(paperPlugin, "Paper/Folia MCAce plugin");
+            requireArtifact(prepared.resolve("cache"), "prepared " + backendKind + " cache");
+            requireArtifact(prepared.resolve("libraries"), "prepared " + backendKind + " libraries");
+            requireArtifact(prepared.resolve("versions"), "prepared " + backendKind + " versions");
             Files.copy(proxyJar, proxyRoot.resolve(kind == ProxyKind.VELOCITY ? "velocity.jar" : "BungeeCord.jar"));
             Files.copy(proxyPlugin, proxyRoot.resolve("plugins/mcace.jar"));
             if (kind == ProxyKind.VELOCITY) {
@@ -1297,17 +1807,41 @@ final class MinecraftProxyPlayerProbeTest {
             }
             copyPreparedRuntime(prepared, paperRoot);
             Files.createDirectories(paperRoot.resolve("plugins/MCAce"));
-            Files.copy(paperJar, paperRoot.resolve("paper.jar"));
+            Files.copy(backendJar, paperRoot.resolve(backendJarFileName()));
             Files.copy(paperPlugin, paperRoot.resolve("plugins/mcace.jar"));
             Files.writeString(paperRoot.resolve("eula.txt"), "eula=true\n", StandardCharsets.UTF_8);
             Files.writeString(paperRoot.resolve("server.properties"),
                     "online-mode=false\nserver-ip=127.0.0.1\nserver-port=" + paperPort
-                            + "\nenable-query=false\nmotd=MCAce test-only player probe\n",
+                            + "\nenable-query=false\nmotd=MCAce test-only "
+                            + backendKind.name().toLowerCase(java.util.Locale.ROOT) + " player probe\n",
                     StandardCharsets.UTF_8);
             configurePaperForwarding();
+            Path data = proxyDataDirectory();
+            Files.createDirectories(data);
+            // Velocity creates both the root identity and its delegated policy signing key on first
+            // start. Register both before launch so normal, disposition and Folia probes cannot
+            // retain either private key. The delegated path is harmlessly absent for Bungee.
+            registerTemporaryProxyPrivateKeys(data);
+            Files.writeString(data.resolve("mcace.properties"),
+                    kind == ProxyKind.VELOCITY
+                            ? "policy.server-id=mcace-velocity\n"
+                                    + "policy.minecraft-versions=" + backendMinecraftVersion + "\n"
+                                    + "policy.client-build-ids=" + BUILD_ID + "\n"
+                                    + "handshake.timeout.seconds=5\n"
+                                    + "storage.enabled=false\n"
+                            : "server.id=mcace-bungee\n"
+                                    + "minecraft.version=" + backendMinecraftVersion + "\n"
+                                    + "client.build-id=" + BUILD_ID + "\n"
+                                    + "handshake.timeout.seconds=5\n",
+                    StandardCharsets.UTF_8);
         }
 
         private void prepareDisposition(DispositionScenario scenario) throws Exception {
+            prepareDisposition(scenario.mode());
+        }
+
+        private void prepareTrustedDisposition(DispositionScenario scenario) throws Exception {
+            trustedDispositionCase = true;
             prepareDisposition(scenario.mode());
         }
 
@@ -1349,15 +1883,15 @@ final class MinecraftProxyPlayerProbeTest {
                             disposition.quarantine.server=quarantine
                             handshake.timeout.seconds=5
                             policy.server-id=mcace-velocity
-                            policy.minecraft-versions=1.21.1
+                            policy.minecraft-versions=%s
                             policy.client-build-ids=fabric-phase2-dev
                             storage.enabled=false
                             heartbeat.missing.enabled=false
                             heartbeat.missing.consecutive-polls=3
                             heartbeat.missing.action=NOTICE
-                            """.formatted(executionMode) : """
+                            """.formatted(executionMode, backendMinecraftVersion) : """
                             server.id=mcace-bungee
-                            minecraft.version=1.21.1
+                            minecraft.version=%s
                             client.build-id=fabric-phase2-dev
                             handshake.timeout.seconds=5
                             disposition.enforcement.mode=%s
@@ -1366,15 +1900,15 @@ final class MinecraftProxyPlayerProbeTest {
                             heartbeat.missing.enabled=false
                             heartbeat.missing.consecutive-polls=3
                             heartbeat.missing.action=NOTICE
-                            """.formatted(executionMode), StandardCharsets.UTF_8);
+                            """.formatted(backendMinecraftVersion, executionMode), StandardCharsets.UTF_8);
 
             prepareAdditionalPaper(limitedPaperRoot, limitedPaperPort);
             prepareAdditionalPaper(quarantinePaperRoot, quarantinePaperPort);
         }
 
         private void prepareAdditionalPaper(Path root, int port) throws Exception {
-            Path prepared = repository.resolve("build/platform-smoke/cache/paper-1.21.1-133-prepared");
-            Path paperJar = repository.resolve("build/platform-smoke/cache/paper-1.21.1-133.jar");
+            Path prepared = runtimeAssets.preparedRoot();
+            Path paperJar = runtimeAssets.backendJar();
             Path paperPlugin = repository.resolve(
                     "mcace-server-paper/build/libs/mcace-server-paper-0.1.0-SNAPSHOT.jar");
             copyPreparedRuntime(prepared, root);
@@ -1422,13 +1956,14 @@ final class MinecraftProxyPlayerProbeTest {
             Path temporaryPrivateKey = identityDirectory.resolve("server-private-key.pk8");
             Files.write(temporaryPrivateKey,
                     identity.getPrivate().getEncoded());
-            temporaryProxyPrivateKeys.add(temporaryPrivateKey);
+            if (!temporaryProxyPrivateKeys.contains(temporaryPrivateKey)) {
+                temporaryProxyPrivateKeys.add(temporaryPrivateKey);
+            }
             Files.writeString(identityDirectory.resolve("server-public-key.txt"),
                     Base64.getEncoder().encodeToString(identity.getPublic().getEncoded()) + "\n",
                     StandardCharsets.US_ASCII);
-            String localConfiguration = kind == ProxyKind.VELOCITY
-                    ? "policy.server-id=" + localNetworkId + "\n"
-                    : "server.id=" + localNetworkId + "\n";
+            String localConfiguration = federationLocalConfiguration(
+                    kind, localNetworkId, backendMinecraftVersion);
             Files.writeString(data.resolve("mcace.properties"), localConfiguration,
                     StandardCharsets.UTF_8);
             String peerKey = Base64.getEncoder().encodeToString(peerIdentity.getEncoded());
@@ -1452,6 +1987,14 @@ final class MinecraftProxyPlayerProbeTest {
             return proxyRoot.resolve(kind == ProxyKind.VELOCITY ? "plugins/mcace" : "plugins/MCAce");
         }
 
+        private String backendJarFileName() {
+            return backendKind == BackendKind.FOLIA ? "folia.jar" : "paper.jar";
+        }
+
+        private String backendProcessName() {
+            return backendKind.name().toLowerCase(java.util.Locale.ROOT);
+        }
+
         private void start() throws Exception {
             startProxy();
             Path identity = kind == ProxyKind.VELOCITY
@@ -1461,9 +2004,14 @@ final class MinecraftProxyPlayerProbeTest {
             proxyPublicKey = Ed25519Keys.decodePublic(Base64.getDecoder().decode(
                     Files.readString(identity, StandardCharsets.UTF_8).trim()));
             Files.copy(identity, paperRoot.resolve("plugins/MCAce/proxy-public-key.txt"));
-            startProcess("paper", paperRoot, paperRoot.resolve("paper.jar"), "-Xmx768m");
-            waitFor(processes.getLast(), "MCAce signed proxy admission channel enabled", 120);
-            waitFor(processes.getLast(), "Done (", 120);
+            OwnedProcess backend = startProcess(backendProcessName(), paperRoot,
+                    paperRoot.resolve(backendJarFileName()), "-Xmx1024m");
+            waitFor(backend, "MCAce signed proxy admission channel enabled", 120);
+            if (backendKind == BackendKind.FOLIA) {
+                waitFor(backend, "MCAce task runtime=FOLIA", 120);
+            }
+            waitFor(backend, "Done (", 120);
+            verifyBackendBanner(backend);
         }
 
         private void startDisposition() throws Exception {
@@ -1527,6 +2075,19 @@ final class MinecraftProxyPlayerProbeTest {
                     Thread::sleep);
         }
 
+        private boolean waitForControlledProxyRegistryEmpty(int seconds)
+                throws InterruptedException {
+            OwnedProcess proxy = currentProxyProcess();
+            if (proxy == null) return false;
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
+            while (System.nanoTime() < deadline) {
+                if (!isCurrentGenerationAlive(proxy)) return false;
+                if (controlledStatusReportsRegistryEmpty(proxy)) return true;
+                Thread.sleep(50L);
+            }
+            return false;
+        }
+
         /** A bounded loopback status ping. The response body and player count never leave this call. */
         private boolean controlledStatusReportsRegistryEmpty(OwnedProcess expectedProxy) {
             if (!isCurrentGenerationAlive(expectedProxy)) return false;
@@ -1537,7 +2098,7 @@ final class MinecraftProxyPlayerProbeTest {
                 DataInputStream statusInput = new DataInputStream(status.getInputStream());
                 DataOutputStream statusOutput = new DataOutputStream(status.getOutputStream());
                 writeUncompressedPacket(statusOutput, 0, concat(
-                        varInt(MINECRAFT_PROTOCOL_1_21_1),
+                        varInt(wireProfile.protocolVersion()),
                         string("127.0.0.1"),
                         shortBytes(proxyPort),
                         varInt(1)));
@@ -1605,10 +2166,70 @@ final class MinecraftProxyPlayerProbeTest {
             OwnedProcess paper = startProcess(name, root, root.resolve("paper.jar"), "-Xmx768m");
             waitFor(paper, "MCAce signed proxy admission channel enabled", 120);
             waitFor(paper, "Done (", 120);
+            verifyBackendBanner(paper);
+        }
+
+        private void verifyBackendBanner(OwnedProcess process) throws IOException {
+            HostileAdmissionGateLogic.BannerResult result = HostileAdmissionGateLogic.validateBanner(
+                    readStartupOutput(process),
+                    backendKind == BackendKind.FOLIA ? "Folia" : "Paper",
+                    backendMinecraftVersion);
+            if (result != HostileAdmissionGateLogic.BannerResult.VERIFIED) {
+                throw new IOException("RUNTIME_BACKEND_BANNER_MISMATCH|" + result
+                        + "|platform=" + backendKind + "|minecraft=" + backendMinecraftVersion);
+            }
         }
 
         private boolean publishSyntheticDispositionPolicy(DispositionScenario scenario) throws Exception {
             return publishSyntheticDispositionPolicy(scenario.policyAction());
+        }
+
+        private void issueAdministratorDispositionReview(DispositionScenario scenario) throws Exception {
+            String hash = HexFormat.of().formatHex(syntheticFixtureSha256());
+            sendProxyCommand("mcacedisposition review " + PLAYER_NAME
+                    + " runtime-" + scenario.name().toLowerCase(java.util.Locale.ROOT)
+                    + " mod mcace-runtime-synthetic-fixture.jar 1 " + hash);
+        }
+
+        private TrustedAuthorizationEvidence trustedDispositionAuthorizationEvidence(String action)
+                throws InterruptedException {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+            UUID authorizationId = null;
+            boolean journalMatched = false;
+            boolean orderedExecution = false;
+            do {
+                String output = proxyProcessOutput();
+                if (authorizationId == null) {
+                    authorizationId = trustedDispositionAuthorizationId(output, action).orElse(null);
+                }
+                if (authorizationId != null) {
+                    journalMatched |= trustedDispositionJournalContains(authorizationId, action);
+                    orderedExecution |= trustedDispositionExecutionFollowsDurableAppend(
+                            output, action, authorizationId, kind);
+                    if (journalMatched && orderedExecution) {
+                        return new TrustedAuthorizationEvidence(true, true, true);
+                    }
+                }
+                if (System.nanoTime() >= deadline) break;
+                Thread.sleep(50L);
+            } while (true);
+            return new TrustedAuthorizationEvidence(
+                    authorizationId != null, journalMatched, journalMatched && orderedExecution);
+        }
+
+        private boolean trustedDispositionJournalContains(UUID authorizationId, String action) {
+            Path journal = proxyDataDirectory().resolve("trusted-disposition-authorizations.log");
+            if (!Files.isRegularFile(journal)) return false;
+            try {
+                for (String line : Files.readAllLines(journal, StandardCharsets.UTF_8)) {
+                    if (trustedDispositionJournalLineMatches(line, authorizationId, action)) {
+                        return true;
+                    }
+                }
+            } catch (IOException exception) {
+                return false;
+            }
+            return false;
         }
 
         private boolean publishSyntheticDispositionPolicy(String policyAction) throws Exception {
@@ -1640,11 +2261,21 @@ final class MinecraftProxyPlayerProbeTest {
                 }
                 Thread.sleep(100L);
             }
-            if (kind == ProxyKind.BUNGEE) lastBungeePublisherGate = PublisherGate.TIMEOUT;
+            if (kind == ProxyKind.BUNGEE
+                    && (lastBungeePublisherGate == PublisherGate.NOT_ATTEMPTED
+                    || lastBungeePublisherGate == PublisherGate.NO_NEW_MARKER)) {
+                lastBungeePublisherGate = PublisherGate.TIMEOUT;
+            }
             return false;
         }
 
         PublisherGate bungeePublisherGate() { return lastBungeePublisherGate; }
+
+        private void markBungeeRuntimePolicyMatched() {
+            if (kind == ProxyKind.BUNGEE && !lastBungeePublisherGate.success()) {
+                lastBungeePublisherGate = PublisherGate.RUNTIME_POLICY_MATCHED;
+            }
+        }
 
         /**
          * The two adapters intentionally use different persisted authoring locations. Keep this
@@ -1680,7 +2311,10 @@ final class MinecraftProxyPlayerProbeTest {
             if (!before.available() || !after.available()) return PublisherGate.SOURCE_UNAVAILABLE;
             if (!before.sources().keySet().equals(after.sources().keySet())) return PublisherGate.SOURCE_SET_CHANGED;
             List<Long> baselineSequences = new ArrayList<>();
-            List<SequenceParse> suffixes = new ArrayList<>();
+            List<Long> acknowledgements = new ArrayList<>();
+            List<Long> activeSequences = new ArrayList<>();
+            int contributingSources = 0;
+            int completeSources = 0;
             for (String source : before.sources().keySet()) {
                 PublisherSourceCursor oldSource = before.sources().get(source);
                 PublisherSourceCursor newSource = after.sources().get(source);
@@ -1696,29 +2330,41 @@ final class MinecraftProxyPlayerProbeTest {
                 SequenceParse suffix = bungeePublisherSequences(
                         newSource.content().substring(oldSource.content().length()));
                 if (!suffix.valid()) return PublisherGate.SUFFIX_INVALID;
-                suffixes.add(suffix);
-            }
-            long baselineMaximum = baselineSequences.stream().mapToLong(Long::longValue).max().orElse(0L);
-            List<Long> sourceSequences = new ArrayList<>();
-            for (SequenceParse suffix : suffixes) {
-                if (suffix.publishAcknowledgements().isEmpty() && suffix.activeSequences().isEmpty()) continue;
-                if (suffix.publishAcknowledgements().size() > 1) return PublisherGate.SOURCE_DUPLICATE_ACK;
-                if (suffix.activeSequences().size() > 1) return PublisherGate.SOURCE_DUPLICATE_ACTIVE;
-                if (suffix.publishAcknowledgements().isEmpty() || suffix.activeSequences().isEmpty()) {
-                    return PublisherGate.SOURCE_INCOMPLETE;
+                if (suffix.publishAcknowledgements().size() > 1) {
+                    return PublisherGate.SOURCE_DUPLICATE_ACK;
                 }
-                long acknowledgement = suffix.publishAcknowledgements().getFirst();
-                long active = suffix.activeSequences().getFirst();
-                if (acknowledgement != active) return PublisherGate.SEQUENCE_MISMATCH;
-                sourceSequences.add(acknowledgement);
+                if (suffix.activeSequences().size() > 1) {
+                    return PublisherGate.SOURCE_DUPLICATE_ACTIVE;
+                }
+                if (!suffix.publishAcknowledgements().isEmpty()
+                        || !suffix.activeSequences().isEmpty()) {
+                    contributingSources++;
+                }
+                if (!suffix.publishAcknowledgements().isEmpty()
+                        && !suffix.activeSequences().isEmpty()) {
+                    completeSources++;
+                }
+                acknowledgements.addAll(suffix.publishAcknowledgements());
+                activeSequences.addAll(suffix.activeSequences());
             }
-            if (sourceSequences.isEmpty()) return PublisherGate.NO_NEW_MARKER;
-            long sequence = sourceSequences.getFirst();
-            if (sourceSequences.stream().anyMatch(candidate -> candidate != sequence)) {
+            if (acknowledgements.isEmpty() && activeSequences.isEmpty()) {
+                return PublisherGate.NO_NEW_MARKER;
+            }
+            if (acknowledgements.isEmpty() || activeSequences.isEmpty()) {
+                return PublisherGate.SOURCE_INCOMPLETE;
+            }
+            long acknowledgement = acknowledgements.getFirst();
+            long active = activeSequences.getFirst();
+            if (acknowledgements.stream().anyMatch(candidate -> candidate != acknowledgement)
+                    || activeSequences.stream().anyMatch(candidate -> candidate != active)) {
                 return PublisherGate.CROSS_SOURCE_CONFLICT;
             }
-            if (sequence <= baselineMaximum) return PublisherGate.NOT_FRESH;
-            return sourceSequences.size() == 1 ? PublisherGate.ACTIVE : PublisherGate.MIRRORED_MATCH;
+            if (acknowledgement != active) return PublisherGate.SEQUENCE_MISMATCH;
+            long baselineMaximum = baselineSequences.stream().mapToLong(Long::longValue).max().orElse(0L);
+            if (acknowledgement <= baselineMaximum) return PublisherGate.NOT_FRESH;
+            if (contributingSources == 1) return PublisherGate.ACTIVE;
+            if (completeSources == contributingSources) return PublisherGate.MIRRORED_MATCH;
+            return PublisherGate.CROSS_SOURCE_MATCH;
         }
 
         record PublisherSourceCursor(String identity, long byteLength, String content) {
@@ -1877,16 +2523,10 @@ final class MinecraftProxyPlayerProbeTest {
                 if (observation.resultObserved() && resultAt == Long.MIN_VALUE) {
                     resultAt = System.nanoTime();
                 }
-                if (scenario == DispositionScenario.ENFORCE_LIMIT
-                        && observation.resultObserved()
-                        && observation.limitedAdmission()
-                        && requiredRouteEvidenceObserved(scenario, observation)) break;
-                if (scenario == DispositionScenario.ENFORCE_QUARANTINE
-                        && observation.resultObserved()
-                        && observation.quarantineAdmission()
-                        && requiredRouteEvidenceObserved(scenario, observation)) break;
-                if (scenario == DispositionScenario.MONITOR_LIMIT
-                        && observation.resultObserved() && observation.lobbyAdmission()
+                if (observation.resultObserved() && observation.lobbyAdmission()
+                        && !observation.limitedAdmission() && !observation.quarantineAdmission()
+                        && !observation.anyRouteLifecycleObserved()
+                        && observation.routeCompletion() == RouteCompletion.NONE
                         && System.nanoTime() - resultAt >= TimeUnit.SECONDS.toNanos(3)) break;
                 Thread.sleep(100L);
             }
@@ -1894,44 +2534,182 @@ final class MinecraftProxyPlayerProbeTest {
         }
 
         private DispositionObservation currentDispositionObservation(DispositionScenario scenario) {
-            String action = scenario == DispositionScenario.ENFORCE_QUARANTINE
-                    ? "QUARANTINE" : "LIMIT";
+            String action = scenario.actionName();
+            String proxyOutput = proxyProcessOutput();
+            boolean advisoryGuard = kind == ProxyKind.BUNGEE
+                    ? advisoryGuardObserved(proxyOutput, "MCAce authenticated-manifest audit")
+                    : advisoryGuardObserved(proxyOutput, "MCAce manifest audit:");
+            boolean trustedResult = trustedDispositionCase
+                    && trustedDispositionAuthorizationObserved(proxyOutput, action)
+                    && trustedDispositionExecutionObserved(proxyOutput, action, kind);
             if (kind == ProxyKind.BUNGEE) {
-                String expectedResult = switch (scenario) {
-                    case MONITOR_LIMIT -> "NOT_ENFORCED";
-                    case ENFORCE_LIMIT -> "LIMITED_DEFERRED";
-                    case ENFORCE_QUARANTINE -> "QUARANTINED_DEFERRED";
-                };
-                String proxyOutput = proxyProcessOutput();
                 return new DispositionObservation(
-                        proxyOutput.contains("MCAce manifest disposition: action=" + action
-                                + " result=" + expectedResult),
+                        trustedDispositionCase ? trustedResult : advisoryGuard,
                         backendAccepted("paper-lobby", paperRoot),
                         backendAccepted("paper-limited", limitedPaperRoot),
                         backendAccepted("paper-quarantine", quarantinePaperRoot),
                         proxyOutput.contains("MCAce manifest disposition: action=" + action
-                                + " result=" + (scenario == DispositionScenario.ENFORCE_QUARANTINE
-                                        ? "QUARANTINED_DEFERRED" : "LIMITED_DEFERRED")),
+                                + " result=" + scenario.manifestExecutionResult()),
                         bungeeDeferredDispositionDispatchObserved(proxyOutput, action),
-                        routeCompletion(proxyOutput, kind, scenario),
+                        routeCompletion(proxyOutput, kind, scenario, trustedDispositionCase),
                         bungeeAnyRouteLifecycleObserved(proxyOutput));
             }
-            String directLine = "MCAce manifest disposition: action="
-                    + action + " result=" + scenario.expectedResult();
-            String deferredLine = "MCAce deferred disposition route retry: action="
-                    + (scenario == DispositionScenario.ENFORCE_QUARANTINE ? "QUARANTINE" : "LIMIT")
-                    + " result=" + scenario.expectedResult();
-            String proxyOutput = proxyProcessOutput();
             return new DispositionObservation(
-                    proxyOutput.contains(directLine) || proxyOutput.contains(deferredLine),
+                    trustedDispositionCase ? trustedResult : advisoryGuard,
                     backendAccepted("paper-lobby", paperRoot),
                     backendAccepted("paper-limited", limitedPaperRoot),
                     backendAccepted("paper-quarantine", quarantinePaperRoot),
-                        false, false, routeCompletion(proxyOutput, kind, scenario), false);
+                    false, false, routeCompletion(proxyOutput, kind, scenario, trustedDispositionCase),
+                    velocityAnyRouteLifecycleObserved(proxyOutput));
+        }
+
+        private static boolean advisoryGuardObserved(String output, String auditMarker) {
+            for (String line : output.split("\\R")) {
+                if (line.contains(auditMarker)
+                        && line.contains("policyVersion=runtime-synthetic-v1")
+                        && line.matches(".*advisoryBlocks=[1-9][0-9]*.*")) {
+                    return true;
+                }
+            }
+            return false;
+        }
+
+        private static boolean trustedDispositionAuthorizationObserved(String output, String action) {
+            return trustedDispositionAuthorizationId(output, action).isPresent();
+        }
+
+        private static Optional<UUID> trustedDispositionAuthorizationId(String output, String action) {
+            for (String line : output.split("\\R")) {
+                if (line.contains("MCAce: disposition review authorized")
+                        && line.contains("action=" + action)
+                        && line.contains("rule=runtime-synthetic-exact")
+                        && line.contains("policy-sequence=")
+                        && line.contains("authorization=")
+                        && line.contains("session-bound=true execution-context-bound=true "
+                                + "execution-queued=true")) {
+                    int start = line.indexOf("authorization=") + "authorization=".length();
+                    int end = start;
+                    while (end < line.length() && !Character.isWhitespace(line.charAt(end))) end++;
+                    try {
+                        return Optional.of(UUID.fromString(line.substring(start, end)));
+                    } catch (IllegalArgumentException ignored) {
+                        return Optional.empty();
+                    }
+                }
+            }
+            return Optional.empty();
+        }
+
+        private static boolean trustedDispositionExecutionObserved(
+                String output, String action, ProxyKind kind) {
+            Optional<UUID> authorizationId = trustedDispositionAuthorizationId(output, action);
+            return authorizationId.isPresent()
+                    && trustedDispositionExecutionFollowsDurableAppend(
+                    output, action, authorizationId.orElseThrow(), kind);
+        }
+
+        private static boolean trustedDispositionExecutionFollowsDurableAppend(
+                String output, String action, UUID authorizationId, ProxyKind kind) {
+            String id = authorizationId.toString();
+            int durable = -1;
+            int execution = -1;
+            String immediate = action.equals("QUARANTINE")
+                    ? "QUARANTINED_DISPATCHED" : "LIMITED_DISPATCHED";
+            String deferred = action.equals("QUARANTINE")
+                    ? "QUARANTINED_DEFERRED" : "LIMITED_DEFERRED";
+            int offset = 0;
+            for (String line : output.split("\\R", -1)) {
+                int lineOffset = offset;
+                offset += line.length() + 1;
+                if (line.contains("MCAce trusted disposition authorization persisted:")
+                        && line.contains("authorization=" + id)
+                        && line.contains("journal-durable=true execution-context-bound=true")
+                        && line.contains("action=" + action)) {
+                    durable = lineOffset;
+                }
+                if (!line.contains("MCAce manifest disposition: action=" + action + " result=")) continue;
+                if (line.contains("authorization=" + id)
+                        && line.contains("session-bound=true execution-context-bound=true")
+                        && (line.contains("result=" + immediate)
+                        || (kind == ProxyKind.BUNGEE && line.contains("result=" + deferred))
+                        || (kind == ProxyKind.VELOCITY && line.contains("result=DEFERRED"))
+                        || (action.equals("DENY") && line.contains("result=DENIED")))) {
+                    execution = lineOffset;
+                    break;
+                }
+            }
+            return durable >= 0 && execution > durable;
+        }
+
+        @SuppressWarnings("unused") // package-level logic tests exercise this bounded parser directly.
+        static boolean trustedDispositionAuthorizationChainObservedForTest(
+                String output, String journalLine, String action, ProxyKind kind) {
+            Optional<UUID> id = trustedDispositionAuthorizationId(output, action);
+            if (id.isEmpty()) return false;
+            boolean journalMatched = trustedDispositionJournalLineMatches(
+                    journalLine, id.orElseThrow(), action);
+            return journalMatched && trustedDispositionExecutionFollowsDurableAppend(
+                    output, action, id.orElseThrow(), kind);
+        }
+
+        /** Exact V3 journal boundary; unversioned/V2 fourteen-column records fail closed. */
+        private static boolean trustedDispositionJournalLineMatches(
+                String journalLine, UUID authorizationId, String action) {
+            String[] fields = journalLine.split("\\t", -1);
+            if (fields.length != 16
+                    || !fields[0].equals("v3")
+                    || !fields[1].equals(authorizationId.toString())
+                    || !fields[2].matches("[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}")
+                    || !fields[3].matches("[0-9]+")
+                    || !fields[4].matches("[0-9a-f]{64}")
+                    || !fields[5].matches("[0-9a-f]{64}")
+                    || !fields[6].matches("[0-9a-f]{64}")
+                    || !fields[7].equals("ADMIN_REVIEWED")
+                    || fields[8].equals("-")
+                    || fields[9].equals("-")
+                    || !fields[10].equals(action)
+                    || !fields[11].equals("runtime-synthetic-exact")
+                    || !fields[12].equals("ACTIVE")
+                    || fields[13].equals("-")
+                    || !fields[14].matches("[0-9]+")
+                    || !fields[15].matches("[0-9]+")) {
+                return false;
+            }
+            try {
+                return Long.parseLong(fields[15]) > Long.parseLong(fields[3]);
+            } catch (NumberFormatException exception) {
+                return false;
+            }
+        }
+
+        static boolean velocityAnyRouteLifecycleObserved(String output) {
+            final int maxCharacters = 1_048_576;
+            final int maxLines = 8_192;
+            final int maxLineCharacters = 1_024;
+            if (output == null || output.length() > maxCharacters) return true;
+            int lines = 0;
+            for (String line : output.split("\\R", -1)) {
+                if (++lines > maxLines || line.length() > maxLineCharacters) return true;
+                if (line.contains("MCAce deferred disposition route")
+                        || line.contains("MCAce manifest disposition route result=")) {
+                    return true;
+                }
+                if (line.contains("MCAce manifest disposition: action=")
+                        && (line.contains(" result=DEFERRED ")
+                        || line.contains(" result=LIMITED_DISPATCHED ")
+                        || line.contains(" result=QUARANTINED_DISPATCHED ")
+                        || line.contains(" result=DENIED "))) {
+                    return true;
+                }
+            }
+            return false;
         }
 
         private boolean requiredRouteEvidenceObserved(
                 DispositionScenario scenario, DispositionObservation observation) {
+            if (trustedDispositionCase) {
+                return observation.routeCompletion() == RouteCompletion.SUCCESS;
+            }
             if (kind == ProxyKind.BUNGEE) {
                 return observation.deferredRouteObserved() && observation.deferredRouteDispatched()
                         && observation.routeCompletion() == RouteCompletion.SUCCESS;
@@ -1987,14 +2765,27 @@ final class MinecraftProxyPlayerProbeTest {
         }
 
         private static RouteCompletion routeCompletion(
-                String output, ProxyKind kind, DispositionScenario scenario) {
+                String output, ProxyKind kind, DispositionScenario scenario, boolean trusted) {
             if (kind == ProxyKind.BUNGEE) {
-                return bungeeDispositionRouteCompletion(output, scenario);
+                return trusted
+                        ? bungeeTrustedDispositionRouteCompletion(output, scenario)
+                        : bungeeDispositionRouteCompletion(output, scenario);
             }
+            String action = scenario.actionName();
+            Optional<UUID> trustedAuthorization = trusted
+                    ? trustedDispositionAuthorizationId(output, action) : Optional.empty();
+            if (trusted && trustedAuthorization.isEmpty()) return RouteCompletion.NONE;
             RouteCompletion terminal = RouteCompletion.NONE;
             boolean routeMarkerSeen = false;
             for (String rawLine : output.split("\\R")) {
                 String line = rawLine.toUpperCase(java.util.Locale.ROOT);
+                if ((!line.contains("MCACE MANIFEST DISPOSITION ROUTE RESULT=")
+                        && !line.contains("MCACE MANIFEST DISPOSITION ROUTE RESULT:"))
+                        || !line.contains("ACTION=" + action)) continue;
+                if (trusted && !line.contains("AUTHORIZATION="
+                        + trustedAuthorization.orElseThrow().toString().toUpperCase(java.util.Locale.ROOT))) {
+                    continue;
+                }
                 if (line.contains("MCACE MANIFEST DISPOSITION ROUTE RESULT=FAIL")
                         || line.contains("MCACE MANIFEST DISPOSITION ROUTE FAILED:")) {
                     terminal = RouteCompletion.FAILED;
@@ -2006,8 +2797,6 @@ final class MinecraftProxyPlayerProbeTest {
                     routeMarkerSeen = true;
                     continue;
                 }
-                if (!line.contains("MCACE MANIFEST DISPOSITION ROUTE RESULT=")
-                        && !line.contains("MCACE MANIFEST DISPOSITION ROUTE RESULT:")) continue;
                 routeMarkerSeen = true;
                 for (RouteCompletion candidate : List.of(
                         RouteCompletion.ALREADY_CONNECTED,
@@ -2030,14 +2819,37 @@ final class MinecraftProxyPlayerProbeTest {
                 String output, DispositionScenario scenario) {
             Objects.requireNonNull(output, "output");
             Objects.requireNonNull(scenario, "scenario");
-            String action = scenario == DispositionScenario.ENFORCE_QUARANTINE
-                    ? "QUARANTINE" : "LIMIT";
+            String action = scenario.actionName();
             RouteCompletion terminal = RouteCompletion.NONE;
             boolean routeMarkerSeen = false;
             for (String rawLine : output.split("\\R")) {
                 if (!rawLine.contains("MCAce disposition route completion=")) continue;
                 if (!rawLine.contains("action=" + action + " source=deferred-disposition"
                         + " session-bound=true")) continue;
+                routeMarkerSeen = true;
+                if (rawLine.contains("completion=FAILED")) return RouteCompletion.FAILED;
+                if (rawLine.contains("completion=SUCCESS")) terminal = RouteCompletion.SUCCESS;
+            }
+            return terminal != RouteCompletion.NONE ? terminal
+                    : routeMarkerSeen ? RouteCompletion.NON_SUCCESS : RouteCompletion.NONE;
+        }
+
+        static RouteCompletion bungeeTrustedDispositionRouteCompletion(
+                String output, DispositionScenario scenario) {
+            Objects.requireNonNull(output, "output");
+            Objects.requireNonNull(scenario, "scenario");
+            String action = scenario.actionName();
+            Optional<UUID> authorizationId = trustedDispositionAuthorizationId(output, action);
+            if (authorizationId.isEmpty()) return RouteCompletion.NONE;
+            RouteCompletion terminal = RouteCompletion.NONE;
+            boolean routeMarkerSeen = false;
+            for (String rawLine : output.split("\\R")) {
+                if (!rawLine.contains("MCAce disposition route completion=")) continue;
+                if (!rawLine.contains("action=" + action)
+                        || !rawLine.contains("session-bound=true")) continue;
+                if (!rawLine.contains("authorization=" + authorizationId.orElseThrow())) continue;
+                if (!rawLine.contains("source=direct")
+                        && !rawLine.contains("source=deferred-disposition")) continue;
                 routeMarkerSeen = true;
                 if (rawLine.contains("completion=FAILED")) return RouteCompletion.FAILED;
                 if (rawLine.contains("completion=SUCCESS")) terminal = RouteCompletion.SUCCESS;
@@ -2056,18 +2868,26 @@ final class MinecraftProxyPlayerProbeTest {
                     .findFirst().orElse(null);
             if (process == null) return 0;
             Path log = root.resolve("logs/latest.log");
-            String evidence = readProcessOutput(process);
+            String processEvidence = readProcessOutput(process);
+            String platformEvidence = "";
             if (Files.isRegularFile(log)) {
-                try { evidence = Files.readString(log, StandardCharsets.UTF_8); }
+                try { platformEvidence = Files.readString(log, StandardCharsets.UTF_8); }
                 catch (IOException ignored) { }
             }
-            if (!evidence.contains("admission=VERIFIED, trust=VERIFIED")) return 0;
+            // Paper's rolling log may lag its redirected stdout while the process is live. Do not
+            // prefer either source globally: count complete lines in each and take the maximum.
+            // This avoids duplicate counting while keeping reconnect baselines monotonic when one
+            // append-only sink is temporarily behind the other.
+            return Math.max(verifiedAdmissionCount(processEvidence),
+                    verifiedAdmissionCount(platformEvidence));
+        }
+
+        private static int verifiedAdmissionCount(String evidence) {
             String marker = "Accepted signed MCAce admission state";
             int count = 0;
-            int offset = 0;
-            while ((offset = evidence.indexOf(marker, offset)) >= 0) {
-                count++;
-                offset += marker.length();
+            for (String line : evidence.split("\\R")) {
+                if (line.contains(marker)
+                        && line.contains("admission=VERIFIED, trust=VERIFIED")) count++;
             }
             return count;
         }
@@ -2150,6 +2970,9 @@ final class MinecraftProxyPlayerProbeTest {
             }
             waitFor(proxy, kind == ProxyKind.VELOCITY
                     ? "MCAce Phase 2 handshake initialized" : "MCAce BungeeCord adapter enabled", 90);
+            // Plugin initialization precedes the platform TCP bind on both proxies. Waiting for
+            // the exact loopback listener prevents a restart probe from racing that small window.
+            waitFor(proxy, proxyListenerReadyMarker(kind, proxyPort), 30);
         }
 
         private String bungeeConfig() {
@@ -2260,7 +3083,9 @@ final class MinecraftProxyPlayerProbeTest {
             Path stderr = runRoot.resolve(name + "-" + generation + ".stderr.log");
             ProcessBuilder builder = new ProcessBuilder(
                     javaExecutable(), heap, "-jar", jar.toString());
-            if (name.startsWith("paper")) builder.command().add("--nogui");
+            if (name.startsWith("paper") || name.startsWith("folia")) {
+                builder.command().add("--nogui");
+            }
             builder.directory(workingDirectory.toFile());
             builder.redirectOutput(stdout.toFile());
             builder.redirectError(stderr.toFile());
@@ -2305,6 +3130,69 @@ final class MinecraftProxyPlayerProbeTest {
         private void waitForProxyMarker(String marker, int seconds) throws Exception {
             if (processes.isEmpty()) throw new IOException("proxy is not started");
             waitFor(processes.getFirst(), marker, seconds);
+        }
+
+        private boolean federationAuditHealthy() throws Exception {
+            Map<String, Integer> before = federationStatusLineCounts(proxyProcessOutput());
+            sendProxyCommand("mcacefederation status");
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(30);
+            while (System.nanoTime() < deadline) {
+                Map<String, Integer> remaining = new java.util.HashMap<>(before);
+                List<String> fresh = new ArrayList<>();
+                for (String line : proxyProcessOutput().split("\\R")) {
+                    if (!line.contains("MCAce: federation ")) {
+                        continue;
+                    }
+                    int prior = remaining.getOrDefault(line, 0);
+                    if (prior > 0) {
+                        remaining.put(line, prior - 1);
+                    } else {
+                        fresh.add(line);
+                    }
+                }
+                for (String line : fresh) {
+                    if (line.contains("audit=FAILED")) return false;
+                    if (line.contains("enabled=true")
+                            && line.contains("configured=true")
+                            && line.contains("audit=HEALTHY")
+                            && line.contains("audit_failures=0")) {
+                        return true;
+                    }
+                }
+                Thread.sleep(100L);
+            }
+            return false;
+        }
+
+        private static Map<String, Integer> federationStatusLineCounts(String output) {
+            Map<String, Integer> counts = new java.util.HashMap<>();
+            for (String line : output.split("\\R")) {
+                if (line.contains("MCAce: federation ")) {
+                    counts.merge(line, 1, Integer::sum);
+                }
+            }
+            return counts;
+        }
+
+        /** Fresh-work-root runtime marker search including the proxy's own rolling log. */
+        private void waitForProxyRuntimeMarker(String marker, int seconds) throws Exception {
+            if (processes.isEmpty()) throw new IOException("proxy is not started");
+            OwnedProcess proxy = processes.getFirst();
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
+            while (System.nanoTime() < deadline) {
+                if (readLogs(proxy).contains(marker)) return;
+                if (!proxy.process().isAlive()) {
+                    throw new IOException("proxy exited before runtime marker " + marker);
+                }
+                Thread.sleep(250L);
+            }
+            throw new IOException("proxy did not emit runtime marker: " + marker);
+        }
+
+        private boolean proxyRuntimeMarkerObserved(String marker) {
+            if (processes.isEmpty()) return false;
+            OwnedProcess proxy = processes.getFirst();
+            return proxy.process().isAlive() && readLogs(proxy).contains(marker);
         }
 
         private String waitForFederationAudit(int seconds, String... markers) throws Exception {
@@ -2384,11 +3272,18 @@ final class MinecraftProxyPlayerProbeTest {
                 return;
             }
             BasicFileAttributes before = Files.readAttributes(path, BasicFileAttributes.class);
-            byte[] bytes = Files.readAllBytes(path);
+            if (before.size() > 1_048_576L) {
+                throw new IOException("publisher source exceeds bounded capture size");
+            }
+            int prefixLength = Math.toIntExact(before.size());
+            byte[] bytes;
+            try (var input = Files.newInputStream(path)) {
+                bytes = input.readNBytes(prefixLength);
+            }
             BasicFileAttributes after = Files.readAttributes(path, BasicFileAttributes.class);
-            if (before.size() != bytes.length || after.size() != bytes.length
+            if (bytes.length != prefixLength || after.size() < prefixLength
                     || !Objects.equals(before.fileKey(), after.fileKey())) {
-                throw new IOException("publisher source changed during capture");
+                throw new IOException("publisher source was replaced or truncated during capture");
             }
             String fileKey = String.valueOf(before.fileKey());
             String identity = sourceName + ':' + fileKey + ':' + before.creationTime().toMillis();
@@ -2428,8 +3323,7 @@ final class MinecraftProxyPlayerProbeTest {
         private String readLogs(OwnedProcess process) {
             StringBuilder result = new StringBuilder();
             result.append(readProcessOutput(process));
-            for (Path path : List.of(process.name().equals("paper") ? paperRoot.resolve("logs/latest.log")
-                    : proxyRoot.resolve("logs/latest.log"))) {
+            for (Path path : List.of(platformLogFor(process))) {
                 if (Files.isRegularFile(path)) {
                     try { result.append(Files.readString(path, StandardCharsets.UTF_8)).append('\n'); }
                     catch (IOException ignored) { }
@@ -2446,11 +3340,23 @@ final class MinecraftProxyPlayerProbeTest {
             return result.toString();
         }
 
+        private Path platformLogFor(OwnedProcess process) {
+            return switch (process.name()) {
+                case "paper", "folia", "paper-lobby" -> paperRoot.resolve("logs/latest.log");
+                case "paper-limited" -> limitedPaperRoot.resolve("logs/latest.log");
+                case "paper-quarantine" -> quarantinePaperRoot.resolve("logs/latest.log");
+                default -> proxyRoot.resolve("logs/latest.log");
+            };
+        }
+
         private static String readProcessOutput(OwnedProcess process) {
             StringBuilder result = new StringBuilder();
             for (Path path : List.of(process.stdout(), process.stderr())) {
                 if (Files.isRegularFile(path)) {
-                    try { result.append(Files.readString(path, StandardCharsets.UTF_8)).append('\n'); }
+                    // The proxy is still appending while evidence is sampled. Decode a byte
+                    // snapshot with replacement semantics so a trailing partial UTF-8 sequence
+                    // cannot turn an otherwise valid append-only snapshot into empty evidence.
+                    try { result.append(new String(Files.readAllBytes(path), StandardCharsets.UTF_8)).append('\n'); }
                     catch (IOException ignored) { }
                 }
             }
@@ -2514,9 +3420,7 @@ final class MinecraftProxyPlayerProbeTest {
             for (Path sensitive : sensitiveForwardingFiles) {
                 try { Files.deleteIfExists(sensitive); } catch (IOException ignored) { }
             }
-            for (Path temporaryPrivateKey : temporaryProxyPrivateKeys) {
-                try { Files.deleteIfExists(temporaryPrivateKey); } catch (IOException ignored) { }
-            }
+            deleteTemporaryProxyPrivateKeys(temporaryProxyPrivateKeys);
         }
 
         private void terminateOwnedProcess(OwnedProcess owned) {
@@ -2551,7 +3455,29 @@ final class MinecraftProxyPlayerProbeTest {
             return temporaryProxyPrivateKeys.stream().anyMatch(Files::exists);
         }
 
+        private void registerTemporaryProxyPrivateKeys(Path dataDirectory) {
+            for (Path privateKey : temporaryProxyPrivateKeyPaths(dataDirectory)) {
+                if (!temporaryProxyPrivateKeys.contains(privateKey)) {
+                    temporaryProxyPrivateKeys.add(privateKey);
+                }
+            }
+        }
+
+        private static List<Path> temporaryProxyPrivateKeyPaths(Path dataDirectory) {
+            return List.of(
+                    dataDirectory.resolve("identity/server-private-key.pk8"),
+                    dataDirectory.resolve("policy/delegated-key/delegated-private-key.pk8"));
+        }
+
+        private static void deleteTemporaryProxyPrivateKeys(List<Path> privateKeys) {
+            for (Path privateKey : privateKeys) {
+                try { Files.deleteIfExists(privateKey); } catch (IOException ignored) { }
+            }
+        }
+
         private static void copyPreparedRuntime(Path source, Path destination) throws IOException {
+            // Copy only the immutable runtime bootstrap roots that the asset manifest binds.
+            // Paper/Folia create disposable world/config/log state inside the isolated run root.
             for (String directory : List.of("cache", "libraries", "versions")) {
                 Path from = source.resolve(directory);
                 Path to = destination.resolve(directory);
@@ -2567,8 +3493,8 @@ final class MinecraftProxyPlayerProbeTest {
             }
         }
 
-        private static String javaExecutable() {
-            return Path.of(System.getProperty("java.home"), "bin", "java.exe").toString();
+        private String javaExecutable() {
+            return runtimeAssets.serverJava().toString();
         }
 
         private static int freePort() throws IOException {
@@ -2619,6 +3545,21 @@ final class MinecraftProxyPlayerProbeTest {
             return authenticationEvidence.authenticationAcceptedAnyPhase();
         }
     }
+    private record TrustedDispositionPeerResult(
+            boolean authenticationAccepted,
+            boolean reviewCommandSent,
+            boolean authorizationObserved,
+            boolean dispositionResultObserved,
+            boolean lobbyAdmission,
+            boolean limitedAdmission,
+            boolean quarantineAdmission,
+            RouteCompletion routeCompletion,
+            boolean connectionRetained) { }
+    /** Sanitized booleans only; the per-run UUID and commitments never leave the disposable tree. */
+    private record TrustedAuthorizationEvidence(
+            boolean commandObserved,
+            boolean journalRecordMatched,
+            boolean persistedBeforeExecution) { }
     /** Content-free raw-peer phase evidence. The CONFIGURATION admission gate remains exact. */
     record AuthenticationEvidence(
             ServerHelloStage serverHelloStage,
@@ -2635,8 +3576,11 @@ final class MinecraftProxyPlayerProbeTest {
             boolean deniedResultObserved,
             DisconnectEvidence disconnectEvidence) { }
     private record DenyPeerResult(
-            boolean syntheticManifestSent,
+            boolean cleanManifestSent,
             boolean authenticationAccepted,
+            boolean lobbyAdmission,
+            boolean reviewCommandSent,
+            boolean authorizationObserved,
             boolean deniedResultObserved,
             DisconnectEvidence disconnectEvidence,
             String authenticatedSessionId) { }
@@ -2653,6 +3597,9 @@ final class MinecraftProxyPlayerProbeTest {
             boolean paperKeptRunning,
             boolean identityPreserved,
             boolean configurationPreserved) { }
+    private record StandardBackendObservation(
+            boolean admission,
+            boolean shadowContext) { }
 
     private static final class MinecraftWirePeer {
         private final ProbeHarness harness;
@@ -2662,6 +3609,9 @@ final class MinecraftProxyPlayerProbeTest {
         private boolean loginSuccess;
         private boolean compressionSeen;
         private boolean configurationFinished;
+        private boolean playJoinSeen;
+        private boolean playChannelRegistrationSent;
+        private Payload pendingPlayServerHello;
         private boolean serverHelloSeen;
         private boolean authResultSeen;
         private boolean authAccepted;
@@ -2683,12 +3633,18 @@ final class MinecraftProxyPlayerProbeTest {
         private final boolean syntheticManifest;
         private DispositionScenario activeDispositionScenario;
         private DispositionObservation inlineDispositionObservation;
+        private boolean activeTrustedDispositionProbe;
+        private boolean trustedReviewCommandSent;
         private RemoteLiveness remoteLiveness = RemoteLiveness.NOT_ATTEMPTED;
         private boolean activeDenyProbe;
+        private boolean activeTrustedDenyProbe;
         private DenyWireObservation inlineDenyObservation;
         private boolean activeCleanReconnectProbe;
         private int reconnectLobbyAdmissionBaseline;
         private boolean reconnectNewLobbyAdmission;
+        private boolean standardBackendAdmissionDriven;
+        private boolean inlineBackendAdmission;
+        private boolean inlineBackendContextShadowAudit;
         private CleanReconnectStage cleanReconnectStage = CleanReconnectStage.NOT_STARTED;
         private CleanReconnectTermination cleanReconnectTermination =
                 CleanReconnectTermination.NONE;
@@ -2716,6 +3672,9 @@ final class MinecraftProxyPlayerProbeTest {
 
         private ProbeReport probe() throws Exception {
             playerId = UUID.nameUUIDFromBytes(("OfflinePlayer:" + PLAYER_NAME).getBytes(StandardCharsets.UTF_8));
+            MinecraftWireProfile.ConfigurationPackets configurationPackets =
+                    harness.wireProfile.configuration();
+            MinecraftWireProfile.PlayPackets playPackets = harness.wireProfile.play();
             try (Socket connected = new Socket(InetAddress.getLoopbackAddress(), harness.proxyPort)) {
                 socket = connected;
                 advanceCleanReconnectStage(CleanReconnectStage.TCP_CONNECTED);
@@ -2723,7 +3682,7 @@ final class MinecraftProxyPlayerProbeTest {
                 pushbackInput = new java.io.PushbackInputStream(socket.getInputStream(), 1);
                 input = new DataInputStream(pushbackInput);
                 output = new DataOutputStream(socket.getOutputStream());
-                send(0, handshake(playerId));
+                send(0, handshake(playerId, harness.wireProfile.protocolVersion()));
                 send(0, loginStart(playerId));
                 long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(25);
                 while (System.nanoTime() < deadline && socket.isConnected()) {
@@ -2762,11 +3721,13 @@ final class MinecraftProxyPlayerProbeTest {
                             send(0x03, new byte[0]);
                             state = State.CONFIGURATION;
                             advanceCleanReconnectStage(CleanReconnectStage.CONFIGURATION);
-                            send(0x00, clientInformation());
+                            send(configurationPackets.serverboundClientInformation(),
+                                    clientInformation(harness.wireProfile));
                             // Give the proxy's backend connection a bounded head start before
                             // forwarding the client channel registration during configuration.
                             Thread.sleep(1_000);
-                            sendCustomPayload("minecraft:register", "mcace:handshake\0mcace:payload".getBytes(StandardCharsets.UTF_8));
+                            sendCustomPayload("minecraft:register",
+                                    "mcace:handshake\0mcace:payload\0mcace:context".getBytes(StandardCharsets.UTF_8));
                         } else if (packet.id() == 0x04) {
                             LoginPlugin request = parseLoginPlugin(packet.payload());
                             send(0x02, concat(varInt(request.messageId()), new byte[] {0}));
@@ -2776,24 +3737,25 @@ final class MinecraftProxyPlayerProbeTest {
                             break;
                         }
                     } else if (state == State.CONFIGURATION) {
-                        if (packet.id() == 0x01) {
+                        if (packet.id() == configurationPackets.clientboundCustomPayload()) {
                             Payload payload = parsePayload(packet.payload());
                             handlePayload(payload);
-                        } else if (packet.id() == 0x03) {
-                            send(0x03, new byte[0]);
+                        } else if (packet.id() == configurationPackets.clientboundFinish()) {
+                            send(configurationPackets.serverboundFinish(), new byte[0]);
                             configurationFinished = true;
                             state = State.PLAY;
                             advanceCleanReconnectStage(CleanReconnectStage.PLAY);
-                        } else if (packet.id() == 0x04) {
-                            send(0x04, packet.payload());
-                        } else if (packet.id() == 0x05) {
-                            send(0x05, packet.payload());
-                        } else if (packet.id() == 0x0E) {
-                            send(0x07, varInt(0));
-                        } else if (packet.id() == 0x00) {
+                        } else if (packet.id() == configurationPackets.clientboundKeepAlive()) {
+                            send(configurationPackets.serverboundKeepAlive(), packet.payload());
+                        } else if (packet.id() == configurationPackets.clientboundPing()) {
+                            send(configurationPackets.serverboundPong(), packet.payload());
+                        } else if (packet.id() == configurationPackets.clientboundSelectKnownPacks()) {
+                            send(configurationPackets.serverboundSelectKnownPacks(), varInt(0));
+                        } else if (packet.id() == configurationPackets.clientboundCookieRequest()) {
                             CookieRequest cookie = parseCookieRequest(packet.payload());
-                            send(0x01, concat(string(cookie.key()), new byte[] {0}));
-                        } else if (packet.id() == 0x02) {
+                            send(configurationPackets.serverboundCookieResponse(),
+                                    concat(string(cookie.key()), new byte[] {0}));
+                        } else if (packet.id() == configurationPackets.clientboundDisconnect()) {
                             // Disconnect component/reason is deliberately neither parsed nor saved.
                             terminateCleanReconnect(
                                     CleanReconnectTermination.CONFIGURATION_DISCONNECT);
@@ -2801,24 +3763,64 @@ final class MinecraftProxyPlayerProbeTest {
                             break;
                         }
                     } else {
-                        if (packet.id() == 0x19) {
+                        if (packet.id() == playPackets.clientboundLogin()
+                                && !playChannelRegistrationSent) {
+                            playJoinSeen = true;
+                            sendCustomPayload("minecraft:register",
+                                    "mcace:handshake\0mcace:payload\0mcace:context"
+                                            .getBytes(StandardCharsets.UTF_8));
+                            playChannelRegistrationSent = true;
+                            packetTrace.add("PLAY:channel-registration-after-game-join");
+                            if (pendingPlayServerHello != null) {
+                                Payload pending = pendingPlayServerHello;
+                                pendingPlayServerHello = null;
+                                packetTrace.add("PLAY:server-hello-resumed-after-game-join");
+                                handlePayloadAfterChannelRecord(pending);
+                            }
+                        } else if (packet.id() == playPackets.clientboundCustomPayload()) {
                             try {
                                 Payload payload = parsePayload(packet.payload());
                                 channels.add(payload.channel());
                                 if (payload.channel().startsWith("mcace:")) {
                                     packetTrace.add("PLAY:custom:" + payload.channel() + ":" + payload.data().length);
-                                    handlePayloadAfterChannelRecord(payload);
+                                    if ("mcace:handshake".equals(payload.channel())
+                                            && !serverHelloSeen && !playJoinSeen) {
+                                        // Velocity can flush its PLAY-state server hello before the
+                                        // backend GameJoin reaches the client. A real Fabric play
+                                        // receiver cannot safely answer until its play handler and
+                                        // channel registration are established, so model that here.
+                                        pendingPlayServerHello = payload;
+                                        packetTrace.add("PLAY:server-hello-deferred-until-game-join");
+                                    } else {
+                                        handlePayloadAfterChannelRecord(payload);
+                                    }
                                 }
                             } catch (IOException ignored) {
                                 limitations.add("ignored non-custom play packet with id 0x"
                                         + Integer.toHexString(packet.id()));
                             }
-                        } else if (packet.id() == 0x26) {
-                            send(0x18, packet.payload());
+                        } else if (packet.id() == playPackets.clientboundKeepAlive()) {
+                            send(playPackets.serverboundKeepAlive(), packet.payload());
                         }
                     }
-                    if (authResultSeen) {
-                        // Keep the raw connection alive until the named Paper evidence arrives.
+                    boolean standardProbeReady = playJoinSeen
+                            || activeDispositionScenario != null
+                            || activeDenyProbe
+                            || activeCleanReconnectProbe;
+                    if (authResultSeen && standardProbeReady) {
+                        if ((activeTrustedDispositionProbe || activeTrustedDenyProbe)
+                                && !harness.backendAccepted("paper-lobby", harness.paperRoot)) {
+                            Thread.sleep(50L);
+                            continue;
+                        }
+                        if (activeTrustedDispositionProbe && !trustedReviewCommandSent) {
+                            harness.issueAdministratorDispositionReview(activeDispositionScenario);
+                            trustedReviewCommandSent = true;
+                        } else if (activeTrustedDenyProbe && !trustedReviewCommandSent) {
+                            harness.issueAdministratorDispositionReview(DispositionScenario.ENFORCE_DENY);
+                            trustedReviewCommandSent = true;
+                        }
+                        // Keep the raw connection alive until the named backend evidence arrives.
                         // A dispatched Velocity connection request can otherwise be cancelled by
                         // this test peer closing before the target backend finishes joining.
                         if (activeDispositionScenario != null) {
@@ -2831,7 +3833,15 @@ final class MinecraftProxyPlayerProbeTest {
                             reconnectNewLobbyAdmission = driveCleanReconnectProtocol(
                                     reconnectLobbyAdmissionBaseline, 25);
                         } else {
-                            Thread.sleep(5_000);
+                            // Modern Paper can finish the player join/channel registration just
+                            // after AuthResult. Keep the raw peer alive and service PLAY/CONFIG
+                            // keepalives until a periodic proxy refresh reaches the backend;
+                            // sleeping a fixed five seconds races the first usable refresh.
+                            standardBackendAdmissionDriven = true;
+                            StandardBackendObservation observation =
+                                    driveStandardBackendAdmissionProtocol(20);
+                            inlineBackendAdmission = observation.admission();
+                            inlineBackendContextShadowAudit = observation.shadowContext();
                         }
                         break;
                     }
@@ -2844,20 +3854,47 @@ final class MinecraftProxyPlayerProbeTest {
                 if (!serverHelloSeen) limitations.add("MCAce server hello was not observed on a real custom-payload packet");
                 if (!authResultSeen) limitations.add("MCAce auth result was not observed after signed CLIENT_HELLO/AUTH_REQUEST; proxy emitted only limited backend admission");
             }
-            boolean backendAdmission = syntheticManifest
-                    ? false
-                    : activeCleanReconnectProbe
-                    ? reconnectNewLobbyAdmission
-                    : harness.waitForPaperAdmission(20);
+            boolean backendAdmission;
+            if (syntheticManifest) {
+                backendAdmission = false;
+            } else if (activeCleanReconnectProbe) {
+                backendAdmission = reconnectNewLobbyAdmission;
+            } else if (standardBackendAdmissionDriven) {
+                // The standard probe must observe admission while this exact socket is still open.
+                // Falling back to a post-close log match would reintroduce the cold-join race this
+                // protocol driver exists to prove absent.
+                backendAdmission = inlineBackendAdmission;
+            } else {
+                backendAdmission = harness.waitForPaperAdmission(20);
+            }
             if (activeCleanReconnectProbe && backendAdmission) {
                 advanceCleanReconnectStage(CleanReconnectStage.LOBBY_VERIFIED);
             }
             if (!syntheticManifest && !backendAdmission) {
-                limitations.add("Paper backend admission was not observed");
+                limitations.add(harness.backendKind + " backend admission was not observed");
             }
-            return new ProbeReport(harness.kind, harness.forwardingMode, harness.forwardingConfigured,
+            boolean backendContextShadowAudit = false;
+            if (!syntheticManifest && !activeCleanReconnectProbe && backendAdmission) {
+                if (standardBackendAdmissionDriven) {
+                    backendContextShadowAudit = inlineBackendContextShadowAudit;
+                    if (!backendContextShadowAudit) {
+                        limitations.add("proxy did not emit runtime marker: backend context shadow audit");
+                    }
+                } else {
+                    try {
+                        harness.waitForProxyRuntimeMarker("backend context shadow audit", 20);
+                        backendContextShadowAudit = true;
+                    } catch (IOException exception) {
+                        limitations.add(exception.getMessage());
+                    }
+                }
+            }
+            return new ProbeReport(harness.kind, harness.backendKind,
+                    harness.backendMinecraftVersion,
+                    harness.forwardingMode, harness.forwardingConfigured,
                     harness.proxyPort, harness.paperPort, true, loginSuccess,
-                    compressionSeen, configurationFinished, serverHelloSeen, authResultSeen, authAccepted, backendAdmission,
+                    compressionSeen, configurationFinished, serverHelloSeen, authResultSeen, authAccepted,
+                    backendAdmission, backendContextShadowAudit,
                     List.copyOf(channels), List.copyOf(packetTrace), List.copyOf(limitations), List.of(), List.of());
         }
 
@@ -2885,15 +3922,45 @@ final class MinecraftProxyPlayerProbeTest {
                     remoteLiveness.openOutcome() && !remoteDisconnectObserved);
         }
 
-        private DenyPeerResult denyDispositionProbe() throws Exception {
+        private TrustedDispositionPeerResult trustedDispositionProbe(
+                DispositionScenario scenario) throws Exception {
+            activeTrustedDispositionProbe = true;
+            activeDispositionScenario = scenario;
+            ProbeReport baseline = probe();
+            DispositionObservation observation = inlineDispositionObservation == null
+                    ? new DispositionObservation(false, false, false, false, false, false,
+                            RouteCompletion.NONE, false)
+                    : inlineDispositionObservation;
+            String action = scenario.actionName();
+            String proxyOutput = harness.proxyProcessOutput();
+            boolean remoteDisconnectObserved = baseline.limitations().stream()
+                    .anyMatch(item -> item.contains("disconnected") || item.contains("EOF"));
+            return new TrustedDispositionPeerResult(
+                    baseline.authAccepted(),
+                    trustedReviewCommandSent,
+                    ProbeHarness.trustedDispositionAuthorizationObserved(proxyOutput, action),
+                    observation.resultObserved(),
+                    observation.lobbyAdmission(),
+                    observation.limitedAdmission(),
+                    observation.quarantineAdmission(),
+                    observation.routeCompletion(),
+                    remoteLiveness.openOutcome() && !remoteDisconnectObserved);
+        }
+
+        private DenyPeerResult trustedDenyDispositionProbe() throws Exception {
             activeDenyProbe = true;
+            activeTrustedDenyProbe = true;
             ProbeReport baseline = probe();
             DenyWireObservation observation = inlineDenyObservation == null
                     ? new DenyWireObservation(false, DisconnectEvidence.NONE)
                     : inlineDenyObservation;
+            String proxyOutput = harness.proxyProcessOutput();
             return new DenyPeerResult(
-                    syntheticManifest && authenticationSent,
+                    !syntheticManifest && authenticationSent,
                     baseline.authAccepted(),
+                    harness.backendAccepted("paper-lobby", harness.paperRoot),
+                    trustedReviewCommandSent,
+                    ProbeHarness.trustedDispositionAuthorizationObserved(proxyOutput, "DENY"),
                     observation.deniedResultObserved(),
                     observation.disconnectEvidence(),
                     baseline.authAccepted() && engine != null
@@ -2959,7 +4026,8 @@ final class MinecraftProxyPlayerProbeTest {
                         continue;
                     }
                     Packet packet = read();
-                    if (state == State.CONFIGURATION && packet.id() == 0x02) {
+                    if (state == State.CONFIGURATION
+                            && packet.id() == harness.wireProfile.configuration().clientboundDisconnect()) {
                         evidence = DisconnectEvidence.PROTOCOL_DISCONNECT;
                     } else {
                         driveDispositionPacket(packet);
@@ -2995,7 +4063,8 @@ final class MinecraftProxyPlayerProbeTest {
                         terminateCleanReconnect(CleanReconnectTermination.LOGIN_DISCONNECT);
                         return false;
                     }
-                    if (state == State.CONFIGURATION && packet.id() == 0x02) {
+                    if (state == State.CONFIGURATION
+                            && packet.id() == harness.wireProfile.configuration().clientboundDisconnect()) {
                         terminateCleanReconnect(
                                 CleanReconnectTermination.CONFIGURATION_DISCONNECT);
                         return false;
@@ -3019,6 +4088,58 @@ final class MinecraftProxyPlayerProbeTest {
             return complete;
         }
 
+        /** Keeps the ordinary raw peer live through backend admission and its shadow-context reply. */
+        private StandardBackendObservation driveStandardBackendAdmissionProtocol(int seconds)
+                throws Exception {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
+            boolean liveAdmission = false;
+            boolean liveShadowContext = false;
+            while (System.nanoTime() < deadline) {
+                // Sample the marker first, but do not trust it until the following read proves the
+                // socket remained live. Locking the sample also avoids requiring a 250 ms quiet
+                // gap while modern servers stream registry or chunk packets continuously.
+                boolean admissionSeen = harness.backendAccepted(
+                        harness.backendProcessName(), harness.paperRoot);
+                boolean shadowContextSeen = harness.proxyRuntimeMarkerObserved(
+                        "backend context shadow audit");
+                // Probe one byte with a short timeout, then push it back before decoding the whole
+                // packet. Unlike InputStream.available(), this distinguishes quiet from EOF while
+                // avoiding a timeout halfway through a packet prefix. Admission is consulted only
+                // after this liveness probe, so a queued FIN cannot be hidden by a later log line.
+                socket.setSoTimeout(250);
+                int firstByte;
+                try {
+                    firstByte = pushbackInput.read();
+                } catch (SocketTimeoutException quiet) {
+                    liveAdmission |= admissionSeen;
+                    liveShadowContext |= shadowContextSeen;
+                    if (liveAdmission && liveShadowContext) {
+                        return new StandardBackendObservation(true, true);
+                    }
+                    continue;
+                }
+                if (firstByte < 0) {
+                    limitations.add("peer disconnected before standard backend evidence completed");
+                    return new StandardBackendObservation(liveAdmission, liveShadowContext);
+                }
+                pushbackInput.unread(firstByte);
+                socket.setSoTimeout(10_000);
+                Packet packet = read();
+                if (packetTrace.size() < 256) {
+                    packetTrace.add(state + ":0x" + Integer.toHexString(packet.id()));
+                } else if (packetTrace.size() == 256) {
+                    packetTrace.add("packet trace capped at 256 entries");
+                }
+                driveDispositionPacket(packet);
+                liveAdmission |= admissionSeen;
+                liveShadowContext |= shadowContextSeen;
+                if (liveAdmission && liveShadowContext) {
+                    return new StandardBackendObservation(true, true);
+                }
+            }
+            return new StandardBackendObservation(liveAdmission, liveShadowContext);
+        }
+
         /**
          * Any complete packet, or a bounded quiet timeout, proves that the remote side did not
          * close the current connection. EOF/reset proves closure. A partial-prefix timeout is
@@ -3040,7 +4161,7 @@ final class MinecraftProxyPlayerProbeTest {
             }
         }
 
-        /** Completes the 1.21.1 PLAY -> CONFIGURATION -> PLAY cycle during a backend switch. */
+        /** Completes the exact-profile PLAY -> CONFIGURATION -> PLAY cycle during a backend switch. */
         private DispositionObservation driveDispositionProtocol(
                 DispositionScenario scenario, int seconds) throws Exception {
             long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
@@ -3051,16 +4172,19 @@ final class MinecraftProxyPlayerProbeTest {
                 if (observation.resultObserved() && monitorResultAt == Long.MIN_VALUE) {
                     monitorResultAt = System.nanoTime();
                 }
-                if (scenario == DispositionScenario.ENFORCE_LIMIT
-                        && observation.resultObserved()
-                        && observation.limitedAdmission()
-                        && harness.requiredRouteEvidenceObserved(scenario, observation)) return observation;
-                if (scenario == DispositionScenario.ENFORCE_QUARANTINE
-                        && observation.resultObserved()
-                        && observation.quarantineAdmission()
-                        && harness.requiredRouteEvidenceObserved(scenario, observation)) return observation;
-                if (scenario == DispositionScenario.MONITOR_LIMIT
+                boolean expectedTrustedTarget = scenario == DispositionScenario.ENFORCE_QUARANTINE
+                        ? observation.quarantineAdmission() && !observation.limitedAdmission()
+                        : observation.limitedAdmission() && !observation.quarantineAdmission();
+                if (harness.trustedDispositionCase && observation.resultObserved()
+                        && observation.lobbyAdmission() && expectedTrustedTarget
+                        && harness.requiredRouteEvidenceObserved(scenario, observation)) {
+                    return observation;
+                }
+                if (!harness.trustedDispositionCase
                         && observation.resultObserved() && observation.lobbyAdmission()
+                        && !observation.limitedAdmission() && !observation.quarantineAdmission()
+                        && !observation.anyRouteLifecycleObserved()
+                        && observation.routeCompletion() == RouteCompletion.NONE
                         && System.nanoTime() - monitorResultAt >= TimeUnit.SECONDS.toNanos(3)) {
                     return observation;
                 }
@@ -3074,37 +4198,40 @@ final class MinecraftProxyPlayerProbeTest {
         }
 
         private void driveDispositionPacket(Packet packet) throws Exception {
+            MinecraftWireProfile.ConfigurationPackets configurationPackets =
+                    harness.wireProfile.configuration();
+            MinecraftWireProfile.PlayPackets playPackets = harness.wireProfile.play();
             if (state == State.PLAY) {
-                if (packet.id() == 0x69) {
-                    // 1.21.1 clientbound Start Configuration / serverbound Acknowledge Configuration.
-                    send(0x0C, new byte[0]);
+                if (packet.id() == playPackets.clientboundStartConfiguration()) {
+                    send(playPackets.serverboundConfigurationAcknowledged(), new byte[0]);
                     state = State.CONFIGURATION;
-                } else if (packet.id() == 0x19) {
+                } else if (packet.id() == playPackets.clientboundCustomPayload()) {
                     try { handlePayload(parsePayload(packet.payload())); }
                     catch (IOException ignored) { }
-                } else if (packet.id() == 0x26) {
-                    send(0x18, packet.payload());
+                } else if (packet.id() == playPackets.clientboundKeepAlive()) {
+                    send(playPackets.serverboundKeepAlive(), packet.payload());
                 }
                 return;
             }
             if (state != State.CONFIGURATION) return;
-            if (packet.id() == 0x01) {
+            if (packet.id() == configurationPackets.clientboundCustomPayload()) {
                 handlePayload(parsePayload(packet.payload()));
-            } else if (packet.id() == 0x03) {
-                send(0x03, new byte[0]);
+            } else if (packet.id() == configurationPackets.clientboundFinish()) {
+                send(configurationPackets.serverboundFinish(), new byte[0]);
                 configurationFinished = true;
                 state = State.PLAY;
                 advanceCleanReconnectStage(CleanReconnectStage.PLAY);
-            } else if (packet.id() == 0x04) {
-                send(0x04, packet.payload());
-            } else if (packet.id() == 0x05) {
-                send(0x05, packet.payload());
-            } else if (packet.id() == 0x0E) {
-                send(0x07, varInt(0));
-            } else if (packet.id() == 0x00) {
+            } else if (packet.id() == configurationPackets.clientboundKeepAlive()) {
+                send(configurationPackets.serverboundKeepAlive(), packet.payload());
+            } else if (packet.id() == configurationPackets.clientboundPing()) {
+                send(configurationPackets.serverboundPong(), packet.payload());
+            } else if (packet.id() == configurationPackets.clientboundSelectKnownPacks()) {
+                send(configurationPackets.serverboundSelectKnownPacks(), varInt(0));
+            } else if (packet.id() == configurationPackets.clientboundCookieRequest()) {
                 CookieRequest cookie = parseCookieRequest(packet.payload());
-                send(0x01, concat(string(cookie.key()), new byte[] {0}));
-            } else if (packet.id() == 0x02) {
+                send(configurationPackets.serverboundCookieResponse(),
+                        concat(string(cookie.key()), new byte[] {0}));
+            } else if (packet.id() == configurationPackets.clientboundDisconnect()) {
                 throw new EOFException("remote disconnected during disposition backend switch");
             }
         }
@@ -3166,6 +4293,12 @@ final class MinecraftProxyPlayerProbeTest {
             int innerLength = 0;
             boolean nonceDistinctAttempted = false;
             long playEnteredAtNanos = Long.MIN_VALUE;
+            boolean playJoinSeen = false;
+            boolean playChannelRegistrationSent = false;
+            MinecraftWireProfile.ConfigurationPackets configurationPackets =
+                    harness.wireProfile.configuration();
+            MinecraftWireProfile.PlayPackets playPackets = harness.wireProfile.play();
+            Payload pendingFederationPlayServerHello = null;
             TestOnlyRetainedGrant capturedGrant = null;
             try (Socket connected = new Socket(InetAddress.getLoopbackAddress(), harness.proxyPort)) {
                 socket = connected;
@@ -3176,7 +4309,7 @@ final class MinecraftProxyPlayerProbeTest {
                 socket.setSoTimeout(45_000);
                 input = new DataInputStream(socket.getInputStream());
                 output = new DataOutputStream(socket.getOutputStream());
-                send(0, handshake(playerId));
+                send(0, handshake(playerId, harness.wireProfile.protocolVersion()));
                 send(0, loginStart(playerId));
                 long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(45);
                 while (System.nanoTime() < deadline && socket.isConnected()) {
@@ -3198,10 +4331,11 @@ final class MinecraftProxyPlayerProbeTest {
                             loginSuccess = true;
                             send(0x03, new byte[0]);
                             state = State.CONFIGURATION;
-                            send(0x00, clientInformation());
+                            send(configurationPackets.serverboundClientInformation(),
+                                    clientInformation(harness.wireProfile));
                             Thread.sleep(1_000L);
                             sendCustomPayload("minecraft:register",
-                                    "mcace:handshake\0mcace:payload".getBytes(StandardCharsets.UTF_8));
+                                    "mcace:handshake\0mcace:payload\0mcace:context".getBytes(StandardCharsets.UTF_8));
                         } else if (packet.id() == 0x04) {
                             LoginPlugin request = parseLoginPlugin(packet.payload());
                             send(0x02, concat(varInt(request.messageId()), new byte[] {0}));
@@ -3211,7 +4345,7 @@ final class MinecraftProxyPlayerProbeTest {
                         continue;
                     }
                     if (packet != null && state == State.CONFIGURATION) {
-                        if (packet.id() == 0x01) {
+                        if (packet.id() == configurationPackets.clientboundCustomPayload()) {
                             Payload payload = parsePayload(packet.payload());
                             if ("mcace:handshake".equals(payload.channel())) {
                                 FederationExchangeProgress progress = handleFederationPayload(
@@ -3225,31 +4359,68 @@ final class MinecraftProxyPlayerProbeTest {
                                     capturedGrant = progress.testOnlyRetainedGrant();
                                 }
                             }
-                        } else if (packet.id() == 0x03) {
-                            send(0x03, new byte[0]);
+                        } else if (packet.id() == configurationPackets.clientboundFinish()) {
+                            send(configurationPackets.serverboundFinish(), new byte[0]);
                             state = State.PLAY;
-                            playEnteredAtNanos = System.nanoTime();
                             socket.setSoTimeout(45_000);
-                        } else if (packet.id() == 0x04) {
-                            send(0x04, packet.payload());
-                        } else if (packet.id() == 0x05) {
-                            send(0x05, packet.payload());
-                        } else if (packet.id() == 0x0E) {
-                            send(0x07, varInt(0));
-                        } else if (packet.id() == 0x00) {
+                        } else if (packet.id() == configurationPackets.clientboundKeepAlive()) {
+                            send(configurationPackets.serverboundKeepAlive(), packet.payload());
+                        } else if (packet.id() == configurationPackets.clientboundPing()) {
+                            send(configurationPackets.serverboundPong(), packet.payload());
+                        } else if (packet.id() == configurationPackets.clientboundSelectKnownPacks()) {
+                            send(configurationPackets.serverboundSelectKnownPacks(), varInt(0));
+                        } else if (packet.id() == configurationPackets.clientboundCookieRequest()) {
                             CookieRequest cookie = parseCookieRequest(packet.payload());
-                            send(0x01, concat(string(cookie.key()), new byte[] {0}));
-                        } else if (packet.id() == 0x02) {
+                            send(configurationPackets.serverboundCookieResponse(),
+                                    concat(string(cookie.key()), new byte[] {0}));
+                        } else if (packet.id() == configurationPackets.clientboundDisconnect()) {
                             throw new IOException("federation peer disconnected during configuration");
                         }
                     } else if (packet != null) {
-                        if (packet.id() == 0x19) {
+                        if (packet.id() == playPackets.clientboundLogin()
+                                && !playChannelRegistrationSent) {
+                            playJoinSeen = true;
+                            sendCustomPayload("minecraft:register",
+                                    "mcace:handshake\0mcace:payload\0mcace:context"
+                                            .getBytes(StandardCharsets.UTF_8));
+                            playChannelRegistrationSent = true;
+                            playEnteredAtNanos = System.nanoTime();
+                            packetTrace.add("PLAY:channel-registration-after-game-join");
+                            if (pendingFederationPlayServerHello != null) {
+                                Payload pending = pendingFederationPlayServerHello;
+                                pendingFederationPlayServerHello = null;
+                                packetTrace.add("PLAY:federation-server-hello-resumed-after-game-join");
+                                FederationExchangeProgress progress = handleFederationPayload(
+                                        role, pending.data(), vault, sourceSessionKey, retainedGrant,
+                                        targetNetworkId, authResult, grantStored, presentationSent, replaySent);
+                                authResult = progress.authResult();
+                                grantStored = progress.grantStored();
+                                presentationSent = progress.presentationSent();
+                                replaySent = progress.replaySent();
+                                if (progress.testOnlyRetainedGrant() != null) {
+                                    capturedGrant = progress.testOnlyRetainedGrant();
+                                }
+                            }
+                        } else if (packet.id() == playPackets.clientboundCustomPayload()) {
+                            Payload payload = null;
                             try {
-                                Payload payload = parsePayload(packet.payload());
-                                if ("mcace:handshake".equals(payload.channel())) {
+                                payload = parsePayload(packet.payload());
+                            } catch (IOException ignored) {
+                                // The exact custom-payload ID was present but the payload was malformed.
+                            }
+                            if (payload != null && "mcace:handshake".equals(payload.channel())) {
+                                PacketType packetType = SignedEnvelope.parseFrom(payload.data())
+                                        .getHeader().getPacketType();
+                                if (shouldDeferFederationServerHello(state, playJoinSeen, packetType)) {
+                                    if (pendingFederationPlayServerHello != null) {
+                                        throw new IOException("duplicate deferred federation SERVER_HELLO");
+                                    }
+                                    pendingFederationPlayServerHello = payload;
+                                    packetTrace.add("PLAY:federation-server-hello-deferred-until-game-join");
+                                } else {
                                     FederationExchangeProgress progress = handleFederationPayload(
-                                            role, payload.data(), vault, sourceSessionKey, retainedGrant, targetNetworkId,
-                                            authResult, grantStored, presentationSent, replaySent);
+                                            role, payload.data(), vault, sourceSessionKey, retainedGrant,
+                                            targetNetworkId, authResult, grantStored, presentationSent, replaySent);
                                     authResult = progress.authResult();
                                     grantStored = progress.grantStored();
                                     presentationSent = progress.presentationSent();
@@ -3258,15 +4429,14 @@ final class MinecraftProxyPlayerProbeTest {
                                         capturedGrant = progress.testOnlyRetainedGrant();
                                     }
                                 }
-                            } catch (IOException ignored) {
-                                // Packet 0x19 can be non-custom traffic for nearby protocol builds.
                             }
-                        } else if (packet.id() == 0x26) {
-                            send(0x18, packet.payload());
+                        } else if (packet.id() == playPackets.clientboundKeepAlive()) {
+                            send(playPackets.serverboundKeepAlive(), packet.payload());
                         }
                     }
-                    if (role == FederationPeerRole.SOURCE && authResult != null
-                            && authResult.getAccepted() && state == State.PLAY && !federationIssueSent) {
+                    if (shouldRequestFederationIssue(role,
+                            authResult != null && authResult.getAccepted(), state, playJoinSeen,
+                            federationIssueSent)) {
                         // Real proxies may drop plugin messages emitted while configuration is
                         // finishing. Issue only once the player is unambiguously in PLAY.
                         Thread.sleep(500L);
@@ -3419,6 +4589,18 @@ final class MinecraftProxyPlayerProbeTest {
                     }
                 }
             }
+            if (role == FederationPeerRole.TARGET) {
+                if (authResult == null || !authResult.getAccepted()) {
+                    throw new IOException("federation target authentication did not complete; peerState="
+                            + state + "; trace=" + federationPacketTrace());
+                }
+                if (!presentationSent || federationReplayPresentation == null
+                        || federationReplayPresentation.length == 0 || federationFirstOuter == null
+                        || federationFirstOuter.length == 0) {
+                    throw new IOException("federation target presentation was not created; peerState="
+                            + state + "; trace=" + federationPacketTrace());
+                }
+            }
             return new FederationPeerResult(authResult, grantStored, presentationSent, replaySent,
                     firstOuterLength, innerLength, nonceDistinctAttempted, true,
                     oldOuterSessionRejected, oldSessionProofRejected, invalidOldProofsNoObservation,
@@ -3426,6 +4608,10 @@ final class MinecraftProxyPlayerProbeTest {
                     role == FederationPeerRole.TARGET ? federationReplayPresentation.clone() : new byte[0],
                     role == FederationPeerRole.TARGET ? federationFirstOuter.clone() : new byte[0],
                     capturedGrant);
+        }
+
+        private String federationPacketTrace() {
+            return packetTrace.isEmpty() ? "none" : String.join(",", packetTrace);
         }
 
         private FederationExchangeProgress handleFederationPayload(
@@ -3441,6 +4627,7 @@ final class MinecraftProxyPlayerProbeTest {
                 boolean priorReplaySent) throws Exception {
             SignedEnvelope envelope = SignedEnvelope.parseFrom(frame);
             PacketType type = envelope.getHeader().getPacketType();
+            packetTrace.add("IN:" + type.name() + ":state=" + state.name() + ":bytes=" + frame.length);
             AuthResult result = priorAuthResult;
             boolean grantStored = priorGrantStored;
             boolean presentationSent = priorPresentationSent;
@@ -3449,13 +4636,15 @@ final class MinecraftProxyPlayerProbeTest {
             if (type == PacketType.SERVER_HELLO) {
                 if (engine != null) throw new IOException("duplicate federation SERVER_HELLO");
                 if (role == FederationPeerRole.SOURCE) {
-                    engine = new ClientHandshakeEngine(playerId, "mcace-test-peer", "1.21.1",
+                    engine = new ClientHandshakeEngine(playerId, "mcace-test-peer",
+                            harness.wireProfile.minecraftVersion(),
                             BUILD_ID, LoaderType.FABRIC, harness.proxyPublicKey,
                             Clock.systemUTC(), new SecureRandom(), sourceSessionKey);
                     authenticateEngine(engine, frame, "source");
                 } else {
                     ClientHandshakeEngine provisional = new ClientHandshakeEngine(
-                            playerId, "mcace-test-peer", "1.21.1", BUILD_ID, LoaderType.FABRIC,
+                            playerId, "mcace-test-peer", harness.wireProfile.minecraftVersion(),
+                            BUILD_ID, LoaderType.FABRIC,
                             harness.proxyPublicKey, Clock.systemUTC(), new SecureRandom());
                     provisional.prepareServerHello(frame, "127.0.0.1:" + harness.proxyPort,
                             new VerifiedPolicyCache(harness.runRoot.resolve("target-provisional-cache"),
@@ -3466,13 +4655,15 @@ final class MinecraftProxyPlayerProbeTest {
                     }
                     if (role == FederationPeerRole.TARGET) {
                         engine = vault.newTargetHandshake(
-                                verifiedTarget, playerId, "mcace-test-peer", "1.21.1", BUILD_ID,
+                                verifiedTarget, playerId, "mcace-test-peer",
+                                harness.wireProfile.minecraftVersion(), BUILD_ID,
                                 LoaderType.FABRIC, harness.proxyPublicKey, Clock.systemUTC(),
                                 new SecureRandom()).orElseThrow(() ->
                                         new IOException("federation vault did not release target handshake"));
                     } else {
                         retainedGrant.requireExactTarget(verifiedTarget, harness.proxyPublicKey);
-                        engine = new ClientHandshakeEngine(playerId, "mcace-test-peer", "1.21.1",
+                        engine = new ClientHandshakeEngine(playerId, "mcace-test-peer",
+                                harness.wireProfile.minecraftVersion(),
                                 BUILD_ID, LoaderType.FABRIC, harness.proxyPublicKey, Clock.systemUTC(),
                                 new SecureRandom(), retainedGrant.sourceSessionKeyPair());
                     }
@@ -3508,6 +4699,9 @@ final class MinecraftProxyPlayerProbeTest {
             List<ClientHandshakeEngine.OutboundFrame> frames = candidate.createAuthenticationFrames(
                     emptyBundle(verifiedPolicy));
             for (ClientHandshakeEngine.OutboundFrame outbound : frames) {
+                SignedEnvelope outboundEnvelope = SignedEnvelope.parseFrom(outbound.data());
+                packetTrace.add("OUT:" + outboundEnvelope.getHeader().getPacketType().name()
+                        + ":channel=" + outbound.channel().name() + ":bytes=" + outbound.data().length);
                 sendCustomPayload(outbound.channel() == ClientHandshakeEngine.OutboundChannel.PAYLOAD
                         ? "mcace:payload" : "mcace:handshake", outbound.data());
                 if (frames.size() > 1 && outbound != frames.getLast()) Thread.sleep(50L);
@@ -3525,7 +4719,8 @@ final class MinecraftProxyPlayerProbeTest {
                 serverHelloSeen = true;
                 serverHelloStage = serverHelloStageFor(state);
                 advanceCleanReconnectStage(CleanReconnectStage.SERVER_HELLO);
-                engine = new ClientHandshakeEngine(playerId, "mcace-test-peer", "1.21.1",
+                engine = new ClientHandshakeEngine(playerId, "mcace-test-peer",
+                        harness.wireProfile.minecraftVersion(),
                         BUILD_ID, LoaderType.FABRIC, harness.proxyPublicKey,
                         Clock.systemUTC(), new SecureRandom());
                 VerifiedPolicy verifiedPolicy = engine.prepareServerHello(payload.data(),
@@ -3587,10 +4782,12 @@ final class MinecraftProxyPlayerProbeTest {
                 case PLAY -> accepted ? AuthResultStage.ACCEPTED_PLAY : AuthResultStage.REJECTED_PLAY;
             };
         }
-
         private void sendCustomPayload(String channel, byte[] data) throws IOException {
             byte[] payload = concat(string(channel), data);
-            send(state == State.CONFIGURATION ? 0x02 : 0x12, payload);
+            int packetId = state == State.CONFIGURATION
+                    ? harness.wireProfile.configuration().serverboundCustomPayload()
+                    : harness.wireProfile.play().serverboundCustomPayload();
+            send(packetId, payload);
         }
 
         private static String describeEnvelope(byte[] encoded) {
@@ -3638,8 +4835,8 @@ final class MinecraftProxyPlayerProbeTest {
             output.flush();
         }
 
-        private static byte[] handshake(UUID playerId) throws IOException {
-            return concat(varInt(MINECRAFT_PROTOCOL_1_21_1), string("127.0.0.1"), shortBytes(25565), varInt(2));
+        private static byte[] handshake(UUID playerId, int protocol) throws IOException {
+            return concat(varInt(protocol), string("127.0.0.1"), shortBytes(25565), varInt(2));
         }
 
         private static byte[] loginStart(UUID playerId) throws IOException {
@@ -3650,8 +4847,12 @@ final class MinecraftProxyPlayerProbeTest {
             return output.toByteArray();
         }
 
-        private static byte[] clientInformation() throws IOException {
-            return concat(string("en_us"), new byte[] {8}, varInt(0), new byte[] {1, 0}, varInt(1), new byte[] {0, 1});
+        private static byte[] clientInformation(MinecraftWireProfile profile) throws IOException {
+            byte[] legacy = concat(
+                    string("en_us"), new byte[] {8}, varInt(0), new byte[] {1, 0},
+                    varInt(1), new byte[] {0, 1});
+            return profile.clientInformationIncludesParticleStatus()
+                    ? concat(legacy, varInt(0)) : legacy;
         }
 
         private static ClientIntegrityBundle emptyBundle(VerifiedPolicy verifiedPolicy) throws Exception {
@@ -3815,6 +5016,8 @@ final class MinecraftProxyPlayerProbeTest {
             boolean targetObserved,
             boolean replayRejected,
             boolean contentFreeAudit,
+            boolean sourceAuditHealthy,
+            boolean targetAuditHealthy,
             boolean localStateUnchanged,
             boolean targetBackendAdmission,
             List<String> limitations,
@@ -3824,13 +5027,14 @@ final class MinecraftProxyPlayerProbeTest {
             return sourceAuthenticated && grantStored && sourceDisconnected && targetAuthenticated
                     && presentationSent && firstOuterLength > 0 && innerLength > 0
                     && nonceDistinctAttempted
-                    && targetObserved && replayRejected && contentFreeAudit && localStateUnchanged
+                    && targetObserved && replayRejected && contentFreeAudit
+                    && sourceAuditHealthy && targetAuditHealthy && localStateUnchanged
                     && targetBackendAdmission && limitations.isEmpty() && remainingRunProcesses.isEmpty();
         }
 
         private String toJson() {
             return "{\n"
-                    + "  \"schema\": 1,\n"
+                    + "  \"schema\": 2,\n"
                     + "  \"source_proxy\": \"" + sourceProxy + "\",\n"
                     + "  \"target_proxy\": \"" + targetProxy + "\",\n"
                     + "  \"source_network_id\": \"" + sourceNetworkId + "\",\n"
@@ -3846,6 +5050,8 @@ final class MinecraftProxyPlayerProbeTest {
                     + "  \"target_observed\": " + targetObserved + ",\n"
                     + "  \"same_assertion_replay_rejected\": " + replayRejected + ",\n"
                     + "  \"content_free_audit\": " + contentFreeAudit + ",\n"
+                    + "  \"source_audit_healthy\": " + sourceAuditHealthy + ",\n"
+                    + "  \"target_audit_healthy\": " + targetAuditHealthy + ",\n"
                     + "  \"local_trust_risk_admission_unchanged\": " + localStateUnchanged + ",\n"
                     + "  \"target_paper_admission_verified\": " + targetBackendAdmission + ",\n"
                     + "  \"fabric_gui_coverage\": false,\n"
@@ -3867,6 +5073,8 @@ final class MinecraftProxyPlayerProbeTest {
                     + "` / `" + nonceDistinctAttempted + "`\n"
                     + "- Same assertion replay rejected: `" + replayRejected + "`\n"
                     + "- Content-free audit: `" + contentFreeAudit + "`\n"
+                    + "- Source/target durable-audit health: `" + sourceAuditHealthy
+                    + "` / `" + targetAuditHealthy + "`\n"
                     + "- Local trust/risk/admission unchanged: `" + localStateUnchanged + "`\n"
                     + "- Cleanup complete: `" + remainingRunProcesses.isEmpty() + "`\n"
                     + "- Fabric GUI coverage: `false` (raw peer auto-consent is test-only)\n\n"
@@ -3896,6 +5104,8 @@ final class MinecraftProxyPlayerProbeTest {
             boolean residualReacceptance,
             boolean postRestartSameProcessReplayRejected,
             boolean contentFreeAudit,
+            boolean sourceAuditHealthy,
+            boolean targetAuditHealthy,
             boolean localStateUnchanged,
             boolean targetBackendAdmission,
             boolean temporaryProxyPrivateKeysRemoved,
@@ -3909,6 +5119,7 @@ final class MinecraftProxyPlayerProbeTest {
                     && restartedTargetAuthenticated && targetSessionChanged && targetChallengeChanged
                     && oldOuterSessionRejected && oldSessionProofRejected && invalidOldProofsNoObservation
                     && residualReacceptance && postRestartSameProcessReplayRejected && contentFreeAudit
+                    && sourceAuditHealthy && targetAuditHealthy
                     && localStateUnchanged && targetBackendAdmission && temporaryProxyPrivateKeysRemoved
                     && limitations.isEmpty()
                     && remainingRunProcesses.isEmpty();
@@ -3916,7 +5127,7 @@ final class MinecraftProxyPlayerProbeTest {
 
         private String toJson() {
             return "{\n"
-                    + "  \"schema\": 1,\n"
+                    + "  \"schema\": 2,\n"
                     + "  \"source_proxy\": \"VELOCITY\",\n"
                     + "  \"target_proxy\": \"" + targetProxy + "\",\n"
                     + "  \"source_authenticated\": " + sourceAuthenticated + ",\n"
@@ -3944,6 +5155,8 @@ final class MinecraftProxyPlayerProbeTest {
                     + "  \"local_trust_risk_admission_unchanged\": " + localStateUnchanged + ",\n"
                     + "  \"target_paper_admission_verified\": " + targetBackendAdmission + ",\n"
                     + "  \"content_free_audit\": " + contentFreeAudit + ",\n"
+                    + "  \"source_audit_healthy\": " + sourceAuditHealthy + ",\n"
+                    + "  \"target_audit_healthy\": " + targetAuditHealthy + ",\n"
                     + "  \"temporary_proxy_private_keys_removed\": "
                     + temporaryProxyPrivateKeysRemoved + ",\n"
                     + "  \"fabric_gui_coverage\": false,\n"
@@ -3976,6 +5189,8 @@ final class MinecraftProxyPlayerProbeTest {
                     + "- Local trust/risk/admission unchanged: `" + localStateUnchanged + "`\n"
                     + "- Content-free audit; Paper local admission: `" + contentFreeAudit + "` / `"
                     + targetBackendAdmission + "`\n"
+                    + "- Source/target durable-audit health: `" + sourceAuditHealthy
+                    + "` / `" + targetAuditHealthy + "`\n"
                     + "- Temporary proxy fixture private keys removed: `"
                     + temporaryProxyPrivateKeysRemoved + "`\n"
                     + "- Cleanup complete: `" + remainingRunProcesses.isEmpty() + "`\n"
@@ -3993,6 +5208,8 @@ final class MinecraftProxyPlayerProbeTest {
 
     private record ProbeReport(
             ProxyKind proxy,
+            BackendKind backend,
+            String backendMinecraftVersion,
             String forwardingMode,
             boolean forwardingConfigured,
             int proxyPort,
@@ -4005,32 +5222,45 @@ final class MinecraftProxyPlayerProbeTest {
             boolean authResult,
             boolean authAccepted,
             boolean backendAdmission,
+            boolean backendContextShadowAudit,
             List<String> channels,
             List<String> packetTrace,
             List<String> limitations,
             List<Integer> cleanupProcessIds,
             List<Long> remainingRunProcesses) {
-        private static ProbeReport failure(ProxyKind proxy, int proxyPort, int paperPort, List<String> limitations) {
-            return new ProbeReport(proxy, proxy == ProxyKind.VELOCITY ? "velocity-modern" : "bungee-ip-forwarding",
+        private static ProbeReport failure(
+                ProxyKind proxy,
+                BackendKind backend,
+                String backendMinecraftVersion,
+                int proxyPort,
+                int paperPort,
+                List<String> limitations) {
+            return new ProbeReport(proxy, backend, backendMinecraftVersion,
+                    proxy == ProxyKind.VELOCITY ? "velocity-modern" : "bungee-ip-forwarding",
                     false, proxyPort, paperPort, false, false, false, false,
-                    false, false, false, false, List.of(), List.of(), limitations, List.of(), List.of());
+                    false, false, false, false, false, List.of(), List.of(), limitations, List.of(), List.of());
         }
 
         private ProbeReport withCleanup(List<Integer> processIds, List<Long> remaining) {
-            return new ProbeReport(proxy, forwardingMode, forwardingConfigured, proxyPort, paperPort,
+            return new ProbeReport(proxy, backend, backendMinecraftVersion,
+                    forwardingMode, forwardingConfigured, proxyPort, paperPort,
                     tcpConnected, loginSuccess, compressionSeen,
                     configurationFinished, serverHello, authResult, authAccepted, backendAdmission,
+                    backendContextShadowAudit,
                     channels, packetTrace, limitations, List.copyOf(processIds), List.copyOf(remaining));
         }
 
         private String toJson() {
             return "{\n"
-                    + "  \"schema\": 2,\n"
+                    + "  \"schema\": 4,\n"
                     + "  \"proxy\": \"" + proxy + "\",\n"
+                    + "  \"backend_platform\": \"" + backend + "\",\n"
+                    + "  \"backend_minecraft_version\": \""
+                    + escape(backendMinecraftVersion) + "\",\n"
                     + "  \"forwarding_mode\": \"" + forwardingMode + "\",\n"
                     + "  \"forwarding_configured\": " + forwardingConfigured + ",\n"
                     + "  \"proxy_port\": " + proxyPort + ",\n"
-                    + "  \"paper_port\": " + paperPort + ",\n"
+                    + "  \"backend_port\": " + paperPort + ",\n"
                     + "  \"tcp_connected\": " + tcpConnected + ",\n"
                     + "  \"login_success\": " + loginSuccess + ",\n"
                     + "  \"compression_seen\": " + compressionSeen + ",\n"
@@ -4038,7 +5268,8 @@ final class MinecraftProxyPlayerProbeTest {
                     + "  \"mcace_server_hello\": " + serverHello + ",\n"
                     + "  \"mcace_auth_result\": " + authResult + ",\n"
                     + "  \"mcace_auth_accepted\": " + authAccepted + ",\n"
-                    + "  \"paper_backend_admission\": " + backendAdmission + ",\n"
+                    + "  \"backend_admission\": " + backendAdmission + ",\n"
+                    + "  \"backend_context_shadow_audit\": " + backendContextShadowAudit + ",\n"
                     + "  \"channels\": " + strings(channels) + ",\n"
                     + "  \"packet_trace\": " + strings(packetTrace) + ",\n"
                     + "  \"limitations\": " + strings(limitations) + ",\n"
@@ -4050,12 +5281,15 @@ final class MinecraftProxyPlayerProbeTest {
         private String toMarkdown() {
             return "# MCAce real Minecraft player/protocol probe\n\n"
                     + "- Proxy: `" + proxy + "`\n"
+                    + "- Backend: `" + backend + "` Minecraft `"
+                    + backendMinecraftVersion + "`\n"
                     + "- Forwarding: `" + forwardingMode + "` configured=`" + forwardingConfigured + "`\n"
-                    + "- Ports: proxy `" + proxyPort + "`, Paper `" + paperPort + "`\n"
+                    + "- Ports: proxy `" + proxyPort + "`, backend `" + paperPort + "`\n"
                     + "- TCP/login success: `" + loginSuccess + "`\n"
                     + "- MCAce server hello: `" + serverHello + "`\n"
                     + "- MCAce auth result: `" + authResult + "` accepted=`" + authAccepted + "`\n"
-                    + "- Paper backend admission: `" + backendAdmission + "`\n"
+                    + "- Backend admission: `" + backendAdmission + "`\n"
+                    + "- Backend context shadow audit: `" + backendContextShadowAudit + "`\n"
                     + "- Channels: `" + String.join("`, `", channels) + "`\n\n"
                     + "## Limitations\n\n"
                     + (limitations.isEmpty() ? "None recorded.\n" : limitations.stream().map(item -> "- " + item + "\n").reduce("", String::concat))

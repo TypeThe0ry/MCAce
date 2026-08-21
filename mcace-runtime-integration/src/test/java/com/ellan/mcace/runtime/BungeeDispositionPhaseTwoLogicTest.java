@@ -7,7 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import java.nio.file.Path;
 import org.junit.jupiter.api.Test;
 
-/** Pure checks for the Bungee Phase-2 report/evidence boundary; no proxy process is started. */
+/** Pure checks for the Bungee advisory-origin process-report boundary; no proxy process is started. */
 final class BungeeDispositionPhaseTwoLogicTest {
     @Test
     void monitorRequiresOnlyVerifiedLobbyAndNoRouteLifecycleMarkers() {
@@ -36,35 +36,29 @@ final class BungeeDispositionPhaseTwoLogicTest {
     }
 
     @Test
-    void enforcedLimitRequiresDeferredServerConnectedFlushAndTerminalSuccess() {
-        var passed = outcome(
+    void enforceLimitConfigurationStillRequiresClientReportToRemainAdvisory() {
+        assertTrue(outcome(
                 MinecraftProxyPlayerProbeTest.DispositionScenario.ENFORCE_LIMIT,
-                true, true, false, MinecraftProxyPlayerProbeTest.RouteCompletion.SUCCESS,
-                false, true, false);
-        assertTrue(passed.passed());
-
+                false, false, false, MinecraftProxyPlayerProbeTest.RouteCompletion.NONE,
+                true, false, false).passed());
         assertFalse(outcome(
                 MinecraftProxyPlayerProbeTest.DispositionScenario.ENFORCE_LIMIT,
-                false, true, false, MinecraftProxyPlayerProbeTest.RouteCompletion.SUCCESS,
+                true, true, true, MinecraftProxyPlayerProbeTest.RouteCompletion.SUCCESS,
                 false, true, false).passed(),
-                "a direct route is not the required Bungee early-route fixture path");
-        assertFalse(outcome(
-                MinecraftProxyPlayerProbeTest.DispositionScenario.ENFORCE_LIMIT,
-                true, true, false, MinecraftProxyPlayerProbeTest.RouteCompletion.NONE,
-                false, true, false).passed(),
-                "DEFERRED/DISPATCHED cannot stand in for the connect callback completion");
+                "a client-reported exact hash must not enter any Bungee route lifecycle");
     }
 
     @Test
-    void enforcedQuarantineRequiresOnlyQuarantineAdmission() {
+    void enforceQuarantineConfigurationStillRequiresClientReportToRemainAdvisory() {
         assertTrue(outcome(
                 MinecraftProxyPlayerProbeTest.DispositionScenario.ENFORCE_QUARANTINE,
-                true, true, false, MinecraftProxyPlayerProbeTest.RouteCompletion.SUCCESS,
-                false, false, true).passed());
+                false, false, false, MinecraftProxyPlayerProbeTest.RouteCompletion.NONE,
+                true, false, false).passed());
         assertFalse(outcome(
                 MinecraftProxyPlayerProbeTest.DispositionScenario.ENFORCE_QUARANTINE,
-                true, true, false, MinecraftProxyPlayerProbeTest.RouteCompletion.SUCCESS,
-                false, true, true).passed());
+                true, true, true, MinecraftProxyPlayerProbeTest.RouteCompletion.SUCCESS,
+                false, false, true).passed(),
+                "client-reported evidence cannot route the player to quarantine");
     }
 
     @Test
@@ -106,6 +100,42 @@ final class BungeeDispositionPhaseTwoLogicTest {
         assertEquals(MinecraftProxyPlayerProbeTest.RouteCompletion.NONE,
                 MinecraftProxyPlayerProbeTest.ProbeHarness.bungeeDispositionRouteCompletion(
                         limitSuccess.replace("session-bound=true", "session-bound=false"),
+                        MinecraftProxyPlayerProbeTest.DispositionScenario.ENFORCE_LIMIT));
+    }
+
+    @Test
+    void trustedBungeeCompletionAcceptsDirectOrDeferredButStillRequiresExactActionAndSession() {
+        String authorization = "00000000-0000-0000-0000-000000000042";
+        String command = "MCAce: disposition review authorized action=LIMIT"
+                + " rule=runtime-synthetic-exact policy-sequence=1 authorization="
+                + authorization
+                + " session-bound=true execution-context-bound=true execution-queued=true\n";
+        String direct = command + "MCAce disposition route completion=SUCCESS player=test"
+                + " action=LIMIT source=direct authorization=" + authorization
+                + " session-bound=true";
+        String deferred = direct.replace("source=direct", "source=deferred-disposition");
+        assertEquals(MinecraftProxyPlayerProbeTest.RouteCompletion.SUCCESS,
+                MinecraftProxyPlayerProbeTest.ProbeHarness.bungeeTrustedDispositionRouteCompletion(
+                        direct, MinecraftProxyPlayerProbeTest.DispositionScenario.ENFORCE_LIMIT));
+        assertEquals(MinecraftProxyPlayerProbeTest.RouteCompletion.SUCCESS,
+                MinecraftProxyPlayerProbeTest.ProbeHarness.bungeeTrustedDispositionRouteCompletion(
+                        deferred, MinecraftProxyPlayerProbeTest.DispositionScenario.ENFORCE_LIMIT));
+        assertEquals(MinecraftProxyPlayerProbeTest.RouteCompletion.NONE,
+                MinecraftProxyPlayerProbeTest.ProbeHarness.bungeeTrustedDispositionRouteCompletion(
+                        direct.replace("action=LIMIT", "action=QUARANTINE"),
+                        MinecraftProxyPlayerProbeTest.DispositionScenario.ENFORCE_LIMIT));
+        assertEquals(MinecraftProxyPlayerProbeTest.RouteCompletion.NONE,
+                MinecraftProxyPlayerProbeTest.ProbeHarness.bungeeTrustedDispositionRouteCompletion(
+                        direct.replace("session-bound=true", "session-bound=false"),
+                        MinecraftProxyPlayerProbeTest.DispositionScenario.ENFORCE_LIMIT));
+        assertEquals(MinecraftProxyPlayerProbeTest.RouteCompletion.NONE,
+                MinecraftProxyPlayerProbeTest.ProbeHarness.bungeeTrustedDispositionRouteCompletion(
+                        direct.replace("source=direct", "source=heartbeat"),
+                        MinecraftProxyPlayerProbeTest.DispositionScenario.ENFORCE_LIMIT));
+        assertEquals(MinecraftProxyPlayerProbeTest.RouteCompletion.NONE,
+                MinecraftProxyPlayerProbeTest.ProbeHarness.bungeeTrustedDispositionRouteCompletion(
+                        direct.replace("source=direct authorization=" + authorization,
+                                "source=direct authorization=00000000-0000-0000-0000-000000000043"),
                         MinecraftProxyPlayerProbeTest.DispositionScenario.ENFORCE_LIMIT));
     }
 
@@ -223,6 +253,30 @@ final class BungeeDispositionPhaseTwoLogicTest {
     }
 
     @Test
+    void velocityAdvisoryGuardDistinguishesRejectedDecisionFromHighImpactLifecycle() {
+        assertFalse(MinecraftProxyPlayerProbeTest.ProbeHarness.velocityAnyRouteLifecycleObserved(
+                "[INFO] MCAce manifest disposition: action=LIMIT result=NOT_ENFORCED player=x"));
+        assertFalse(MinecraftProxyPlayerProbeTest.ProbeHarness.velocityAnyRouteLifecycleObserved(
+                "[INFO] MCAce manifest disposition: action=DENY result=INCOMPLETE_EVENT player=x"));
+        assertFalse(MinecraftProxyPlayerProbeTest.ProbeHarness.velocityAnyRouteLifecycleObserved(
+                "[INFO] MCAce manifest disposition: action=OBSERVE result=NO_VALID_POLICY player=x"));
+        assertFalse(MinecraftProxyPlayerProbeTest.ProbeHarness.velocityAnyRouteLifecycleObserved(
+                "[INFO] MCAce manifest disposition: action=LIMIT result=STALE_AUTHORIZATION_CONTEXT player=x"));
+        assertFalse(MinecraftProxyPlayerProbeTest.ProbeHarness.velocityAnyRouteLifecycleObserved(
+                "[INFO] MCAce manifest disposition: action=LIMIT result=ACTION_UNAVAILABLE player=x"));
+        assertTrue(MinecraftProxyPlayerProbeTest.ProbeHarness.velocityAnyRouteLifecycleObserved(
+                "[INFO] MCAce manifest disposition: action=DENY result=DENIED player=x"));
+        assertTrue(MinecraftProxyPlayerProbeTest.ProbeHarness.velocityAnyRouteLifecycleObserved(
+                "[INFO] MCAce manifest disposition: action=LIMIT result=LIMITED_DISPATCHED player=x"));
+        assertTrue(MinecraftProxyPlayerProbeTest.ProbeHarness.velocityAnyRouteLifecycleObserved(
+                "[INFO] MCAce manifest disposition: action=QUARANTINE result=QUARANTINED_DISPATCHED player=x"));
+        assertTrue(MinecraftProxyPlayerProbeTest.ProbeHarness.velocityAnyRouteLifecycleObserved(
+                "[INFO] MCAce manifest disposition: action=LIMIT result=DEFERRED player=x"));
+        assertTrue(MinecraftProxyPlayerProbeTest.ProbeHarness.velocityAnyRouteLifecycleObserved(
+                "[INFO] MCAce manifest disposition route result=FAIL player=x action=LIMIT"));
+    }
+
+    @Test
     void configurationAuthenticationRequiresAllRawPeerMilestonesBeforePlay() {
         assertTrue(evidence(
                 MinecraftProxyPlayerProbeTest.ServerHelloStage.CONFIGURATION,
@@ -247,7 +301,12 @@ final class BungeeDispositionPhaseTwoLogicTest {
     }
 
     @Test
-    void publisherUsesPerSourceCursorsAndOnlyAcceptsExactMirrors() {
+    void exactRuntimePolicyMatchIsAValidPublisherGate() {
+        assertTrue(MinecraftProxyPlayerProbeTest.PublisherGate.RUNTIME_POLICY_MATCHED.success());
+    }
+
+    @Test
+    void publisherUsesStablePerSourceCursorsAndAcceptsMatchingSplitMarkers() {
         String old = "MCAce: disposition catalog publish version=old active-sequence=1\n"
                 + "MCAce: disposition status=ACTIVE sequence=1\n";
         String current = "MCAce: disposition catalog publish version=current active-sequence=2\n"
@@ -262,6 +321,15 @@ final class BungeeDispositionPhaseTwoLogicTest {
                 MinecraftProxyPlayerProbeTest.ProbeHarness.bungeePublisherGate(before,
                         snapshot(java.util.Map.of("stdout", source("stdout-v1", old + current),
                                 "proxy", source("proxy-v1", current)))));
+        String acknowledgement =
+                "MCAce: disposition catalog publish version=current active-sequence=2\n";
+        String active = "MCAce: disposition status=ACTIVE sequence=2\n";
+        assertEquals(MinecraftProxyPlayerProbeTest.PublisherGate.CROSS_SOURCE_MATCH,
+                MinecraftProxyPlayerProbeTest.ProbeHarness.bungeePublisherGate(before,
+                        snapshot(java.util.Map.of(
+                                "stdout", source("stdout-v1", old + acknowledgement),
+                                "proxy", source("proxy-v1", active)))),
+                "matching acknowledgement and ACTIVE markers may be split across stable logger sinks");
         assertEquals(MinecraftProxyPlayerProbeTest.PublisherGate.CROSS_SOURCE_CONFLICT,
                 MinecraftProxyPlayerProbeTest.ProbeHarness.bungeePublisherGate(before,
                         snapshot(java.util.Map.of("stdout", source("stdout-v1", old + current),

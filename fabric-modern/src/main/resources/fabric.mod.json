@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "id": "mcace",
+  "version": "${mcace_version}",
+  "name": "MCAce",
+  "description": "Trusted-client integrity and authentication foundation",
+  "authors": ["EllanServer"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "com.ellan.mcace.fabric.MCAceFabricClient"
+    ]
+  },
+  "custom": {
+    "mcace:client_build_id": "${mcace_client_build_id}"
+  },
+  "depends": {
+    "fabricloader": ">=0.19.3",
+    "fabric-api": "${fabric_api_version}",
+    "minecraft": "${minecraft_version}",
+    "java": ">=25"
+  }
+}

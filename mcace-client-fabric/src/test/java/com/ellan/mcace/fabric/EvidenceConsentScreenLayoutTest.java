@@ -1,5 +1,6 @@
 package com.ellan.mcace.fabric;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 
@@ -22,6 +23,22 @@ final class EvidenceConsentScreenLayoutTest {
     }
 
     @Test
+    void compactMaximumContentUsesFixedResponsiveActionsAndReachableScrolling() {
+        EvidenceConsentScreen.ConsentLayout layout =
+                EvidenceConsentScreen.layoutFor(320, 240, 9, 80, 9);
+        EvidenceConsentScreen.ActionRow actions = EvidenceConsentScreen.actionRow(320, 240);
+
+        assertTrue(layout.maxScroll() > 0);
+        assertTrue(layout.viewportBottom() <= actions.y() - 12);
+        assertTrue(actions.left() >= 8);
+        assertTrue(actions.right() + actions.buttonWidth() <= 312);
+        assertTrue(actions.left() + actions.buttonWidth() < actions.right());
+        assertEquals(layout.maxScroll(), ConsentUiSupport.clampScroll(Integer.MAX_VALUE, layout.maxScroll()));
+        assertEquals(layout.maxScroll(), ConsentUiSupport.wheelScroll(
+                layout.maxScroll() - 1, layout.maxScroll(), -1.0d, layout.lineStep()));
+    }
+
+    @Test
     void showsExplicitNoRetentionForLegacyRequest() {
         List<String> paragraphs = EvidenceConsentScreen.consentParagraphTexts(request(
                 false, 0L, "", ""));
@@ -34,17 +51,20 @@ final class EvidenceConsentScreenLayoutTest {
     @Test
     void showsAccurateRetentionDisclosureAndSanitizesDynamicText() {
         List<String> paragraphs = EvidenceConsentScreen.consentParagraphTexts(request(
-                true, 3661L, "policy\nid", "review\r\n purpose"));
+                true, 3661L, "policy\nid\u202Ehidden", "review\r\n\u2066purpose\u2028tail"));
         String rendered = String.join("\n", paragraphs);
 
         assertTrue(rendered.contains("PT1H1M1S"));
         assertTrue(rendered.contains("3661 seconds"));
         assertTrue(rendered.contains("policy�id"));
-        assertTrue(rendered.contains("review�� purpose"));
+        assertTrue(rendered.contains("review���purpose�tail"));
         assertTrue(rendered.contains("must not retain raw content beyond this signed retention period"));
         assertFalse(paragraphs.stream()
                 .flatMapToInt(String::codePoints)
-                .anyMatch(Character::isISOControl));
+                .anyMatch(codePoint -> Character.isISOControl(codePoint)
+                        || Character.getType(codePoint) == Character.FORMAT
+                        || Character.getType(codePoint) == Character.LINE_SEPARATOR
+                        || Character.getType(codePoint) == Character.PARAGRAPH_SEPARATOR));
     }
 
     @Test

@@ -1,17 +1,22 @@
 package com.ellan.mcace.client.integrity;
 
 import java.io.IOException;
-import java.io.InputStream;
+import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardOpenOption;
+import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -19,18 +24,33 @@ import java.util.stream.Stream;
 
 public final class ScopedIntegrityScanner {
     private static final byte[] MANIFEST_DOMAIN = "mcace-manifest-v1\0".getBytes(StandardCharsets.UTF_8);
+    private static final int HASH_CHUNK_BYTES = 64 * 1024;
 
     private final Clock clock;
+    private final FileChannelOpener channelOpener;
 
     public ScopedIntegrityScanner(Clock clock) {
+        this(clock, file -> FileChannel.open(
+                file, StandardOpenOption.READ, LinkOption.NOFOLLOW_LINKS));
+    }
+
+    ScopedIntegrityScanner(Clock clock, FileChannelOpener channelOpener) {
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.channelOpener = Objects.requireNonNull(channelOpener, "channelOpener");
     }
 
     public IntegrityManifest scan(Path minecraftRoot, Path relativeScope, ScanPolicy policy)
             throws IntegrityScanException {
+        return scan(minecraftRoot, relativeScope, policy, IntegrityScanCancellation.NONE);
+    }
+
+    public IntegrityManifest scan(Path minecraftRoot, Path relativeScope, ScanPolicy policy,
+            IntegrityScanCancellation cancellation) throws IntegrityScanException {
         Objects.requireNonNull(minecraftRoot, "minecraftRoot");
         Objects.requireNonNull(relativeScope, "relativeScope");
         Objects.requireNonNull(policy, "policy");
+        Objects.requireNonNull(cancellation, "cancellation");
+        cancellation.check();
         if (relativeScope.isAbsolute()) {
             throw new IntegrityScanException("scan scope must be relative to the Minecraft root");
         }
@@ -43,33 +63,45 @@ public final class ScopedIntegrityScanner {
         if (!Files.isDirectory(scope, LinkOption.NOFOLLOW_LINKS)) {
             throw new IntegrityScanException("scan scope is not a directory: " + relativeScope);
         }
-
-        List<Path> files;
-        try (Stream<Path> stream = Files.walk(scope)) {
-            files = stream
-                    .filter(path -> Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS))
-                    .filter(path -> allowed(path, policy))
-                    .sorted(Comparator.comparing(path -> portable(scope.relativize(path))))
-                    .toList();
+        Path realRoot;
+        try {
+            realRoot = normalizedRoot.toRealPath();
         } catch (IOException exception) {
+            throw new IntegrityScanException("Minecraft root is unavailable", exception);
+        }
+
+        List<Path> files = new ArrayList<>();
+        try (Stream<Path> stream = Files.walk(scope)) {
+            Iterator<Path> paths = stream.iterator();
+            while (paths.hasNext()) {
+                cancellation.check();
+                Path path = paths.next();
+                if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) && allowed(path, policy)) {
+                    files.add(path);
+                    if (files.size() > policy.maxEntries()) {
+                        throw new IntegrityScanException("scan scope exceeds maximum entry count");
+                    }
+                }
+            }
+        } catch (IOException | UncheckedIOException exception) {
             throw new IntegrityScanException("failed to enumerate scan scope", exception);
         }
-        if (files.size() > policy.maxEntries()) {
-            throw new IntegrityScanException("scan scope exceeds maximum entry count");
-        }
+        files.sort(Comparator.comparing(path -> portable(scope.relativize(path))));
 
         List<IntegrityEntry> entries = new ArrayList<>(files.size());
         for (Path file : files) {
+            cancellation.check();
             try {
-                long size = Files.size(file);
-                if (size > policy.maxFileBytes()) {
-                    throw new IntegrityScanException("file exceeds scan size limit: " + scope.relativize(file));
-                }
-                entries.add(new IntegrityEntry(portable(scope.relativize(file)), size, sha256(file)));
+                rejectSymlinkSegments(normalizedRoot, file);
+                HashedFile hashed = hashStableRegularFile(
+                        file, normalizedRoot, realRoot, policy.maxFileBytes(), cancellation);
+                entries.add(new IntegrityEntry(
+                        portable(scope.relativize(file)), hashed.size(), hashed.sha256()));
             } catch (IOException exception) {
                 throw new IntegrityScanException("failed to hash file: " + scope.relativize(file), exception);
             }
         }
+        cancellation.check();
         return new IntegrityManifest(portable(relativeScope.normalize()), clock.instant(), entries, manifestRoot(entries));
     }
 
@@ -79,10 +111,23 @@ public final class ScopedIntegrityScanner {
             List<String> relativeFiles,
             ScanPolicy policy,
             boolean required) throws IntegrityScanException {
+        return scanExplicitFiles(minecraftRoot, scopeName, relativeFiles, policy, required,
+                IntegrityScanCancellation.NONE);
+    }
+
+    public ScopeIntegrityManifest scanExplicitFiles(
+            Path minecraftRoot,
+            String scopeName,
+            List<String> relativeFiles,
+            ScanPolicy policy,
+            boolean required,
+            IntegrityScanCancellation cancellation) throws IntegrityScanException {
         Objects.requireNonNull(minecraftRoot, "minecraftRoot");
         Objects.requireNonNull(scopeName, "scopeName");
         Objects.requireNonNull(relativeFiles, "relativeFiles");
         Objects.requireNonNull(policy, "policy");
+        Objects.requireNonNull(cancellation, "cancellation");
+        cancellation.check();
         if (scopeName.isBlank() || relativeFiles.isEmpty() || relativeFiles.size() > policy.maxEntries()) {
             throw new IntegrityScanException("explicit scope definition is invalid");
         }
@@ -95,6 +140,7 @@ public final class ScopedIntegrityScanner {
         }
         List<IntegrityEntry> entries = new ArrayList<>();
         for (String relative : relativeFiles.stream().distinct().sorted().toList()) {
+            cancellation.check();
             Path relativePath = Path.of(relative);
             if (relativePath.isAbsolute()) {
                 throw new IntegrityScanException("explicit file path must be relative: " + relative);
@@ -117,11 +163,10 @@ public final class ScopedIntegrityScanner {
                         || !allowed(file, policy)) {
                     throw new IntegrityScanException("explicit file is outside policy: " + relative);
                 }
-                long size = Files.size(file);
-                if (size > policy.maxFileBytes()) {
-                    throw new IntegrityScanException("explicit file exceeds scan size limit: " + relative);
-                }
-                entries.add(new IntegrityEntry(portable(relativePath.normalize()), size, sha256(file)));
+                HashedFile hashed = hashStableRegularFile(
+                        file, normalizedRoot, realRoot, policy.maxFileBytes(), cancellation);
+                entries.add(new IntegrityEntry(
+                        portable(relativePath.normalize()), hashed.size(), hashed.sha256()));
             } catch (IOException exception) {
                 throw new IntegrityScanException("failed to hash explicit file: " + relative, exception);
             }
@@ -144,18 +189,93 @@ public final class ScopedIntegrityScanner {
         return policy.allowedExtensions().stream().anyMatch(filename::endsWith);
     }
 
-    private static byte[] sha256(Path file) throws IOException, IntegrityScanException {
-        MessageDigest digest = digest();
-        byte[] buffer = new byte[64 * 1024];
-        try (InputStream input = Files.newInputStream(file)) {
-            int read;
-            while ((read = input.read(buffer)) >= 0) {
-                if (read > 0) {
-                    digest.update(buffer, 0, read);
-                }
-            }
+    private HashedFile hashStableRegularFile(Path file, Path lexicalRoot, Path realRoot,
+            long maxFileBytes, IntegrityScanCancellation cancellation)
+            throws IOException, IntegrityScanException {
+        cancellation.check();
+        BasicFileAttributes before = Files.readAttributes(
+                file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        Path realBefore = file.toRealPath();
+        if (!before.isRegularFile() || before.isSymbolicLink() || !realBefore.startsWith(realRoot)) {
+            throw new IntegrityScanException("file is not a stable regular file inside the scan root");
         }
-        return digest.digest();
+
+        HashedFile firstRead = hashNoFollowHandle(
+                file, before.size(), maxFileBytes, cancellation);
+        cancellation.check();
+        rejectSymlinkSegments(lexicalRoot, file);
+        BasicFileAttributes between = Files.readAttributes(
+                file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        Path realBetween = file.toRealPath();
+        if (!stableAttributes(before, between) || !realBefore.equals(realBetween)) {
+            throw new IntegrityScanException("file changed while it was being hashed");
+        }
+
+        // FileChannel exposes size/content from its handle, but the standard Windows provider
+        // does not expose BasicFileAttributes/fileKey for that handle. A second independent
+        // NOFOLLOW_LINKS open adds a fail-closed verification pass for that binding gap: both
+        // handles must produce identical size/content with stable path attributes and parent
+        // segments around both reads.
+        HashedFile secondRead = hashNoFollowHandle(
+                file, between.size(), maxFileBytes, cancellation);
+        cancellation.check();
+        rejectSymlinkSegments(lexicalRoot, file);
+        BasicFileAttributes after = Files.readAttributes(
+                file, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+        Path realAfter = file.toRealPath();
+        if (!stableAttributes(between, after) || !realBetween.equals(realAfter)
+                || firstRead.size() != secondRead.size()
+                || !MessageDigest.isEqual(firstRead.sha256(), secondRead.sha256())) {
+            throw new IntegrityScanException("file changed between its verified no-follow reads");
+        }
+        return firstRead;
+    }
+
+    private HashedFile hashNoFollowHandle(Path file, long expectedSize, long maxFileBytes,
+            IntegrityScanCancellation cancellation) throws IOException, IntegrityScanException {
+        MessageDigest digest = digest();
+        long openedSize;
+        long finalHandleSize;
+        long readBytes = 0L;
+        ByteBuffer buffer = ByteBuffer.allocate(HASH_CHUNK_BYTES);
+        cancellation.check();
+        try (SeekableByteChannel channel = channelOpener.open(file)) {
+            openedSize = channel.size();
+            if (openedSize < 0L || openedSize > maxFileBytes || openedSize != expectedSize) {
+                throw new IntegrityScanException("file exceeds its scan limit or changed before opening");
+            }
+            while (true) {
+                cancellation.check();
+                buffer.clear();
+                int read = channel.read(buffer);
+                if (read < 0) {
+                    break;
+                }
+                if (read == 0) {
+                    continue;
+                }
+                readBytes = Math.addExact(readBytes, read);
+                if (readBytes > maxFileBytes) {
+                    throw new IntegrityScanException("file grew beyond its scan size limit");
+                }
+                buffer.flip();
+                digest.update(buffer);
+            }
+            cancellation.check();
+            finalHandleSize = channel.size();
+        }
+        if (openedSize != finalHandleSize || openedSize != readBytes) {
+            throw new IntegrityScanException("file size changed on its open handle");
+        }
+        return new HashedFile(openedSize, digest.digest());
+    }
+
+    private static boolean stableAttributes(BasicFileAttributes before, BasicFileAttributes after) {
+        return after.isRegularFile() && !after.isSymbolicLink()
+                && before.size() == after.size()
+                && before.creationTime().equals(after.creationTime())
+                && before.lastModifiedTime().equals(after.lastModifiedTime())
+                && Objects.equals(before.fileKey(), after.fileKey());
     }
 
     static byte[] manifestRoot(List<IntegrityEntry> entries) throws IntegrityScanException {
@@ -189,8 +309,15 @@ public final class ScopedIntegrityScanner {
         for (Path segment : relative) {
             current = current.resolve(segment);
             if (Files.isSymbolicLink(current)) {
-                throw new IntegrityScanException("symbolic links are not allowed in explicit scopes: " + relative);
+                throw new IntegrityScanException("symbolic links are not allowed in integrity scopes: " + relative);
             }
         }
     }
+
+    @FunctionalInterface
+    interface FileChannelOpener {
+        SeekableByteChannel open(Path file) throws IOException;
+    }
+
+    private record HashedFile(long size, byte[] sha256) { }
 }

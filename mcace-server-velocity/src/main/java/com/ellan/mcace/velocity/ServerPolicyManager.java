@@ -201,7 +201,7 @@ final class ServerPolicyManager implements SignedPolicyProvider {
 
     private static VelocityAdmissionConfig.PolicyConfig defaultPolicyConfiguration() {
         return new VelocityAdmissionConfig.PolicyConfig(
-                "mcace-velocity", List.of("1.21.1"), List.of("fabric-phase2-dev"));
+                "mcace-velocity", List.of("1.21.11"), List.of("fabric-phase2-dev"));
     }
 
     private boolean matchesReleaseConfiguration(SecurityPolicy policy) {
