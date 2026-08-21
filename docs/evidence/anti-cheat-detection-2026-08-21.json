@@ -1,9 +1,9 @@
 {
   "schema": "MCACE_ANTI_CHEAT_DETECTION_EVIDENCE_V1",
-  "generated_at": "2026-08-21T05:29:00Z",
+  "generated_at": "2026-08-21T05:56:13Z",
   "source_mode": "LOCAL_DEFENSIVE_UNIT_AND_INTEGRATION_TESTS",
   "summary": {
-    "executed_tests": 30,
+    "executed_tests": 31,
     "skipped_tests": 1,
     "failures": 0,
     "errors": 0,
@@ -14,7 +14,14 @@
     "controlled_fixture_junit_tests": 1,
     "wrapper_static_checks_ps7_ps5": 2,
     "wrapper_execute_ps7_ps5": true,
-    "wrapper_report_only_ps5": true
+    "wrapper_report_only_ps5": true,
+    "real_client_smoke_runs": 1,
+    "real_third_party_client_mod_executed": true,
+    "real_meteor_initialized": true,
+    "real_xray_resource_pack_activated": true,
+    "real_server_connection": false,
+    "real_server_detection_event": false,
+    "real_server_enforcement_exercised": false
   },
   "coverage": [
     {
@@ -29,6 +36,20 @@
       "executable_code_loaded": false,
       "third_party_network_access": false,
       "not_proven": "This is a static fixture regression, not a real Fabric client launch or cheat efficacy measurement."
+    },
+    {
+      "area": "bounded_real_fabric_client_third_party_load",
+      "tests": 1,
+      "passed": true,
+      "result": "A disposable Fabric 1.21.11 client run loaded the supplied Meteor JAR, initialized Meteor Client, and reloaded the selected Spectator Xray resource pack. The run was bounded to a client with no server connection.",
+      "meteor_initialized": true,
+      "xray_resource_pack_activated": true,
+      "server_connected": false,
+      "third_party_network_access": "not_isolated; the client attempted normal account/Realms requests",
+      "cheat_feature_activation": false,
+      "server_detection_event": false,
+      "server_enforcement_exercised": false,
+      "not_proven": "This proves client-side discovery/initialization only. It does not measure detection precision/recall, a SERVER_CONFIRMED event, or any kick/deny outcome."
     },
     {
       "area": "artifact_feature_observation",
@@ -78,7 +99,8 @@
     "manual_review_required_for_high_impact": true
   },
   "limitations": [
-    "No real cheat binary was launched; the supplied Meteor JAR and Xray pack were inspected only as isolated fixtures.",
+    "No cheat feature was activated against a server; the real-client smoke was bounded, disconnected, and used only to verify client discovery and resource loading.",
+    "A separate bounded real-client smoke did load Meteor and activate the selected Xray pack, but did not connect to a server or activate a cheat module; it is not an anti-cheat effectiveness result.",
     "No injection, memory tool, packet exploit, or bypass implementation was executed.",
     "No genuine licensed Vulcan event was delivered; the licensed runtime gate remains pending.",
     "These tests establish defensive invariants and correlation behavior, not production precision/recall or a field false-positive rate.",

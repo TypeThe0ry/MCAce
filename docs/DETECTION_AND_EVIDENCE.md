@@ -316,6 +316,14 @@ metadata/classification JUnit fixture in a temporary directory, requires JDK 21,
 and records `STATIC_FIXTURE_ONLY_NO_THIRD_PARTY_CODE_EXECUTION`; it never launches
 Meteor, a resource-pack client, or arbitrary third-party code. Revalidate a saved
 record with `-ReportOnly -ReportPath <report.json> -ExpectedReportSha256 <sha256>`.
+A separate bounded real-client smoke has now loaded the supplied Meteor JAR in a
+disposable 1.21.11 Fabric client and activated the selected Spectator Xray pack;
+the client reached resource reload and Meteor initialization, but never connected
+to a server and did not activate a cheat feature. This is a client discovery and
+resource-loading result only, not evidence of server-side detection, a
+`SERVER_CONFIRMED` event, or a kick/deny outcome. The run was not network-isolated
+because the normal client attempted account/Realms requests, so it must not be
+described as a safe third-party sandbox or as an effectiveness benchmark.
 The remaining distinct gates are a real-process `SERVER_CONFIRMED` artifact/behavior
 authorization producer, the three-target explicit-file/frame GUI flow (six human
 decisions), and the separate two-decision Fabric federation source-export/target-
