@@ -24,8 +24,8 @@ explainable actions.
 | Compatibility contract | `3/3` | Exact protocol, Java, metadata, nested-JAR, and fail-closed version checks |
 | Anti-cheat regression | `31` checks | Feature classification, integrity, replay, correlation, and bounded real-client load |
 
-The current pushed commit is `6acd6f8d578de82497c5c2e9ecb803c2f4458cb1` on
-[`codex/release-2026-08-21`](https://github.com/TypeThe0ry/MCAce/tree/codex/release-2026-08-21).
+The current pushed branch is [`codex/release-2026-08-21`](https://github.com/TypeThe0ry/MCAce/tree/codex/release-2026-08-21);
+the exact source commit is recorded in `release-manifest.properties`.
 The detailed handoff is [Next iteration status](docs/NEXT_ITERATION_2026-08-21.md).
 
 ## Exact Minecraft compatibility
