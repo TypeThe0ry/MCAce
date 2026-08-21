@@ -1,0 +1,315 @@
+{
+  "schema": "MCACE_LOCAL_BUILD_EVIDENCE_V2",
+  "generated_at": "2026-08-14T10:12:50.039023Z",
+  "source_commit": "LOCAL_UNSPECIFIED",
+  "bundle_identity_profile": "LOCAL_V1",
+  "bundle_manifest_schema": "MCACE_LOCAL_VERIFICATION_BUNDLE_V1",
+  "bundle_profile": "LOCAL_VERIFICATION",
+  "release_identity": false,
+  "product_version": "0.1.0-SNAPSHOT",
+  "toolchains": {
+    "root_jdk_version": "21.0.7+6",
+    "root_java_feature": 21,
+    "modern_jdk_version": "25.0.3+9",
+    "modern_java_feature": 25,
+    "root_gradle_version": "9.6.1",
+    "modern_gradle_version": "9.6.1"
+  },
+  "build_command_profile": "clean build localVerificationBundle; mcaceModernJavaHome supplied; offline; strict dependency verification; rerun tasks; no build cache; no configuration cache; no daemon; no parallel; max workers 1; plain console",
+  "windows_reproducibility": {
+    "run_a": {
+      "executed_gradle_tasks": 118,
+      "successful_gradle_tasks": 118,
+      "build_successful": true,
+      "witness_manifest_bytes": 1634,
+      "witness_manifest_sha256": "fd046a802105d1853988eb5bd862a88dd1645648699d3f32fbd5a804d4bc4948"
+    },
+    "run_d": {
+      "executed_gradle_tasks": 118,
+      "successful_gradle_tasks": 118,
+      "build_successful": true
+    },
+    "run_a_run_d_exact8_byte_parity": true
+  },
+  "test_results": {
+    "root": {
+      "test_suites": 147,
+      "tests": 669,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 28
+    },
+    "modern": {
+      "test_suites": 24,
+      "tests": 70,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "combined": {
+      "test_suites": 171,
+      "tests": 739,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 28
+    }
+  },
+  "exact8_bundle": {
+    "deployable_count": 6,
+    "bundle_entry_count": 8,
+    "run_a_run_d_byte_parity": true,
+    "windows_linux_names_sizes_sha256_parity": true,
+    "windows_linux_stream_byte_parity": true,
+    "entries": [
+      {
+        "file": "SHA256SUMS",
+        "bytes": 565,
+        "sha256": "d52dfd85571654d8c8ff6ef6497af50a35f3a7ddf4dab820696566c163e78ced"
+      },
+      {
+        "file": "mcace-client-fabric-1.21.11.jar",
+        "bytes": 3371048,
+        "sha256": "5f96f22d0e55cdc39065432b2bdfa9ac625f203a0066922be2d1356cc031186b"
+      },
+      {
+        "file": "mcace-client-fabric-26.1.2.jar",
+        "bytes": 3474535,
+        "sha256": "544fea2644812a374e475097bbc113565b0b174a6195c32e7e391c0c7c14c784"
+      },
+      {
+        "file": "mcace-client-fabric-26.2.jar",
+        "bytes": 3474533,
+        "sha256": "9316ad3e93146afdbeecf9df6ce1394c296cda668165113e0e304f1bb279f683"
+      },
+      {
+        "file": "mcace-server-bungeecord.jar",
+        "bytes": 3558880,
+        "sha256": "e557a17f47e654a84bd08cf7bd55911af4db99cf0367076221eb91f744c63695"
+      },
+      {
+        "file": "mcace-server-paper.jar",
+        "bytes": 5921029,
+        "sha256": "c9743d3e6e298588d9aabc8ee8d5478cd6a610e85ed7e750f919831fca141b97"
+      },
+      {
+        "file": "mcace-server-velocity.jar",
+        "bytes": 5012453,
+        "sha256": "c5f753f72da38d1f433e9470e493e9e151ae85cdb1b3c0e193fb9e6336c2b4cf"
+      },
+      {
+        "file": "release-manifest.properties",
+        "bytes": 1797,
+        "sha256": "89af030290e86ddbb3187f7921d92465f0fa8a8cd472f1277a231f991d9d76ae"
+      }
+    ]
+  },
+  "dependency_verification": {
+    "mode": "strict",
+    "offline": true,
+    "root": {
+      "metadata_file": "gradle/verification-metadata.xml",
+      "metadata_bytes": 340356,
+      "metadata_sha256": "4305da303c3298e593c3ac197cdc462246041e29aad69c7155bd016783017e3f",
+      "exact_trusted_artifact_rule_count": 47,
+      "regex_true_rule_count": 0
+    },
+    "modern": {
+      "metadata_file": "fabric-modern/gradle/verification-metadata.xml",
+      "metadata_bytes": 151574,
+      "metadata_sha256": "7b45c68df450a17ccfc04a6a7f97b24efde402e40c2a3d880125856aa8c33780",
+      "exact_trusted_artifact_rule_count": 2,
+      "regex_true_rule_count": 0
+    },
+    "checksum_verification_retained_for": [
+      "upstream artifacts",
+      "POM metadata",
+      "mapping artifacts",
+      "platform-native protoc binaries"
+    ]
+  },
+  "linux_network_none": {
+    "current_jdk21_jdk25_exact8_rehearsal": true,
+    "status": "PASSED_CURRENT_EXACT8_REHEARSAL",
+    "release_gate_current": true,
+    "witness_schema": "MCACE_POSTFIX_LINUX_DURABLE_FIELDS_V1",
+    "witness_bytes": 5173,
+    "witness_sha256": "c8740ccc51831a16a3925f107c863efd59e3b4102680ce4991230780c37ebbce",
+    "run_id": "5da33479484b4e39ac129941ffa0aaa2",
+    "source_snapshot": {
+      "file_count": 733,
+      "byte_count": 6184234,
+      "manifest_sha256": "8140d10df059c777de379e0f711476de38551c47e8b8629a059995dd3ec2b2d9",
+      "symlink_manifest_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "postrun_identical": true
+    },
+    "container": {
+      "platform": "linux/amd64",
+      "network_mode": "none",
+      "observed_interfaces": [
+        "lo"
+      ],
+      "root_image_digest": "sha256:c04e695e59a97337e87d55ebbe9f527aacec1504b78ffac2730475057a8ea465",
+      "root_image_id": "sha256:c04e695e59a97337e87d55ebbe9f527aacec1504b78ffac2730475057a8ea465"
+    },
+    "toolchains": {
+      "root_java_version": "21.0.7",
+      "root_java_runtime": "21.0.7+6-LTS",
+      "root_jdk_release_sha256": "6dac65972e3efca418e39c787b012f551481fb659bae2742ad5d0c714fbf7161",
+      "modern_java_version": "25.0.3",
+      "modern_java_runtime": "25.0.3+9-LTS",
+      "modern_image_digest": "sha256:735baf2edc6cd6485240144a84fa4db142b9a6f47b4eb4080f31058d200f9813",
+      "modern_image_id": "sha256:735baf2edc6cd6485240144a84fa4db142b9a6f47b4eb4080f31058d200f9813",
+      "modern_jdk_manifest_sha256": "ff2d1b5bf94ba4e41fb35eaba5479fe1042eaad1f28f5067057fd3250922ce39",
+      "modern_jdk_release_sha256": "f9e355e452f4756524edf1c452c34d34bfe2d27bf4c2917cb6ab033d3d711d37",
+      "gradle_version": "9.6.1"
+    },
+    "isolation": {
+      "offline": true,
+      "dependency_verification": "strict",
+      "rerun_tasks": true,
+      "fresh_source_scratch": true,
+      "fresh_disposable_cache": true,
+      "frozen_seed_read_only": true,
+      "frozen_seed_manifest_sha256": "9288f0c73fa5db1660f81b767cc16859edaaf33d282962b91cf40647f4031bb5",
+      "source_tree_read_only": true,
+      "modern_jdk_read_only": true,
+      "project_loom_cache_injected": false,
+      "build_cache": false,
+      "configuration_cache": false,
+      "parallel": false,
+      "max_workers": 1
+    },
+    "tasks": {
+      "root": {
+        "actionable": 118,
+        "executed": 105,
+        "up_to_date": 13
+      },
+      "modern": {
+        "actionable": 15,
+        "executed": 15,
+        "up_to_date": 0
+      }
+    },
+    "tests": {
+      "root": {
+        "suites": 147,
+        "tests": 669,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 33
+      },
+      "modern": {
+        "suites": 24,
+        "tests": 70,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "combined": {
+        "suites": 171,
+        "tests": 739,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 33
+      }
+    },
+    "skip_boundary": {
+      "hard_gate": false,
+      "windows_skipped": 28,
+      "linux_skipped": 33,
+      "delta": 5,
+      "delta_reason": "Linux isolated container has no external PostgreSQL service; five PostgresSecurityAuditRepositoryTest cases skip",
+      "groups": {
+        "CloudPostgresIntegrationTest": 2,
+        "LicensedVulcanApiCompatibilityGateTest": 1,
+        "FoliaDirectPlayerProbeTest": 1,
+        "MinecraftProxyPlayerProbeTest": 9,
+        "RealProxyDispositionMatrixGateTest": 15,
+        "PostgresSecurityAuditRepositoryTest": 5
+      }
+    },
+    "exact8": {
+      "count": 8,
+      "files": [
+        {
+          "file": "SHA256SUMS",
+          "bytes": 565,
+          "sha256": "d52dfd85571654d8c8ff6ef6497af50a35f3a7ddf4dab820696566c163e78ced"
+        },
+        {
+          "file": "mcace-client-fabric-1.21.11.jar",
+          "bytes": 3371048,
+          "sha256": "5f96f22d0e55cdc39065432b2bdfa9ac625f203a0066922be2d1356cc031186b"
+        },
+        {
+          "file": "mcace-client-fabric-26.1.2.jar",
+          "bytes": 3474535,
+          "sha256": "544fea2644812a374e475097bbc113565b0b174a6195c32e7e391c0c7c14c784"
+        },
+        {
+          "file": "mcace-client-fabric-26.2.jar",
+          "bytes": 3474533,
+          "sha256": "9316ad3e93146afdbeecf9df6ce1394c296cda668165113e0e304f1bb279f683"
+        },
+        {
+          "file": "mcace-server-bungeecord.jar",
+          "bytes": 3558880,
+          "sha256": "e557a17f47e654a84bd08cf7bd55911af4db99cf0367076221eb91f744c63695"
+        },
+        {
+          "file": "mcace-server-paper.jar",
+          "bytes": 5921029,
+          "sha256": "c9743d3e6e298588d9aabc8ee8d5478cd6a610e85ed7e750f919831fca141b97"
+        },
+        {
+          "file": "mcace-server-velocity.jar",
+          "bytes": 5012453,
+          "sha256": "c5f753f72da38d1f433e9470e493e9e151ae85cdb1b3c0e193fb9e6336c2b4cf"
+        },
+        {
+          "file": "release-manifest.properties",
+          "bytes": 1797,
+          "sha256": "89af030290e86ddbb3187f7921d92465f0fa8a8cd472f1277a231f991d9d76ae"
+        }
+      ],
+      "sha256sums_verified": true,
+      "release_manifest_verified": true,
+      "windows_names_sizes_sha256_identical": true,
+      "windows_stream_bytes_identical": true
+    },
+    "cleanup": {
+      "disposable_cache_removed": true,
+      "containers_remaining": 0,
+      "live_java_processes": 0,
+      "live_java_zero_stability_seconds": 60,
+      "frozen_seed_retained": true,
+      "exact_jdk25_retained": true,
+      "legacy_preexisting_cache_retained": true
+    },
+    "historical_record": "local-build-2026-08-13.json",
+    "historical_record_scope": "HISTORICAL_PRE_THREE_VERSION_EXACT8_BASELINE",
+    "historical_result_promoted_to_current": false
+  },
+  "external_gates": {
+    "exact_commit_ci": false,
+    "exact_commit_release_identity": false,
+    "current_linux_network_none_jdk21_jdk25_exact8": true,
+    "human_fabric_gui_consent_all_three_versions": false,
+    "real_fabric_federation_handoff": false,
+    "licensed_vulcan_structural_preflight_current_source": false,
+    "licensed_vulcan_paper_enablement": false,
+    "licensed_vulcan_real_event_delivery": false,
+    "server_confirmed_high_impact_process_producer": false
+  },
+  "sanitization": {
+    "absolute_path_value_count": 0,
+    "pid_value_count": 0,
+    "port_value_count": 0,
+    "uuid_value_count": 0,
+    "raw_log_or_test_xml_copied": false,
+    "external_witness_path_copied": false,
+    "container_path_copied": false,
+    "secret_material_copied": false
+  }
+}

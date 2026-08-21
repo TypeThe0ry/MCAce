@@ -7,6 +7,7 @@ import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.ellan.mcace.core.disposition.DispositionAction;
+import com.ellan.mcace.core.disposition.ObservationOrigin;
 import com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent;
 import com.ellan.mcace.core.proxy.ProxyPolicyRefreshStatus;
 import java.time.Clock;
@@ -38,6 +39,28 @@ final class BungeeDeferredDispositionRoutesTest {
         assertEquals(BungeeDeferredDispositionRoutes.Source.DISPOSITION, pending.source());
         assertTrue(routes.claimForReadyBackend(PLAYER, connection, ticket).isEmpty(),
                 "manual later switches cannot revive it");
+    }
+
+    @Test
+    void backendConnectingClosesOnlyTheExactCurrentLoginActionWindow() {
+        BungeeDeferredDispositionRoutes routes = routes();
+        Object connection = new Object();
+        BungeeDeferredDispositionRoutes.LoginTicket ticket = routes.beginLogin(PLAYER, connection);
+        assertEquals(Optional.of(ticket), routes.markBackendReady(PLAYER, connection));
+        assertTrue(routes.isReady(PLAYER, connection, ticket));
+
+        assertFalse(routes.markBackendConnecting(PLAYER, new Object(), ticket));
+        assertTrue(routes.isReady(PLAYER, connection, ticket),
+                "a stale connection identity cannot close the current action window");
+        assertFalse(routes.markBackendConnecting(
+                PLAYER, connection, new BungeeDeferredDispositionRoutes.LoginTicket(99L)));
+        assertTrue(routes.isReady(PLAYER, connection, ticket),
+                "a stale login ticket cannot close the current action window");
+
+        assertTrue(routes.markBackendConnecting(PLAYER, connection, ticket));
+        assertFalse(routes.isReady(PLAYER, connection, ticket));
+        assertEquals(Optional.of(ticket), routes.markBackendReady(PLAYER, connection));
+        assertTrue(routes.isReady(PLAYER, connection, ticket));
     }
 
     @Test
@@ -81,6 +104,8 @@ final class BungeeDeferredDispositionRoutesTest {
 
         assertTrue(routes.markDenied(PLAYER, "session-new", newConnection, newTicket));
         assertFalse(routes.permitRoute(PLAYER, "session-new", newConnection, newTicket));
+        assertFalse(routes.permitRoute(PLAYER, "replacement-session", newConnection, newTicket),
+                "session churn within one physical login cannot clear terminal DENY");
         assertFalse(routes.permitRoute(PLAYER, "session-old", oldConnection, oldTicket));
     }
 
@@ -149,6 +174,9 @@ final class BungeeDeferredDispositionRoutesTest {
     private static AuthenticatedManifestDispositionEvent event(String session, DispositionAction action) {
         return new AuthenticatedManifestDispositionEvent(
                 PLAYER, session, NOW, action, Optional.of("rule"), ProxyPolicyRefreshStatus.ACTIVE,
-                Optional.of("policy"), Optional.of(1L), Optional.of(NOW.plusSeconds(30)));
+                Optional.of("policy"), Optional.of(1L), Optional.of(NOW.plusSeconds(30)),
+                ObservationOrigin.SERVER_CONFIRMED,
+                Optional.of(UUID.fromString("00000000-0000-0000-0000-000000000099")),
+                Optional.empty(), Optional.of("33".repeat(32)));
     }
 }

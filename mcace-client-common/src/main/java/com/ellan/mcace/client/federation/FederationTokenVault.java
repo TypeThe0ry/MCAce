@@ -114,8 +114,20 @@ public final class FederationTokenVault implements AutoCloseable {
             PublicKey targetServerPublicKey,
             Clock clock,
             SecureRandom secureRandom) throws EnvelopeException {
+        Objects.requireNonNull(clock, "clock");
         Entry entry = activeFor(targetNetworkId, playerId);
         if (entry == null) {
+            return Optional.empty();
+        }
+        if (entry.binding.expiresAtEpochMs() <= clock.millis()) {
+            entries.remove(entry.binding.assertionId());
+            entry.clear();
+            return Optional.empty();
+        }
+        if (entry.boundTargetKeyVerified) {
+            // The exact short-lived grant may seed only one target connection. A retry must
+            // obtain a new visible source export instead of cloning the retained key into a
+            // second or stale connection.
             return Optional.empty();
         }
         if (!MessageDigest.isEqual(entry.binding.targetKeyId(), sha256(targetServerPublicKey.getEncoded()))) {
@@ -153,19 +165,45 @@ public final class FederationTokenVault implements AutoCloseable {
         byte[] encoded = FederationDocuments.encode(presentation);
         entry.presentationBytes = encoded.clone();
         entry.reserved = true;
-        return Optional.of(new PreparedPresentation(entry.binding.assertionId(), encoded));
+        PreparedPresentation prepared = new PreparedPresentation(
+                entry.binding.assertionId(),
+                entry.binding.sourceNetworkId(),
+                entry.binding.targetNetworkId(),
+                entry.binding.sourceKeyId(),
+                entry.binding.targetKeyId(),
+                entry.binding.disclosure(),
+                entry.binding.issuedAtEpochMs(),
+                entry.binding.expiresAtEpochMs(),
+                encoded);
+        entry.reservation = prepared;
+        return Optional.of(prepared);
     }
 
     /** Atomically burns a grant after its exact prepared presentation has been handed to transport. */
     public synchronized boolean commit(PreparedPresentation prepared) {
+        return burn(prepared);
+    }
+
+    /** Burns only the exact visible-prompt capability after an explicit Decline or close action. */
+    public synchronized boolean decline(PreparedPresentation prepared) {
+        return burn(prepared);
+    }
+
+    /** Checks that the exact object shown to the player is still reserved and unexpired. */
+    public synchronized boolean isReserved(PreparedPresentation prepared, Clock clock) {
         Objects.requireNonNull(prepared, "prepared");
+        Objects.requireNonNull(clock, "clock");
+        purgeExpired();
         Entry entry = entries.get(prepared.assertionId);
-        if (entry == null || !entry.reserved || !Arrays.equals(entry.presentationBytes, prepared.encoded)) {
+        if (entry == null || !entry.reserved || entry.reservation != prepared
+                || !Arrays.equals(entry.presentationBytes, prepared.encoded)) {
             return false;
         }
-        entries.remove(prepared.assertionId);
-        entry.clear();
-        prepared.clear();
+        if (prepared.expiresAtEpochMs <= clock.millis()) {
+            entries.remove(prepared.assertionId);
+            entry.clear();
+            return false;
+        }
         return true;
     }
 
@@ -175,11 +213,29 @@ public final class FederationTokenVault implements AutoCloseable {
             return;
         }
         Entry entry = entries.get(prepared.assertionId);
-        if (entry != null && entry.reserved && Arrays.equals(entry.presentationBytes, prepared.encoded)) {
+        if (entry != null && entry.reserved && entry.reservation == prepared
+                && Arrays.equals(entry.presentationBytes, prepared.encoded)) {
+            Arrays.fill(entry.presentationBytes, (byte) 0);
+            entry.presentationBytes = new byte[0];
             entry.reserved = false;
+            entry.reservation = null;
         }
         prepared.clear();
         purgeExpired();
+    }
+
+    private boolean burn(PreparedPresentation prepared) {
+        Objects.requireNonNull(prepared, "prepared");
+        purgeExpired();
+        Entry entry = entries.get(prepared.assertionId);
+        if (entry == null || !entry.reserved || entry.reservation != prepared
+                || !Arrays.equals(entry.presentationBytes, prepared.encoded)) {
+            prepared.clear();
+            return false;
+        }
+        entries.remove(prepared.assertionId);
+        entry.clear();
+        return true;
     }
 
     public synchronized void revoke(String assertionId) {
@@ -189,9 +245,57 @@ public final class FederationTokenVault implements AutoCloseable {
         }
     }
 
+    /**
+     * Advances the volatile handoff lifecycle without destroying a just-exported source grant.
+     *
+     * <p>An unclaimed grant may cross exactly one source disconnect so the player can join its
+     * signed target. A claimed target connection, a reserved target prompt, or a second unrelated
+     * disconnect clears the entry. This never creates storage or a transport of its own.
+     */
+    public synchronized void onConnectionClosed() {
+        purgeExpired();
+        Iterator<Entry> iterator = entries.values().iterator();
+        while (iterator.hasNext()) {
+            Entry entry = iterator.next();
+            if (entry.boundTargetKeyVerified || entry.sourceConnectionClosed) {
+                iterator.remove();
+                entry.clear();
+            } else {
+                entry.sourceConnectionClosed = true;
+            }
+        }
+    }
+
+    /** Clears a target connection claim after authentication or handoff aborts. */
+    public synchronized void cancelTargetClaims() {
+        purgeExpired();
+        Iterator<Entry> iterator = entries.values().iterator();
+        while (iterator.hasNext()) {
+            Entry entry = iterator.next();
+            if (entry.boundTargetKeyVerified) {
+                iterator.remove();
+                entry.clear();
+            }
+        }
+    }
+
     public synchronized void clear() {
         entries.values().forEach(Entry::clear);
         entries.clear();
+    }
+
+    /** Eagerly drops expired key material while the client remains on a title or consent screen. */
+    public synchronized void discardExpired(Clock clock) {
+        Objects.requireNonNull(clock, "clock");
+        purgeExpired();
+        Iterator<Entry> iterator = entries.values().iterator();
+        while (iterator.hasNext()) {
+            Entry entry = iterator.next();
+            if (entry.binding.expiresAtEpochMs() <= clock.millis()) {
+                iterator.remove();
+                entry.clear();
+            }
+        }
     }
 
     public synchronized int size() {
@@ -267,12 +371,49 @@ public final class FederationTokenVault implements AutoCloseable {
     /** Opaque prepared bytes; its constructor and contents are never externally mutable. */
     public static final class PreparedPresentation {
         private final String assertionId;
+        private final String sourceNetworkId;
+        private final String targetNetworkId;
+        private final byte[] sourceKeyId;
+        private final byte[] targetKeyId;
+        private final String disclosure;
+        private final long issuedAtEpochMs;
+        private final long expiresAtEpochMs;
         private byte[] encoded;
 
-        private PreparedPresentation(String assertionId, byte[] encoded) {
+        private PreparedPresentation(
+                String assertionId,
+                String sourceNetworkId,
+                String targetNetworkId,
+                byte[] sourceKeyId,
+                byte[] targetKeyId,
+                String disclosure,
+                long issuedAtEpochMs,
+                long expiresAtEpochMs,
+                byte[] encoded) {
             this.assertionId = assertionId;
+            this.sourceNetworkId = sourceNetworkId;
+            this.targetNetworkId = targetNetworkId;
+            this.sourceKeyId = sourceKeyId.clone();
+            this.targetKeyId = targetKeyId.clone();
+            this.disclosure = disclosure;
+            this.issuedAtEpochMs = issuedAtEpochMs;
+            this.expiresAtEpochMs = expiresAtEpochMs;
             this.encoded = encoded.clone();
         }
+
+        public String sourceNetworkId() { return sourceNetworkId; }
+
+        public String targetNetworkId() { return targetNetworkId; }
+
+        public byte[] sourceKeyId() { return sourceKeyId.clone(); }
+
+        public byte[] targetKeyId() { return targetKeyId.clone(); }
+
+        public String disclosure() { return disclosure; }
+
+        public long issuedAtEpochMs() { return issuedAtEpochMs; }
+
+        public long expiresAtEpochMs() { return expiresAtEpochMs; }
 
         public byte[] encoded() {
             return encoded.clone();
@@ -291,7 +432,9 @@ public final class FederationTokenVault implements AutoCloseable {
         private final long monotonicDeadlineMillis;
         private boolean reserved;
         private boolean boundTargetKeyVerified;
+        private boolean sourceConnectionClosed;
         private byte[] presentationBytes = new byte[0];
+        private PreparedPresentation reservation;
 
         private Entry(GrantBinding binding, FederationGrant grant, KeyPair sourceSessionKeyPair,
                 long monotonicDeadlineMillis) {
@@ -306,10 +449,15 @@ public final class FederationTokenVault implements AutoCloseable {
             // reachable reference immediately and zero the only vault-owned presentation copy.
             Arrays.fill(presentationBytes, (byte) 0);
             presentationBytes = new byte[0];
+            if (reservation != null) {
+                reservation.clear();
+                reservation = null;
+            }
             grant = null;
             sourceSessionKeyPair = null;
             reserved = false;
             boundTargetKeyVerified = false;
+            sourceConnectionClosed = false;
         }
     }
 
@@ -319,11 +467,18 @@ public final class FederationTokenVault implements AutoCloseable {
             String targetNetworkId,
             String sourceSessionId,
             String assertionId,
+            String disclosure,
+            long issuedAtEpochMs,
             long expiresAtEpochMs,
+            byte[] sourceKeyId,
             byte[] targetKeyId) {
         private GrantBinding {
+            sourceKeyId = sourceKeyId.clone();
             targetKeyId = targetKeyId.clone();
         }
+
+        @Override
+        public byte[] sourceKeyId() { return sourceKeyId.clone(); }
 
         @Override
         public byte[] targetKeyId() { return targetKeyId.clone(); }
@@ -356,6 +511,22 @@ public final class FederationTokenVault implements AutoCloseable {
                     || !consent.getPlayerUuid().equals(assertion.getPlayerUuid())
                     || !consent.getLocalAuthenticatedSessionId().equals(assertion.getLocalAuthenticatedSessionId())
                     || !consent.getAssertionId().equals(assertion.getAssertionId())
+                    || !MessageDigest.isEqual(consent.getAssertionNonce().toByteArray(),
+                            assertion.getAssertionNonce().toByteArray())
+                    || consent.getIssuedAtEpochMs() != assertion.getIssuedAtEpochMs()
+                    || consent.getExpiresAtEpochMs() != assertion.getExpiresAtEpochMs()
+                    || !consent.getPolicyVersion().equals(assertion.getPolicyVersion())
+                    || !MessageDigest.isEqual(consent.getPolicySha256().toByteArray(),
+                            assertion.getPolicySha256().toByteArray())
+                    || !consent.getDisclosure().equals(assertion.getDisclosure())
+                    || !MessageDigest.isEqual(consent.getSourceKeyIdSha256().toByteArray(),
+                            assertion.getSourceKeyIdSha256().toByteArray())
+                    || !MessageDigest.isEqual(consent.getSourceKeyIdSha256().toByteArray(),
+                            grant.getSignedAssertion().getSourceKeyIdSha256().toByteArray())
+                    || !MessageDigest.isEqual(consent.getTargetKeyIdSha256().toByteArray(),
+                            assertion.getTargetKeyIdSha256().toByteArray())
+                    || !MessageDigest.isEqual(consent.getClientPublicKeySha256().toByteArray(),
+                            sha256(expectedClientPublicKey.getEncoded()))
                     || !MessageDigest.isEqual(consent.getClientPublicKeySha256().toByteArray(),
                             assertion.getClientPublicKeySha256().toByteArray())
                     || !MessageDigest.isEqual(sha256(consent.toByteArray()),
@@ -365,7 +536,10 @@ public final class FederationTokenVault implements AutoCloseable {
             return new GrantBinding(player, requireText(consent.getSourceNetworkId(), "source network id"),
                     requireText(consent.getTargetNetworkId(), "target network id"),
                     requireText(consent.getLocalAuthenticatedSessionId(), "source session id"),
-                    requireText(consent.getAssertionId(), "assertion id"), consent.getExpiresAtEpochMs(),
+                    requireText(consent.getAssertionId(), "assertion id"),
+                    requireDisclosure(consent.getDisclosure()), consent.getIssuedAtEpochMs(),
+                    consent.getExpiresAtEpochMs(),
+                    requiredSha256(consent.getSourceKeyIdSha256().toByteArray(), "source key id"),
                     requiredSha256(consent.getTargetKeyIdSha256().toByteArray(), "target key id"));
         }
 
@@ -382,6 +556,13 @@ public final class FederationTokenVault implements AutoCloseable {
                 throw new FederationException("invalid federation " + label);
             }
             return value.clone();
+        }
+
+        private static String requireDisclosure(String disclosure) throws FederationException {
+            if (!FederationDocuments.MINIMAL_DISCLOSURE.equals(disclosure)) {
+                throw new FederationException("invalid federation disclosure");
+            }
+            return disclosure;
         }
     }
 }

@@ -1,27 +1,89 @@
 # Fabric compatibility matrix
 
-This matrix is an allowlist, not a claim that all Minecraft 1.21 releases are
-binary-compatible. A version becomes supported only after the exact Loom build,
-unit suite, real Fabric handshake smoke, and evidence cancellation/consent tests
-pass for that version.
+This is an exact allowlist. MCAce does not infer compatibility from a nearby
+Minecraft release, a broad `1.21.x` range, or a successful server-only run.
 
-| Minecraft | Yarn | Fabric Loader | Fabric API | Status | Runtime evidence |
-| --- | --- | --- | --- | --- | --- |
-| 1.21.1 | 1.21.1+build.3 | 0.19.3 | 0.116.15+1.21.1 | Supported | Fabric → Velocity → Paper signed handshake and bounded evidence harness |
-| Other 1.21.x | — | — | — | Not supported until an exact row passes | No compatibility claim |
+| Minecraft | Namespace / artifact | Java | Fabric Loader | Fabric API | Packaging state | Remaining GUI gate |
+| --- | --- | ---: | --- | --- | --- | --- |
+| `1.21.11` | Yarn/remapped; final `remapJar` | 21 | `0.19.3` | `0.141.6+1.21.11` | Build, final-artifact isolation, package verification, and post-fix server matrix passed | Explicit-file prompt plus one `GAME_RENDER_FRAME` prompt must be clicked in a visible client |
+| `26.1.2` | Official named namespace; final named JAR | 25 | `0.19.3` | `0.155.2+26.1.2` | Build, final-artifact isolation, package verification, and post-fix server matrix passed | Same two visible consent decisions |
+| `26.2` | Official named namespace; final named JAR | 25 | `0.19.3` | `0.157.0+26.2` | Build, final-artifact isolation, package verification, and post-fix server matrix passed | Same two visible consent decisions |
+
+The current server-process claim is the August 20 Execute+ReportOnly 12/12
+record at
+[`evidence/server-version-process-matrix-2026-08-20.json`](evidence/server-version-process-matrix-2026-08-20.json).
+It binds 675 current source files, all three exact protocol profiles, and the
+reviewed upstream artifacts. Paper 26.2 is STABLE; only the two Folia 26.2
+combinations use the upstream BETA lane.
+
+The root build is configured and executed by JDK `21.0.7+6`. The isolated
+`fabric-modern/` composite is configured and executed by JDK `25.0.3+9`; it
+must not inherit the root Java runtime. Both use Gradle `9.6.1`. The 26.x
+projects use Mojang's official named namespace and publish their final named JAR
+directly. The 1.21.11 project remains a Loom remap build and publishes the final
+remapped JAR.
+
+Each generated `fabric.mod.json` pins its own Minecraft and Fabric API tuple and
+requires Fabric Loader `>=0.19.3`; every documented release tuple is built and
+process-tested with Loader `0.19.3`. The build opens each deployable, checks the
+embedded common/core/SDK/protocol dependencies, rejects unresolved production
+class references and metadata placeholders, and verifies that the run-specific
+build ID is present. The GUI harness then requires the loaded entrypoint's
+`CodeSource` SHA-256 to equal the pre-launch final-artifact hash. Development
+output directories and fallback MCAce JARs cannot satisfy artifact mode.
+
+## GUI consent gate
+
+The authoritative GUI wrapper always requires an explicit target:
+
+```powershell
+# Server/process startup without the graphical client. This has passed for all three targets.
+.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2
+
+# Human-visible consent gate. Run each target separately on an unlocked desktop.
+.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2 -WithFabricEvidence
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2 -WithFabricEvidence
+```
+
+All three Mojang version manifests, asset indexes, and asset-object sets are
+already present in the verified local cache. That removes asset download as a
+blocker. It does not replace the human gate: each target needs one visible
+explicit-file decision and one separate visible frame decision, for six human
+clicks total. Automation must not manufacture those decisions.
+
+A passing retained pair uses report schema `6` and binding schema
+`MCACE_FABRIC_GUI_EVIDENCE_BINDING_V4`. `-ReportOnly` also requires
+`-FabricTarget` plus independently reviewed SHA-256 values for the Fabric
+artifact, both MCAce server plugins, Velocity, Paper, the prepared Paper tree,
+and the target's Minecraft asset bindings. It also binds the exact rewritten
+Velocity policy values in `velocity_policy_minecraft_versions` and
+`velocity_policy_client_build_ids`. The 1.21.11 record must identify
+`FINAL_REMAP_JAR` / `LOOM_FINAL_REMAP_ARTIFACT`; both 26.x records must identify
+`FINAL_NAMED_JAR` / `LOOM_FINAL_NAMED_JAR_ARTIFACT`.
 
 ## Release identity contract
 
-- Build with `-PmcaceClientBuildId=<immutable-release-id>`.
-- The processed `fabric.mod.json` contains the project version and build ID.
-- The Mod reads its own processed metadata and the loaded Minecraft metadata; it
-  does not use hard-coded source literals in the signed hello.
-- Velocity and Bungee must sign policies containing the exact Minecraft version
-  and build ID. Version/build migration may temporarily list both reviewed
-  releases, but every list is bounded and duplicates are rejected.
+- Local dirty-worktree verification uses `localVerificationBundle`; its manifest
+  is `MCACE_LOCAL_VERIFICATION_BUNDLE_V1`, records
+  `source_commit=LOCAL_UNSPECIFIED`, and is never release identity.
+- A release candidate uses `releaseBundle` with
+  `-PmcaceSourceCommit=<40-lowercase-hex-HEAD>`. The task requires a clean
+  tracked and untracked worktree and exact equality with `git rev-parse HEAD`.
+- Every Fabric target receives its own immutable build ID:
+  `fabric-1.21.11-<commit>`, `fabric-26.1.2-<commit>`, or
+  `fabric-26.2-<commit>`.
+- Velocity policy allowlists must name exact Minecraft versions and build IDs; a
+  staged migration may use bounded, duplicate-free reviewed lists. Bungee's
+  built-in configuration accepts one exact Minecraft version and one exact build
+  ID per proxy configuration, so select the target-matched tuple there rather
+  than using comma-separated values.
 - Reusing one build ID for different JAR bytes is an operator release error. The
-  authenticated mod-manifest SHA-256 remains the independent content observation.
+  authenticated manifest/content-root remains a separate observation.
 
-Adding a row requires updating the Loom dependency tuple, running the complete
-Fabric/common/protocol suite, and recording a real process smoke report. Merely
-changing the policy allowlist does not make an untested version supported.
+Adding a target requires an exact dependency tuple, a final-artifact verification
+task, the complete client/common/protocol suite, all four real proxy/backend
+matrix cases for that version, server-only platform startup, and the two visible
+consent decisions. Editing only a policy allowlist does not add support.

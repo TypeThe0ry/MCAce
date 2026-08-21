@@ -1,0 +1,65 @@
+{
+  "schema": "MCACE_VULCAN_LICENSED_API_PREFLIGHT_EVIDENCE_V1",
+  "source_mode": "EXECUTED_AND_REPORT_ONLY_VALIDATED",
+  "artifact": {
+    "sha256": "7ee3a4fdd7e9da5269f9efc327478e507563e6e7df7abec2222acd3b499bc993",
+    "size": 3820392,
+    "plugin_name": "Vulcan",
+    "plugin_version": "2.9.0"
+  },
+  "structural_api_report": {
+    "schema": "VULCAN_LICENSED_API_COMPATIBILITY",
+    "generated_at": "2026-08-13T00:26:53.837158700Z",
+    "failure_stage": "NONE",
+    "event_type": "me.frep.vulcan.api.event.VulcanFlagEvent",
+    "player_accessor": "getPlayer",
+    "check_accessor": "getCheck",
+    "check_name_accessor": "getName",
+    "stable_check_accessor": "getName",
+    "event_violation_accessor": "none",
+    "check_violation_accessor": "getVl",
+    "passed": true
+  },
+  "binding": {
+    "schema": "VULCAN_LICENSED_API_COMPATIBILITY_BINDING_V1",
+    "source_mode": "EXECUTED",
+    "report_name": "report.json",
+    "report_generated_at": "2026-08-13T00:26:53.837158700Z",
+    "report_sha256": "8cdbdf7e095745ead6593aa99cbc450652f8ae0154ea80a892d172416f23444f",
+    "source_manifest_sha256": "28aff36ddd8c049406031310a860e13f1ca8c0c91f2fc03c1b7adac3f760002e",
+    "source_file_count": 651,
+    "gradle_version": "9.6.1",
+    "gradle_distribution_sha256": "9c0f7faeeb306cb14e4279a3e084ca6b596894089a0638e68a07c945a32c9e14",
+    "gradle_command_sha256": "619717e564dc38320e4a73f615cc6c45931ac25f6df0567b303dddd7e7cad9f7",
+    "gradle_launcher_sha256": "d20e0cee243419ef001d2c3646acfc603447d2ce585b03f204afaa6caa898acd",
+    "gradle_core_sha256": "c352d684342fd477131368e6bc2149caf9ba2fd5fca975fc4b8678a549f0d16c",
+    "gradle_installation_manifest_sha256": "2ab0e9ad5a244ae5ac379a0d6c587b020f06ca291f9822cd2b353332a92d6043",
+    "gradle_installation_file_count": 701,
+    "gradle_installation_directory_count": 6,
+    "java_executable_sha256": "9f8d9893143b74849253c1fc323d095bfbf6dc9c7761caa9c5b62d44d9ee21e1",
+    "java_file_version": "21.0.7.0",
+    "java_major": 21,
+    "gradle_task": ":mcace-server-paper:test",
+    "test_selector": "com.ellan.mcace.paper.behavior.LicensedVulcanApiCompatibilityGateTest.validatesExplicitlySuppliedLicensedArtifactWithoutCopyingIt",
+    "gradle_offline": true
+  },
+  "coverage": {
+    "artifact_path_recorded": false,
+    "artifact_copied_or_redistributed": false,
+    "paper_process_coverage": false,
+    "licensed_plugin_enablement_coverage": false,
+    "real_behavior_event_delivery_coverage": false,
+    "report_only_validated": true
+  },
+  "limitations": [
+    "STRUCTURAL_PREFLIGHT_ONLY"
+  ],
+  "sanitization": {
+    "artifact_path_copied": false,
+    "run_identifier_copied": false,
+    "absolute_path_value_count": 0,
+    "uuid_value_count": 0,
+    "proprietary_artifact_bytes_copied": false
+  },
+  "release_status": "NOT_RUNTIME_OR_RELEASE_READY"
+}

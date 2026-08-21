@@ -18,12 +18,14 @@ public final class ProxyAdapterTransportContract {
     public enum InboundDecision {
         IGNORE,
         CONSUME_ONLY,
+        BACKEND_CONTEXT,
         CLIENT_AUTH
     }
 
     public enum FrameKind {
         UNOWNED,
         ADMISSION,
+        BACKEND_CONTEXT,
         PAYLOAD,
         HANDSHAKE,
         HEARTBEAT,
@@ -39,6 +41,9 @@ public final class ProxyAdapterTransportContract {
         FrameKind channelKind = classifyChannel(channel);
         if (channelKind == FrameKind.UNOWNED) {
             return InboundDecision.IGNORE;
+        }
+        if (channelKind == FrameKind.BACKEND_CONTEXT) {
+            return playerSource ? InboundDecision.CONSUME_ONLY : InboundDecision.BACKEND_CONTEXT;
         }
         if (!playerSource || channelKind == FrameKind.ADMISSION) {
             return InboundDecision.CONSUME_ONLY;
@@ -56,6 +61,9 @@ public final class ProxyAdapterTransportContract {
         }
         if (ProtocolConstants.ADMISSION_CHANNEL.equals(channel)) {
             return FrameKind.ADMISSION;
+        }
+        if (ProtocolConstants.BACKEND_CONTEXT_CHANNEL.equals(channel)) {
+            return FrameKind.BACKEND_CONTEXT;
         }
         return FrameKind.UNOWNED;
     }

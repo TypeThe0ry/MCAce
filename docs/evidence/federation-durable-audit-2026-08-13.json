@@ -1,0 +1,204 @@
+{
+  "schema": "MCACE_SANITIZED_COMMITTED_EVIDENCE_ENVELOPE_V2",
+  "evidence_kind": "FEDERATION_MATRIX_AND_TARGET_RESTART",
+  "source_mode": "EXECUTED_AND_REPORT_ONLY_VALIDATED",
+  "matrix": {
+    "generated_at": "2026-08-13T18:28:17.1151518+00:00",
+    "report_only_validation": {
+      "passed": true,
+      "maximum_report_age_minutes": 1440
+    },
+    "commit_chain": {
+      "committed": true,
+      "report_schema": "MCACE_FEDERATION_PROXY_MATRIX_EXECUTED_V3",
+      "binding_schema": "MCACE_FEDERATION_PROXY_MATRIX_BINDING_V1",
+      "commit_schema": "MCACE_FEDERATION_PROXY_MATRIX_COMMIT_V1",
+      "report_sha256": "a8241fd12d232963bc7d1f745302d937984eccd7795d69cb0940e096a893bc2b",
+      "binding_sha256": "a3a7cc43ddcb4fcdd5b9ebba9bbe33b1e67578e47946fe68e0cf5b6dcc678061",
+      "commit_sha256": "f672345c34aa8cfbe776dcee206c9976668e977f6bf594d865c7b14d2c02d66d",
+      "binding_report_sha_matches": true,
+      "commit_report_sha_matches": true,
+      "commit_binding_sha_matches": true
+    },
+    "summary": {
+      "pair_scope": "ALL",
+      "expected_case_count": 4,
+      "observed_case_count": 4,
+      "all_cases_passed": true,
+      "matrix_completed": true,
+      "transfer_model": "CLIENT_CARRIED_PROCESS_MEMORY_ONLY",
+      "source_to_target_broker_present": false,
+      "explicit_consent_required": true,
+      "same_process_replay_rejection_covered": true,
+      "durable_audit_health_covered": true,
+      "target_restart_residual_covered": false,
+      "fabric_gui_coverage": false
+    },
+    "cases": [
+      {
+        "pair": "VelocityToVelocity",
+        "source_proxy": "VELOCITY",
+        "target_proxy": "VELOCITY",
+        "source_authenticated": true,
+        "target_locally_authenticated": true,
+        "presentation_shape_valid": true,
+        "target_observed": true,
+        "same_assertion_replay_rejected": true,
+        "source_audit_healthy": true,
+        "target_audit_healthy": true,
+        "local_trust_risk_admission_unchanged": true,
+        "target_paper_admission_verified": true,
+        "passed": true,
+        "raw_report_sha256": "6b5ce41caba3f487f69765b7d230445b5e1569fb49ed9efe08b7fcad0c688681"
+      },
+      {
+        "pair": "VelocityToBungee",
+        "source_proxy": "VELOCITY",
+        "target_proxy": "BUNGEE",
+        "source_authenticated": true,
+        "target_locally_authenticated": true,
+        "presentation_shape_valid": true,
+        "target_observed": true,
+        "same_assertion_replay_rejected": true,
+        "source_audit_healthy": true,
+        "target_audit_healthy": true,
+        "local_trust_risk_admission_unchanged": true,
+        "target_paper_admission_verified": true,
+        "passed": true,
+        "raw_report_sha256": "f38ccc25445249c610120ea592fb0fcfa53c07263df6aa2682fd2c274120cf73"
+      },
+      {
+        "pair": "BungeeToVelocity",
+        "source_proxy": "BUNGEE",
+        "target_proxy": "VELOCITY",
+        "source_authenticated": true,
+        "target_locally_authenticated": true,
+        "presentation_shape_valid": true,
+        "target_observed": true,
+        "same_assertion_replay_rejected": true,
+        "source_audit_healthy": true,
+        "target_audit_healthy": true,
+        "local_trust_risk_admission_unchanged": true,
+        "target_paper_admission_verified": true,
+        "passed": true,
+        "raw_report_sha256": "7bcdfa96f99c4dd8165edaa332801c64e7c804ce74bf736a82d0fb1acf1d86ca"
+      },
+      {
+        "pair": "BungeeToBungee",
+        "source_proxy": "BUNGEE",
+        "target_proxy": "BUNGEE",
+        "source_authenticated": true,
+        "target_locally_authenticated": true,
+        "presentation_shape_valid": true,
+        "target_observed": true,
+        "same_assertion_replay_rejected": true,
+        "source_audit_healthy": true,
+        "target_audit_healthy": true,
+        "local_trust_risk_admission_unchanged": true,
+        "target_paper_admission_verified": true,
+        "passed": true,
+        "raw_report_sha256": "10b850b4e94f2b4377f51a3f7ab0a4f609bc97a42ace5ffae6b56c9d600e6eac"
+      }
+    ]
+  },
+  "target_restart": {
+    "generated_at": "2026-08-13T17:27:07.6731142+00:00",
+    "report_only_validation": {
+      "passed": true,
+      "maximum_report_age_minutes": 1440
+    },
+    "commit_chain": {
+      "committed": true,
+      "report_schema": "MCACE_FEDERATION_TARGET_RESTART_EXECUTED_V2",
+      "binding_schema": "MCACE_FEDERATION_TARGET_RESTART_BINDING_V1",
+      "commit_schema": "MCACE_FEDERATION_TARGET_RESTART_COMMIT_V1",
+      "report_sha256": "17fac35bbb89b7699e66946ae0776debc39b56793315132888c0e6d8208f2eca",
+      "binding_sha256": "f2bf762fc6bdbd76a77ba3935fcfbaa5e36786b206fbdcddecdf19d8a3037051",
+      "commit_sha256": "def420cd67e46a4a584ff64ba73591d5d08a3db75a7a649c898254c9d921bbfb",
+      "binding_report_sha_matches": true,
+      "commit_report_sha_matches": true,
+      "commit_binding_sha_matches": true
+    },
+    "attempts": 1,
+    "attempt_history": [
+      {
+        "ordinal": 1,
+        "outcome": "FIRST_EXECUTION_AND_REPORT_ONLY_PASS",
+        "committed": true,
+        "passed": true,
+        "raw_report_sha256": "a66091b1165d3f7b408dc82b6aa27610823e8eed6f0456dbdf088efd7a40f363"
+      }
+    ],
+    "summary": {
+      "source_proxy": "VELOCITY",
+      "target_proxy": "VELOCITY",
+      "source_authenticated": true,
+      "grant_stored_in_memory_test_harness": true,
+      "source_client_disconnected_before_target_auth": true,
+      "first_target_locally_authenticated": true,
+      "first_target_observed": true,
+      "old_target_proxy_terminated": true,
+      "target_paper_kept_running": true,
+      "target_identity_preserved": true,
+      "target_federation_config_preserved": true,
+      "restarted_target_locally_authenticated": true,
+      "target_session_changed": true,
+      "target_challenge_changed": true,
+      "old_outer_session_rejected": true,
+      "old_session_proof_rejected": true,
+      "invalid_old_proofs_no_observation": true,
+      "target_restart_residual_reobserved": true,
+      "residual_reacceptance": true,
+      "post_restart_same_process_replay_rejected": true,
+      "residual_is_observation_only": true,
+      "durable_replay_protection": false,
+      "test_only_retained_grant_or_source_session_key_written_to_disk": false,
+      "local_trust_risk_admission_unchanged": true,
+      "target_paper_admission_verified": true,
+      "content_free_audit": true,
+      "source_audit_healthy": true,
+      "target_audit_healthy": true,
+      "temporary_proxy_private_keys_removed": true,
+      "fabric_gui_coverage": false,
+      "limitations_count": 0,
+      "cleanup_process_count": 5,
+      "remaining_run_process_count": 0,
+      "passed": true,
+      "raw_report_sha256": "a66091b1165d3f7b408dc82b6aa27610823e8eed6f0456dbdf088efd7a40f363"
+    }
+  },
+  "binding_summary": {
+    "matrix_source_manifest_sha256": "c031bb1630cf3539fe12fd0936b2d4810f2bec4a30eb00e878c6cd0952da2033",
+    "restart_source_manifest_sha256": "b81ad5ab431867219ef261d4a310d2f4dac35559afa1138de42d86f35be051c9",
+    "source_file_count": 624,
+    "matrix_wrapper_sha256": "a05401bcfdd439acc1c6111046f70a6a4924a02518c7f630e7941a0e3838ae2f",
+    "restart_wrapper_sha256": "10cbce6f3a41fe58bd1a4af471faeff7499280952abecba262d2507981f7c12f",
+    "deployable_jars": {
+      "velocity_sha256": "cdbb5380616a00ee1f5cf6a5516ab7189c4bce57ea3bd1fa896283e8b04cde8c",
+      "bungee_sha256": "4f1c270da246e9251bb467144f72ad4538b1c5cfd71187b76075af386e1e85bf",
+      "paper_sha256": "c9743d3e6e298588d9aabc8ee8d5478cd6a610e85ed7e750f919831fca141b97"
+    },
+    "platform_assets": {
+      "velocity_server_sha256": "b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3",
+      "bungee_server_sha256": "45a5aa27b9f2446c320447148913aee5673ec23ddf30c81d6dafa9dd910a91eb",
+      "paper_server_sha256": "39bd8c00b9e18de91dcabd3cc3dcfa5328685a53b7187a2f63280c22e2d287b9",
+      "paper_prepared_manifest_sha256": "d5a7ea74cb7820a56391dddd356494898c5a6e8d4a1d35dc2e1b6395bdb13c32",
+      "paper_prepared_file_count": 105
+    },
+    "runtime": {
+      "java_executable_sha256": "9f8d9893143b74849253c1fc323d095bfbf6dc9c7761caa9c5b62d44d9ee21e1",
+      "java_file_version": "21.0.7.0",
+      "java_major": 21,
+      "gradle_version": "9.6.1",
+      "gradle_distribution_sha256": "9c0f7faeeb306cb14e4279a3e084ca6b596894089a0638e68a07c945a32c9e14"
+    }
+  },
+  "sanitization": {
+    "raw_report_paths_copied": false,
+    "identity_values_copied": false,
+    "process_ids_copied": false,
+    "network_endpoints_copied": false,
+    "absolute_paths_copied": false,
+    "raw_limitation_text_copied": false
+  }
+}

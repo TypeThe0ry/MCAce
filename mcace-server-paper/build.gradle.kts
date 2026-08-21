@@ -28,6 +28,16 @@ tasks.jar {
     archiveClassifier.set("plain")
 }
 
+tasks.test {
+    listOf(
+        "mcace.vulcan.compatibility.enabled",
+        "mcace.vulcan.compatibility.jar",
+        "mcace.vulcan.compatibility.report",
+    ).forEach { key ->
+        System.getProperty(key)?.let { value -> systemProperty(key, value) }
+    }
+}
+
 tasks.build {
     dependsOn(tasks.shadowJar)
 }

@@ -38,18 +38,131 @@ the current connection only; it never bans the player, crosses a reconnect
 boundary, imposes later punishment, or requests evidence automatically.
 
 Execution fails closed when the policy is malformed, expired, revoked, or has no
-winning rule; when the event is late or bound to a stale session; or when the
-current admission is not `VERIFIED`. Duplicate deliveries cannot repeat an action,
-and bounded queue/cache limits prevent an untrusted event stream from creating an
-unbounded executor state. Evidence refusal, unsupported scope, decline, expiry,
-transfer failure, or missing content is not a disposition trigger. Client evidence
-remains `CLIENT_REPORTED` and cannot independently justify punishment.
+winning rule; when the event is late or bound to a stale session; when the current
+admission is not `VERIFIED`; or when a high-impact event lacks a durable trusted
+authorization ID and its session, review-input, and execution-context commitments.
+Within one physical-lifecycle and policy-atomic boundary immediately before action,
+the proxy revalidates the exact current session, `VERIFIED` admission, exact context
+commitment, active policy identity/status/expiry, current winning rule, and that
+`rule.action` equals the event action. Duplicate deliveries cannot repeat an action, and bounded
+queue/cache limits prevent an untrusted event stream from creating unbounded state.
+Evidence refusal, unsupported scope, decline, expiry, transfer failure, or missing
+content is not a disposition trigger. Client evidence remains `CLIENT_REPORTED` and
+cannot independently justify punishment.
+
+The current three-target real Velocity/Bungee advisory-origin aggregate passed 24/24
+and confirms that all exact-policy client matches, including DENY on both proxies,
+remained on lobby with no route lifecycle or connection close. The current trusted V3
+aggregate passed 18/18 `ADMIN_REVIEWED` exact-hash actions across 1.21.11, 26.1.2,
+and 26.2. The sanitized committed chains are in
+`docs/evidence/disposition-current-2026-08-21.json`; the August 13 files remain
+retained history.
+The command carries no action; the active signed policy selects it, and the
+content-free authorization journal is forced to disk before the session-bound event
+is queued. Both proxies completed distinct LIMIT and QUARANTINE routes. DENY closed
+only the current connection, and the same offline identity then established an
+independent verified lobby session. The trusted aggregate declares
+`authorization_contract=UUID_CONTEXT_COMMITMENT_V3` and confirms strict 16-column
+V3 journal persistence before every execution.
+Neither aggregate claims a real-process `SERVER_CONFIRMED` artifact source or Fabric
+GUI coverage.
+
+### Server-confirmed issuance journal boundary
+
+The default-disabled `SERVER_CONFIRMED` library has a durable-before-return
+issuance primitive but no production producer, configuration, provider, sender,
+channel registration, or trusted-authorization caller. Its journal abstraction
+and file implementation are package-private, and every implementation must define
+`lastSequence`; there is no default-zero recovery. An operator must precreate its
+directory and regular file, write the exact fixed versioned header, and restrict
+ownership and ACLs before startup. Runtime has no create or initialize path. A
+public read-only preflight returns the exact required header bytes and validates
+the supplied path without creating or modifying the directory, file, header, or
+records.
+
+The journal keeps one read/write handle and an exclusive file lock for its full
+lifetime. On the supported Windows/OpenJDK 21 path it also requests
+`NOSHARE_DELETE` and `NOSHARE_WRITE` and fails closed when they are unavailable.
+On non-Windows it requires a non-null stable filesystem `fileKey`. Both paths
+reject links and special files and repeat no-follow checks for the journal and
+its ancestors. Each candidate is decoded through the same handle, appended,
+forced with `force(true)`, and decoded again through that handle before canonical
+path bytes and identity are rechecked. An I/O, path-identity, force, or post-force
+verification failure returns no token and latches both the journal and issuer
+unusable until close/reopen. Semantic rejection before journal I/O, including a
+grant/key mismatch, returns no token without poisoning the issuer.
+
+Sequence ownership is durable rather than volatile.
+`DurableServerAuthorityIssuer.recover(VerifiedGrant)` reads the exact lifecycle's
+last journal sequence and returns a non-externally-constructible
+`RecoveredServerAuthoritySequence`; callers cannot seed restart state with an
+untyped number. Issuance allocates `last + 1`, signs and appends it, and returns a
+durable token only after verification. That token binds the exact verified grant,
+lifecycle, backend key, and observation/issuance/expiry window. There is no
+separate in-memory allocator to advance before append. Paper prepare returns a
+unique lease capability, commit requires its matching durable token, and abort
+releases the pending issuance so a fresh prepare can retry. The disabled lifecycle
+retains nothing.
+
+The Phase 2.6 package-private Paper coordinator makes the complete inert ordering
+explicit: exact request/lease/grant precheck, journal-derived next sequence and
+`force(true)`, then exact lifecycle commit. It returns no capability until commit;
+the raw frame accessor remains package-private to the core authority package and is
+not available to Paper. Durable-sequence drift removes the lifecycle and requires a
+fresh typed recovery. Uncertain I/O, runtime uncertainty, abort failure, or failure
+after the durable append poisons the coordinator and prevents retry of an already
+advanced sequence.
+
+The JDK 21 offline authority selections cover 8 suites and 51 tests with zero
+failures/errors and one host-capability symlink skip. They are library tests, not
+production producer or process evidence. The current root build covers Phase 2.6 at 147 suites and 681 tests with zero
+failures or errors; the isolated modern Fabric build adds 24 suites and 74 tests,
+for 171 suites and 755 tests combined. It still does not create production
+producer or process evidence. `MCAcePaperPlugin` does not
+instantiate the coordinator, and there is no production channel, configuration,
+provider, sender, trusted authorization, or executor wiring.
+
+This narrows replacement and uncertain-write failures during runtime; it is not
+a Java SE storage-immutability claim. The Windows no-share flags are OpenJDK
+extensions, filesystem `fileKey` quality is provider-dependent, and pure JDK code
+cannot verify that host ACLs remain correct, defeat a local administrator or
+privileged storage actor, or prove that bytes were not changed after a token was
+returned. The service directory therefore requires least-privilege ACLs,
+ownership/change monitoring, backups, and independently protected audit or
+immutable storage when post-return tamper evidence is required.
+
+## Build supply-chain boundary
+
+The current Windows A/D strict offline runs each completed 118/118 tasks with
+JDK 21.0.7+6 for the root, isolated JDK 25.0.3+9 for modern Fabric, and Gradle
+9.6.1. Root results were 147 suites / 681 tests / 0 failures / 0 errors / 28
+skipped; modern results were 24 / 74 / 0 / 0 / 0; combined results were
+171 / 755 / 0 / 0 / 28. Both exact-eight LOCAL bundles were byte-identical.
+`docs/evidence/local-build-2026-08-20.json` retains the sanitized result;
+`build/` remains mutable diagnostics.
+
+Dependency-verification exceptions remain narrow: 47 exact root Loom-local trust
+entries and two exact modern named-Minecraft trust entries. There is no broad
+group trust; POMs, mappings, upstream modules, Fabric dependencies, and native
+`protoc` artifacts remain SHA-256 verified. The local manifest records
+`source_commit=LOCAL_UNSPECIFIED` and `release_identity=false`.
+
+Current Linux run `cb6dc44ddad744b5a20dc2986c0a6d70` passed strict
+offline network-none verification with exact JDK 21.0.7+6/JDK 25.0.3+9, 171
+suites / 755 tests / 0 failures / 0 errors / 33 environment-conditioned skips,
+an unchanged 735-file source manifest, exact-eight stream-byte parity with
+Windows A/D, and zero residual containers/run-scoped Java processes at 0/30/60
+seconds. The external witness SHA-256 is
+`de6d82fedace1c7b961ba9879b6e924df1bc8a1d085b851134194bac91d44b48`.
+The old JDK-21,
+52-rule, four-deployable exact-six run and the superseded pre-fix exact-eight run
+remain historical. Exact-commit CI remains pending.
 
 ## Audit provenance and availability
 
-- Every persisted observation is labeled `SERVER_CONFIRMED`, `CLIENT_REPORTED`,
-  `INFERRED`, or `MISSING`; storage does not promote a client claim into a
-  server-confirmed fact.
+- Every persisted observation retains its source, including `SERVER_CONFIRMED`,
+  `CLIENT_REPORTED`, `INFERRED`, `ADMIN_REVIEWED`, or unavailable/missing state;
+  storage does not promote a client claim into a server-confirmed fact.
 - Risk events, evidence metadata, revocations, and operator audit are append-only.
   Evidence metadata has a globally ordered SHA-256 predecessor chain and Ed25519
   signature; revocations have an ordered sequence and domain-separated signature.
@@ -72,75 +185,41 @@ remains `CLIENT_REPORTED` and cannot independently justify punishment.
   rollback or deletion after publication. Backups, retention policy, ledger
   monitoring, and object-storage immutability remain operational requirements.
 
-### Recorded process-load security gates
+### Recorded three-version process security gate
 
-The final process smoke records are retained as machine-readable evidence:
+The authoritative current process gate is
+`scripts/server-version-process-matrix.ps1 -Execute`, followed by
+`-ReportOnly`. Its August 20 sanitized aggregate at
+`docs/evidence/server-version-process-matrix-2026-08-20.json` passed 12/12:
+Paper 6/6, Folia 6/6, Velocity 6/6, Bungee 6/6, ten STABLE and two Folia 26.2
+build-4 BETA cases. `-ReportOnly` accepted the final committed triplet and
+cleanup was zero.
 
-- Velocity + Paper passed at
-  `build/platform-smoke/runs/20260808T171235524Z/report.json` using fixed
-  official Velocity 3.5.1-615 and Paper 1.21.1-133 hashes.
-- BungeeCord + Paper passed at
-  `build/platform-smoke-bungee/runs/20260808T173618257Z/report.json` using
-  fixed BungeeCord build 2028 and Paper 1.21.1-133 hashes.
-- Folia + Paper plugin passed at
-  `build/platform-smoke-folia/runs/20260808T202505461Z/report.json`. Exact
-  Folia 1.21.1 was unavailable; official Folia 1.21.4-6 `ALPHA` was tested and
-  its Fill object URL and SHA-256 are recorded in the report.
+The raw peer is bounded, offline, loopback-only test tooling. It is not a Fabric
+client and cannot provide GUI consent, online-mode identity, or public-network
+proof. Shadow context cannot invoke admission, routing, disconnect, punishment,
+evidence, or disposition.
 
-Each gate used loopback-only listeners, an independent run root, signed/pinned
-artifact checks, and cleanup with zero run-owned processes. These are process
-and admission-boundary checks, not proof of every player-flow path. The Folia run
-exercised global expiry plus a real offline test player's region/entity admission
-consumption and PlayerQuit cleanup paths. The peer used an ephemeral test signing
-key which the script deleted; it does not prove online-mode authentication or
-production proxy forwarding. A separate test-only raw Minecraft peer run reached
-the live Velocity/Bungee handshake and Paper admission boundary.
+The former Paper 1.21.1, BungeeCord 2028, and Folia 1.21.4-6 wrapper records are
+historical. They must not be cited as current 1.21.11/26.x release evidence.
 
-The Folia run exposed a deterministic shutdown compatibility issue: reflection
-against Folia's non-public scheduled-task implementation could not invoke its
-public `cancel()` member. The implementation now calls the public
-`ScheduledTask` interface, has a regression for a hidden implementation, and
-makes shutdown idempotent when the scheduler is already halted. The positive
-Folia log is scanned for scheduler/thread failures; the expected missing-pin
-failure is kept in a separate log and explicitly excluded from that positive
-scan.
-
-### Recorded test-only raw peer gate
-
-The `MinecraftProxyPlayerProbeTest` uses a bounded raw Minecraft 1.21.1 wire peer,
-not a standalone client product. The latest passing run IDs are
-`velocity-2026-08-08T21-05-56-077744500Z` and
-`bungee-2026-08-08T21-05-11-821390700Z`; both reached accepted `AUTH_RESULT`, and
-Paper logs recorded `admission=VERIFIED, trust=VERIFIED, risk=0`.
-
-Repository-relative reports:
-
-- `build/runtime-player-probe/runs/velocity-2026-08-08T21-05-56-077744500Z/report.json`
-- `build/runtime-player-probe/runs/velocity-2026-08-08T21-05-56-077744500Z/report.md`
-- `build/runtime-player-probe/runs/bungee-2026-08-08T21-05-11-821390700Z/report.json`
-- `build/runtime-player-probe/runs/bungee-2026-08-08T21-05-11-821390700Z/report.md`
-
-Absolute paths:
-
-- `C:\Users\TT\Documents\GitHub\MCAce\build\runtime-player-probe\runs\velocity-2026-08-08T21-05-56-077744500Z\report.json`
-- `C:\Users\TT\Documents\GitHub\MCAce\build\runtime-player-probe\runs\velocity-2026-08-08T21-05-56-077744500Z\report.md`
-- `C:\Users\TT\Documents\GitHub\MCAce\build\runtime-player-probe\runs\bungee-2026-08-08T21-05-11-821390700Z\report.json`
-- `C:\Users\TT\Documents\GitHub\MCAce\build\runtime-player-probe\runs\bungee-2026-08-08T21-05-11-821390700Z\report.md`
-
-Both reports have `remaining_run_processes=[]`. Velocity modern forwarding and
-Bungee IP forwarding were enabled against Paper, but the probe remains
-loopback/offline and does not cover real Fabric GUI/framebuffer capture,
-Mojang/Microsoft online-mode authentication, or public-network deployment.
-Fabric's ACK sequence, resize/generation cancellation, and
-buffer clearing are covered by 49 common/Fabric tests; a real GUI/framebuffer
-evidence-flow smoke remains unverified.
+The separate per-target Fabric wrapper has passed server-only startup and asset
+prewarm for all three targets. Visible explicit-file and frame consent remains
+pending: two human decisions per target, six total. A passing report must use
+schema 6 and binding `MCACE_FABRIC_GUI_EVIDENCE_BINDING_V4` and load the exact
+final remapped/named artifact by CodeSource SHA-256. It must also bind the exact
+`velocity_policy_minecraft_versions` and `velocity_policy_client_build_ids`
+values written for that target.
 
 ## Privacy boundary
-
-Allowed roots are the active Minecraft instance's `mods`, `resourcepacks`,
-`shaderpacks`, and explicitly selected configuration files. The built-in client
-currently consents only to `options.txt`; a server policy cannot silently expand
-that set. Symlinks are not followed. The scanner enforces file-count, file-size,
+Allowed roots are the active Minecraft instance's `mods`, `resourcepacks`, and
+`shaderpacks`, plus explicit relative files named by the already verified signed
+policy. The built-in client pre-consents to no file. It shows every requested
+path in a paged prompt and, if accepted, keeps the exact authorization in memory
+for the current connection only so signed manifest refreshes may re-read it.
+Disconnect, a replacement challenge, or shutdown clears the authorization.
+Only relative path, byte size, and SHA-256 are sent; raw file bytes are not
+uploaded. Symlinks are not followed. The scanner enforces file-count, file-size,
 extension, path-containment, and policy scope ceilings.
 
 Forbidden collection includes unrelated files, keystrokes, camera, microphone,
@@ -204,6 +283,14 @@ punishment logic; startup/configuration failure leaves review disabled.
   cannot consume another session's quota, while aggregate memory remains
   bounded. New nonce claims fail closed when the applicable quota is full.
 - Production keys require rotation, revocation, secure-at-rest storage, and audit.
+- Velocity can dispatch adjacent plugin-message events on different task workers.
+  The coordinator therefore retains at most one same-session direct `AUTH_REQUEST`
+  that arrives before its wire-preceding `CLIENT_HELLO`. It does not authenticate
+  or publish state at defer time. After `CLIENT_HELLO` establishes the client key,
+  the retained envelope must still pass its signature, nonce, session, policy,
+  manifest, and scope checks. A duplicate early request or any other early packet
+  remains a server-confirmed protocol violation; forged deferred requests fail
+  when identification completes.
 
 ### Heartbeat session contract
 
@@ -341,6 +428,28 @@ punishment logic; startup/configuration failure leaves review disabled.
   disconnects the player carrier; signed TTL and envelope freshness bound the
   residual replay window.
 
+### Backend context shadow channel
+
+- Paper/Folia reads world and game mode only through the Bukkit API on the owning player/entity
+  thread. It publishes after accepting a signed admission snapshot and after world or game-mode
+  changes. No desktop, window, process, input, or raw file data is present.
+- The `mcace:context` payload deliberately omits backend identity. Velocity/Bungee derive it from
+  the event-supplied backend connection and require that connection to carry the target player. The
+  check does not wait for an eventually consistent current-server pointer; exact runtime
+  backend/session/admission bindings still fail closed. A player/client source is consumed without
+  parsing and can never enter the context runtime. Fabric advertises the S2C channel only as a
+  transport route for the backend return and never parses, trusts, or acts on the payload.
+- Each report must match the current player UUID, authenticated session, exact current backend,
+  latest proxy-signed admission transport sequence, increasing report sequence, canonical world and
+  game-mode vocabulary, 4 KiB frame limit, and two-minute freshness/binding windows.
+- Accepted reports re-evaluate only the latest bounded in-memory authenticated manifest on a
+  bounded audit worker. The result contains aggregate action/issue counts and context labels only;
+  the runtime has no admission, routing, disconnect, punishment, evidence, or disposition-event
+  callback. Queue rejection and invalid reports leave all player state unchanged.
+- A compromised backend remains able to lie about its own world or game mode. Shadow-only rollout
+  is therefore mandatory until independent production observations and operator review justify a
+  narrower authority model; backend context is not automatically promoted to artifact provenance.
+
 ## Current detection hypothesis
 
 A valid handshake confirms that the peer possessed the ephemeral private key and
@@ -349,6 +458,82 @@ and manifest. It does not confirm absence of injection, external memory tools,
 automation, kernel/DMA access, or a patched scanner. Those require independent
 server behavior signals. MCAce does not introduce an Agent or claim Mod-only
 visibility into unrelated processes, kernel state, or external hardware.
+
+### Proprietary anti-cheat compatibility preflight
+
+The Vulcan adapter consumes a narrow reflective event contract and never bundles
+the proprietary API. `scripts/vulcan-licensed-api-compatibility-smoke.ps1`
+accepts only an explicitly supplied direct local JAR. UNC and mapped-network paths
+are rejected, as are artifact or parent reparse points. A `FileStream` opened with
+read-only sharing remains held across the inspection; size and SHA-256 are
+calculated from that same handle before and after the gate. The script invokes only
+an already installed, locally marked Gradle distribution directly with `--offline`,
+bypassing the wrapper downloader. It hashes the complete installed Gradle tree with
+file/directory counts before and after execution and rejects any enumerated reparse
+point. It also requires the Gradle-selected JVM to be Java 21 and rejects unbound JVM/
+Gradle option environment variables, `ORG_GRADLE_PROJECT_*`, user Gradle properties,
+and user init scripts. The gate records no artifact path, copies or extracts no
+classes, and emits only an exact-schema sanitized hash, size, declared version,
+selected public accessor names, fixed coverage booleans, and limitation enum.
+
+The absolute JAR path is present in the local Gradle/JVM command line while the
+preflight runs, even though neither retained JSON file records it. Operators must
+therefore treat local process-list access as part of the licensed environment's
+trust boundary.
+
+The adjacent path-free binding sidecar records the digest of the read-locked report,
+a deterministic manifest over every repository file except `.git`, `.gradle`, and
+directories named `build`, the complete installed Gradle-tree identity, and the
+selected Java 21 executable identity. Both JSON artifacts reject unknown properties.
+Execution and report-only validation reject network/reparse evidence paths, lock and
+rehash both files, reject an old unbound or source/runtime-mismatched report, and
+apply a bounded freshness window. These controls detect accidental substitution and
+stale evidence; they do not authenticate the publisher, prove a license, or defend
+against an administrator who can rewrite both local evidence files and source.
+
+The held PowerShell handle and equality with the Java-generated artifact hash bind
+the outcome to artifact content. The Java inspector still opens the validated path
+independently and the wrapper does not claim a Windows volume/file-ID proof across
+those opens. Closing that narrower identity gap requires changing the gate API,
+not merely this local wrapper.
+Structural compatibility is not runtime proof: Paper plugin enablement and real
+behavior-event delivery remain false in the preflight report and must be verified
+separately with an operator-owned license environment. Missing or incompatible
+Vulcan disables only that adapter; it cannot change MCAce admission, risk,
+disposition, evidence, or punishment.
+
+The retained [Vulcan 2.9.0 preflight evidence](evidence/vulcan-licensed-api-preflight-2026-08-13.json)
+records a successful exact-hash structural API inspection and ReportOnly binding
+revalidation that were contemporaneous with its bound historical source snapshot.
+It deliberately retains no artifact path, artifact bytes, or run identifier.
+Current-source ReportOnly reuse now fails closed on source-manifest drift, so a new
+current-source structural preflight and binding revalidation remain pending. Its
+false Paper-enable/event coverage is normative: this historical evidence is not
+current-source compatibility, Paper runtime, or release-ready proof.
+
+The repository also contains an unexecuted, default-deny
+`scripts/vulcan-paper-enablement-smoke.ps1` harness. It cannot start without the
+  reviewed Vulcan/Paper/MCAce hashes, an explicit temporary Paper-remap permission,
+  an independently reviewed prepared-runtime manifest SHA-256,
+and `-NetworkPolicy DenyAll` plus an operator attestation that a deny-all
+OS/network boundary has already been enforced. The script deliberately records
+`network_isolation_os_verified_by_script=false`; the attestation is not technical
+proof of isolation. On a successful run it would remove the isolated Paper root
+and retain only a sanitized enablement report. Such a report could prove Paper
+process coverage, licensed-plugin enablement, and MCAce listener registration,
+but its schema fixes real behavior-event delivery false. A genuine bounded Vulcan
+trigger through the registered listener remains a separate authorized gate and
+must not be replaced by an MCAce-constructed event or test observer.
+The unexecuted `scripts/vulcan-genuine-event-smoke.ps1` implements that separate
+gate: it rejects synthetic/fixture dispatch, requires explicit external-trigger and
+no-synthetic-injection attestations, and accepts only one expected-player
+`SERVER_CONFIRMED` `vulcan-adapter` delivery with non-empty check identifiers and a
+positive flag count. Its retained report is content-free; trigger provenance and
+OS/network isolation are still operator-attested rather than script-verified.
+The source prepared tree, its isolated copy, and the post-run source must all
+match that reviewed manifest. The wrapper also fails if `.paper-remapped` is
+created or changed under any original artifact parent. Its zero-residue field is
+explicitly marker-scoped rather than a claim of OS job-object ownership.
 
 ## Cross-network federation boundary
 
@@ -369,9 +554,13 @@ After receiving a complete grant, Fabric may carry it across source disconnect
 or source proxy restart until its signed expiry of at most five minutes. The
 target must first independently authenticate the player locally as `VERIFIED`
 using the same short-lived client key. Fabric then signs a current target
-session/challenge/player proof of possession. The target verifies both
-signatures, both network keys, all bindings, audience, time, current local
-session key and PoP before atomically consuming bounded replay state.
+session/challenge/player proof of possession, reserves that exact presentation,
+and shows a second target-import screen with source/target identities, key
+fingerprints, disclosure, and expiry. Only a distinct visible `Allow once` sends
+that prepared presentation; decline, close, or expiry sends nothing and changes
+no local result. The target verifies both signatures, both network keys, all
+bindings, audience, time, current local session key and PoP before atomically
+consuming bounded replay state.
 
 The only remote claim is `FEDERATION_SOURCE_LOCALLY_VERIFIED`; it is not a
 `TrustLevel`. It cannot establish/preserve local `VERIFIED`, change risk or policy
@@ -380,6 +569,12 @@ ban, request evidence, or repair a failed local handshake. Decline, expiry,
 failure, missing state, or capacity exhaustion is availability-only and cannot
 punish the player. Audit is content-free and excludes grant/presentation bytes,
 keys, nonces/challenges, artifacts, evidence, screenshots, IPs, and paths.
+`CONSENT_ISSUED`, `GRANT_READY`, and `OBSERVED` require a bounded confirmation
+that the local append-only audit file was durably written; asynchronous queue
+admission is not authorization. A queue, worker, timeout, quota, path, or disk
+failure is sticky for the process: federation is disabled, its ephemeral state
+is cleared, later work returns `AUDIT_FAILED`, and local authentication remains
+unchanged. Both proxy commands expose content-free audit health/counters.
 
 There is no instant remote revocation after source signing. Source pin removal
 prevents new issues but cannot recall a grant already held by Fabric; expiry and
@@ -388,3 +583,22 @@ process memory: restart creates a new local session/challenge and invalidates an
 old complete presentation, but a malicious client retaining an unexpired grant
 and private key could create a new proof after reauthentication. This residual
 window ends at signed expiry and cannot affect enforcement.
+
+The retained federation record is
+`docs/evidence/federation-durable-audit-2026-08-13.json`. The historical schema-2 matrix passed 4/4 and
+`-ReportOnly`; it binds older proxy artifacts/source and does not promote the current release. All four tested Velocity/Bungee source-target combinations retained local target
+`VERIFIED`/risk `0`/Paper admission, rejected same-process assertion replay,
+produced content-free durable audit with healthy source/target state, and left
+zero owned processes. The former P2 cold-listener readiness race is fixed by an
+exact selected-port listener-ready wait after plugin initialization; its pure unit
+test passed, and the retained historical restart gate passed on the first execution plus
+`-ReportOnly`, recording healthy audit at both ends, `residual_reacceptance=true`, and
+`durable_replay_protection=false`. Both sections keep
+`fabric_gui_coverage=false`.
+
+The current three-target `fabric-federation-gui-handoff-smoke.ps1` contract is V2.
+Both source-export and target-import screens exist in the root and modern Fabric
+clients, and the wrapper's PowerShell 7 and Windows PowerShell 5 static tests
+pass, including all six exact human-marker requirements. No real human-executed
+V2 PASS exists yet; static code and the historical raw peer cannot establish GUI
+consent, a client-carried transition, live-through-expiry behavior, or cleanup.

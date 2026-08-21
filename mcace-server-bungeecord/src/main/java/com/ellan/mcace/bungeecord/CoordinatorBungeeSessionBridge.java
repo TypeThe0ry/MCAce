@@ -14,6 +14,7 @@ import com.ellan.mcace.core.evidence.EvidenceRequestSpec;
 import com.ellan.mcace.core.evidence.LoopbackEvidenceReviewService;
 import com.ellan.mcace.core.proxy.SharedProxyDispositionPolicyRuntime;
 import com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent;
+import com.ellan.mcace.core.proxy.ShadowBackendContextRuntime;
 import com.ellan.mcace.core.federation.FederationRuntime;
 import com.ellan.mcace.core.federation.FederationSubject;
 import com.ellan.mcace.protocol.crypto.EnvelopeException;
@@ -47,6 +48,7 @@ public final class CoordinatorBungeeSessionBridge implements BungeeSessionBridge
     private final AutoCloseable federationLifecycle;
     private final AtomicReference<Consumer<AuthenticatedManifestDispositionEvent>> dispositionEventHandler =
             new AtomicReference<>(ignored -> { });
+    private volatile ShadowBackendContextRuntime shadowBackendContextRuntime;
 
     public CoordinatorBungeeSessionBridge(ServerHandshakeCoordinator coordinator, MCAceApi api) {
         this(coordinator, api, null);
@@ -241,6 +243,8 @@ public final class CoordinatorBungeeSessionBridge implements BungeeSessionBridge
     @Override
     public void remove(UUID playerId) {
         coordinator.remove(Objects.requireNonNull(playerId, "playerId"));
+        ShadowBackendContextRuntime runtime = shadowBackendContextRuntime;
+        if (runtime != null) runtime.clear(playerId);
     }
 
     @Override
@@ -264,6 +268,18 @@ public final class CoordinatorBungeeSessionBridge implements BungeeSessionBridge
     @Override
     public Optional<SharedProxyDispositionPolicyRuntime> dispositionPolicyRuntime() {
         return Optional.ofNullable(dispositionPolicyRuntime);
+    }
+
+    @Override
+    public Optional<ShadowBackendContextRuntime> shadowBackendContextRuntime() {
+        return Optional.ofNullable(shadowBackendContextRuntime);
+    }
+
+    void setShadowBackendContextRuntime(ShadowBackendContextRuntime runtime) {
+        if (shadowBackendContextRuntime != null) {
+            throw new IllegalStateException("shadow backend context runtime is already installed");
+        }
+        shadowBackendContextRuntime = Objects.requireNonNull(runtime, "runtime");
     }
 
     @Override
@@ -316,6 +332,9 @@ public final class CoordinatorBungeeSessionBridge implements BungeeSessionBridge
         evidenceReviewService = null;
         if (review != null) review.close();
         if (manifestAuditQueue != null) try { manifestAuditQueue.close(); } catch (Exception ignored) { }
+        ShadowBackendContextRuntime contextRuntime = shadowBackendContextRuntime;
+        shadowBackendContextRuntime = null;
+        if (contextRuntime != null) contextRuntime.close();
         if (federationLifecycle != null) try { federationLifecycle.close(); } catch (Exception ignored) { }
     }
 }

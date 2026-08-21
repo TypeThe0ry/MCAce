@@ -26,7 +26,7 @@ final class PolicyDrivenIntegrityCollectorTest {
         ClientIntegrityBundle bundle = collector().collect(root, policy(
                 directory("mods", "mods", true, ".jar"),
                 directory("resourcepacks", "resourcepacks", false, ".zip"),
-                explicit("config", "options.txt")));
+                explicit("config", "options.txt")), Set.of("options.txt"));
 
         assertEquals(3, bundle.scopes().size());
         assertTrue(bundle.scope("mods").orElseThrow().present());
@@ -47,6 +47,14 @@ final class PolicyDrivenIntegrityCollectorTest {
 
         assertThrows(IntegrityScanException.class,
                 () -> collector().collect(root, request, Set.of("options.txt")));
+    }
+
+    @Test
+    void defaultCollectionDoesNotPreConsentOptionsFile() throws Exception {
+        Files.writeString(root.resolve("options.txt"), "fov:0.5");
+
+        assertThrows(IntegrityScanException.class,
+                () -> collector().collect(root, policy(explicit("config", "options.txt"))));
     }
 
     @Test

@@ -15,9 +15,11 @@ import java.security.MessageDigest;
 import java.security.PublicKey;
 import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.function.Supplier;
 
 /**
  * Shared Velocity/BungeeCord policy boundary.
@@ -110,6 +112,49 @@ public final class SharedProxyDispositionPolicyRuntime {
     }
 
     /**
+     * Evaluates trusted input at this runtime's clock after source refresh completes.
+     *
+     * <p>The returned context is the exact context used by the engine. A slow policy source or a
+     * caller-controlled timestamp therefore cannot produce an authorization outside the exact
+     * rule and document validity window.</p>
+     */
+    synchronized AuthoritativeProxyPolicyEvaluation evaluateTrusted(
+            EvaluationContext suppliedContext, ArtifactObservation observation) {
+        Objects.requireNonNull(suppliedContext, "suppliedContext");
+        Objects.requireNonNull(observation, "observation");
+        refresh();
+        Instant evaluatedAt = clock.instant();
+        EvaluationContext authoritativeContext = new EvaluationContext(
+                suppliedContext.playerId(), suppliedContext.proxy(), suppliedContext.backend(),
+                suppliedContext.world(), suppliedContext.gameMode(),
+                suppliedContext.permissionGroups(), evaluatedAt);
+        boolean exactlyActive = accepted != null
+                && lastStatus == ProxyPolicyRefreshStatus.ACTIVE
+                && !evaluatedAt.isBefore(Instant.ofEpochMilli(
+                accepted.document().getEffectiveFromEpochMs()))
+                && evaluatedAt.isBefore(Instant.ofEpochMilli(
+                accepted.document().getExpiresAtEpochMs()));
+        if (!exactlyActive) {
+            return new AuthoritativeProxyPolicyEvaluation(
+                    authoritativeContext,
+                    new ProxyPolicyEvaluation(
+                            proxyFamily, observe(observation),
+                            ProxyPolicyRefreshStatus.OBSERVE_NO_VALID_POLICY,
+                            Optional.empty(), Optional.empty(), Optional.empty()));
+        }
+        return new AuthoritativeProxyPolicyEvaluation(
+                authoritativeContext,
+                new ProxyPolicyEvaluation(
+                        proxyFamily,
+                        engine.evaluate(accepted.policy(), authoritativeContext, observation),
+                        lastStatus,
+                        Optional.of(accepted.document().getVersion()),
+                        Optional.of(accepted.document().getSequence()),
+                        Optional.of(Instant.ofEpochMilli(
+                                accepted.document().getExpiresAtEpochMs()))));
+    }
+
+    /**
      * Evaluates a complete authenticated manifest from the last refreshed policy. It deliberately
      * performs no source I/O: proxies refresh policy on their low-frequency lifecycle task.
      */
@@ -121,6 +166,7 @@ public final class SharedProxyDispositionPolicyRuntime {
         discardExpiredAcceptedPolicy();
         ProxyPolicyRefreshStatus status = accepted == null ? ProxyPolicyRefreshStatus.OBSERVE_NO_VALID_POLICY : lastStatus;
         java.util.EnumMap<DispositionAction, Integer> counts = new java.util.EnumMap<>(DispositionAction.class);
+        int advisoryEnforcementRuleBlocks = 0;
         List<ProxyPolicyEvaluation> evaluations = new java.util.ArrayList<>(Math.min(observations.size(), maxRetainedEvaluations));
         for (ArtifactObservation observation : observations) {
             Objects.requireNonNull(observation, "observation");
@@ -128,6 +174,9 @@ public final class SharedProxyDispositionPolicyRuntime {
                     ? observe(observation)
                     : engine.evaluate(accepted.policy(), context, observation);
             counts.merge(decision.action(), 1, Integer::sum);
+            advisoryEnforcementRuleBlocks += (int) decision.explanations().stream()
+                    .filter(detail -> "advisory-origin-cannot-enforce".equals(detail.outcome()))
+                    .count();
             if (evaluations.size() < maxRetainedEvaluations) evaluations.add(new ProxyPolicyEvaluation(
                     proxyFamily,
                     decision,
@@ -137,14 +186,78 @@ public final class SharedProxyDispositionPolicyRuntime {
                     accepted == null ? Optional.empty() : Optional.of(java.time.Instant.ofEpochMilli(
                             accepted.document().getExpiresAtEpochMs()))));
         }
-        return new ProxyPolicyBatchEvaluation(status, observations.size(), counts, evaluations,
-                evaluations.size() < observations.size());
+        return new ProxyPolicyBatchEvaluation(status, observations.size(), counts,
+                advisoryEnforcementRuleBlocks, evaluations, evaluations.size() < observations.size());
     }
 
     /** Returns the last known-good policy identity without exposing mutable signing material. */
     public synchronized Optional<Long> activeSequence() {
         discardExpiredAcceptedPolicy();
         return accepted == null ? Optional.empty() : Optional.of(accepted.document().getSequence());
+    }
+
+    /**
+     * Revalidates an immutable event against the policy that is active at execution time.
+     *
+     * <p>This closes the authorization-to-action race: an event produced under a policy that was
+     * subsequently superseded, expired, or discarded cannot execute from a platform queue.</p>
+     */
+    public synchronized boolean isCurrentActivePolicy(
+            String version,
+            long sequence,
+            Instant expiresAt,
+            String winningRuleId,
+            DispositionAction action) {
+        return currentActivePolicyMatches(version, sequence, expiresAt, winningRuleId, action);
+    }
+
+    /**
+     * Starts one platform action under the same policy monitor used by refresh and expiry.
+     *
+     * <p>The supplier must only initiate the bounded platform operation; it must not wait for an
+     * asynchronous route completion. This gives refresh and action initiation one linearization
+     * order, rather than leaving a check-then-act policy race.</p>
+     */
+    public synchronized <T> Optional<T> executeIfCurrentActivePolicy(
+            String version,
+            long sequence,
+            Instant expiresAt,
+            String winningRuleId,
+            DispositionAction action,
+            Supplier<T> operation) {
+        Objects.requireNonNull(operation, "operation");
+        if (!currentActivePolicyMatches(version, sequence, expiresAt, winningRuleId, action)) {
+            return Optional.empty();
+        }
+        return Optional.of(Objects.requireNonNull(operation.get(), "policy-bound operation result"));
+    }
+
+    private boolean currentActivePolicyMatches(
+            String version,
+            long sequence,
+            Instant expiresAt,
+            String winningRuleId,
+            DispositionAction action) {
+        Objects.requireNonNull(version, "version");
+        Objects.requireNonNull(expiresAt, "expiresAt");
+        Objects.requireNonNull(winningRuleId, "winningRuleId");
+        Objects.requireNonNull(action, "action");
+        discardExpiredAcceptedPolicy();
+        Instant now = clock.instant();
+        if (lastStatus != ProxyPolicyRefreshStatus.ACTIVE
+                || accepted == null || !now.isBefore(expiresAt)) {
+            return false;
+        }
+        DispositionPolicyDocument document = accepted.document();
+        return document.getVersion().equals(version)
+                && document.getSequence() == sequence
+                && document.getExpiresAtEpochMs() == expiresAt.toEpochMilli()
+                && !now.isBefore(Instant.ofEpochMilli(document.getEffectiveFromEpochMs()))
+                && now.isBefore(Instant.ofEpochMilli(document.getExpiresAtEpochMs()))
+                && accepted.policy().rules().stream()
+                        .anyMatch(rule -> rule.ruleId().equals(winningRuleId)
+                                && rule.action() == action
+                                && rule.activeAt(now));
     }
 
     private void accept(
@@ -214,6 +327,14 @@ public final class SharedProxyDispositionPolicyRuntime {
         @Override
         public byte[] documentHash() {
             return documentHash.clone();
+        }
+    }
+
+    record AuthoritativeProxyPolicyEvaluation(
+            EvaluationContext context, ProxyPolicyEvaluation evaluation) {
+        AuthoritativeProxyPolicyEvaluation {
+            Objects.requireNonNull(context, "context");
+            Objects.requireNonNull(evaluation, "evaluation");
         }
     }
 }

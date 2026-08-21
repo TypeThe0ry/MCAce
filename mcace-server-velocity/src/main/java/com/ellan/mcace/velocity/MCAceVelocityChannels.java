@@ -9,6 +9,7 @@ public final class MCAceVelocityChannels {
     public static final MinecraftChannelIdentifier HANDSHAKE = MinecraftChannelIdentifier.create("mcace", "handshake");
     public static final MinecraftChannelIdentifier PAYLOAD = MinecraftChannelIdentifier.create("mcace", "payload");
     public static final MinecraftChannelIdentifier ADMISSION = MinecraftChannelIdentifier.create("mcace", "admission");
+    public static final MinecraftChannelIdentifier BACKEND_CONTEXT = MinecraftChannelIdentifier.create("mcace", "context");
 
     private MCAceVelocityChannels() {
     }

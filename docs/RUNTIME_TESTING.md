@@ -2,168 +2,243 @@
 
 ## Purpose and boundary
 
-The `mcace-runtime-integration` module verifies the Level 1 protocol across real
-JVM process and loopback TCP boundaries. It is a deterministic defensive test
-harness, not a production server. Real Velocity/Paper process loading and the
-Fabric player-flow are covered by the separate platform smoke gate.
+`mcace-runtime-integration` contains two different classes of tests:
 
-The JUnit parent starts one server JVM on an ephemeral loopback port, then starts
-four known-good and nine deliberately malformed client JVMs concurrently. The
-server accepts exactly thirteen connections, gives each connection an isolated
-handshake coordinator, and exits after all results are emitted.
+- the default, pure loopback protocol suite, which starts a bounded server JVM and
+  malformed/known-good client JVMs; and
+- opt-in real Velocity/BungeeCord plus Paper/Folia process tests, orchestrated by
+  the authoritative three-version wrapper.
 
-## Run
+The raw Minecraft peer is test tooling. It is not a standalone client product and
+cannot supply real Fabric GUI consent.
 
-Requirements: JDK 21. No Docker, Minecraft installation, or external network is
+The August 20 strict offline Windows A/D builds each completed 118/118 tasks with
+JDK `21.0.7+6`, isolated modern JDK `25.0.3+9`, and Gradle `9.6.1`. Root results
+were 147 suites / 681 tests / 0 failures / 0 errors / 28 skipped; modern results
+were 24 / 74 / 0 / 0 / 0; combined results were 171 / 755 / 0 / 0 / 28. The
+exact-eight local bundle was byte-identical across A and D. Durable sanitized
+evidence is
+[`evidence/local-build-2026-08-20.json`](evidence/local-build-2026-08-20.json);
+build output remains mutable. The current bundle remains LOCAL verification
+with `source_commit=LOCAL_UNSPECIFIED`.
+
+Current Linux run `cb6dc44ddad744b5a20dc2986c0a6d70` passed strict
+offline network-none verification with exact JDK 21.0.7+6 and JDK 25.0.3+9. It
+covered 118 root actionable tasks plus 15/15 modern tasks and 171 suites / 755
+tests / 0 failures / 0 errors / 33 environment-conditioned skips. The 735-file
+source manifest `b74c22ff187a1fcfe4d8e1d6da5a202bde67d72061bcb3c2f205532d3857f8c3`
+was unchanged, all exact-eight entries were stream-byte-identical to Windows A/D,
+and cleanup reached zero containers and zero run-scoped Java processes at
+0/30/60 seconds. The external witness SHA-256 is
+`de6d82fedace1c7b961ba9879b6e924df1bc8a1d085b851134194bac91d44b48`.
+The old exact-six and pre-fix exact-eight runs remain historical.
+
+## Run the default protocol suite
+
+Requirements: root JDK 21. No Minecraft installation or external network is
 required.
 
 ```powershell
 .\gradlew.bat :mcace-runtime-integration:test --rerun-tasks --no-daemon
 ```
 
-The XML evidence is written to:
+The JUnit parent starts one loopback TCP server JVM and thirteen independent
+client JVMs. Four clients complete normally; nine exercise replay, forged
+signature, oversize/truncation, malformed Protobuf, ordering, wrong UUID, unpinned
+root, or incompatible-build paths. Each connection receives its own production
+`ServerHandshakeCoordinator`.
 
-```text
-mcace-runtime-integration/build/test-results/test/
-  TEST-com.ellan.mcace.runtime.RuntimeNetworkIntegrationTest.xml
-```
+Targeted process gates can overwrite the module's in-place JUnit XML. Use the
+sanitized durable local-build record, not an arbitrary later
+`build/test-results` directory, as whole-build evidence.
 
-## Real proxy/backend admission probe
-
-`MinecraftProxyPlayerProbeTest` is a separate opt-in process integration test.
-It uses cached, pinned Velocity/BungeeCord and Paper artifacts prepared by the
-platform smoke, then starts each proxy and Paper on fresh loopback ports. Its
-small raw Minecraft 1.21.1 peer is intentionally not a client product: it only
-implements enough login/configuration and custom-payload transport to prove the
-signed handshake and proxy-to-Paper admission snapshot route.
+## Run the real three-version proxy/backend matrix
 
 ```powershell
-.\scripts\proxy-admission-player-smoke.ps1 -Proxy Both
+.\scripts\server-version-process-matrix.ps1 -Execute
+.\scripts\server-version-process-matrix.ps1 -ReportOnly
 ```
 
-The test is offline-mode only, uses a fixed test player identity and an ephemeral
-client signing key, and has no Mojang/Microsoft account login. Velocity uses a
-test-only modern-forwarding secret with Paper's matching proxy configuration;
-BungeeCord uses IP forwarding with Paper's Bungee compatibility setting. A pass requires
-the proxy authentication result and Paper's `Accepted signed MCAce admission
-state` marker. It does not claim online-mode identity forwarding, a graphical
-Fabric session, or Folia forwarding through either proxy.
+The matrix executes exactly 12 cases:
 
-## Opt-in real disposition matrix (incremental gate)
+| Dimension | Values |
+| --- | --- |
+| Minecraft | `1.21.11`, `26.1.2`, `26.2` |
+| Backends | Paper, Folia |
+| Proxies | Velocity, BungeeCord |
+| Java | JDK 21 for 1.21.11; JDK 25 for 26.1.2 and 26.2 servers |
+| Lanes | 10 STABLE; 2 BETA for Folia 26.2 |
+
+Each case reaches accepted proxy authentication, accepts the proxy-signed backend
+admission, emits the content-free backend-context shadow audit, and leaves zero
+run-owned processes. The wrapper binds source, current product JARs, fixed
+upstream JARs, protocol profile, JDK/Gradle identities, prepared server tree, and
+raw-report digest. Private/delegated keys and forwarding secrets must be absent
+after cleanup.
+
+The August 20 run `2026-08-20T12-01-09-3951618Z` passed all 12 cases and then
+passed `-ReportOnly`: Paper 6/6, Folia 6/6, Velocity 6/6, and BungeeCord 6/6. Folia
+26.2 build 4 remains explicitly BETA. Current durable evidence is
+[`evidence/server-version-process-matrix-2026-08-20.json`](evidence/server-version-process-matrix-2026-08-20.json).
+The standard-backend observer requires admission and context while the same peer
+socket remains live; it does not count post-close log output.
+The context path is shadow-only and cannot invoke admission, routing,
+disconnect, punishment, evidence, or disposition.
+
+The former `proxy-admission-player-smoke.ps1` and
+`proxy-folia-context-smoke.ps1` aggregates for Paper 1.21.1 and Folia 1.21.4 are
+historical. They are not current three-version release evidence.
+
+## Opt-in real disposition advisory-origin guard matrix
 
 Run this gate only when real proxy processes are intended. It is skipped by a
 normal Gradle test invocation unless `mcace.runtime.disposition.enabled=true`
-is set; the wrapper sets that property and runs Velocity before Bungee, never in
-parallel:
+is set. The wrapper runs Velocity before Bungee and never overlaps real proxy or
+Paper processes:
 
 ```powershell
-.\scripts\disposition-proxy-matrix-smoke.ps1 -Proxy Both
+.\scripts\disposition-proxy-matrix-smoke.ps1 -Proxy Both -FabricTarget 1.21.11
+.\scripts\disposition-proxy-matrix-smoke.ps1 -Proxy Both -FabricTarget 26.1.2
+.\scripts\disposition-proxy-matrix-smoke.ps1 -Proxy Both -FabricTarget 26.2
 ```
 
 Each Velocity and BungeeCord case uses one real proxy and three independently
 named Paper backends (`lobby`, `limited`, and `quarantine`). The administrator
-console publisher signs and activates a harmless test-only exact-SHA policy; the
-raw peer authenticates during CONFIGURATION. The wrapper runs the real
-`MONITOR_LIMIT`, `ENFORCE_LIMIT`, and `ENFORCE_QUARANTINE` cases serially for
-the selected platform. Bungee's two enforced cases additionally require its
-initial `*_DEFERRED` result, the one-shot post-`ServerConnectedEvent`
-`DISPATCHED` marker, and the independent terminal `route completion=SUCCESS`
-callback; dispatch alone is not credited as a successful route.
+publisher signs and activates the isolated `runtime-synthetic-v1` exact-SHA
+ policy, and the raw peer supplies the matching manifest as `CLIENT_REPORTED`
+ evidence. The current eight-case definition runs `MONITOR_LIMIT`,
+ `ENFORCE_LIMIT`, `ENFORCE_QUARANTINE`, and `ENFORCE_DENY` on both proxies. The
+ latter names mean that
+`LIMITED_ROUTE` was configured and the policy requested the action; they do not
+mean that a client report was allowed to execute it.
 
-`ENFORCE_DENY_RECONNECT` is an independent, explicitly selected gate and is not
-yet part of the wrapper's passing set. Its second same-identity connection is
-fail-closed behind two content-free old-session barriers: a bounded loopback
-status ping must report an empty Velocity player registry, then a test-only
-`DisconnectEvent` subscriber at `PostOrder.LAST` must emit a new fixed marker.
-No disconnect component is parsed. A timeout or unavailable observer prevents
-the second socket from being opened. The sanitized report exposes only
-`clean_reconnect_stage`, `termination`, and `old_session_cleanup` fixed enums,
-plus booleans; it does not claim a persistent ban state.
+A case passes only when the exact runtime policy is active, authentication is
+accepted, the audit records a positive advisory-origin enforcement block, the
+connection remains on `lobby`, neither restricted backend accepts the player,
+no disposition route lifecycle occurs, the current connection remains live, and
+owned process/run-material cleanup completes. Bungee can establish exact policy
+activation from the fixed audit version when console acknowledgement and ACTIVE
+markers are split or unavailable across logger sinks; it never credits an
+unrelated observation count.
 
+The current three-target Execute plus ReportOnly runs passed 24/24 cases (8/8 per
+target). The sanitized committed chains are recorded at:
+
+- `docs/evidence/disposition-current-2026-08-21.json`
+
+Use `-ReportOnly` to revalidate and aggregate the latest sanitized case reports
+without starting processes. Per-case reports keep `matrix_completed=false`;
+the validated `-Proxy Both` aggregate includes both DENY cases with no route and no
+connection close and sets `matrix_completed=true`.
 Every case deletes its forwarding secret, generated identities, client cache,
-signed policy/history, run-local observer plugin copy, and redirected process output. Its run
-root retains only a sanitized `report.json`; no hash, rule identifier, policy
-bytes, key, session, UUID, raw frame, path, log content, or disconnect reason is
-retained. `fabric_gui_coverage=false` and `matrix_completed=false` remain
-mandatory until all requested cases are independently proven.
+signed policy/history, run-local observer plugin copy, and redirected process
+output. Reports retain no hash, rule identifier, policy bytes, key, session,
+UUID, raw frame, path, log content, or disconnect reason.
 
-## Opt-in real Paper/Folia hostile-admission gate
+## Opt-in real trusted disposition process matrix
 
-`paper-folia-hostile-admission-smoke.ps1` is a separate local defensive gate for
-the backend admission boundary. It is not a scanner, exploit tool, or Minecraft
-client product. The caller supplies one already obtained server JAR; the wrapper
-does not download an artifact or contact a public server. It starts that JAR only
-on an ephemeral `127.0.0.1` port, generates one per-run Ed25519 pin, and uses the
-test-only raw peer to send bounded custom-payload fixtures. All Gradle subprocesses
-use the already installed Gradle 9.6.1 distribution and local dependency cache
-with `--offline`; a missing distribution, exact Paper API cache, server JAR, or
-test plugin artifact fails closed. Every Gradle subprocess also has an explicit
-timeout which terminates its process tree.
-
-The wrapper requires the modern .NET process APIs exposed by `pwsh` 7, including
-`ProcessStartInfo.ArgumentList` and process-tree `Kill(boolean)`. Windows
-PowerShell 5.1 is rejected during preflight as the fixed
-`POWERSHELL_PROCESS_API_UNSUPPORTED` result, before Gradle or a Minecraft server
-can start. This is a runner-host compatibility failure, not a Paper rejection.
-The sanitized report also carries a fixed `failure_stage` enum plus content-free
-booleans for process API support, Gradle start/zero exit, refreshed build
-outputs, work/key/server preparation, log creation, and each readiness marker.
-Unknown platform exceptions are mapped to a fixed `<STAGE>_INTERNAL_ERROR` enum;
-exception messages are never retained.
-
-Before the offline build, the wrapper records the existing Paper and test-only
-observer JAR timestamps. A passing build requires the Gradle process to start,
-exit zero, emit the two requested task markers and `BUILD SUCCESSFUL`, and
-refresh both output JARs. A stale JAR that merely exists from an earlier run
-cannot satisfy the gate.
+Run the trusted action gate separately from the advisory-origin matrix:
 
 ```powershell
-# Use an already verified local Paper or Folia server JAR. Run one platform at a time.
-.\scripts\paper-folia-hostile-admission-smoke.ps1 -Platform Paper `
-  -ServerJar .\build\platform-smoke\cache\paper-1.21.1-133.jar
-
-.\scripts\paper-folia-hostile-admission-smoke.ps1 -Platform Folia `
-  -MinecraftVersion 1.21.4 `
-  -ServerJar .\build\platform-smoke-folia\cache\folia-1.21.4-<build>.jar
+.\scripts\trusted-disposition-proxy-matrix-smoke.ps1 -Proxy Both -FabricTarget 1.21.11
+.\scripts\trusted-disposition-proxy-matrix-smoke.ps1 -Proxy Both -FabricTarget 26.1.2
+.\scripts\trusted-disposition-proxy-matrix-smoke.ps1 -Proxy Both -FabricTarget 26.2
 ```
 
-`folia-process-smoke.ps1` remains a separate artifact-acquisition and broad
-platform smoke with its own explicit network boundary. The hostile-admission
-gate never invokes it and never downloads a Paper/Folia artifact. After startup,
-the hostile gate parses the current work log's `[bootstrap] Loading Paper|Folia
-... for Minecraft ...` banner and requires both the selected platform and
-`-MinecraftVersion` to match exactly. A mismatch is retained only as a fixed
-enum, never as banner text.
+It is disabled during ordinary builds and enabled only with
+`mcace.runtime.trusted-disposition.enabled=true`. Each real Velocity and Bungee
+case first reaches a clean `VERIFIED` lobby admission. An authorized operator then
+submits `/mcacedisposition review <player> <ticket>
+<mod|resource-pack|shader-pack|config> <identifier> <version> <sha256>`. The
+command has no action parameter: the active signed exact-hash policy selects LIMIT,
+QUARANTINE, or DENY. Before the event can be queued, the runtime must durably append
+the strict 16-column V3 TSV record (first column `v3`) containing the authorization
+identity plus session, review-input, and execution-context commitments. An unavailable,
+malformed, or exhausted journal fails closed. Immediately before action, the proxy
+revalidates the exact current session and `VERIFIED` admission in the same physical
+lifecycle, then checks the exact context commitment, active policy identity/status/expiry,
+current winning rule, and `rule.action == event.action` in one policy-atomic boundary.
 
-The gate first proves that one snapshot signed by the pinned proxy key is
-accepted. It then proves that an unpinned signer, a wrong carrier UUID, a replay
-after one permitted baseline send, an expired snapshot, an over-budget plugin
-frame, and a valid frame sent on the wrong channel do not add another accepted
-backend admission. Because `PaperAdmissionReceiver` invokes its local session
-observer only after acceptance, the absence of an additional accepted admission
-also proves no admission/session action was installed for those hostile fixtures.
-A second test-only Paper/Folia plugin independently observes the installed SDK
-snapshot, schedules one harmless empty action-bar send on the live player's
-entity scheduler, and emits only the fixed
-`MCACE_RUNTIME_OBSERVER_LOCAL_ADMISSION_ACTION_EXECUTED` marker. The pinned
-baseline and the first permitted replay frame must each add exactly one accepted
-marker and one local-action marker; every hostile-only frame and the replay's
-second frame must add neither.
+The six serial cases are required to prove successful distinct LIMIT and QUARANTINE routes on both
+proxies, plus current-connection-only DENY. Each DENY case waits for the first
+connection to disappear, reconnects the same offline identity under an independent
+session with a clean manifest, and requires a fresh verified `lobby` admission. No
+case creates a permanent ban or lets a client report independently authorize an
+action. The current three-target V3 aggregate passed all 18 cases (6/6 per target)
+on 1.21.11, 26.1.2, and 26.2. Execute plus ReportOnly passed, and the sanitized
+committed chains are recorded at:
 
-Before every case the wrapper captures fresh accepted/quit-cleanup/local-action
-marker counts and requires them to remain unchanged for a bounded pre-case
-window. After the peer exits, only that case's exact deltas are accepted, and the
-expected counts must remain unchanged for a further two-second stability window.
-A delayed marker from the previous same-UUID connection therefore fails the next
-case instead of being consumed as its evidence.
+- `docs/evidence/disposition-current-2026-08-21.json`
 
-The retained `report.json` deliberately contains only a fixed schema/platform
-enum and booleans for the seven assertions, temporary-material cleanup,
-process cleanup, and final outcome. It has no player UUID, key, fingerprint,
-hash, session value, raw frame, server log, or workspace path. All generated
-keys, raw-peer reports, copied JARs, logs, and server work are removed in
-`finally`; the wrapper fails if a process whose command line belongs to the run
-remains alive.
+It declares `authorization_contract=UUID_CONTEXT_COMMITMENT_V3`, confirms journal
+persistence before execution in every case, and keeps `fabric_gui_coverage=false`.
+Use `-ReportOnly` to validate and aggregate six sanitized V3 reports without starting
+processes; it must reject V2 or contractless reports. The passing aggregate does not
+claim a real-process `SERVER_CONFIRMED` artifact producer.
+
+## Opt-in real federation proxy matrix
+
+The federation process matrix is disabled during ordinary Gradle builds. Run all
+four Velocity/Bungee source-target pairs sequentially with:
+
+```powershell
+.\scripts\federation-proxy-matrix-smoke.ps1 -Pair All
+```
+
+The wrapper validates each sanitized raw report and emits an aggregate. Use
+`-ReportOnly` to revalidate reports without starting processes. The retained
+`docs/evidence/federation-durable-audit-2026-08-13.json` records a historical schema-2
+aggregate that passed 4/4 plus `-ReportOnly` and recorded process-memory-only client carry, no source-target
+broker, source disconnect before target authentication, same-process replay
+rejection, unchanged target trust/risk/Paper admission, and zero residual
+processes. It binds older proxy artifacts/source; current-source execution and
+`-ReportOnly` are pending. Every case also requires `source_audit_healthy=true` and
+`target_audit_healthy=true`, obtained from each real proxy's content-free
+`/mcacefederation status` output after the flow. The raw peer auto-produces test
+consent only because the gate was explicitly enabled;
+`fabric_gui_coverage=false` remains truthful. Report-only mode rejects old
+schema-1 reports.
+
+The separate `scripts/fabric-federation-gui-handoff-smoke.ps1` contract is now
+V2 and accepts exactly `1.21.11`, `26.1.2`, or `26.2`. It launches the selected
+final Fabric artifact and requires six exact runtime markers: requested,
+rendered, and allowed-once for source export, then the same three markers for
+target import. Its static contract tests pass under PowerShell 7 and Windows
+PowerShell 5. This is implementation evidence only: a PASS still requires a
+human source decision, source disconnect and direct target join, a distinct
+human target decision, target-local `VERIFIED` plus Paper admission, a live
+target session through signed expiry, observation cleanup, privacy checks, and
+zero owned processes.
+
+Run the target-restart residual separately:
+
+```powershell
+.\scripts\federation-target-restart-residual-smoke.ps1
+```
+
+The former P2 cold-listener readiness race is fixed: `startProxy` now waits, after
+the MCAce plugin initialization marker, for the exact selected-port platform marker
+`Listening on /127.0.0.1:<port>`. The pure readiness-marker unit test passed, and
+the current-source schema-2 restart gate passed on its first execution and then
+passed `-ReportOnly`. It proved old
+target-session bindings fail after restart and honestly recorded that
+a retained unexpired grant can create a fresh observation because target replay
+state is process-local: `residual_reacceptance=true` and
+`durable_replay_protection=false`. It is observation-only, retains
+`fabric_gui_coverage=false`, requires healthy source/target durable-audit state,
+and leaves zero remaining owned processes.
+
+## Legacy hostile-admission wrapper
+
+`paper-folia-hostile-admission-smoke.ps1` is retained for older defensive fixture
+reproduction. Its own Minecraft version allowlist still ends at 1.21.4, so it is
+not a current 1.21.11/26.x release gate and its old Paper/Folia command examples
+must not be used as three-version evidence.
+
+The current server release gate is `server-version-process-matrix.ps1`. Any future
+hostile-admission gate for the supported versions must consume the reviewed
+`build/runtime-assets` manifest, use the same exact Java split and protocol
+profiles, bind current product JARs, and publish separately sanitized evidence.
 
 ## Scenario matrix
 

@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.ellan.mcace.core.disposition.DispositionAction;
+import com.ellan.mcace.core.disposition.ObservationOrigin;
 import com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent;
 import com.ellan.mcace.core.proxy.ProxyPolicyRefreshStatus;
 import java.time.Clock;
@@ -16,6 +17,7 @@ import java.util.Optional;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
@@ -158,7 +160,8 @@ final class BungeeDispositionExecutorTest {
         FakeActions actions = new FakeActions();
         List<Runnable> scheduled = new ArrayList<>();
         BungeeDispositionExecutor executor = new BungeeDispositionExecutor(
-                BungeeDispositionExecutionMode.MONITOR, targets(), 1, scheduled::add, actions, CLOCK);
+                BungeeDispositionExecutionMode.MONITOR, targets(), 1, scheduled::add, actions, CLOCK,
+                ignored -> true, (ignored, result) -> { });
 
         assertTrue(executor.offer(event(DispositionAction.WARN)));
         assertFalse(executor.offer(event(DispositionAction.NOTICE, "second-session")));
@@ -166,6 +169,107 @@ final class BungeeDispositionExecutorTest {
         assertTrue(scheduled.size() == 1);
         scheduled.removeFirst().run();
         assertTrue(actions.messages.isEmpty());
+    }
+
+    @Test
+    void closeLinearizesAfterAnInFlightApplyAndRejectsEveryPostCloseApply() throws Exception {
+        CloseLinearizationActions actions = new CloseLinearizationActions();
+        BungeeDispositionExecutor executor = executor(
+                BungeeDispositionExecutionMode.MONITOR, actions, new ArrayList<>());
+        AtomicReference<BungeeDispositionExecutor.Result> applyResult = new AtomicReference<>();
+        AtomicBoolean closeReturned = new AtomicBoolean();
+
+        Thread applyThread = new Thread(
+                () -> applyResult.set(executor.apply(event(DispositionAction.WARN, "in-flight"))),
+                "bungee-disposition-in-flight-apply");
+        applyThread.start();
+        assertTrue(actions.actionEntered.await(2, TimeUnit.SECONDS));
+
+        Thread closeThread = new Thread(() -> {
+            executor.close();
+            closeReturned.set(true);
+        }, "bungee-disposition-close");
+        closeThread.start();
+        assertTrue(awaitThreadState(closeThread, Thread.State.BLOCKED, 2, TimeUnit.SECONDS),
+                "close must wait on the same monitor as an already-running apply");
+        assertFalse(closeReturned.get());
+
+        actions.releaseAction.countDown();
+        applyThread.join(2_000);
+        closeThread.join(2_000);
+        assertFalse(applyThread.isAlive());
+        assertFalse(closeThread.isAlive());
+        assertEquals(BungeeDispositionExecutor.Status.WARN_SENT, applyResult.get().status());
+        assertTrue(closeReturned.get());
+        assertEquals(1, actions.actionCalls);
+
+        assertEquals(BungeeDispositionExecutor.Status.ACTION_UNAVAILABLE,
+                executor.apply(event(DispositionAction.WARN, "after-close")).status());
+        assertEquals(1, actions.actionCalls, "a closed executor must not initiate a platform action");
+    }
+
+    @Test
+    void boundedIdempotencySetRejectsNewWorkButPreservesDuplicatesAndExactCleanupFreesOneSlot() {
+        FakeActions actions = new FakeActions();
+        BungeeDispositionExecutor executor = new BungeeDispositionExecutor(
+                BungeeDispositionExecutionMode.MONITOR, targets(), 4, ignored -> { }, actions, CLOCK,
+                ignored -> true, (ignored, result) -> { }, 2);
+        AuthenticatedManifestDispositionEvent first = eventWithAuthorization(
+                DispositionAction.WARN, "session-one",
+                UUID.fromString("00000000-0000-0000-0000-000000000101"));
+        AuthenticatedManifestDispositionEvent second = eventWithAuthorization(
+                DispositionAction.WARN, "session-two",
+                UUID.fromString("00000000-0000-0000-0000-000000000102"));
+        AuthenticatedManifestDispositionEvent third = eventWithAuthorization(
+                DispositionAction.WARN, "session-three",
+                UUID.fromString("00000000-0000-0000-0000-000000000103"));
+
+        assertEquals(BungeeDispositionExecutor.Status.WARN_SENT,
+                executor.apply(first).status());
+        assertEquals(BungeeDispositionExecutor.Status.WARN_SENT,
+                executor.apply(second).status());
+        assertEquals(BungeeDispositionExecutor.Status.DUPLICATE,
+                executor.apply(first).status(),
+                "an existing key stays a duplicate even when the set is full");
+        assertEquals(BungeeDispositionExecutor.Status.ACTION_UNAVAILABLE,
+                executor.apply(third).status(), "a new authorization fails closed at capacity");
+        assertEquals(2, actions.messages.size(), "capacity rejection must not touch the player");
+
+        executor.clear(PLAYER, "session-one");
+        assertEquals(BungeeDispositionExecutor.Status.WARN_SENT,
+                executor.apply(third).status(),
+                "exact cleanup reclaims the departing session's slot");
+        assertEquals(BungeeDispositionExecutor.Status.DUPLICATE,
+                executor.apply(second).status(),
+                "cleanup must retain every other session's key");
+    }
+
+    @Test
+    void supersededPolicyIsRecheckedWhenTheQueuedEventExecutes() {
+        FakeActions actions = new FakeActions();
+        BungeeDispositionExecutor executor = new BungeeDispositionExecutor(
+                BungeeDispositionExecutionMode.LIMITED_ROUTE, targets(), 4,
+                ignored -> { }, actions, CLOCK, ignored -> false, (ignored, result) -> { });
+
+        assertEquals(BungeeDispositionExecutor.Status.NO_VALID_POLICY,
+                executor.apply(event(DispositionAction.DENY)).status());
+        assertFalse(actions.denied);
+        assertTrue(actions.routeTargets.isEmpty());
+        assertTrue(actions.messages.isEmpty());
+    }
+
+    @Test
+    void staleAuthorizationContextCannotExecuteAHighImpactAction() {
+        FakeActions actions = new FakeActions();
+        actions.currentAuthorizationContext = false;
+        BungeeDispositionExecutor executor = executor(
+                BungeeDispositionExecutionMode.LIMITED_ROUTE, actions, new ArrayList<>());
+
+        assertEquals(BungeeDispositionExecutor.Status.STALE_AUTHORIZATION_CONTEXT,
+                executor.apply(event(DispositionAction.DENY)).status());
+        assertTrue(actions.messages.isEmpty());
+        assertTrue(actions.routeTargets.isEmpty());
+        assertFalse(actions.denied);
     }
 
     @Test
@@ -222,10 +326,29 @@ final class BungeeDispositionExecutorTest {
                 "cleanup for a must not erase an idempotency key for a|replacement");
     }
 
+    @Test
+    void independentTrustedAuthorizationsAreNotCollapsedAsDuplicates() {
+        FakeActions actions = new FakeActions();
+        BungeeDispositionExecutor executor = executor(
+                BungeeDispositionExecutionMode.MONITOR, actions, new ArrayList<>());
+        AuthenticatedManifestDispositionEvent first = event(DispositionAction.WARN);
+        AuthenticatedManifestDispositionEvent second = new AuthenticatedManifestDispositionEvent(
+                first.playerId(), first.sessionId(), first.evaluatedAt(), first.highestAction(),
+                first.winningRuleId(), first.refreshStatus(), first.activePolicyVersion(),
+                first.activePolicySequence(), first.activePolicyExpiresAt(), first.authorityOrigin(),
+                Optional.of(UUID.fromString("00000000-0000-0000-0000-000000000100")),
+                first.reviewTicket(), Optional.of("44".repeat(32)));
+
+        assertEquals(BungeeDispositionExecutor.Status.WARN_SENT, executor.apply(first).status());
+        assertEquals(BungeeDispositionExecutor.Status.WARN_SENT, executor.apply(second).status());
+        assertEquals(2, actions.messages.size());
+    }
+
     private static BungeeDispositionExecutor executor(
             BungeeDispositionExecutionMode mode, FakeActions actions, List<Runnable> scheduled) {
         return new BungeeDispositionExecutor(
-                mode, targets(), 4, scheduled::add, actions, CLOCK);
+                mode, targets(), 4, scheduled::add, actions, CLOCK,
+                ignored -> true, (ignored, result) -> { });
     }
 
     private static BungeeDispositionRouteTargets targets() {
@@ -254,7 +377,10 @@ final class BungeeDispositionExecutorTest {
                 status,
                 status == ProxyPolicyRefreshStatus.ACTIVE ? Optional.of("policy-a") : Optional.empty(),
                 status == ProxyPolicyRefreshStatus.ACTIVE ? Optional.of(2L) : Optional.empty(),
-                status == ProxyPolicyRefreshStatus.ACTIVE ? Optional.of(NOW.plusSeconds(60)) : Optional.empty());
+                status == ProxyPolicyRefreshStatus.ACTIVE ? Optional.of(NOW.plusSeconds(60)) : Optional.empty(),
+                ObservationOrigin.SERVER_CONFIRMED,
+                Optional.of(UUID.fromString("00000000-0000-0000-0000-000000000099")),
+                Optional.empty(), Optional.of("33".repeat(32)));
     }
 
     private static AuthenticatedManifestDispositionEvent eventWithoutWinner() {
@@ -264,9 +390,31 @@ final class BungeeDispositionExecutorTest {
                 Optional.of(NOW.plusSeconds(60)));
     }
 
+    private static AuthenticatedManifestDispositionEvent eventWithAuthorization(
+            DispositionAction action, String sessionId, UUID authorizationId) {
+        return new AuthenticatedManifestDispositionEvent(
+                PLAYER, sessionId, NOW, action, Optional.of("rule-a"),
+                ProxyPolicyRefreshStatus.ACTIVE, Optional.of("policy-a"), Optional.of(2L),
+                Optional.of(NOW.plusSeconds(60)), ObservationOrigin.SERVER_CONFIRMED,
+                Optional.of(authorizationId), Optional.empty(), Optional.of("33".repeat(32)));
+    }
+
+    private static boolean awaitThreadState(
+            Thread thread, Thread.State state, long timeout, TimeUnit unit) throws InterruptedException {
+        long deadline = System.nanoTime() + unit.toNanos(timeout);
+        while (System.nanoTime() < deadline) {
+            if (thread.getState() == state) {
+                return true;
+            }
+            Thread.sleep(1L);
+        }
+        return thread.getState() == state;
+    }
+
     private static class FakeActions implements BungeeDispositionExecutor.Actions {
         private boolean current = true;
         private boolean verified = true;
+        private boolean currentAuthorizationContext = true;
         private boolean denied;
         private boolean banned;
         private BungeeDispositionExecutor.Actions.RouteOutcome routeOutcome =
@@ -276,6 +424,8 @@ final class BungeeDispositionExecutorTest {
 
         @Override public boolean isCurrentAuthenticatedSession(UUID playerId, String sessionId) { return current; }
         @Override public boolean isVerifiedAdmission(UUID playerId) { return verified; }
+        @Override public boolean isCurrentAuthorizationContext(
+                AuthenticatedManifestDispositionEvent event) { return currentAuthorizationContext; }
         @Override public boolean sendMessage(UUID playerId, String sessionId, String message) {
             messages.add(sessionId + ":" + message);
             return true;
@@ -308,6 +458,23 @@ final class BungeeDispositionExecutorTest {
             }
             sentSessions.add(sessionId);
             return true;
+        }
+    }
+
+    private static final class CloseLinearizationActions extends FakeActions {
+        private final CountDownLatch actionEntered = new CountDownLatch(1);
+        private final CountDownLatch releaseAction = new CountDownLatch(1);
+        private volatile int actionCalls;
+
+        @Override public boolean sendMessage(UUID playerId, String sessionId, String message) {
+            actionCalls++;
+            actionEntered.countDown();
+            try {
+                return releaseAction.await(2, TimeUnit.SECONDS);
+            } catch (InterruptedException exception) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
         }
     }
 }

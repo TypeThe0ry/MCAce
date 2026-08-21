@@ -4,6 +4,7 @@ import com.ellan.mcace.sdk.MCAceApi;
 import com.ellan.mcace.sdk.PlayerSecuritySnapshot;
 import com.ellan.mcace.core.proxy.SharedProxyDispositionPolicyRuntime;
 import com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent;
+import com.ellan.mcace.core.proxy.ShadowBackendContextRuntime;
 import com.ellan.mcace.core.session.HeartbeatTransition;
 import com.ellan.mcace.core.session.HeartbeatMissingPolicy;
 import com.ellan.mcace.core.session.HeartbeatMissingTransition;
@@ -102,6 +103,11 @@ public interface BungeeSessionBridge extends AutoCloseable {
      * admission snapshot or creates a permanent punishment.</p>
      */
     default Optional<SharedProxyDispositionPolicyRuntime> dispositionPolicyRuntime() {
+        return Optional.empty();
+    }
+
+    /** Optional audit-only backend/world/game-mode context runtime. */
+    default Optional<ShadowBackendContextRuntime> shadowBackendContextRuntime() {
         return Optional.empty();
     }
 

@@ -1,0 +1,69 @@
+{
+  "schema": "MCACE_SANITIZED_COMMITTED_EVIDENCE_ENVELOPE_V1",
+  "evidence_kind": "CLIENT_REPORTED_ADVISORY_MATRIX",
+  "generated_at": "2026-08-13T18:02:43.8762809+00:00",
+  "source_mode": "EXECUTED_AND_REPORT_ONLY_VALIDATED",
+  "report_only_validation": {"passed": true, "maximum_report_age_minutes": 1440},
+  "commit_chain": {
+    "committed": true,
+    "report_schema": "MCACE_DISPOSITION_ADVISORY_GUARD_AGGREGATE_V3",
+    "binding_schema": "MCACE_DISPOSITION_ADVISORY_GUARD_BINDING_V2",
+    "commit_schema": "MCACE_DISPOSITION_ADVISORY_GUARD_COMMIT_V1",
+    "report_sha256": "c2d05192031a4b0ddbf258255144934d9f6cd33d0b6352feaaa042cfdc776f7d",
+    "binding_sha256": "0927738e4b87a005c49f644f55e3b809c977212a218bf6eb3188102f2169969a",
+    "commit_sha256": "80b1d211f8c678bb346f83e7d59eb57aa102b179225e056b1a198baa3a2c8d3a",
+    "binding_report_sha_matches": true,
+    "commit_report_sha_matches": true,
+    "commit_binding_sha_matches": true
+  },
+  "summary": {
+    "proxy_scope": "BOTH",
+    "expected_case_count": 8,
+    "observed_case_count": 8,
+    "all_cases_passed": true,
+    "client_reported_deny_case_count": 2,
+    "client_reported_deny_cases_completed": true,
+    "matrix_completed": true,
+    "privacy_boundary": "CLIENT_REPORTED_CANNOT_INDEPENDENTLY_LIMIT_QUARANTINE_OR_DENY",
+    "server_confirmed_action_process_coverage": false,
+    "fabric_gui_coverage": false,
+    "actual_run_root_digest_coverage": false,
+    "runtime_asset_binding_limitation": "CANONICAL_SOURCE_ASSETS_WINDOW_BOUND_RUN_ROOT_COPY_DIGEST_NOT_EMITTED"
+  },
+  "binding_summary": {
+    "source_manifest_sha256": "1f258f3db987e183287fe31306f9297799d364ed3a5261b5eac06ff1a9424e1c",
+    "source_file_count": 624,
+    "gate_wrapper_sha256": "701deef0ccba267b570eb8071a86f70cafc2292e7487e663ca19d080d7d6d6e5",
+    "deployable_jars": {
+      "velocity_sha256": "cdbb5380616a00ee1f5cf6a5516ab7189c4bce57ea3bd1fa896283e8b04cde8c",
+      "bungee_sha256": "4f1c270da246e9251bb467144f72ad4538b1c5cfd71187b76075af386e1e85bf",
+      "paper_sha256": "c9743d3e6e298588d9aabc8ee8d5478cd6a610e85ed7e750f919831fca141b97"
+    },
+    "platform_assets": {
+      "velocity_server_sha256": "b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3",
+      "bungee_server_sha256": "45a5aa27b9f2446c320447148913aee5673ec23ddf30c81d6dafa9dd910a91eb",
+      "paper_server_sha256": "39bd8c00b9e18de91dcabd3cc3dcfa5328685a53b7187a2f63280c22e2d287b9",
+      "paper_prepared_manifest_sha256": "9d005b23dab7d1a92d06da6920e7dd4798b35f9be6a7da0c70071b30bb00abea",
+      "paper_prepared_file_count": 105,
+      "paper_prepared_directory_count": 279
+    },
+    "runtime": {
+      "java_executable_sha256": "9f8d9893143b74849253c1fc323d095bfbf6dc9c7761caa9c5b62d44d9ee21e1",
+      "java_file_version": "21.0.7.0",
+      "java_major": 21,
+      "gradle_version": "9.6.1",
+      "gradle_distribution_sha256": "9c0f7faeeb306cb14e4279a3e084ca6b596894089a0638e68a07c945a32c9e14"
+    }
+  },
+  "cases": [
+    {"platform":"VELOCITY","case":"MONITOR_LIMIT","configured_execution_mode":"MONITOR","requested_policy_action":"DISPOSITION_LIMIT","outcome":"ADVISORY_ONLY_NO_ROUTE","current_connection_retained":true,"current_connection_closed":false,"passed":true,"raw_report_sha256":"5466418522c2e7a556cd592ebe05b004870ee2b81240c387652e2d2298ce7c85"},
+    {"platform":"VELOCITY","case":"ENFORCE_LIMIT","configured_execution_mode":"LIMITED_ROUTE","requested_policy_action":"DISPOSITION_LIMIT","outcome":"ADVISORY_ONLY_NO_ROUTE","current_connection_retained":true,"current_connection_closed":false,"passed":true,"raw_report_sha256":"0958265bd30a4f466033b61243162337139cfe53155576de22fe80eaed5c4b1d"},
+    {"platform":"VELOCITY","case":"ENFORCE_QUARANTINE","configured_execution_mode":"LIMITED_ROUTE","requested_policy_action":"DISPOSITION_QUARANTINE","outcome":"ADVISORY_ONLY_NO_ROUTE","current_connection_retained":true,"current_connection_closed":false,"passed":true,"raw_report_sha256":"4aec4e832ee8f9d36480b0030256755ad7e8eb3f52fc9c8d0dc89a05a48e5c25"},
+    {"platform":"VELOCITY","case":"ENFORCE_DENY","configured_execution_mode":"LIMITED_ROUTE","requested_policy_action":"DISPOSITION_DENY","outcome":"ADVISORY_ONLY_NO_ROUTE","current_connection_retained":true,"current_connection_closed":false,"passed":true,"raw_report_sha256":"2a5792190c801c56f2407197eb84d82a6f735e8456c7d0be51e5ed1cd348fad9"},
+    {"platform":"BUNGEE","case":"MONITOR_LIMIT","configured_execution_mode":"MONITOR","requested_policy_action":"DISPOSITION_LIMIT","outcome":"ADVISORY_ONLY_NO_ROUTE","current_connection_retained":true,"current_connection_closed":false,"passed":true,"raw_report_sha256":"3ffc761b089bb7d8bc4cd5a5be897f604627af2942bc36e35a9e4cbef4c80e40"},
+    {"platform":"BUNGEE","case":"ENFORCE_LIMIT","configured_execution_mode":"LIMITED_ROUTE","requested_policy_action":"DISPOSITION_LIMIT","outcome":"ADVISORY_ONLY_NO_ROUTE","current_connection_retained":true,"current_connection_closed":false,"passed":true,"raw_report_sha256":"a6d3c61e29f5e3c05749cbf7c15fb59bc70fc9326394e98c01ab6dad8583c3dc"},
+    {"platform":"BUNGEE","case":"ENFORCE_QUARANTINE","configured_execution_mode":"LIMITED_ROUTE","requested_policy_action":"DISPOSITION_QUARANTINE","outcome":"ADVISORY_ONLY_NO_ROUTE","current_connection_retained":true,"current_connection_closed":false,"passed":true,"raw_report_sha256":"b0060ce79177e7b29406a35f1fbe014843823714afe71a4092653d1de6a208c4"},
+    {"platform":"BUNGEE","case":"ENFORCE_DENY","configured_execution_mode":"LIMITED_ROUTE","requested_policy_action":"DISPOSITION_DENY","outcome":"ADVISORY_ONLY_NO_ROUTE","current_connection_retained":true,"current_connection_closed":false,"passed":true,"raw_report_sha256":"f59753c2525e358c0efc98be319912b6361c661701ccf83ab0c7f00bf515a493"}
+  ],
+  "sanitization": {"raw_report_paths_copied":false,"identity_values_copied":false,"process_ids_copied":false,"network_endpoints_copied":false,"absolute_paths_copied":false,"raw_limitation_text_copied":false}
+}

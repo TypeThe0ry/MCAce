@@ -28,6 +28,8 @@ enum PacketType {
   FEDERATION_CONSENT_RESPONSE = 18;
   FEDERATION_GRANT = 19;
   FEDERATION_PRESENTATION = 20;
+  BACKEND_AUTHORITY_GRANT = 21;
+  SERVER_AUTHORITY_OBSERVATION = 22;
 }
 
 // A deliberately separate, minimal remote claim. It is never a TrustLevel and must
@@ -622,6 +624,75 @@ message AdmissionUpdate {
   int64 expires_at_epoch_ms = 8;
   uint64 transport_sequence = 9;
   repeated AdmissionReason reasons = 10;
+}
+
+// Paper/Folia -> proxy, carried by the player's current server connection. The backend identity
+// is deliberately absent: Velocity/BungeeCord derive it from the authenticated message source.
+// This report is bound to the most recent proxy-signed admission transport sequence and is used
+// only for shadow policy comparison; it is never an admission or punishment instruction.
+message BackendContextUpdate {
+  uint32 schema_version = 1;
+  string player_uuid = 2;
+  uint64 admission_transport_sequence = 3;
+  uint64 report_sequence = 4;
+  string world_id = 5;
+  string game_mode = 6;
+  int64 observed_at_epoch_ms = 7;
+}
+
+// Proxy -> Paper/Folia. This short-lived grant binds a backend authority frame to the
+// exact authenticated proxy session and physical login generation. It is not evidence
+// and contains no disposition instruction.
+message BackendAuthorityGrant {
+  uint32 schema_version = 1;
+  string grant_id = 2;
+  string proxy_instance_id = 3;
+  string backend_instance_id = 4;
+  string player_uuid = 5;
+  string authenticated_session_id = 6;
+  bytes physical_login_binding = 7;
+  uint64 admission_transport_sequence = 8;
+  uint64 grant_sequence = 9;
+  int64 issued_at_epoch_ms = 10;
+  int64 expires_at_epoch_ms = 11;
+  bytes challenge = 12;
+}
+
+// A content-free summary from one operator-pinned, independent server trust domain.
+// The canonical authority-profile digest commits the eligible versions, check families,
+// thresholds, quorum, window and cooldown; these fields provide bounded audit context.
+message ServerAuthorityProviderSummary {
+  string trust_domain_id = 1;
+  string provider_id = 2;
+  string provider_version = 3;
+  string stable_check_family = 4;
+  uint32 threshold = 5;
+  uint32 observed_count = 6;
+  int64 window_started_at_epoch_ms = 7;
+  int64 window_ended_at_epoch_ms = 8;
+}
+
+// Paper/Folia -> proxy, signed by the exact backend instance key and carried by the
+// player's current backend connection. The message deliberately has no origin,
+// confidence, policy rule, disposition action, route, kick or ban field. Only a proxy
+// verifier may turn a fully bound frame into an internal verified observation.
+message ServerAuthorityObservation {
+  uint32 schema_version = 1;
+  string attestation_id = 2;
+  string backend_instance_id = 3;
+  bytes backend_key_id_sha256 = 4;
+  string player_uuid = 5;
+  string authenticated_session_id = 6;
+  string grant_id = 7;
+  bytes grant_commitment_sha256 = 8;
+  bytes physical_login_binding = 9;
+  uint64 admission_transport_sequence = 10;
+  uint64 observation_sequence = 11;
+  int64 observed_at_epoch_ms = 12;
+  int64 issued_at_epoch_ms = 13;
+  int64 expires_at_epoch_ms = 14;
+  bytes authority_profile_sha256 = 15;
+  repeated ServerAuthorityProviderSummary providers = 16;
 }
 
 // Source network -> its locally authenticated client. There is no automatic transport:

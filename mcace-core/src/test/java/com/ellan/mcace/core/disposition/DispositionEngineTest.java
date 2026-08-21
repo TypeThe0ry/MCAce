@@ -29,6 +29,35 @@ class DispositionEngineTest {
         assertEquals(DispositionAction.DENY, new DispositionEngine().evaluate(p, context(), protocol()).action());
     }
     @Test void clientSignalDefaultsToObserveAndNoBanExists() { assertEquals(DispositionAction.OBSERVE, new DispositionEngine().evaluate(new DispositionPolicy("v1", List.of()), context(), mod()).action()); assertThrows(IllegalArgumentException.class, () -> new ArtifactSelector(ArtifactType.MOD, MatchType.EXACT_HASH, "bad", null, null, Map.of())); }
+
+    @Test void clientAndInferredSignalsCannotIndependentlyTriggerHighImpactActions() {
+        String exactSha = "ab".repeat(32);
+        DispositionRule deny = new DispositionRule("deny-client-hash",
+                new ArtifactSelector(ArtifactType.MOD, MatchType.EXACT_HASH, exactSha, null, null, Map.of()),
+                RuleScope.global(), DispositionAction.DENY, Confidence.LOW, null, null, 0, false);
+        DispositionPolicy policy = new DispositionPolicy("v1", List.of(deny));
+        for (ObservationOrigin origin : List.of(
+                ObservationOrigin.CLIENT_REPORTED, ObservationOrigin.INFERRED, ObservationOrigin.UNAVAILABLE)) {
+            ArtifactObservation observation = new ArtifactObservation(ArtifactType.MOD, "bad.mod", "1",
+                    exactSha, Map.of(), origin, Confidence.CONFIRMED, false);
+            DispositionDecision decision = new DispositionEngine().evaluate(policy, context(), observation);
+            assertEquals(DispositionAction.OBSERVE, decision.action());
+            assertTrue(decision.winningRuleId().isEmpty());
+            assertEquals("advisory-origin-cannot-enforce", decision.explanations().getFirst().outcome());
+        }
+    }
+
+    @Test void independentlyConfirmedExactHashCanUseCurrentConnectionOnlyDenyVocabulary() {
+        String exactSha = "ab".repeat(32);
+        DispositionRule deny = new DispositionRule("deny-confirmed-hash",
+                new ArtifactSelector(ArtifactType.MOD, MatchType.EXACT_HASH, exactSha, null, null, Map.of()),
+                RuleScope.global(), DispositionAction.DENY, Confidence.LOW, null, null, 0, false);
+        ArtifactObservation confirmed = new ArtifactObservation(ArtifactType.MOD, "bad.mod", "1",
+                exactSha, Map.of(), ObservationOrigin.SERVER_CONFIRMED, Confidence.CONFIRMED, false);
+
+        assertEquals(DispositionAction.DENY, new DispositionEngine().evaluate(
+                new DispositionPolicy("v1", List.of(deny)), context(), confirmed).action());
+    }
     @Test void rejectsUntrustedPolicyBoundariesAndCopiesCollections() { assertThrows(IllegalArgumentException.class, () -> new DispositionRule("x", new ArtifactSelector(ArtifactType.MOD, MatchType.EXACT_ID, "x", null, null, Map.of()), RuleScope.global(), DispositionAction.WARN, Confidence.LOW, NOW, NOW, 0, false)); Map<String,String> source = new java.util.HashMap<>(); ArtifactObservation o = new ArtifactObservation(ArtifactType.MOD, "x", "1", null, source, ObservationOrigin.INFERRED, Confidence.LOW, false); source.put("changed", "yes"); assertTrue(o.metadata().isEmpty()); }
 
     @Test void foundationRulesCannotBeAppliedToOrdinaryArtifacts() {

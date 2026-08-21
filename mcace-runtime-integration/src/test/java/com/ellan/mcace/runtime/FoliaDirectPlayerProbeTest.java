@@ -56,12 +56,14 @@ final class FoliaDirectPlayerProbeTest {
     void directFoliaPlayerReachesEntityScheduledAdmissionConsumer() throws Exception {
         String portValue = System.getProperty("mcace.folia.player-probe.port", "").trim();
         Assumptions.assumeTrue(!portValue.isEmpty(), "external Folia probe is opt-in");
+        RuntimeProcessAssets.BackendAssets runtimeAssets =
+                RuntimeProcessAssets.backendFromSystemProperties("FOLIA");
         AdmissionProbeMode mode = AdmissionProbeMode.parse(
                 System.getProperty("mcace.admission-probe.mode", "PINNED_BASELINE"));
         ProbeReport report = new Peer(
                 System.getProperty("mcace.folia.player-probe.host", "127.0.0.1"),
                 Integer.parseInt(portValue),
-                protocolFor(System.getProperty("mcace.folia.player-probe.minecraft-version", "1.21.1")),
+                runtimeAssets.wireProfile(),
                 privateKey(Path.of(required("mcace.folia.player-probe.private-key-path"))),
                 Long.parseLong(System.getProperty("mcace.folia.player-probe.hold-millis", "4500")),
                 mode)
@@ -83,16 +85,6 @@ final class FoliaDirectPlayerProbeTest {
         return value;
     }
 
-    private static int protocolFor(String minecraftVersion) {
-        return switch (minecraftVersion.trim()) {
-            case "1.21.1" -> 767;
-            case "1.21.2", "1.21.3" -> 768;
-            case "1.21.4" -> 769;
-            default -> throw new IllegalArgumentException(
-                    "FOLIA_DIRECT_PROBE_UNSUPPORTED_VERSION|no bounded raw-peer mapping for " + minecraftVersion);
-        };
-    }
-
     private static PrivateKey privateKey(Path path) throws Exception {
         byte[] encoded = Base64.getDecoder().decode(Files.readString(path, StandardCharsets.UTF_8).trim());
         return KeyFactory.getInstance("Ed25519").generatePrivate(new PKCS8EncodedKeySpec(encoded));
@@ -101,7 +93,7 @@ final class FoliaDirectPlayerProbeTest {
     private static final class Peer {
         private final String host;
         private final int port;
-        private final int protocol;
+        private final MinecraftWireProfile wireProfile;
         private final PrivateKey signingKey;
         private final long holdMillis;
         private final AdmissionProbeMode mode;
@@ -116,13 +108,13 @@ final class FoliaDirectPlayerProbeTest {
         private Peer(
                 String host,
                 int port,
-                int protocol,
+                MinecraftWireProfile wireProfile,
                 PrivateKey signingKey,
                 long holdMillis,
                 AdmissionProbeMode mode) {
             this.host = host;
             this.port = port;
-            this.protocol = protocol;
+            this.wireProfile = wireProfile;
             this.signingKey = signingKey;
             this.holdMillis = Math.max(3_500L, holdMillis);
             this.mode = mode;
@@ -149,6 +141,7 @@ final class FoliaDirectPlayerProbeTest {
                 // The report exposes the failed state; tests do not treat a disconnect as success.
             }
             return new ProbeReport(
+                    wireProfile.protocolVersion(),
                     loginSuccess,
                     configurationFinished,
                     payloadDispatchCompleted,
@@ -164,7 +157,8 @@ final class FoliaDirectPlayerProbeTest {
                 loginSuccess = true;
                 send(output, 0x03, new byte[0]);
                 state = State.CONFIGURATION;
-                send(output, 0x00, clientInformation(protocol));
+                send(output, wireProfile.configuration().serverboundClientInformation(),
+                        clientInformation(wireProfile));
                 sendCustomPayload(output, "minecraft:register", "mcace:admission".getBytes(StandardCharsets.UTF_8));
             } else if (packet.id() == 0x04) {
                 DataInputStream request = new DataInputStream(new ByteArrayInputStream(packet.payload()));
@@ -175,20 +169,22 @@ final class FoliaDirectPlayerProbeTest {
         }
 
         private void handleConfiguration(DataOutputStream output, Packet packet) throws Exception {
-            if (packet.id() == 0x03) {
-                send(output, 0x03, new byte[0]);
+            MinecraftWireProfile.ConfigurationPackets packets = wireProfile.configuration();
+            if (packet.id() == packets.clientboundFinish()) {
+                send(output, packets.serverboundFinish(), new byte[0]);
                 configurationFinished = true;
                 state = State.PLAY;
                 sendAdmission(output);
-            } else if (packet.id() == 0x04) {
-                send(output, 0x04, packet.payload());
-            } else if (packet.id() == 0x05) {
-                send(output, 0x05, packet.payload());
-            } else if (packet.id() == 0x0e) {
-                send(output, 0x07, varInt(0));
-            } else if (packet.id() == 0x00) {
+            } else if (packet.id() == packets.clientboundKeepAlive()) {
+                send(output, packets.serverboundKeepAlive(), packet.payload());
+            } else if (packet.id() == packets.clientboundPing()) {
+                send(output, packets.serverboundPong(), packet.payload());
+            } else if (packet.id() == packets.clientboundSelectKnownPacks()) {
+                send(output, packets.serverboundSelectKnownPacks(), varInt(0));
+            } else if (packet.id() == packets.clientboundCookieRequest()) {
                 DataInputStream request = new DataInputStream(new ByteArrayInputStream(packet.payload()));
-                send(output, 0x01, concat(string(readString(request)), new byte[] {0}));
+                send(output, packets.serverboundCookieResponse(),
+                        concat(string(readString(request)), new byte[] {0}));
             }
         }
 
@@ -256,7 +252,9 @@ final class FoliaDirectPlayerProbeTest {
         }
 
         private void sendCustomPayload(DataOutputStream output, String channel, byte[] data) throws IOException {
-            int packetId = state == State.CONFIGURATION ? 0x02 : playCustomPayloadPacketId(protocol);
+            int packetId = state == State.CONFIGURATION
+                    ? wireProfile.configuration().serverboundCustomPayload()
+                    : wireProfile.play().serverboundCustomPayload();
             send(output, packetId, concat(string(channel), data));
         }
 
@@ -287,7 +285,7 @@ final class FoliaDirectPlayerProbeTest {
         }
 
         private byte[] handshake() throws IOException {
-            return concat(varInt(protocol), string(host), shortBytes(port), varInt(2));
+            return concat(varInt(wireProfile.protocolVersion()), string(host), shortBytes(port), varInt(2));
         }
     }
 
@@ -328,6 +326,7 @@ final class FoliaDirectPlayerProbeTest {
     }
 
     private record ProbeReport(
+            int protocol,
             boolean loginSuccess,
             boolean configurationFinished,
             boolean payloadDispatchCompleted,
@@ -335,7 +334,8 @@ final class FoliaDirectPlayerProbeTest {
             boolean hostilePayloadSent,
             AdmissionProbeMode mode) {
         private String toJson() {
-            return "{\"schema\":1,\"login_success\":" + loginSuccess
+            return "{\"schema\":2,\"protocol\":" + protocol
+                    + ",\"login_success\":" + loginSuccess
                     + ",\"configuration_finished\":" + configurationFinished
                     + ",\"payload_dispatch_completed\":" + payloadDispatchCompleted
                     + ",\"permitted_snapshot_sent\":" + permittedSnapshotSent
@@ -344,7 +344,7 @@ final class FoliaDirectPlayerProbeTest {
         }
     }
 
-    private static byte[] clientInformation(int protocol) throws IOException {
+    private static byte[] clientInformation(MinecraftWireProfile profile) throws IOException {
         byte[] legacy = concat(
                 string("en_us"),
                 new byte[] {8},
@@ -354,12 +354,8 @@ final class FoliaDirectPlayerProbeTest {
                 new byte[] {0, 1});
         // 1.21.2 added the final particle-status VarInt. Omitting it makes Folia reject the
         // configuration packet before a Player exists, so the entity scheduler is never reached.
-        return protocol >= 768 ? concat(legacy, varInt(0)) : legacy;
-    }
-
-    private static int playCustomPayloadPacketId(int protocol) {
-        // The 1.21.2 protocol inserted common/window packets before serverbound custom payload.
-        return protocol >= 768 ? 0x14 : 0x12;
+        return profile.clientInformationIncludesParticleStatus()
+                ? concat(legacy, varInt(0)) : legacy;
     }
 
     private static byte[] loginStart() throws IOException {

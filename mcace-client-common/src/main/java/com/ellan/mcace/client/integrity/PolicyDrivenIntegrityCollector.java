@@ -14,7 +14,6 @@ import java.util.Set;
 
 public final class PolicyDrivenIntegrityCollector {
     private static final Set<String> ALLOWED_DIRECTORY_ROOTS = Set.of("mods", "resourcepacks", "shaderpacks");
-    private static final Set<String> DEFAULT_CONSENTED_FILES = Set.of("options.txt");
     private final Clock clock;
     private final ScopedIntegrityScanner scanner;
 
@@ -24,18 +23,30 @@ public final class PolicyDrivenIntegrityCollector {
     }
 
     public ClientIntegrityBundle collect(Path minecraftRoot, SecurityPolicy policy) throws IntegrityScanException {
-        return collect(minecraftRoot, policy, DEFAULT_CONSENTED_FILES);
+        return collect(minecraftRoot, policy, Set.of(), IntegrityScanCancellation.NONE);
     }
 
     public ClientIntegrityBundle collect(
             Path minecraftRoot,
             SecurityPolicy policy,
             Set<String> consentedExplicitFiles) throws IntegrityScanException {
+        return collect(minecraftRoot, policy, consentedExplicitFiles, IntegrityScanCancellation.NONE);
+    }
+
+    public ClientIntegrityBundle collect(
+            Path minecraftRoot,
+            SecurityPolicy policy,
+            Set<String> consentedExplicitFiles,
+            IntegrityScanCancellation cancellation) throws IntegrityScanException {
+        java.util.Objects.requireNonNull(consentedExplicitFiles, "consentedExplicitFiles");
+        java.util.Objects.requireNonNull(cancellation, "cancellation");
+        cancellation.check();
         Set<String> consented = consentedExplicitFiles.stream()
                 .map(path -> path.replace('\\', '/'))
                 .collect(java.util.stream.Collectors.toUnmodifiableSet());
         List<ScopeIntegrityManifest> manifests = new ArrayList<>();
         for (IntegrityScopeRule rule : policy.getIntegrityScopesList()) {
+            cancellation.check();
             ScanPolicy scanPolicy = new ScanPolicy(
                     rule.getMaxEntries(),
                     rule.getMaxFileBytes(),
@@ -50,7 +61,8 @@ public final class PolicyDrivenIntegrityCollector {
                         scopeName,
                         rule.getExplicitRelativeFilesList(),
                         scanPolicy,
-                        rule.getRequired()));
+                        rule.getRequired(),
+                        cancellation));
                 continue;
             }
             if (!ALLOWED_DIRECTORY_ROOTS.contains(rule.getRelativeRoot())) {
@@ -71,7 +83,7 @@ public final class PolicyDrivenIntegrityCollector {
                         ScopedIntegrityScanner.manifestRoot(List.of())));
                 continue;
             }
-            IntegrityManifest scanned = scanner.scan(minecraftRoot, relativeRoot, scanPolicy);
+            IntegrityManifest scanned = scanner.scan(minecraftRoot, relativeRoot, scanPolicy, cancellation);
             manifests.add(new ScopeIntegrityManifest(
                     scopeName,
                     rule.getRelativeRoot(),
@@ -80,6 +92,7 @@ public final class PolicyDrivenIntegrityCollector {
                     scanned.entries(),
                     scanned.rootSha256()));
         }
+        cancellation.check();
         return ClientIntegrityBundle.of(manifests);
     }
 }

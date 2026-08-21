@@ -198,6 +198,10 @@ final class FederationRuntimeTest {
                 auditFailingSource.issueConsent(
                         fixture.sourceSubject(), TARGET, "source-console").status());
         assertEquals(0, auditFailingSource.status().pendingConsentRequests());
+        assertTrue(auditFailingSource.status().configuredEnabled());
+        assertFalse(auditFailingSource.status().enabled());
+        assertFalse(auditFailingSource.status().auditHealthy());
+        assertTrue(auditFailingSource.status().auditFailures() >= 1L);
 
         CountDownLatch auditWorkerEntered = new CountDownLatch(1);
         CountDownLatch releaseAuditWorker = new CountDownLatch(1);
@@ -224,8 +228,35 @@ final class FederationRuntimeTest {
                     saturatedSource.issueConsent(
                             fixture.sourceSubject(), TARGET, "source-console").status());
             assertEquals(0, saturatedSource.status().pendingConsentRequests());
+            assertFalse(saturatedSource.status().enabled());
+            assertFalse(saturatedSource.status().auditHealthy());
             assertEquals(1L, saturatedAudit.status().saturated());
             releaseAuditWorker.countDown();
+        }
+
+        CountDownLatch backgroundFailureEntered = new CountDownLatch(1);
+        try (BoundedAsyncFederationAuditSink backgroundFailingAudit =
+                     new BoundedAsyncFederationAuditSink(ignored -> {
+                         backgroundFailureEntered.countDown();
+                         throw new IllegalStateException("injected background disk failure");
+                     }, 4, "mcace-federation-runtime-background-failure-test")) {
+            FederationRuntime backgroundFailingSource = new FederationRuntime(
+                    fixture.clock(), new SecureRandom(), fixture.sourceIdentity(),
+                    configuration(SOURCE, TARGET, fixture.targetIdentity(), FederationPeerCapability.ISSUE_TO),
+                    backgroundFailingAudit);
+            assertTrue(backgroundFailingAudit.offer(auditRecord()));
+            assertTrue(backgroundFailureEntered.await(5, TimeUnit.SECONDS));
+            awaitAuditFault(backgroundFailingAudit);
+
+            assertEquals(FederationRuntimeStatus.AUDIT_FAILED,
+                    backgroundFailingSource.issueConsent(
+                            fixture.sourceSubject(), TARGET, "source-console").status());
+            FederationRuntimeState failed = backgroundFailingSource.status();
+            assertTrue(failed.configuredEnabled());
+            assertFalse(failed.enabled());
+            assertFalse(failed.auditHealthy());
+            assertEquals(0, failed.pendingConsentRequests());
+            assertEquals(0, failed.activeObservations());
         }
 
         GrantExchange exchange = fixture.issueAndGrant();
@@ -264,6 +295,63 @@ final class FederationRuntimeTest {
         expiring.clock().advance(Duration.ofMinutes(3));
         expiring.targetRuntime().expire(100);
         assertTrue(expiring.targetRuntime().observations(expiring.playerId(), 10).isEmpty());
+    }
+
+    @Test
+    void backgroundAuditFailureDisablesRuntimeAndClearsPreviouslyCommittedEphemeralState() throws Exception {
+        Fixture fixture = fixture();
+        java.util.concurrent.atomic.AtomicInteger sourceWrites = new java.util.concurrent.atomic.AtomicInteger();
+        try (BoundedAsyncFederationAuditSink audit = new BoundedAsyncFederationAuditSink(record -> {
+            if (sourceWrites.incrementAndGet() > 1) {
+                throw new IllegalStateException("injected post-commit source audit failure");
+            }
+        }, 4, "mcace-federation-source-fault-after-commit")) {
+            FederationRuntime source = new FederationRuntime(
+                    fixture.clock(), new SecureRandom(), fixture.sourceIdentity(),
+                    configuration(SOURCE, TARGET, fixture.targetIdentity(), FederationPeerCapability.ISSUE_TO),
+                    audit);
+            assertEquals(FederationRuntimeStatus.CONSENT_ISSUED,
+                    source.issueConsent(fixture.sourceSubject(), TARGET, "source-console").status());
+            assertEquals(1, source.status().pendingConsentRequests());
+
+            assertTrue(audit.offer(auditRecord()));
+            awaitAuditFault(audit);
+            assertEquals(0, source.expire(100));
+            FederationRuntimeState failed = source.status();
+            assertFalse(failed.enabled());
+            assertFalse(failed.auditHealthy());
+            assertEquals(0, failed.pendingConsentRequests());
+            assertEquals(FederationRuntimeStatus.AUDIT_FAILED,
+                    source.issueConsent(fixture.sourceSubject(), TARGET, "source-console").status());
+        }
+
+        GrantExchange exchange = fixture.issueAndGrant();
+        FederationPresentation presentation = fixture.presentation(exchange.grant(), fixture.targetSubject());
+        java.util.concurrent.atomic.AtomicInteger targetWrites = new java.util.concurrent.atomic.AtomicInteger();
+        try (BoundedAsyncFederationAuditSink audit = new BoundedAsyncFederationAuditSink(record -> {
+            if (targetWrites.incrementAndGet() > 1) {
+                throw new IllegalStateException("injected post-commit target audit failure");
+            }
+        }, 4, "mcace-federation-target-fault-after-commit")) {
+            FederationRuntime target = new FederationRuntime(
+                    fixture.clock(), new SecureRandom(), fixture.targetIdentity(),
+                    configuration(TARGET, SOURCE, fixture.sourceIdentity(), FederationPeerCapability.ACCEPT_FROM),
+                    audit);
+            assertEquals(FederationRuntimeStatus.OBSERVED,
+                    target.receivePresentation(fixture.targetSubject(),
+                            fixture.outerPresentation(presentation, fixture.targetSubject()),
+                            "target-console").status());
+            assertEquals(1, target.status().activeObservations());
+
+            assertTrue(audit.offer(auditRecord()));
+            awaitAuditFault(audit);
+            assertEquals(0, target.expire(100));
+            FederationRuntimeState failed = target.status();
+            assertFalse(failed.enabled());
+            assertFalse(failed.auditHealthy());
+            assertEquals(0, failed.activeObservations());
+            assertTrue(target.observations(fixture.playerId(), 10).isEmpty());
+        }
     }
 
     @Test
@@ -353,6 +441,17 @@ final class FederationRuntimeTest {
                 NOW, FederationAuditEvent.PRESENTATION_REJECTED,
                 FederationAuditOutcome.INVALID_PRESENTATION, "test-operator", UUID.randomUUID(),
                 SOURCE, TARGET, java.util.Optional.empty(), java.util.Optional.empty());
+    }
+
+    private static void awaitAuditFault(BoundedAsyncFederationAuditSink sink) throws Exception {
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        while (System.nanoTime() < deadline) {
+            if (!sink.health().available()) {
+                return;
+            }
+            Thread.sleep(10L);
+        }
+        assertFalse(sink.health().available());
     }
 
     private static byte[] outer(

@@ -19,6 +19,10 @@ final class MCAceVelocityChannelsTest {
         assertEquals(ProxyAdapterTransportContract.InboundDecision.CONSUME_ONLY,
                 MCAceVelocityChannels.inboundDecision(MCAceVelocityChannels.ADMISSION, true));
         assertEquals(ProxyAdapterTransportContract.InboundDecision.CONSUME_ONLY,
+                MCAceVelocityChannels.inboundDecision(MCAceVelocityChannels.BACKEND_CONTEXT, true));
+        assertEquals(ProxyAdapterTransportContract.InboundDecision.BACKEND_CONTEXT,
+                MCAceVelocityChannels.inboundDecision(MCAceVelocityChannels.BACKEND_CONTEXT, false));
+        assertEquals(ProxyAdapterTransportContract.InboundDecision.CONSUME_ONLY,
                 MCAceVelocityChannels.inboundDecision(MCAceVelocityChannels.HANDSHAKE, false));
     }
 

@@ -2,12 +2,12 @@ package com.ellan.mcace.velocity;
 
 import com.ellan.mcace.core.disposition.DispositionAction;
 import com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent;
-import java.util.Iterator;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.time.Clock;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.function.Predicate;
 
 /**
  * Thread-safe executor for content-free signed disposition events.
@@ -32,13 +32,28 @@ final class VelocityDispositionExecutor {
 
         boolean isVerifiedAdmission(UUID playerId);
 
+        /** Revalidates the trusted authorization scope against the current physical login. */
+        boolean isCurrentAuthorizationContext(AuthenticatedManifestDispositionEvent event);
+
         boolean sendMessage(UUID playerId, String sessionId, String message);
 
         RouteOutcome routeToLimited(UUID playerId, String sessionId);
 
+        default RouteOutcome routeToLimited(AuthenticatedManifestDispositionEvent event) {
+            return routeToLimited(event.playerId(), event.sessionId());
+        }
+
         RouteOutcome routeToQuarantine(UUID playerId, String sessionId);
 
+        default RouteOutcome routeToQuarantine(AuthenticatedManifestDispositionEvent event) {
+            return routeToQuarantine(event.playerId(), event.sessionId());
+        }
+
         boolean deny(UUID playerId, String sessionId, String message);
+
+        default boolean deny(AuthenticatedManifestDispositionEvent event, String message) {
+            return deny(event.playerId(), event.sessionId(), message);
+        }
     }
 
     enum Status {
@@ -53,6 +68,7 @@ final class VelocityDispositionExecutor {
         NO_VALID_POLICY,
         STALE_SESSION,
         BASELINE_PROTECTED,
+        STALE_AUTHORIZATION_CONTEXT,
         NOT_ENFORCED,
         DUPLICATE,
         ACTION_UNAVAILABLE,
@@ -76,22 +92,24 @@ final class VelocityDispositionExecutor {
     private final VelocityAdmissionConfig.Mode mode;
     private final Actions actions;
     private final Clock clock;
-    private final Set<String> appliedKeys = ConcurrentHashMap.newKeySet();
+    private final Predicate<AuthenticatedManifestDispositionEvent> currentPolicy;
+    private final Set<AppliedKey> appliedKeys = ConcurrentHashMap.newKeySet();
 
-    VelocityDispositionExecutor(VelocityAdmissionConfig.Mode mode, Actions actions) {
-        this(mode, actions, Clock.systemUTC());
-    }
-
-    VelocityDispositionExecutor(VelocityAdmissionConfig.Mode mode, Actions actions, Clock clock) {
+    VelocityDispositionExecutor(
+            VelocityAdmissionConfig.Mode mode,
+            Actions actions,
+            Clock clock,
+            Predicate<AuthenticatedManifestDispositionEvent> currentPolicy) {
         this.mode = Objects.requireNonNull(mode, "mode");
         this.actions = Objects.requireNonNull(actions, "actions");
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.currentPolicy = Objects.requireNonNull(currentPolicy, "currentPolicy");
     }
 
     /** Safe for serialized or concurrent Velocity handoffs; no audit worker touches Player state. */
     synchronized Result apply(AuthenticatedManifestDispositionEvent event) {
         Objects.requireNonNull(event, "event");
-        if (!event.policyIsActiveAt(clock.instant())) {
+        if (!event.policyIsActiveAt(clock.instant()) || !currentPolicy.test(event)) {
             return new Result(event.highestAction(), Status.NO_VALID_POLICY);
         }
         if (!event.hasExecutionEvidence()) {
@@ -109,13 +127,22 @@ final class VelocityDispositionExecutor {
             // artifact allowlist.  A signed ALLOW or other disposition cannot restore it.
             return new Result(event.highestAction(), Status.BASELINE_PROTECTED);
         }
+        if (event.highestAction().severity() >= DispositionAction.LIMIT.severity()
+                && !actions.isCurrentAuthorizationContext(event)) {
+            return new Result(event.highestAction(), Status.STALE_AUTHORIZATION_CONTEXT);
+        }
         if (mode != VelocityAdmissionConfig.Mode.LIMITED_ROUTE
                 && event.highestAction().severity() >= DispositionAction.LIMIT.severity()) {
             return new Result(event.highestAction(), Status.NOT_ENFORCED);
         }
-        String key = event.idempotencyKey();
+        AppliedKey key = AppliedKey.from(event);
         if (appliedKeys.contains(key)) {
             return new Result(event.highestAction(), Status.DUPLICATE);
+        }
+        if (appliedKeys.size() >= MAX_APPLIED_KEYS) {
+            // Retaining existing one-shot history is safer than evicting a live session key and
+            // making an old trusted authorization executable again.
+            return new Result(event.highestAction(), Status.ACTION_UNAVAILABLE);
         }
         boolean completed;
         Status status;
@@ -135,7 +162,7 @@ final class VelocityDispositionExecutor {
                 status = Status.CHALLENGE_AUDITED;
             }
             case LIMIT -> {
-                RouteOutcome outcome = actions.routeToLimited(event.playerId(), event.sessionId());
+                RouteOutcome outcome = actions.routeToLimited(event);
                 if (outcome == RouteOutcome.DEFERRED) {
                     return new Result(event.highestAction(), Status.DEFERRED_ROUTE);
                 }
@@ -143,7 +170,7 @@ final class VelocityDispositionExecutor {
                 status = Status.LIMITED_DISPATCHED;
             }
             case QUARANTINE -> {
-                RouteOutcome outcome = actions.routeToQuarantine(event.playerId(), event.sessionId());
+                RouteOutcome outcome = actions.routeToQuarantine(event);
                 if (outcome == RouteOutcome.DEFERRED) {
                     return new Result(event.highestAction(), Status.DEFERRED_ROUTE);
                 }
@@ -151,7 +178,7 @@ final class VelocityDispositionExecutor {
                 status = Status.QUARANTINED_DISPATCHED;
             }
             case DENY -> {
-                completed = actions.deny(event.playerId(), event.sessionId(), DENY_MESSAGE);
+                completed = actions.deny(event, DENY_MESSAGE);
                 status = Status.DENIED;
             }
             case ALLOW, OBSERVE -> {
@@ -164,26 +191,48 @@ final class VelocityDispositionExecutor {
             return new Result(event.highestAction(), Status.ACTION_UNAVAILABLE);
         }
         appliedKeys.add(key);
-        trimAppliedKeys();
         return new Result(event.highestAction(), status);
     }
 
     synchronized void clear(UUID playerId) {
-        Objects.requireNonNull(playerId, "playerId");
-        appliedKeys.removeIf(key -> key.startsWith(playerId + "|"));
+        UUID requiredPlayer = Objects.requireNonNull(playerId, "playerId");
+        appliedKeys.removeIf(key -> key.playerId().equals(requiredPlayer));
     }
 
     synchronized void clearSession(UUID playerId, String sessionId) {
-        Objects.requireNonNull(playerId, "playerId");
-        Objects.requireNonNull(sessionId, "sessionId");
-        appliedKeys.removeIf(key -> key.startsWith(playerId + "|" + sessionId + "|"));
+        UUID requiredPlayer = Objects.requireNonNull(playerId, "playerId");
+        String requiredSession = Objects.requireNonNull(sessionId, "sessionId");
+        appliedKeys.removeIf(key -> key.playerId().equals(requiredPlayer)
+                && key.sessionId().equals(requiredSession));
     }
 
-    private void trimAppliedKeys() {
-        while (appliedKeys.size() > MAX_APPLIED_KEYS) {
-            Iterator<String> iterator = appliedKeys.iterator();
-            if (!iterator.hasNext()) return;
-            appliedKeys.remove(iterator.next());
+    /** Exact idempotency identity; printable delimiters in a session id cannot alias cleanup. */
+    private record AppliedKey(
+            UUID playerId,
+            String sessionId,
+            java.util.Optional<String> activePolicyVersion,
+            java.util.Optional<Long> activePolicySequence,
+            java.util.Optional<java.time.Instant> activePolicyExpiresAt,
+            java.util.Optional<String> winningRuleId,
+            DispositionAction action,
+            java.util.Optional<UUID> authorizationId) {
+        private AppliedKey {
+            Objects.requireNonNull(playerId, "playerId");
+            Objects.requireNonNull(sessionId, "sessionId");
+            Objects.requireNonNull(activePolicyVersion, "activePolicyVersion");
+            Objects.requireNonNull(activePolicySequence, "activePolicySequence");
+            Objects.requireNonNull(activePolicyExpiresAt, "activePolicyExpiresAt");
+            Objects.requireNonNull(winningRuleId, "winningRuleId");
+            Objects.requireNonNull(action, "action");
+            Objects.requireNonNull(authorizationId, "authorizationId");
+        }
+
+        static AppliedKey from(AuthenticatedManifestDispositionEvent event) {
+            return new AppliedKey(
+                    event.playerId(), event.sessionId(),
+                    event.activePolicyVersion(), event.activePolicySequence(),
+                    event.activePolicyExpiresAt(), event.winningRuleId(),
+                    event.highestAction(), event.authorizationId());
         }
     }
 }

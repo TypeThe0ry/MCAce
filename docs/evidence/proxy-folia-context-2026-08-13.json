@@ -1,0 +1,58 @@
+{
+  "schema": "MCACE_PROXY_FOLIA_CONTEXT_EVIDENCE_V1",
+  "generated_at": "2026-08-13T17:41:56.1165194+00:00",
+  "source_mode": "EXECUTED_PREPARED_OFFLINE_AND_REPORT_ONLY_VALIDATED",
+  "aggregate_report_sha256": "20cbcbefa88a39864ea62efe61ed8418c115f563379c2c10da3bba5fddc9cb87",
+  "source_manifest_sha256": "4066b92a22f42182040abeb34aa2f9a890e7638b200274822884c13cc070dda8",
+  "proxy_scope": "BOTH",
+  "backend_platform": "FOLIA",
+  "backend_minecraft_version": "1.21.4",
+  "folia_1_21_4_fallback_coverage": true,
+  "exact_folia_1_21_1_coverage": false,
+  "folia_server_sha256": "dcf2333211c1468c8eddc482bc8549600818cc661a709124a79c752f8fa2ac3a",
+  "artifacts": {
+    "velocity_plugin_sha256": "cdbb5380616a00ee1f5cf6a5516ab7189c4bce57ea3bd1fa896283e8b04cde8c",
+    "bungee_plugin_sha256": "4f1c270da246e9251bb467144f72ad4538b1c5cfd71187b76075af386e1e85bf",
+    "paper_plugin_sha256": "c9743d3e6e298588d9aabc8ee8d5478cd6a610e85ed7e750f919831fca141b97"
+  },
+  "java_major": 21,
+  "gradle_version": "9.6.1",
+  "expected_case_count": 2,
+  "observed_case_count": 2,
+  "all_cases_passed": true,
+  "cases": [
+    {
+      "platform": "VELOCITY",
+      "forwarding_mode": "velocity-modern",
+      "authenticated": true,
+      "backend_admission": true,
+      "backend_context_shadow_audit": true,
+      "limitations_count": 0,
+      "remaining_run_process_count": 0,
+      "raw_report_sha256": "a9469a868def2027554accb03fe98995e84f55a28c76b621b6328e5bfefafb13",
+      "passed": true
+    },
+    {
+      "platform": "BUNGEE",
+      "forwarding_mode": "bungee-ip-forwarding",
+      "authenticated": true,
+      "backend_admission": true,
+      "backend_context_shadow_audit": true,
+      "limitations_count": 0,
+      "remaining_run_process_count": 0,
+      "raw_report_sha256": "d7581cb81f6c46e3372c95a314245a70d9a71c659835d3e4f1f1fc451ab61556",
+      "passed": true
+    }
+  ],
+  "sanitization": {
+    "absolute_path_value_count": 0,
+    "uuid_value_count": 0,
+    "pid_value_count": 0,
+    "port_value_count": 0,
+    "packet_trace_copied": false,
+    "raw_report_path_copied": false
+  },
+  "limitations": [
+    "FOLIA_1_21_4_FALLBACK_NOT_EXACT_1_21_1"
+  ]
+}

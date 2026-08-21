@@ -18,6 +18,7 @@ import com.ellan.mcace.protocol.generated.BoundedPayloadBegin;
 import com.ellan.mcace.protocol.generated.BoundedPayloadChunk;
 import com.ellan.mcace.protocol.generated.BoundedPayloadCommit;
 import com.ellan.mcace.protocol.generated.BoundedPayloadKind;
+import com.ellan.mcace.protocol.generated.BackendAuthorityGrant;
 import com.ellan.mcace.protocol.generated.EvidenceCollectionStatus;
 import com.ellan.mcace.protocol.generated.EvidenceAck;
 import com.ellan.mcace.protocol.generated.EvidenceBegin;
@@ -30,6 +31,8 @@ import com.ellan.mcace.protocol.generated.EvidenceCaptureScope;
 import com.ellan.mcace.protocol.generated.EvidenceType;
 import com.ellan.mcace.protocol.generated.EnvelopeHeader;
 import com.ellan.mcace.protocol.generated.PacketType;
+import com.ellan.mcace.protocol.generated.ServerAuthorityObservation;
+import com.ellan.mcace.protocol.generated.ServerAuthorityProviderSummary;
 import com.ellan.mcace.protocol.generated.SignedEnvelope;
 import com.ellan.mcace.protocol.transport.BoundedPayloadException;
 import com.ellan.mcace.protocol.transport.BoundedPayloadTransferReceiver;
@@ -58,7 +61,7 @@ final class ProtocolCompatibilityCorpusTest {
     private static final String PLAYER_ID = "00000000-0000-0000-0000-000000000001";
 
     @Test
-    void packetTypeNumbersOneThroughSixteenAreWireLocked() {
+    void packetTypeNumbersAreWireLocked() {
         PacketType[] types = {
                 PacketType.SERVER_HELLO, PacketType.CLIENT_HELLO, PacketType.AUTH_REQUEST,
                 PacketType.AUTH_RESULT, PacketType.HEARTBEAT, PacketType.EVIDENCE_REQUEST,
@@ -75,7 +78,9 @@ final class ProtocolCompatibilityCorpusTest {
         assertEquals(PacketType.FEDERATION_CONSENT_RESPONSE, PacketType.forNumber(18));
         assertEquals(PacketType.FEDERATION_GRANT, PacketType.forNumber(19));
         assertEquals(PacketType.FEDERATION_PRESENTATION, PacketType.forNumber(20));
-        assertEquals(null, PacketType.forNumber(21));
+        assertEquals(PacketType.BACKEND_AUTHORITY_GRANT, PacketType.forNumber(21));
+        assertEquals(PacketType.SERVER_AUTHORITY_OBSERVATION, PacketType.forNumber(22));
+        assertEquals(null, PacketType.forNumber(23));
     }
 
     @Test
@@ -124,6 +129,25 @@ final class ProtocolCompatibilityCorpusTest {
                 "transfer_id", 1, "payload_kind", 2, "transport_sequence", 3,
                 "total_bytes", 4, "total_chunks", 5, "content_sha256", 6,
                 "merkle_root_sha256", 7);
+        assertFields(BackendAuthorityGrant.getDescriptor(),
+                "schema_version", 1, "grant_id", 2, "proxy_instance_id", 3,
+                "backend_instance_id", 4, "player_uuid", 5, "authenticated_session_id", 6,
+                "physical_login_binding", 7, "admission_transport_sequence", 8,
+                "grant_sequence", 9, "issued_at_epoch_ms", 10, "expires_at_epoch_ms", 11,
+                "challenge", 12);
+        assertFields(ServerAuthorityProviderSummary.getDescriptor(),
+                "trust_domain_id", 1, "provider_id", 2, "provider_version", 3,
+                "stable_check_family", 4, "threshold", 5, "observed_count", 6,
+                "window_started_at_epoch_ms", 7, "window_ended_at_epoch_ms", 8);
+        assertFields(ServerAuthorityObservation.getDescriptor(),
+                "schema_version", 1, "attestation_id", 2, "backend_instance_id", 3,
+                "backend_key_id_sha256", 4, "player_uuid", 5,
+                "authenticated_session_id", 6, "grant_id", 7,
+                "grant_commitment_sha256", 8, "physical_login_binding", 9,
+                "admission_transport_sequence", 10, "observation_sequence", 11,
+                "observed_at_epoch_ms", 12, "issued_at_epoch_ms", 13,
+                "expires_at_epoch_ms", 14, "authority_profile_sha256", 15,
+                "providers", 16);
     }
 
     @Test

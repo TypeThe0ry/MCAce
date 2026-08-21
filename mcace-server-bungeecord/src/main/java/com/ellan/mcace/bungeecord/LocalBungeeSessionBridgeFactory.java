@@ -15,6 +15,7 @@ import com.ellan.mcace.core.risk.RiskPolicy;
 import com.ellan.mcace.core.proxy.FileSignedDispositionPolicySource;
 import com.ellan.mcace.core.proxy.ProxyFamily;
 import com.ellan.mcace.core.proxy.SharedProxyDispositionPolicyRuntime;
+import com.ellan.mcace.core.proxy.ShadowBackendContextRuntime;
 import com.ellan.mcace.core.session.ServerHandshakeCoordinator;
 import com.ellan.mcace.core.evidence.EvidenceAuditSink;
 import com.ellan.mcace.core.evidence.EvidenceStorageConfiguration;
@@ -58,21 +59,35 @@ public final class LocalBungeeSessionBridgeFactory implements BungeeSessionBridg
                 ProxyFamily.BUNGEECORD, dispositionPolicy, identity.getPublic(), clock, Duration.ofSeconds(30));
         AuthenticatedManifestEvaluator manifestEvaluator = new AuthenticatedManifestEvaluator(
                 new AuthenticatedManifestObservationDeriver(), dispositionRuntime, clock);
+        ShadowBackendContextRuntime backendContextRuntime = new ShadowBackendContextRuntime(
+                "bungeecord", new AuthenticatedManifestObservationDeriver(), dispositionRuntime, clock,
+                record -> logger.info("MCAce backend context shadow audit player=" + record.playerId()
+                        + " backend=" + record.backendId() + " world=" + record.worldId()
+                        + " gameMode=" + record.gameMode() + " observations=" + record.observationCount()
+                        + " actions=" + record.actionCounts() + " consistencyIssues="
+                        + record.consistencyIssueCount() + " status=" + record.policyStatus()
+                        + " (no admission or disposition effect)"));
         ArtifactObservationAuditSink artifactObservationAudit = new FileArtifactObservationAuditSink(
                 normalizedDataDirectory.resolve("artifact-observation-audit.log"), 8L * 1024 * 1024);
         AtomicReference<CoordinatorBungeeSessionBridge> bridgeHolder = new AtomicReference<>();
         BoundedAuthenticatedManifestAuditQueue manifestAuditQueue = new BoundedAuthenticatedManifestAuditQueue(1, 32, manifest -> {
+            backendContextRuntime.rememberManifest(manifest);
             com.ellan.mcace.core.proxy.AuthenticatedManifestAuditResult audit = manifestEvaluator.evaluate(
                     manifest, new EvaluationContext(manifest.playerId(), "bungeecord", null, null, null, Set.of(), manifest.authenticatedAt()));
+            com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent dispositionEvent =
+                    audit.dispositionEvent();
             logger.info("MCAce authenticated-manifest audit player=" + manifest.playerId()
                     + " observations=" + audit.evaluation().totalObservations() + " actions=" + audit.evaluation().actionCounts()
+                    + " advisoryBlocks=" + audit.evaluation().advisoryEnforcementRuleBlocks()
+                    + " policyVersion=" + dispositionEvent.activePolicyVersion().orElse("none")
                     + " consistencyIssues=" + audit.consistencyIssues().size());
             CoordinatorBungeeSessionBridge bridge = bridgeHolder.get();
             if (bridge != null) {
-                bridge.emitDispositionEvent(audit.dispositionEvent());
+                bridge.emitDispositionEvent(dispositionEvent);
             }
         });
         BoundedAuthenticatedManifestAuditQueue artifactObservationAuditQueue = new BoundedAuthenticatedManifestAuditQueue(1, 32, manifest -> {
+            backendContextRuntime.rememberManifest(manifest);
             com.ellan.mcace.core.proxy.AuthenticatedManifestAuditResult audit = manifestEvaluator.evaluate(
                     manifest, new EvaluationContext(manifest.playerId(), "bungeecord", null, null, null, Set.of(), manifest.authenticatedAt()));
             logger.info("MCAce artifact observation audit player=" + manifest.playerId()
@@ -137,9 +152,11 @@ public final class LocalBungeeSessionBridgeFactory implements BungeeSessionBridg
                     configuration.limitedServer().orElse(""), configuration.quarantineServer().orElse(""),
                     configuration.heartbeatMissingPolicy(), federation.runtime(), federation);
         } catch (RuntimeException exception) {
+            backendContextRuntime.close();
             federation.close();
             throw exception;
         }
+        bridge.setShadowBackendContextRuntime(backendContextRuntime);
         startEvidenceReview(normalizedDataDirectory, evidenceStorage, evidenceAuditSink, clock, logger)
                 .ifPresent(bridge::setEvidenceReviewService);
         bridgeHolder.set(bridge);

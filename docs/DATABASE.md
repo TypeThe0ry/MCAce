@@ -1,5 +1,9 @@
 # PostgreSQL audit storage
 
+> **Frozen optional scope.** PostgreSQL is not part of the current six-deployable
+> release bundle and cannot decide admission or compensate for a missing Fabric
+> client. Database availability must not change player trust or enforcement.
+
 ## Scope
 
 The Phase 2/3 storage module persists:

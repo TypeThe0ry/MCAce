@@ -9,7 +9,7 @@ import java.util.regex.Pattern;
 final class HostileAdmissionGateLogic {
     private static final Pattern SERVER_BANNER = Pattern.compile(
             "(?m)\\[bootstrap\\] Loading (?<platform>Paper|Folia) [^\\r\\n]*"
-                    + " for Minecraft (?<version>1\\.21\\.[0-9]+)\\s*$");
+                    + " for Minecraft (?<version>(?:1\\.21\\.[0-9]+|26\\.[0-9]+(?:\\.[0-9]+)?))\\s*$");
 
     private HostileAdmissionGateLogic() {
     }

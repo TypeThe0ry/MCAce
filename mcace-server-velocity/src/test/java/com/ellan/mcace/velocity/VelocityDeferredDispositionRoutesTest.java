@@ -5,6 +5,7 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.ellan.mcace.core.disposition.DispositionAction;
+import com.ellan.mcace.core.disposition.ObservationOrigin;
 import com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent;
 import com.ellan.mcace.core.proxy.ProxyPolicyRefreshStatus;
 import java.time.Clock;
@@ -284,14 +285,19 @@ final class VelocityDeferredDispositionRoutesTest {
     private static AuthenticatedManifestDispositionEvent event(UUID player, DispositionAction action, String sessionId) {
         return new AuthenticatedManifestDispositionEvent(
                 player, sessionId, NOW, action, Optional.of("rule-a"), ProxyPolicyRefreshStatus.ACTIVE,
-                Optional.of("policy-a"), Optional.of(2L), Optional.of(NOW.plusSeconds(60)));
+                Optional.of("policy-a"), Optional.of(2L), Optional.of(NOW.plusSeconds(60)),
+                ObservationOrigin.SERVER_CONFIRMED,
+                Optional.of(UUID.fromString("00000000-0000-0000-0000-000000000099")),
+                Optional.empty(), Optional.of("33".repeat(32)));
     }
 
     private static AuthenticatedManifestDispositionEvent expiredEvent() {
         return new AuthenticatedManifestDispositionEvent(
                 PLAYER, "session-a", NOW, DispositionAction.LIMIT, Optional.of("rule-a"),
                 ProxyPolicyRefreshStatus.ACTIVE, Optional.of("policy-a"), Optional.of(2L),
-                Optional.of(NOW.minusSeconds(1)));
+                Optional.of(NOW.minusSeconds(1)), ObservationOrigin.SERVER_CONFIRMED,
+                Optional.of(UUID.fromString("00000000-0000-0000-0000-000000000099")),
+                Optional.empty(), Optional.of("33".repeat(32)));
     }
 
     private static final class MutableClock extends Clock {

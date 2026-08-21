@@ -47,6 +47,7 @@ final class HostileAdmissionGateLogicTest {
     void validatesActualPaperAndFoliaBannerShapesAndMismatch() {
         String paper = "[bootstrap] Loading Paper 1.21.1-133-ver/1.21.1@abc for Minecraft 1.21.1\n";
         String folia = "[bootstrap] Loading Folia 1.21.4-6-ver/1.21.4@abc for Minecraft 1.21.4\n";
+        String modernPaper = "[bootstrap] Loading Paper 26.2-112-ver/26.2@abc for Minecraft 26.2\n";
 
         assertEquals(HostileAdmissionGateLogic.BannerResult.VERIFIED,
                 HostileAdmissionGateLogic.validateBanner(paper, "Paper", "1.21.1"));
@@ -56,6 +57,8 @@ final class HostileAdmissionGateLogicTest {
                 HostileAdmissionGateLogic.validateBanner(folia, "Folia", "1.21.1"));
         assertEquals(HostileAdmissionGateLogic.BannerResult.PLATFORM_MISMATCH,
                 HostileAdmissionGateLogic.validateBanner(folia, "Paper", "1.21.4"));
+        assertEquals(HostileAdmissionGateLogic.BannerResult.VERIFIED,
+                HostileAdmissionGateLogic.validateBanner(modernPaper, "Paper", "26.2"));
     }
 
     @Test

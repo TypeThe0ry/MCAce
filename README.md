@@ -2,142 +2,236 @@
 
 MCAce (Minecraft Advanced Client Environment) is a defensive trust and admission
 platform for modern Minecraft networks. It combines signed client attestations,
-integrity manifests, replay-resistant sessions, explainable risk scoring, and
-server-side enforcement hooks.
+policy-scoped integrity manifests, replay-resistant sessions, explainable risk,
+and reversible server-side actions.
 
-MCAce is **not** a replacement for a behavior anti-cheat. Client evidence is one
-input to a layered decision and must never be the sole reason for an irreversible
-punishment.
+MCAce is **not** a behavior anti-cheat replacement. Fabric observations remain
+`CLIENT_REPORTED`; they cannot independently authorize a high-impact action.
+`MONITOR` is the default, there is no permanent automatic BAN, and DENY closes
+only the current connection.
 
-The product is a Fabric client Mod plus Velocity/BungeeCord and Paper/Folia
-server plugins. Legacy Cloud, portal, PostgreSQL, and Launcher source is retained
-to avoid deleting earlier work, but is frozen outside the current delivery
-roadmap and cannot become a prerequisite or alternate trust path. See
-[docs/PRODUCT_SCOPE.md](docs/PRODUCT_SCOPE.md).
+The product is three Fabric client Mods plus Velocity/BungeeCord and Paper/Folia
+plugins. Cloud, Portal, PostgreSQL, and Launcher source is retained but frozen
+outside the current roadmap. It is not a prerequisite or an alternate trust
+path. See [the product boundary](docs/PRODUCT_SCOPE.md).
 
-## Current milestone: Fabric Mod + multi-platform server plugins
+## Supported versions
 
-- Protobuf protocol contract and Ed25519-signed envelopes
-- Timestamp, checksum, payload-size, and nonce replay validation
-- Session state machine and explainable risk engine
-- Versioned, capability-negotiated, read-only Java SDK with a JDK-only bridge across isolated plugin class loaders
-- Restricted Minecraft-directory integrity scanner
-- Velocity and BungeeCord proxy adapters plus a Paper/Folia backend adapter
-- Fabric 1.21.1 remapped mod with signed `mcace:handshake` payloads
-- Velocity challenge/authentication flow with timeout and optional limited routing
-- Signed, expiring server policies with client anti-rollback/equivocation cache
-- Pinned-root authorization, automatic delegated policy-key rotation, and old-key revocation
-- Optional PostgreSQL session/risk audit storage and Ed25519-signed append-only evidence metadata
-- Policy-driven `mods`, `resourcepacks`, `shaderpacks`, and consented `options.txt` manifests
-- Separate-JVM loopback runtime network covering known-good and controlled malformed clients
-- Root-signed proxy-to-backend admission snapshots with bounded refresh/expiry
-- Folia-aware global, region, and entity scheduling with explicit plugin metadata
-- Signed, independently versioned detection/disposition policy schema and deterministic explainable policy engine
-- Operator-authored detection catalog with strict preview/validate/list/publish gates, explicit selections, and signed atomic publication
-- Velocity/Bungee session-bound, bounded, idempotent disposition executors with `MONITOR` as the safe default; high-impact actions remain gated by explicit routing mode and verified session state
-- Bounded Begin/Chunk/Commit evidence transport with Fabric-only `GAME_RENDER_FRAME` per-request consent and shared proxy reassembly; `GAME_WINDOW`/`DESKTOP` are unsupported zero-content outcomes, and raw storage defaults to discard
-- Real Velocity 3.5.1/Paper 1.21.1, BungeeCord/Paper, and Folia process-load smoke with missing-pin fail-closed coverage; raw-peer and Fabric GUI/evidence coverage remain explicitly bounded as documented below
-- Fabric 1.21.1 player-flow smoke through Velocity into Paper with VERIFIED/risk 0 assertions; the test-only raw Minecraft peer is not an independent client product
-- Fabric evidence ACK sequencing, resize/generation cancellation, and buffer clearing covered by 49 common/Fabric tests
-- Grim typed behavior adapter plus isolated Vulcan bridge, bounded correlation, and an optional Cloud-delivery foundation
-- Cross-instance atomic challenge consumption and leased external signed audit-anchor publication
-- Role-gated operator dashboard and UUID-bound player appeal portal with one-time handoffs
+Compatibility is exact, not inferred:
 
-The required deployment path is the Fabric Mod and Velocity/BungeeCord plus
-Paper/Folia plugins. Legacy Cloud, PostgreSQL, Launcher, and portal foundations
-are preserved but frozen; no Launcher, Agent, separate desktop client, or
-mandatory Cloud work belongs to the current roadmap. Their presence is also not
-evidence that a production raw-image reviewer UI is available. The current
-evidence path is limited to signed, per-request Fabric game-render consent, a
-bounded transfer, and an explicitly opt-in encrypted store. A declined or
-unsupported request is not a cheat conclusion. The licensed Vulcan runtime
-compatibility gate remains in progress.
+| Minecraft | Java | Loader | Fabric API | Deployable form |
+| --- | ---: | --- | --- | --- |
+| `1.21.11` | 21 | `0.19.3` | `0.141.6+1.21.11` | Loom final remapped JAR |
+| `26.1.2` | 25 | `0.19.3` | `0.155.2+26.1.2` | official-namespace final named JAR |
+| `26.2` | 25 | `0.19.3` | `0.157.0+26.2` | official-namespace final named JAR |
 
-See [docs/ROADMAP.md](docs/ROADMAP.md), [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md),
-[docs/SECURITY.md](docs/SECURITY.md), [docs/OPERATIONS.md](docs/OPERATIONS.md), and
-[docs/RUNTIME_TESTING.md](docs/RUNTIME_TESTING.md). Third-party integration is
-documented in [docs/SDK.md](docs/SDK.md). Platform-process validation is
-documented in [docs/PLATFORM_TESTING.md](docs/PLATFORM_TESTING.md). Legacy Cloud
-and Launcher documentation is retained only with the frozen source and is not a
-current product plan.
-For a staged, reversible move from legacy deployments to the supported Mod +
-plugin topology, see [docs/MIGRATION.md](docs/MIGRATION.md).
-Behavior adapters and their false-positive controls are documented in
-[docs/BEHAVIOR_INTEGRATIONS.md](docs/BEHAVIOR_INTEGRATIONS.md).
-Detection dispositions, screenshot scopes, and evidence safety gates are defined
-in [docs/DETECTION_AND_EVIDENCE.md](docs/DETECTION_AND_EVIDENCE.md).
-Public cheat/X-Ray/automation research, false-positive controls, and the safe
-catalog authoring workflow are documented in
-[docs/DETECTION_CATALOG.md](docs/DETECTION_CATALOG.md).
-The exact supported Fabric tuple and release build-ID procedure are recorded in
-[docs/FABRIC_COMPATIBILITY.md](docs/FABRIC_COMPATIBILITY.md).
+The root repository runs on Temurin `21.0.7+6`. `fabric-modern/` is an isolated
+Gradle 9.6.1 build that must run on Temurin `25.0.3+9`. Both 26.x clients use
+Mojang's official named namespace; 1.21.11 retains Yarn/remap packaging. See
+[the exact compatibility contract](docs/FABRIC_COMPATIBILITY.md).
 
-## Recorded platform smoke gates
+## Current implementation
 
-The final recorded platform runs use independent run roots, ephemeral loopback
-listeners, and cleanup that leaves zero run-owned processes. The default
-Velocity/Paper smoke does not start Fabric or inspect an existing user process;
-the client variant is explicit and must be requested with `-WithFabricClient`.
+- Protobuf protocol and Ed25519-signed bounded envelopes.
+- Timestamp, checksum, payload-size, nonce, sequence, and replay validation.
+- Versioned capability negotiation and a read-only Java SDK.
+- Policy-scoped `mods`, `resourcepacks`, and `shaderpacks` manifests.
+- No explicit file is pre-consented. A visible, connection-bound prompt is
+  required before a signed-policy file such as `options.txt` is read.
+- A separate visible decision is required for every one-shot
+  `GAME_RENDER_FRAME` request. `GAME_WINDOW` and `DESKTOP` are unsupported.
+- Velocity and BungeeCord share the same handshake, risk, evidence, disposition,
+  federation, and signed backend-admission core.
+- All three Fabric clients implement distinct one-shot federation source-export
+  and target-import consent screens. The target presentation is sent only after
+  target-local authentication and a second visible `Allow once` decision.
+- Paper/Folia verifies the proxy pin and publishes world/game-mode context only
+  through a bounded shadow audit. That context has no disposition callback.
+- Folia-aware global, region, and entity scheduling.
+- `CLIENT_REPORTED`, inferred, and unavailable facts stay advisory.
+- ADMIN_REVIEWED high-impact actions require durable V3 authorization and
+  immediate session/policy/context revalidation. LIMIT and QUARANTINE use
+  distinct routes; DENY is current-connection-only.
+- The default-disabled SERVER_CONFIRMED codec/registry/journal/coordinator
+  foundation exists, but no production provider, channel, sender, or executor is
+  wired. Provider/profile/key/topology choices and process evidence remain open.
+- Grim integration and an isolated Vulcan adapter. The retained Vulcan 2.9.0
+  structural record is historical; current-source structural validation, Paper
+  enablement, and one genuine event remain pending.
 
-| Gate | Command and report | Fixed official artifacts and SHA-256 | Scope actually proved |
-| --- | --- | --- | --- |
-| Velocity + Paper | `./scripts/platform-load-smoke.ps1`<br>`build/platform-smoke/runs/20260808T171235524Z/report.json` | Velocity 3.5.1-615: `b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3`<br>Paper 1.21.1-133: `39bd8c00b9e18de91dcabd3cc3dcfa5328685a53b7187a2f63280c22e2d287b9`<br>PaperMC Fill object URLs recorded in the report | Pin load, missing-pin fail closed, loopback readiness, graceful cleanup; no player in this run |
-| BungeeCord + Paper | `./scripts/bungee-paper-load-smoke.ps1`<br>`build/platform-smoke-bungee/runs/20260808T173618257Z/report.json` | BungeeCord build 2028: `45a5aa27b9f2446c320447148913aee5673ec23ddf30c81d6dafa9dd910a91eb`<br>Paper 1.21.1-133: `39bd8c00b9e18de91dcabd3cc3dcfa5328685a53b7187a2f63280c22e2d287b9`<br>Spigot Jenkins and PaperMC Fill URLs recorded in the report | Pin compatibility, signed-admission fixtures, loopback readiness, cleanup; no real player, live handshake, or live backend forwarding |
-| Folia + Paper plugin | `./scripts/folia-process-smoke.ps1`<br>`build/platform-smoke-folia/runs/20260808T202505461Z/report.json` | Requested Folia 1.21.1 had no official build; tested official Folia 1.21.4-6 `ALPHA`: `dcf2333211c1468c8eddc482bc8549600818cc661a709124a79c752f8fa2ac3a`<br>PaperMC Fill API/object URL recorded in the report | Missing-pin fail closed; a bounded offline raw peer completed login/configuration, delivered one test-key-signed admission snapshot, exercised region/entity cleanup and global expiry, found no thread errors, deleted the test key, and left zero processes |
+## Current verification status
 
-These records are process/runtime evidence, not a claim of exact Folia 1.21.1
-compatibility, online-mode authentication, or production proxy forwarding. The official artifact
-source and exact hashes are preserved in each machine-readable report.
+### Strict offline build
 
-## Recorded test-only raw Minecraft peer
+The August 20, 2026 Windows A and D builds each completed 118/118 Gradle tasks:
 
-The test-only `MinecraftProxyPlayerProbeTest` uses a bounded raw Minecraft 1.21.1
-wire peer, not a standalone client or Fabric Mod. The latest passing runs reached
-`AUTH_RESULT accepted` and Paper logged `admission=VERIFIED, trust=VERIFIED, risk=0`:
+| Suite set | Suites | Tests | Failures | Errors | Skipped |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Root JDK 21 modules | 147 | 681 | 0 | 0 | 28 |
+| Isolated modern JDK 25 Fabric modules | 24 | 74 | 0 | 0 | 0 |
+| Combined | 171 | 755 | 0 | 0 | 28 |
 
-| Proxy | Command | Run ID and repository-relative reports | Absolute report paths | Result boundary |
-| --- | --- | --- | --- | --- |
-| Velocity + Paper | `./scripts/proxy-admission-player-smoke.ps1 -Proxy Velocity` | `velocity-2026-08-08T21-05-56-077744500Z`<br>`build/runtime-player-probe/runs/velocity-2026-08-08T21-05-56-077744500Z/report.json`<br>`build/runtime-player-probe/runs/velocity-2026-08-08T21-05-56-077744500Z/report.md` | `C:\Users\TT\Documents\GitHub\MCAce\build\runtime-player-probe\runs\velocity-2026-08-08T21-05-56-077744500Z\report.json`<br>`C:\Users\TT\Documents\GitHub\MCAce\build\runtime-player-probe\runs\velocity-2026-08-08T21-05-56-077744500Z\report.md` | Velocity modern forwarding, TCP/login, MCAce hello, accepted auth result, Paper admission, deleted temporary secret, and zero residual processes |
-| BungeeCord + Paper | `./scripts/proxy-admission-player-smoke.ps1 -Proxy Bungee` | `bungee-2026-08-08T21-05-11-821390700Z`<br>`build/runtime-player-probe/runs/bungee-2026-08-08T21-05-11-821390700Z/report.json`<br>`build/runtime-player-probe/runs/bungee-2026-08-08T21-05-11-821390700Z/report.md` | `C:\Users\TT\Documents\GitHub\MCAce\build\runtime-player-probe\runs\bungee-2026-08-08T21-05-11-821390700Z\report.json`<br>`C:\Users\TT\Documents\GitHub\MCAce\build\runtime-player-probe\runs\bungee-2026-08-08T21-05-11-821390700Z\report.md` | Bungee IP forwarding, TCP/login, MCAce hello, accepted auth result, Paper admission, and zero residual processes |
+Both runs generated byte-identical exact-eight local bundles. Durable sanitized
+evidence is
+[`local-build-2026-08-20.json`](docs/evidence/local-build-2026-08-20.json);
+raw outputs under `build/` remain mutable diagnostics. The current bundle is
+explicitly LOCAL verification with
+`source_commit=LOCAL_UNSPECIFIED`; it is not exact-commit release identity.
 
-The peer runs are loopback/offline test probes. They do not validate a real Fabric
-GUI or framebuffer, online-mode authentication, or production forwarding semantics.
-They also do not expand the current product beyond Fabric Mod +
-Velocity/BungeeCord/Paper/Folia plugins.
+### Three-version server process matrix
+
+The authoritative wrapper is:
+
+```powershell
+.\scripts\server-version-process-matrix.ps1 -Execute
+.\scripts\server-version-process-matrix.ps1 -ReportOnly
+```
+
+The August 20 run `2026-08-20T12-01-09-3951618Z` passed 12/12 and then passed `-ReportOnly`: Paper 6/6,
+Folia 6/6, Velocity 6/6, and BungeeCord 6/6. Ten cases are STABLE and the two
+Folia 26.2 cases are BETA. The atomic source-bound evidence triplet has report,
+binding, and commit SHA-256 values `454d1551742839e7b2dd5e0bda5dd130530061940f3046b32c9364ce4eb8cc45`,
+`b0bffdc26d92e8fb348f30b629f8f4d04a8c50921fa7b2ed0ae4a77c1b319698`,
+and `cdccd6515dc576c9583a6f8bfab4cb12260b54dc3f441f06fa85b20791dc3d5b`.
+It binds 675 source files under manifest
+`80d7753f8c7d47b9f779fde26c229f8df236ef192404708557925f31f0faada7`.
+Durable evidence:
+[`server-version-process-matrix-2026-08-20.json`](docs/evidence/server-version-process-matrix-2026-08-20.json).
+This is LOCAL process evidence with `release_evidence=false`, not Git release
+identity.
+
+Current reviewed upstream inputs are Velocity `3.5.1-615`, BungeeCord `2085`,
+Paper `1.21.11-132` / `26.1.2-74` / `26.2-112`, and Folia
+`1.21.11-14` / `26.1.2-8` / `26.2-4`.
+
+The older 1.21.1/1.21.4 `bungee-paper-load-smoke.ps1`,
+`folia-process-smoke.ps1`, `proxy-admission-player-smoke.ps1`, and
+`proxy-folia-context-smoke.ps1` records are legacy/historical. They are not the
+three-version release gate.
+
+### Fabric GUI gate
+
+Server-only platform startup passed for all three targets, and all required
+Minecraft version/asset-index/asset-object data is prewarmed. Asset download is
+not the blocker.
+
+The remaining client gate is human-visible consent:
+
+```powershell
+.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2 -WithFabricEvidence
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2 -WithFabricEvidence
+```
+
+Each target requires two separate visible decisions: one explicit-file prompt
+and one frame prompt. That is six human clicks total. A passing record must use
+report schema 6 and binding `MCACE_FABRIC_GUI_EVIDENCE_BINDING_V4`, load only the
+target's final artifact, bind its CodeSource SHA-256, bind the exact
+`velocity_policy_minecraft_versions` and `velocity_policy_client_build_ids`
+tuples, and leave zero run-token Java processes. No passing human-approved
+record exists yet.
+
+### Other retained gates
+
+- Current three-target CLIENT_REPORTED advisory-origin matrix: 24/24 cases
+  passed (8/8 on each of 1.21.11, 26.1.2, and 26.2), with no requested
+  high-impact action executed. Execute and ReportOnly both passed; the
+  sanitized current triplets are in
+  ([disposition evidence](docs/evidence/disposition-current-2026-08-21.json)).
+- Current three-target ADMIN_REVIEWED matrix: 18/18 cases passed (6/6 per
+  target), including durable-before-action and clean reconnect after
+  current-connection DENY. Execute and ReportOnly both passed; the same
+  ([disposition evidence](docs/evidence/disposition-current-2026-08-21.json))
+  records the committed chains. The August 13 files remain retained history.
+- Historical August 13 federation raw-peer matrix: 4/4 plus ReportOnly. The V2
+  three-target GUI wrapper, source-export UI, target-import UI, and six exact
+  runtime markers are implemented; its static contract tests pass under
+  PowerShell 7 and Windows PowerShell 5. A current-source raw-process rerun and
+  the real human Fabric export/import handoff remain pending
+  ([evidence](docs/evidence/federation-durable-audit-2026-08-13.json)).
+- Licensed Vulcan: historical structural record retained; current-source
+  structural, enablement, and genuine-event gates remain pending
+  ([historical evidence](docs/evidence/vulcan-licensed-api-preflight-2026-08-13.json)).
+- SERVER_CONFIRMED: production provider/profile/key/topology freeze and genuine
+  real-process producer remain pending.
+- Linux: current run `cb6dc44ddad744b5a20dc2986c0a6d70` passed under
+  strict offline network-none isolation with JDK 21 + JDK 25. Its 171 suites / 755
+  tests had 0 failures, 0 errors, and 33 environment-conditioned skips; all eight
+  entries were stream-byte-identical to Windows A/D. The 735-file source manifest
+  `b74c22ff187a1fcfe4d8e1d6da5a202bde67d72061bcb3c2f205532d3857f8c3`
+  was unchanged, and container/Java cleanup was zero at 0/30/60 seconds. The
+  external witness SHA-256 is
+  `de6d82fedace1c7b961ba9879b6e924df1bc8a1d085b851134194bac91d44b48`;
+  it has not been copied into repository evidence.
+- CI: the workflow uses SHA-pinned Actions, minimal read permissions, exact
+  Temurin toolchains, and a fresh strict-offline closure. Exact-commit
+  canonical-main status remains pending until the current worktree is reviewed,
+  committed, and pushed.
 
 ## Build
 
-Requirements: JDK 21.
-
-```shell
-./gradlew build
-```
-
-On Windows:
+Run local dirty-safe verification:
 
 ```powershell
-.\gradlew.bat build
+$env:JAVA_HOME = '<Temurin 21.0.7+6 home>'
+.\gradlew.bat clean build localVerificationBundle `
+  "-PmcaceModernJavaHome=<Temurin 25.0.3+9 home>" `
+  --offline --dependency-verification=strict --rerun-tasks `
+  --no-build-cache --no-configuration-cache --no-daemon `
+  --no-parallel --max-workers=1 --console=plain
 ```
+
+`localVerificationBundle` writes exactly six deployables plus the manifest and
+`SHA256SUMS` under `build/local-verification-bundle/`:
+
+| Entry | Bytes | SHA-256 |
+| --- | ---: | --- |
+| `mcace-client-fabric-1.21.11.jar` | 3,385,438 | `e6b02463c4e65bc81a825626b98559d94ab5eed642fc84e6552a22bf7dc1d323` |
+| `mcace-client-fabric-26.1.2.jar` | 3,489,094 | `26de3b15fa56aff684f04076df4464fe409d9f0185147aec05efd0c296a72d35` |
+| `mcace-client-fabric-26.2.jar` | 3,489,092 | `4f6ee9077b3a9986f253c49db3e867c4ed480871c7e6023509d6b19d1ef4bc73` |
+| `mcace-server-velocity.jar` | 5,016,132 | `0f5afa9cc04aa3e3d21b7142fb2156ee4059d1f2f1f36508b33fbdd59c4323be` |
+| `mcace-server-bungeecord.jar` | 3,562,568 | `fc7ac9ac84a673bd08f15e5a68bbdaadd30af157ac154a20a14dcefbe6e4152a` |
+| `mcace-server-paper.jar` | 5,924,608 | `d133a093ff684490dcb3ae81e2751498c5fc9eeb9fe0c6f0bbce802f5dd23e7b` |
+| `release-manifest.properties` | 1,797 | `7e73e7cc99ea1f6328060697107caf308b0b3ecccead7c0c61621ed661cfc8f7` |
+| `SHA256SUMS` | 565 | `b0227412fe38ad781edf998a217f2338f16caa6589763e7447cb1f956a3ef6b1` |
+
+For a release candidate, use `releaseBundle` only after review/commit. It
+requires a clean worktree and exact lowercase 40-hex HEAD via
+`-PmcaceSourceCommit=<commit>`. The protected-push CI run and generated candidate
+must match that exact commit.
 
 ## Project layout
 
 | Module | Responsibility |
 | --- | --- |
-| `mcace-protocol` | Wire contract, signing, verification, and replay defense |
-| `mcace-sdk` | Stable third-party API and immutable security snapshots |
-| `mcace-core` | Sessions, risk policy, evaluation, and SDK implementation |
-| `mcace-storage-postgres` | Optional auditable PostgreSQL migrations, repositories, and evidence metadata hash chain |
-| `mcace-cloud` | Optional authenticated ingestion, signed revocations, and portal foundations; not required for the primary path |
-| `mcace-launcher` | Optional signed release verification, anti-rollback state, HTTPS download, and crash-safe installation |
-| `mcace-runtime-integration` | Non-production separate-process TCP protocol test network |
-| `mcace-client-common` | Loader-neutral integrity scanning primitives |
-| `mcace-client-fabric` | Fabric 1.21.1 client bootstrap |
-| `mcace-server-velocity` | Network admission adapter |
-| `mcace-server-bungeecord` | BungeeCord handshake and signed backend-admission adapter |
-| `mcace-server-paper` | Paper/Folia signed admission, status, SDK, and command adapter |
+| `mcace-protocol` | Wire contract, canonical encoding, signing, and replay defense |
+| `mcace-sdk` | Stable read-only third-party API |
+| `mcace-core` | Sessions, risk, policy, disposition, context, federation, and authority foundations |
+| `mcace-client-common` | Loader-neutral integrity and evidence primitives |
+| `mcace-client-fabric` | Fabric 1.21.11 remapped client |
+| `fabric-modern/client-26.1.2` | Isolated JDK 25 Fabric 26.1.2 named client |
+| `fabric-modern/client-26.2` | Isolated JDK 25 Fabric 26.2 named client |
+| `mcace-server-velocity` | Velocity admission and network adapter |
+| `mcace-server-bungeecord` | BungeeCord admission and network adapter |
+| `mcace-server-paper` | Shared Paper/Folia backend adapter |
+| `mcace-runtime-integration` | Non-production protocol and process gates |
+| `mcace-cloud`, `mcace-storage-postgres`, `mcace-launcher` | Frozen optional/legacy foundations |
+
+## Documentation
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Operations](docs/OPERATIONS.md)
+- [Platform testing](docs/PLATFORM_TESTING.md)
+- [Runtime testing](docs/RUNTIME_TESTING.md)
+- [Release gates](docs/RELEASE_GATES.md)
+- [Migration](docs/MIGRATION.md)
+- [Security](docs/SECURITY.md)
+- [Detection and evidence](docs/DETECTION_AND_EVIDENCE.md)
+- [Federation](docs/FEDERATION.md)
+- [SERVER_CONFIRMED authority contract](docs/SERVER_CONFIRMED_AUTHORITY.md)
 
 ## Security and privacy
 
-The project intentionally excludes full-disk scanning, keylogging, camera or
-microphone access, browser inspection, private-file collection, hidden execution,
-and kernel drivers. Please report vulnerabilities privately to the maintainers.
+MCAce excludes full-disk scanning, keylogging, camera or microphone access,
+browser inspection, unrelated private-file collection, hidden execution, and
+kernel drivers. Please report vulnerabilities privately to the maintainers.

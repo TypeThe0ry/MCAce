@@ -21,11 +21,15 @@ final class FederationConsentScreen extends Screen {
     private final Screen previous;
     private final VerifiedFederationConsentRequest request;
     private final Consumer<Boolean> decision;
+    private final OneShotRenderMarker firstRender;
+    private boolean decided;
 
-    FederationConsentScreen(Screen previous, VerifiedFederationConsentRequest request, Consumer<Boolean> decision) {
+    FederationConsentScreen(Screen previous, VerifiedFederationConsentRequest request,
+            Runnable firstRendered, Consumer<Boolean> decision) {
         super(Text.literal("MCAce federation request"));
         this.previous = previous;
         this.request = Objects.requireNonNull(request, "request");
+        this.firstRender = new OneShotRenderMarker(firstRendered);
         this.decision = Objects.requireNonNull(decision, "decision");
     }
 
@@ -53,6 +57,7 @@ final class FederationConsentScreen extends Screen {
             y += 4;
         }
         super.render(context, mouseX, mouseY, delta);
+        firstRender.markRendered();
     }
 
     static List<String> displayLines(VerifiedFederationConsentRequest verified) {
@@ -60,10 +65,12 @@ final class FederationConsentScreen extends Screen {
         var request = verified.request();
         List<String> lines = new ArrayList<>();
         lines.add("One-time MCAce federation request");
-        lines.add("Source: " + safe(request.getSourceNetworkId()) + " (" + fingerprint(request.getSourceKeyIdSha256().toByteArray()) + ")");
-        lines.add("Target: " + safe(request.getTargetNetworkId()) + " (" + fingerprint(request.getTargetKeyIdSha256().toByteArray()) + ")");
+        lines.add("Source: " + ConsentUiSupport.safeDisplay(request.getSourceNetworkId()) + " (key fingerprint "
+                + fingerprint(request.getSourceKeyIdSha256().toByteArray()) + ")");
+        lines.add("Target: " + ConsentUiSupport.safeDisplay(request.getTargetNetworkId()) + " (key fingerprint "
+                + fingerprint(request.getTargetKeyIdSha256().toByteArray()) + ")");
         lines.add("Purpose: show only an observation that this source saw your current MCAce session.");
-        lines.add("Disclosed profile: " + safe(request.getDisclosure()) + ". No mods, files, screenshots, desktop or window capture, IP, device, risk score, or evidence is transferred.");
+        lines.add("Disclosed profile: " + ConsentUiSupport.safeDisplay(request.getDisclosure()) + ". No mods, files, screenshots, desktop or window capture, IP, device, risk score, or evidence is transferred.");
         lines.add("It is observation-only, not transferable verification, and cannot change local admission.");
         long seconds = Math.max(0L, Math.min(ProtocolConstants.MAX_FEDERATION_ASSERTION_TTL.toSeconds(),
                 (request.getExpiresAtEpochMs() - request.getIssuedAtEpochMs()) / 1000L));
@@ -76,15 +83,15 @@ final class FederationConsentScreen extends Screen {
     @Override
     public void close() { decide(false); }
 
-    private void decide(boolean allow) { decision.accept(allow); }
+    private void decide(boolean allow) {
+        if (decided) return;
+        decided = true;
+        decision.accept(allow);
+    }
 
     private static String fingerprint(byte[] bytes) {
         if (bytes == null || bytes.length != 32) return "invalid key";
         return HexFormat.of().formatHex(bytes, 0, 8) + "…";
     }
 
-    private static String safe(String input) {
-        return input.codePoints().mapToObj(codePoint -> Character.isISOControl(codePoint) ? "�"
-                : new String(Character.toChars(codePoint))).reduce("", String::concat);
-    }
 }

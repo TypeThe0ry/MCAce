@@ -144,10 +144,20 @@ protobuf byte escapes are rejected in administrator configuration.
 - Validation or pre-commit history failure leaves active bytes unchanged.
   Successful versions are retained under `history/`, capped at 128 entries.
 
-Velocity and BungeeCord evaluate authenticated, server-derived observations and
-execute the current-session disposition through bounded, idempotent adapters.
-`MONITOR` remains the default. High-impact LIMIT/QUARANTINE routing requires the
-explicit `LIMITED_ROUTE` mode and two distinct registered targets:
+Velocity and BungeeCord evaluate authenticated observations through bounded,
+idempotent adapters. Client-reported, inferred, and unavailable observations remain
+advisory. A high-impact event additionally requires a durable session-bound
+authorization from `SERVER_CONFIRMED` or `ADMIN_REVIEWED` evidence. For administrator
+review, `/mcacedisposition review` accepts an exact artifact identity and ticket but
+no action; the active signed policy selects the action, and the authorization journal
+must be forced to disk before execution is queued. Its strict 16-column V3 record
+begins with `v3` and binds session, review input, and execution context. Immediately
+before action, the proxy revalidates the exact current session and `VERIFIED`
+admission inside the same physical lifecycle, then atomically checks the exact
+context commitment, active policy identity/status/expiry, current winning rule, and
+`rule.action == event.action`. `MONITOR` remains the default.
+High-impact LIMIT/QUARANTINE routing requires the explicit `LIMITED_ROUTE` mode and
+two distinct registered targets:
 `disposition.limited.server` for LIMIT and `disposition.quarantine.server` for
 QUARANTINE. A missing, unregistered, or shared target safely makes the effective
 mode `MONITOR`; primary handshakes remain usable and LIMIT, QUARANTINE, and DENY
@@ -155,3 +165,10 @@ do not execute. With a valid route pair, DENY disconnects only the current
 connection. No disposition bans, crosses a reconnect boundary, or automatically
 collects evidence. Backend-local Paper/Folia action adapters remain a separate,
 reversible release gate.
+
+The current three-target real-process evidence declares
+`authorization_contract=UUID_CONTEXT_COMMITMENT_V3` and passes 18/18 Velocity/Bungee
+LIMIT, QUARANTINE, and current-connection-only DENY cases (6/6 per target). The
+sanitized committed chains are in `docs/evidence/disposition-current-2026-08-21.json`.
+The August 13 aggregate remains retained history.
+V2 and contractless reports remain invalid for this contract.

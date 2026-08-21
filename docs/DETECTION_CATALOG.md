@@ -108,10 +108,11 @@ its report. Name/ID/version matches in this catalog therefore recommend at most
 and requires an independently verified, exact artifact finding under the signed
 policy and operator gates.
 
-The current Fabric 1.21.x compatibility check is an input, not a conclusion. The
-server must compare the resolved `fabric.mod.json` Minecraft and loader constraints
-with the actual server-approved version. An upstream branch moving to a newer
-Minecraft release is a compatibility mismatch, not evidence of cheating.
+The exact Fabric target check (`1.21.11`, `26.1.2`, or `26.2`) is an input, not a
+conclusion. The server must compare the resolved `fabric.mod.json` Minecraft and
+loader constraints with the actual server-approved version. An upstream branch
+moving to another Minecraft release is a compatibility mismatch, not evidence of
+cheating.
 
 ## Evidence ladder and signal handling
 
@@ -146,7 +147,7 @@ malicious hashes. The catalog intentionally contains no real cheat hash.
 
 | Upstream identity | Official capability evidence | Expected observables | False-positive risk | Default action and review |
 | --- | --- | --- | --- | --- |
-| [Advanced XRay](https://github.com/AdvancedXRay/XRay-Mod), Fabric manifest ID `xray` ([manifest](https://raw.githubusercontent.com/AdvancedXRay/XRay-Mod/main/fabric/src/main/resources/fabric.mod.json)) | The README explicitly describes an XRay mod and a configurable block-selection UI; the manifest declares client mixins. Its current manifest constraint is `minecraft >=1.21.6`, so it is not automatically a 1.21.1 match. | ID/version, exact SHA/content root, block-list/config JSON, mixins, render changes, and server mining/visibility behavior. | Another upstream project can legitimately use the same ID `xray`; custom contrast/visibility packs and shader interactions can look similar. | `NOTICE` or `OBSERVE` on identity/config only. Use exact content root plus server-authoritative ore/mining correlation and manual review. |
+| [Advanced XRay](https://github.com/AdvancedXRay/XRay-Mod), Fabric manifest ID `xray` ([manifest](https://raw.githubusercontent.com/AdvancedXRay/XRay-Mod/main/fabric/src/main/resources/fabric.mod.json)) | The README explicitly describes an XRay mod and a configurable block-selection UI; the manifest declares client mixins. Its manifest range still does not prove byte or behavior compatibility with any MCAce target; resolve and review the exact 1.21.11/26.1.2/26.2 artifact independently. | ID/version, exact SHA/content root, block-list/config JSON, mixins, render changes, and server mining/visibility behavior. | Another upstream project can legitimately use the same ID `xray`; custom contrast/visibility packs and shader interactions can look similar. | `NOTICE` or `OBSERVE` on identity/config only. Use exact content root plus server-authoritative ore/mining correlation and manual review. |
 | [ate47/Xray](https://github.com/ate47/Xray/tree/fabric-1.21.4), manifest ID `xray` ([manifest](https://raw.githubusercontent.com/ate47/Xray/fabric-1.21.4/src/main/resources/fabric.mod.json)) | The official README describes Xray, entity tracers, ESP, fullbright, and a Fabric 1.21.4 branch; the manifest declares ID `xray` and `minecraft >=1.21`. | Preserve repository/branch provenance, resolved version, exact SHA/content root, config/templates, mixins, and behavior telemetry. | Same-ID collision is a concrete reason not to match on ID alone. Different versions and forks can have materially different behavior. | `NOTICE`/`OBSERVE` only for the identity. Do not deny from `xray` alone. |
 | Generic ore-highlight resource pack or shader | A resource pack has no Fabric mod ID; the observable is the bounded pack root (`pack.mcmeta`, texture/model files, and canonical content root). | Exact ZIP/content root, pack metadata, changed `assets/minecraft` paths, transparent/contrast textures, selected-pack state, shader ID/version, and server mining/visibility behavior. | Legitimate accessibility, color-blind, high-contrast, performance, or aesthetic packs can change textures and visibility. Resource-pack names are especially weak identifiers. | `OBSERVE`; at most `NOTICE` for a name/config pattern. Require exact content root, reproducible visual review, and server behavior before any restricted route. |
 

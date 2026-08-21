@@ -271,6 +271,10 @@ final class DenyReconnectOutcomeLogicTest {
 
         assertTrue(report.contains("\"clean_reconnect_stage\": \"LOBBY_VERIFIED\""));
         assertTrue(report.contains("\"fixture_login_ratelimit_disabled\": true"));
+        assertTrue(report.contains("\"evidence_origin\": \"ADMIN_REVIEWED\""));
+        assertTrue(report.contains("\"first_clean_manifest_sent\": true"));
+        assertTrue(report.contains("\"authorization_journal_persisted\": true"));
+        assertFalse(report.contains("first_synthetic_exact_manifest_sent"));
         assertTrue(report.contains("\"termination\": \"NONE\""));
         assertTrue(report.contains(
                 "\"old_session_cleanup\": \"RECONNECT_FIXTURE_READY\""));
@@ -280,6 +284,32 @@ final class DenyReconnectOutcomeLogicTest {
         assertFalse(report.contains("sha256"));
         assertFalse(report.contains("policy_bytes"));
         assertFalse(report.contains("disconnect_reason"));
+        assertFalse(report.contains("raw_frame"));
+        assertFalse(report.contains("C:\\"));
+    }
+
+    @Test
+    void bungeeTrustedDenyRequiresRegistryCleanupAndIndependentCleanReconnect() {
+        MinecraftProxyPlayerProbeTest.BungeeDenyReconnectOutcome complete =
+                bungeeOutcome(true, true);
+        MinecraftProxyPlayerProbeTest.BungeeDenyReconnectOutcome staleRegistry =
+                bungeeOutcome(false, true);
+        MinecraftProxyPlayerProbeTest.BungeeDenyReconnectOutcome reusedSession =
+                bungeeOutcome(true, false);
+
+        assertTrue(complete.passed());
+        assertFalse(staleRegistry.passed());
+        assertFalse(reusedSession.passed());
+        String report = RealProxyDispositionMatrixGateTest
+                .trustedBungeeDenyReconnectJson(complete);
+        assertTrue(report.contains("\"platform\": \"BUNGEE\""));
+        assertTrue(report.contains("\"evidence_origin\": \"ADMIN_REVIEWED\""));
+        assertTrue(report.contains("\"proxy_registry_empty_before_reconnect\": true"));
+        assertTrue(report.contains("\"clean_reconnect_outcome\": \"VERIFIED_LOBBY\""));
+        assertFalse(report.contains("uuid"));
+        assertFalse(report.contains("sha256"));
+        assertFalse(report.contains("session_id"));
+        assertFalse(report.contains("policy_bytes"));
         assertFalse(report.contains("raw_frame"));
         assertFalse(report.contains("C:\\"));
     }
@@ -306,6 +336,18 @@ final class DenyReconnectOutcomeLogicTest {
         assertTrue(RealProxyDispositionMatrixGateTest
                 .phaseTwoVelocityDenyReconnectJson(unsafe)
                 .contains("\"fixture_login_ratelimit_disabled\": false"));
+    }
+
+    private static MinecraftProxyPlayerProbeTest.BungeeDenyReconnectOutcome bungeeOutcome(
+            boolean registryEmpty, boolean independentSession) {
+        return new MinecraftProxyPlayerProbeTest.BungeeDenyReconnectOutcome(
+                true, true, true, true, true, true, true, true, true, true,
+                MinecraftProxyPlayerProbeTest.DisconnectEvidence.PROTOCOL_DISCONNECT,
+                registryEmpty, false, false, true, independentSession, true,
+                true, true, true,
+                MinecraftProxyPlayerProbeTest.CleanReconnectStage.LOBBY_VERIFIED,
+                MinecraftProxyPlayerProbeTest.CleanReconnectTermination.NONE,
+                true, true);
     }
 
     private static MinecraftProxyPlayerProbeTest.DenyReconnectOutcome outcome(
@@ -339,6 +381,7 @@ final class DenyReconnectOutcomeLogicTest {
             boolean fixtureLoginRatelimitDisabled) {
         return new MinecraftProxyPlayerProbeTest.DenyReconnectOutcome(
                 true, fixtureLoginRatelimitDisabled, true, true, true, true,
+                true, true, true, true, true,
                 disconnectEvidence,
                 limitedAdmission, quarantineAdmission, true,
                 independentAuthenticatedSession, true,

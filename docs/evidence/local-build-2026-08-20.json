@@ -1,0 +1,343 @@
+{
+  "schema": "MCACE_LOCAL_BUILD_EVIDENCE_V2",
+  "generated_at": "2026-08-20T12:51:50.1507014Z",
+  "source_commit": "LOCAL_UNSPECIFIED",
+  "bundle_identity_profile": "LOCAL_V1",
+  "bundle_manifest_schema": "MCACE_LOCAL_VERIFICATION_BUNDLE_V1",
+  "bundle_profile": "LOCAL_VERIFICATION",
+  "release_identity": false,
+  "product_version": "0.1.0-SNAPSHOT",
+  "toolchains": {
+    "root_jdk_version": "21.0.7",
+    "root_jdk_runtime": "21.0.7+6-LTS",
+    "root_java_feature": 21,
+    "modern_jdk_version": "25.0.3",
+    "modern_jdk_runtime": "25.0.3+9-LTS",
+    "modern_java_feature": 25,
+    "root_gradle_version": "9.6.1",
+    "modern_gradle_version": "9.6.1"
+  },
+  "build_command_profile": "clean build localVerificationBundle; mcaceModernJavaHome supplied; offline; strict dependency verification; rerun tasks; no build cache; no configuration cache; no daemon; no parallel; max workers 1; plain console",
+  "windows_reproducibility": {
+    "run_a": {
+      "actionable_gradle_tasks": 118,
+      "executed_gradle_tasks": 118,
+      "up_to_date_gradle_tasks": 0,
+      "build_successful": true
+    },
+    "run_d": {
+      "actionable_gradle_tasks": 118,
+      "executed_gradle_tasks": 118,
+      "up_to_date_gradle_tasks": 0,
+      "build_successful": true
+    },
+    "run_a_run_d_test_count_identity": true,
+    "run_a_run_d_exact8_byte_identity": true,
+    "current_bundle_run_a_run_d_exact8_byte_identity": true
+  },
+  "test_results": {
+    "applies_to": [
+      "WINDOWS_RUN_A",
+      "WINDOWS_RUN_D"
+    ],
+    "root": {
+      "test_suites": 147,
+      "tests": 681,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 28
+    },
+    "modern": {
+      "test_suites": 24,
+      "tests": 74,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    },
+    "combined": {
+      "test_suites": 171,
+      "tests": 755,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 28
+    }
+  },
+  "exact8_bundle": {
+    "deployable_count": 6,
+    "bundle_entry_count": 8,
+    "canonical_manifest_schema": "file<TAB>bytes<TAB>sha256<LF>",
+    "canonical_manifest_bytes": 785,
+    "canonical_manifest_sha256": "289a59e56c6605e2f5ba7af160a9c94da506978e3c5db6e5c4102b578ce2ada3",
+    "run_a_run_d_byte_parity": true,
+    "current_bundle_run_a_run_d_byte_parity": true,
+    "windows_linux_names_sizes_sha256_parity": true,
+    "windows_linux_stream_byte_parity": true,
+    "sha256sums_verified": true,
+    "release_manifest_verified": true,
+    "entries": [
+      {
+        "file": "mcace-client-fabric-1.21.11.jar",
+        "bytes": 3385438,
+        "sha256": "e6b02463c4e65bc81a825626b98559d94ab5eed642fc84e6552a22bf7dc1d323"
+      },
+      {
+        "file": "mcace-client-fabric-26.1.2.jar",
+        "bytes": 3489094,
+        "sha256": "26de3b15fa56aff684f04076df4464fe409d9f0185147aec05efd0c296a72d35"
+      },
+      {
+        "file": "mcace-client-fabric-26.2.jar",
+        "bytes": 3489092,
+        "sha256": "4f6ee9077b3a9986f253c49db3e867c4ed480871c7e6023509d6b19d1ef4bc73"
+      },
+      {
+        "file": "mcace-server-bungeecord.jar",
+        "bytes": 3562568,
+        "sha256": "fc7ac9ac84a673bd08f15e5a68bbdaadd30af157ac154a20a14dcefbe6e4152a"
+      },
+      {
+        "file": "mcace-server-paper.jar",
+        "bytes": 5924608,
+        "sha256": "d133a093ff684490dcb3ae81e2751498c5fc9eeb9fe0c6f0bbce802f5dd23e7b"
+      },
+      {
+        "file": "mcace-server-velocity.jar",
+        "bytes": 5016132,
+        "sha256": "0f5afa9cc04aa3e3d21b7142fb2156ee4059d1f2f1f36508b33fbdd59c4323be"
+      },
+      {
+        "file": "release-manifest.properties",
+        "bytes": 1797,
+        "sha256": "7e73e7cc99ea1f6328060697107caf308b0b3ecccead7c0c61621ed661cfc8f7"
+      },
+      {
+        "file": "SHA256SUMS",
+        "bytes": 565,
+        "sha256": "b0227412fe38ad781edf998a217f2338f16caa6589763e7447cb1f956a3ef6b1"
+      }
+    ]
+  },
+  "dependency_verification": {
+    "mode": "strict",
+    "offline": true,
+    "root": {
+      "metadata_file": "gradle/verification-metadata.xml",
+      "metadata_bytes": 340356,
+      "metadata_sha256": "4305da303c3298e593c3ac197cdc462246041e29aad69c7155bd016783017e3f",
+      "exact_trusted_artifact_rule_count": 47,
+      "regex_true_rule_count": 0
+    },
+    "modern": {
+      "metadata_file": "fabric-modern/gradle/verification-metadata.xml",
+      "metadata_bytes": 151574,
+      "metadata_sha256": "7b45c68df450a17ccfc04a6a7f97b24efde402e40c2a3d880125856aa8c33780",
+      "exact_trusted_artifact_rule_count": 2,
+      "regex_true_rule_count": 0
+    },
+    "checksum_verification_retained_for": [
+      "upstream artifacts",
+      "POM metadata",
+      "mapping artifacts",
+      "platform-native protoc binaries"
+    ]
+  },
+  "linux_network_none": {
+    "current_jdk21_jdk25_exact8_rehearsal": true,
+    "status": "PASSED_CURRENT_EXACT8_REHEARSAL",
+    "release_gate_current": true,
+    "witness_schema": "MCACE_CURRENT_LINUX_NETWORK_NONE_WITNESS_V1",
+    "witness_bytes": 6176,
+    "witness_sha256": "de6d82fedace1c7b961ba9879b6e924df1bc8a1d085b851134194bac91d44b48",
+    "evidence_index": {
+      "schema": "sha256<two spaces>file<LF>",
+      "indexed_file_count": 9,
+      "bytes": 803,
+      "sha256": "124a6eb43611e57a5eedd623ddfba483c1ae890435d0c52e811b74c66356c8f5",
+      "all_indexed_files_verified": true
+    },
+    "witness_files": {
+      "witness_sidecar": {
+        "file": "linux-network-none-witness.sha256",
+        "bytes": 98,
+        "sha256": "d3245158c70327bb384eaf4a88ccc051f2578dc140f7c734af49aaae9312fdb3"
+      },
+      "source_manifest": {
+        "file": "source-manifest.tsv",
+        "bytes": 109848,
+        "sha256": "b74c22ff187a1fcfe4d8e1d6da5a202bde67d72061bcb3c2f205532d3857f8c3"
+      },
+      "exact8_manifest": {
+        "file": "exact8-manifest.tsv",
+        "bytes": 785,
+        "sha256": "289a59e56c6605e2f5ba7af160a9c94da506978e3c5db6e5c4102b578ce2ada3"
+      },
+      "bundle_sha256sums": {
+        "file": "bundle-SHA256SUMS",
+        "bytes": 565,
+        "sha256": "b0227412fe38ad781edf998a217f2338f16caa6589763e7447cb1f956a3ef6b1"
+      },
+      "release_manifest": {
+        "file": "release-manifest.properties",
+        "bytes": 1797,
+        "sha256": "7e73e7cc99ea1f6328060697107caf308b0b3ecccead7c0c61621ed661cfc8f7"
+      },
+      "build_summary": {
+        "file": "build-summary.txt",
+        "bytes": 134,
+        "sha256": "b3b0ecc74bf6515f1cbbc5f16328cde95ce01437a2f543a5e723c45f9854fe8d"
+      },
+      "test_summary": {
+        "file": "test-summary.tsv",
+        "bytes": 82,
+        "sha256": "d01446ef8daed78fcf47ce5d128e8a6453920cf061c682d22399fa5fc43ade0f"
+      },
+      "cleanup_stability": {
+        "file": "cleanup-stability.tsv",
+        "bytes": 206,
+        "sha256": "f20fa64fba356ad5ff69aad98a05869b2b01186ea4c32c5ebaaf8ac20d941ead"
+      }
+    },
+    "source_snapshot": {
+      "file_count": 735,
+      "byte_count": 6375429,
+      "manifest_schema": "relative_path<TAB>bytes<TAB>sha256<LF>",
+      "manifest_sha256": "b74c22ff187a1fcfe4d8e1d6da5a202bde67d72061bcb3c2f205532d3857f8c3",
+      "snapshot_pre_post_identical": true,
+      "scratch_original_inputs_pre_post_identical": true,
+      "repository_visible_post_identical": true,
+      "symlink_count": 0
+    },
+    "environment": {
+      "platform": "linux/amd64",
+      "network_mode": "none",
+      "observed_interfaces": [
+        "lo"
+      ]
+    },
+    "toolchains": {
+      "root_java_version": "21.0.7",
+      "root_java_runtime": "21.0.7+6-LTS",
+      "root_jdk_release_sha256": "6dac65972e3efca418e39c787b012f551481fb659bae2742ad5d0c714fbf7161",
+      "modern_java_version": "25.0.3",
+      "modern_java_runtime": "25.0.3+9-LTS",
+      "modern_jdk_manifest_sha256": "468dd215035cfe8c277c47521405be90f417cc2e6b27670fbaa3b213f799abbd",
+      "modern_jdk_release_sha256": "f9e355e452f4756524edf1c452c34d34bfe2d27bf4c2917cb6ab033d3d711d37",
+      "gradle_version": "9.6.1"
+    },
+    "isolation": {
+      "offline": true,
+      "dependency_verification": "strict",
+      "rerun_tasks": true,
+      "fresh_source_snapshot": true,
+      "fresh_source_scratch": true,
+      "fresh_disposable_cache": true,
+      "frozen_seed_read_only": true,
+      "frozen_seed_manifest_sha256": "fffa1741b02a2b3b0c3f6b6ccc97403a7ce7edfeb360e32f1ccb6fb9f2584bd9",
+      "frozen_seed_files": 5951,
+      "frozen_seed_file_bytes": 1511763347,
+      "seed_clone_exact": true,
+      "seed_post_identical": true,
+      "source_tree_read_only": true,
+      "modern_jdk_read_only": true,
+      "project_loom_cache_injected": false,
+      "build_cache": false,
+      "configuration_cache": false,
+      "parallel": false,
+      "max_workers": 1
+    },
+    "tasks": {
+      "root": {
+        "actionable": 118,
+        "executed": 105,
+        "up_to_date": 13
+      },
+      "modern": {
+        "actionable": 15,
+        "executed": 15,
+        "up_to_date": 0
+      },
+      "build_successful": true
+    },
+    "tests": {
+      "root": {
+        "suites": 147,
+        "tests": 681,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 33
+      },
+      "modern": {
+        "suites": 24,
+        "tests": 74,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "combined": {
+        "suites": 171,
+        "tests": 755,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 33
+      }
+    },
+    "skip_boundary": {
+      "hard_gate": false,
+      "windows_skipped": 28,
+      "linux_skipped": 33,
+      "delta": 5,
+      "delta_reason": "isolated Linux environment has no external PostgreSQL service",
+      "linux_only_skip_group": {
+        "PostgresSecurityAuditRepositoryTest": 5
+      }
+    },
+    "exact8": {
+      "count": 8,
+      "canonical_manifest_sha256": "289a59e56c6605e2f5ba7af160a9c94da506978e3c5db6e5c4102b578ce2ada3",
+      "sha256sums_verified": true,
+      "release_manifest_verified": true,
+      "windows_names_sizes_sha256_identical": true,
+      "windows_stream_bytes_identical": true,
+      "entries_match_exact8_bundle": true
+    },
+    "cleanup": {
+      "build_and_audit_instances_auto_removed": true,
+      "disposable_cache_removed": true,
+      "disposable_scratch_removed": true,
+      "isolated_instances_remaining": 0,
+      "isolated_volumes_remaining": 0,
+      "live_java_processes": 0,
+      "zero_stability_seconds": 60,
+      "frozen_seed_retained": true,
+      "exact_jdk25_retained": true
+    },
+    "historical_record": "local-build-2026-08-14.json",
+    "historical_record_scope": "HISTORICAL_PRE_FINAL_THREE_VERSION_BASELINE",
+    "historical_result_promoted_to_current": false
+  },
+  "external_gates": {
+    "exact_commit_ci": false,
+    "exact_commit_release_identity": false,
+    "current_linux_network_none_jdk21_jdk25_exact8": true,
+    "human_fabric_gui_consent_all_three_versions": false,
+    "real_fabric_federation_handoff": false,
+    "licensed_vulcan_structural_preflight_current_source": false,
+    "licensed_vulcan_paper_enablement": false,
+    "licensed_vulcan_real_event_delivery": false,
+    "server_confirmed_high_impact_process_producer": false
+  },
+  "sanitization": {
+    "absolute_path_value_count": 0,
+    "guid_value_count": 0,
+    "uuid_value_count": 0,
+    "pid_value_count": 0,
+    "port_value_count": 0,
+    "run_id_copied": false,
+    "raw_log_or_test_xml_copied": false,
+    "external_witness_path_copied": false,
+    "execution_environment_identifier_copied": false,
+    "execution_environment_path_copied": false,
+    "bundle_binaries_copied": false,
+    "secret_material_copied": false
+  }
+}

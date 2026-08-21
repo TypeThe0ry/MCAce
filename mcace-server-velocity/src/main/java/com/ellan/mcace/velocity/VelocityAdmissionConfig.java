@@ -37,7 +37,7 @@ record VelocityAdmissionConfig(
             # These values are signed into the Fabric client policy. Change them before
             # publishing a release build; comma-separated lists are supported.
             policy.server-id=mcace-velocity
-            policy.minecraft-versions=1.21.1
+            policy.minecraft-versions=1.21.11
             policy.client-build-ids=fabric-phase2-dev
             # PostgreSQL audit storage is opt-in. Keep credentials out of this file.
             storage.enabled=false
@@ -99,7 +99,7 @@ record VelocityAdmissionConfig(
                             "storage.migrate-on-start"));
             PolicyConfig policy = new PolicyConfig(
                     properties.getProperty("policy.server-id", "mcace-velocity").trim(),
-                    parseList(properties.getProperty("policy.minecraft-versions", "1.21.1"),
+                    parseList(properties.getProperty("policy.minecraft-versions", "1.21.11"),
                             "policy.minecraft-versions"),
                     parseList(properties.getProperty("policy.client-build-ids", "fabric-phase2-dev"),
                             "policy.client-build-ids"));

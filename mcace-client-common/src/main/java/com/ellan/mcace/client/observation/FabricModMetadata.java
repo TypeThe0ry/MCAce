@@ -1,5 +1,7 @@
 package com.ellan.mcace.client.observation;
 
+import com.ellan.mcace.client.integrity.IntegrityScanCancellation;
+import com.ellan.mcace.client.integrity.IntegrityScanException;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
@@ -20,7 +22,18 @@ record FabricModMetadata(String identifier, String version, String status) {
     private static final String UNKNOWN = "unknown";
 
     static FabricModMetadata read(Path file) {
+        try {
+            return read(file, IntegrityScanCancellation.NONE);
+        } catch (IntegrityScanException impossible) {
+            return unavailable("invalid");
+        }
+    }
+
+    static FabricModMetadata read(Path file, IntegrityScanCancellation cancellation)
+            throws IntegrityScanException {
+        cancellation.check();
         try (ZipFile archive = new ZipFile(file.toFile())) {
+            cancellation.check();
             ZipEntry metadata = archive.getEntry("fabric.mod.json");
             if (metadata == null || metadata.isDirectory()) {
                 return unavailable("absent");
@@ -28,7 +41,9 @@ record FabricModMetadata(String identifier, String version, String status) {
             if (metadata.getSize() > MAX_METADATA_BYTES) {
                 return unavailable("invalid");
             }
-            String json = decode(readBounded(archive.getInputStream(metadata)));
+            cancellation.check();
+            String json = decode(readBounded(archive.getInputStream(metadata), cancellation));
+            cancellation.check();
             return parse(json);
         } catch (IOException | IllegalArgumentException exception) {
             return unavailable("invalid");
@@ -55,12 +70,18 @@ record FabricModMetadata(String identifier, String version, String status) {
                 && version.codePoints().allMatch(codePoint -> codePoint >= 0x20 && codePoint != 0x7f);
     }
 
-    private static byte[] readBounded(InputStream input) throws IOException {
+    private static byte[] readBounded(InputStream input, IntegrityScanCancellation cancellation)
+            throws IOException, IntegrityScanException {
         try (input; ByteArrayOutputStream output = new ByteArrayOutputStream()) {
             byte[] buffer = new byte[4096];
             int total = 0;
             int read;
-            while ((read = input.read(buffer)) >= 0) {
+            while (true) {
+                cancellation.check();
+                read = input.read(buffer);
+                if (read < 0) {
+                    break;
+                }
                 total += read;
                 if (total > MAX_METADATA_BYTES) {
                     throw new IOException("Fabric metadata exceeds its size limit");

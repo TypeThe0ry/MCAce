@@ -24,7 +24,7 @@ final class VelocityAdmissionConfigTest {
         assertEquals(Duration.ofSeconds(5), config.handshakeTimeout());
         assertEquals(false, config.storage().enabled());
         assertEquals("mcace-velocity", config.policy().serverId());
-        assertEquals(java.util.List.of("1.21.1"), config.policy().minecraftVersions());
+        assertEquals(java.util.List.of("1.21.11"), config.policy().minecraftVersions());
         assertEquals(java.util.List.of("fabric-phase2-dev"), config.policy().clientBuildIds());
         assertEquals(false, config.heartbeatMissing().enabled());
     }

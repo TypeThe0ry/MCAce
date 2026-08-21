@@ -11,13 +11,20 @@ import com.ellan.mcace.core.federation.FederationRuntimeStatus;
 import com.ellan.mcace.core.federation.FederationSubject;
 import com.ellan.mcace.core.proxy.ProxyPolicyRefreshStatus;
 import com.ellan.mcace.core.proxy.SharedProxyDispositionPolicyRuntime;
+import com.ellan.mcace.core.proxy.ShadowBackendContextRuntime;
 import com.ellan.mcace.core.proxy.ArtifactObservationAuditSink;
 import com.ellan.mcace.core.proxy.FileArtifactObservationAuditSink;
+import com.ellan.mcace.core.proxy.AdministratorDispositionReviewRequest;
+import com.ellan.mcace.core.proxy.FileTrustedDispositionAuthorizationSink;
+import com.ellan.mcace.core.proxy.TrustedDispositionAuthorizationRuntime;
+import com.ellan.mcace.core.proxy.TrustedDispositionCommitments;
+import com.ellan.mcace.core.disposition.EvaluationContext;
 import com.ellan.mcace.core.session.HeartbeatTransition;
 import com.ellan.mcace.core.session.HeartbeatMissingTransition;
 import com.ellan.mcace.core.session.HeartbeatMissingPolicy;
 import com.ellan.mcace.protocol.crypto.EnvelopeException;
 import com.ellan.mcace.sdk.MCAceApi;
+import com.ellan.mcace.sdk.AdmissionStatus;
 import com.ellan.mcace.sdk.PlayerSecuritySnapshot;
 import java.nio.file.Path;
 import java.security.PrivateKey;
@@ -38,16 +45,19 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import net.md_5.bungee.api.connection.ProxiedPlayer;
+import net.md_5.bungee.api.connection.Server;
 import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.event.PluginMessageEvent;
 import net.md_5.bungee.api.event.PlayerDisconnectEvent;
 import net.md_5.bungee.api.event.PlayerConfigurationEvent;
 import net.md_5.bungee.api.event.PostLoginEvent;
 import net.md_5.bungee.api.event.ServerConnectedEvent;
+import net.md_5.bungee.api.event.ServerConnectEvent;
 import net.md_5.bungee.api.plugin.Listener;
 import net.md_5.bungee.api.plugin.Plugin;
 import net.md_5.bungee.api.scheduler.ScheduledTask;
 import net.md_5.bungee.event.EventHandler;
+import net.md_5.bungee.event.EventPriority;
 
 /**
  * BungeeCord transport adapter for MCAce sessions.
@@ -87,6 +97,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
     private Clock clock;
     private AtomicReference<BungeeDispositionStatus> dispositionStatus;
     private BungeeDispositionExecutor dispositionExecutor;
+    private TrustedDispositionAuthorizationRuntime trustedDispositionAuthorizations;
     private BungeeDeferredDispositionRoutes deferredDispositionRoutes;
     /** Serializes plugin-owned connection identity with bridge mutations across Bungee async events. */
     private final Object connectionLifecycleLock = new Object();
@@ -94,6 +105,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
     private volatile BungeeDispositionExecutionMode effectiveDispositionMode =
             BungeeDispositionExecutionMode.MONITOR;
     private EvidenceReviewEndpointConfiguration evidenceReviewConfiguration;
+    private ShadowBackendContextRuntime backendContextRuntime;
 
     @Override
     public void onEnable() {
@@ -103,8 +115,29 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         deferredDispositionRoutes = new BungeeDeferredDispositionRoutes(clock);
         admissionSnapshotCodec = new SignedAdmissionSnapshotCodec(clock, new SecureRandom());
         admissionSigningKey = bridge.admissionSigningKey().orElse(null);
+        backendContextRuntime = bridge.shadowBackendContextRuntime().orElse(null);
         admissionSequence = new AtomicLong(Math.max(1L, clock.millis()));
         dispositionStatus = new AtomicReference<>(BungeeDispositionStatus.unavailable());
+        try {
+            trustedDispositionAuthorizations = bridge.dispositionPolicyRuntime()
+                    .map(runtime -> {
+                        try {
+                            return new TrustedDispositionAuthorizationRuntime(
+                                    runtime,
+                                    new FileTrustedDispositionAuthorizationSink(
+                                            getDataFolder().toPath().resolve(
+                                                    "trusted-disposition-authorizations.log"),
+                                            8L * 1024 * 1024));
+                        } catch (java.io.IOException exception) {
+                            return null;
+                        }
+                    }).orElse(null);
+        } catch (RuntimeException exception) {
+            trustedDispositionAuthorizations = null;
+        }
+        if (trustedDispositionAuthorizations == null) {
+            getLogger().warning("MCAce administrator-reviewed disposition is disabled because its durable audit is unavailable");
+        }
         BungeeDispositionExecutor executor = createDispositionExecutor(bridge);
         dispositionExecutor = executor;
         bridge.setDispositionEventHandler(event -> {
@@ -115,6 +148,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         getProxy().registerChannel(BungeeMCAceChannels.HANDSHAKE);
         getProxy().registerChannel(BungeeMCAceChannels.ADMISSION);
         getProxy().registerChannel(BungeeMCAceChannels.PAYLOAD);
+        getProxy().registerChannel(BungeeMCAceChannels.BACKEND_CONTEXT);
         getProxy().getPluginManager().registerListener(this, this);
         getProxy().getPluginManager().registerCommand(
                 this, new MCAceBungeeCommand(
@@ -122,6 +156,8 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
                         () -> effectiveDispositionMode));
         getProxy().getPluginManager().registerCommand(this,
                 new MCAceEvidenceCommand(() -> bridge, this::dispatchEvidenceRequest));
+        getProxy().getPluginManager().registerCommand(
+                this, new MCAceDispositionReviewCommand(this::reviewDisposition));
         try {
             getProxy().getPluginManager().registerCommand(this, new MCAceObservationCommand(
                     new FileArtifactObservationAuditSink(getDataFolder().toPath().resolve("artifact-observation-audit.log"),
@@ -202,6 +238,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         getProxy().unregisterChannel(BungeeMCAceChannels.HANDSHAKE);
         getProxy().unregisterChannel(BungeeMCAceChannels.ADMISSION);
         getProxy().unregisterChannel(BungeeMCAceChannels.PAYLOAD);
+        getProxy().unregisterChannel(BungeeMCAceChannels.BACKEND_CONTEXT);
         if (bridge != null) {
             try {
                 bridge.close();
@@ -213,6 +250,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         admissionSigningKey = null;
         admissionSnapshotCodec = null;
         admissionSequence = null;
+        backendContextRuntime = null;
         dispositionStatus = null;
         clock = null;
     }
@@ -352,6 +390,10 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         if (decision == BungeeInboundFrameGate.Decision.CONSUME_ONLY) {
             return;
         }
+        if (decision == BungeeInboundFrameGate.Decision.BACKEND_CONTEXT) {
+            receiveBackendContext(event);
+            return;
+        }
         ProxiedPlayer player = (ProxiedPlayer) event.getSender();
         if (!isCurrentPhysicalLogin(player)) {
             return;
@@ -390,6 +432,19 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
                         + ": " + safeMessage(exception));
                 return;
             }
+        }
+    }
+
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onServerConnect(ServerConnectEvent event) {
+        synchronized (connectionLifecycleLock) {
+            ProxiedPlayer player = event.getPlayer();
+            BungeeDeferredDispositionRoutes routes = deferredDispositionRoutes;
+            if (routes == null || !isCurrentPhysicalLogin(player)) {
+                return;
+            }
+            routes.ticketFor(player.getUniqueId(), player).ifPresent(ticket ->
+                    routes.markBackendConnecting(player.getUniqueId(), player, ticket));
         }
     }
 
@@ -514,6 +569,8 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         if (current == null) {
             return;
         }
+        ShadowBackendContextRuntime contextRuntime = backendContextRuntime;
+        if (contextRuntime != null) contextRuntime.expire();
         try {
             current.federationRuntime().ifPresent(runtime -> runtime.expire(256));
         } catch (RuntimeException exception) {
@@ -571,7 +628,8 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         return new MCAceFederationCommand.Operations() {
             @Override public FederationRuntimeState status() {
                 return federationRuntime().map(FederationRuntime::status)
-                        .orElseGet(() -> new FederationRuntimeState(false, "unavailable", 0, 0, 0));
+                        .orElseGet(() -> new FederationRuntimeState(
+                                false, false, false, "unavailable", 0, 0, 0, 0, 0L, 1L));
             }
 
             @Override public List<String> peers() {
@@ -909,7 +967,9 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
             if (target == null || player.getServer() == null) {
                 return BungeeDispositionExecutor.Actions.RouteOutcome.UNAVAILABLE;
             }
-            connectOnceWithAudit(player, loginTicket, sessionId, target, action, "direct");
+            connectOnceWithAudit(player, loginTicket, sessionId, target, action, "direct",
+                    dispositionEvent.flatMap(
+                            com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent::authorizationId));
             return BungeeDispositionExecutor.Actions.RouteOutcome.DISPATCHED;
         }
     }
@@ -951,22 +1011,39 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
                         + " reason=inactive-route");
                 return;
             }
-            if (pending.source() == BungeeDeferredDispositionRoutes.Source.DISPOSITION
-                    && pending.dispositionEvent().map(event -> !event.policyIsActiveAt(activeClock().instant())).orElse(true)) {
-                getLogger().info("MCAce deferred disposition route result=UNAVAILABLE player=" + playerId
-                        + " reason=expired-policy");
-                return;
-            }
             net.md_5.bungee.api.config.ServerInfo target = getProxy().getServerInfo(expectedTarget);
             if (target == null || player.getServer() == null || !routes.isReady(playerId, player, loginTicket)) {
                 getLogger().info("MCAce deferred disposition route result=UNAVAILABLE player=" + playerId
                         + " reason=backend-not-ready");
                 return;
             }
-            connectOnceWithAudit(player, loginTicket, pending.sessionId(), target, pending.action(),
-                    "deferred-" + pending.source().name().toLowerCase(java.util.Locale.ROOT));
+            java.util.function.Supplier<Boolean> startRoute = () -> {
+                connectOnceWithAudit(player, loginTicket, pending.sessionId(), target, pending.action(),
+                        "deferred-" + pending.source().name().toLowerCase(java.util.Locale.ROOT),
+                        pending.dispositionEvent().flatMap(
+                                com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent::authorizationId));
+                return true;
+            };
+            boolean dispatched = pending.source() == BungeeDeferredDispositionRoutes.Source.DISPOSITION
+                    ? pending.dispositionEvent()
+                            .flatMap(event -> executeWithCurrentDispositionPolicy(
+                                    current, event, startRoute))
+                            .orElse(false)
+                    : startRoute.get();
+            if (!dispatched) {
+                getLogger().info("MCAce deferred disposition route result=UNAVAILABLE player=" + playerId
+                        + " reason=inactive-policy");
+                return;
+            }
             getLogger().info("MCAce deferred disposition route result=DISPATCHED player=" + playerId
-                    + " action=" + pending.action() + " source=" + pending.source() + " session-bound=true");
+                    + " action=" + pending.action() + " source=" + pending.source()
+                    + " authorization=" + pending.dispositionEvent()
+                            .flatMap(com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent::authorizationId)
+                            .map(Object::toString).orElse("none")
+                    + " session-bound=true execution-context-bound="
+                    + pending.dispositionEvent()
+                            .flatMap(com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent::authorizationContextCommitmentSha256)
+                            .isPresent());
         }
     }
 
@@ -981,7 +1058,8 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
             String sessionId,
             net.md_5.bungee.api.config.ServerInfo target,
             com.ellan.mcace.core.disposition.DispositionAction action,
-            String source) {
+            String source,
+            Optional<UUID> authorizationId) {
         UUID playerId = player.getUniqueId();
         AtomicBoolean completionReported = new AtomicBoolean();
         player.connect(target, (success, error) -> {
@@ -997,7 +1075,9 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
                 }
                 String result = successfulRouteCompletion(success, error) ? "SUCCESS" : "FAILED";
                 getLogger().info("MCAce disposition route completion=" + result + " player=" + playerId
-                        + " action=" + action + " source=" + source + " session-bound=true");
+                        + " action=" + action + " source=" + source + " authorization="
+                        + authorizationId.map(Object::toString).orElse("none")
+                        + " session-bound=true execution-context-bound=" + authorizationId.isPresent());
             }
         });
     }
@@ -1153,6 +1233,71 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         }
     }
 
+    private MCAceDispositionReviewCommand.ReviewResult reviewDisposition(
+            String playerName,
+            String operatorId,
+            AdministratorDispositionReviewRequest request) {
+        TrustedDispositionAuthorizationRuntime authorizations = trustedDispositionAuthorizations;
+        if (authorizations == null) {
+            return MCAceDispositionReviewCommand.ReviewResult.status(
+                    MCAceDispositionReviewCommand.Status.AUTHORIZATION_AUDIT_UNAVAILABLE);
+        }
+        ProxiedPlayer player = getProxy().getPlayer(playerName);
+        if (player == null) {
+            return MCAceDispositionReviewCommand.ReviewResult.status(
+                    MCAceDispositionReviewCommand.Status.UNKNOWN_PLAYER);
+        }
+        String sessionId;
+        String backendId;
+        synchronized (connectionLifecycleLock) {
+            BungeeSessionBridge current = bridge;
+            BungeeDeferredDispositionRoutes routes = deferredDispositionRoutes;
+            Optional<BungeeDeferredDispositionRoutes.LoginTicket> ticket = current == null || routes == null
+                    ? Optional.empty() : routes.ticketFor(player.getUniqueId(), player);
+            Optional<String> session = current == null
+                    ? Optional.empty() : current.currentAuthenticatedSessionId(player.getUniqueId());
+            boolean verified = current != null && current.api().snapshot(player.getUniqueId())
+                    .map(snapshot -> snapshot.verified()
+                            && snapshot.admissionStatus() == AdmissionStatus.VERIFIED)
+                    .orElse(false);
+            if (current == null || ticket.isEmpty() || session.isEmpty() || !verified
+                    || !isCurrentAuthenticatedPhysicalSession(
+                    player, ticket.orElseThrow(), current, session.orElseThrow())) {
+                return MCAceDispositionReviewCommand.ReviewResult.status(
+                        MCAceDispositionReviewCommand.Status.NO_CURRENT_AUTHENTICATED_SESSION);
+            }
+            sessionId = session.orElseThrow();
+            backendId = player.getServer() == null ? null : player.getServer().getInfo().getName();
+        }
+        com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent event;
+        try {
+            event = authorizations.authorizeAdministratorReview(
+                    player.getUniqueId(), sessionId,
+                    new EvaluationContext(
+                            player.getUniqueId(), "bungeecord", backendId, null, null, Set.of(), clock.instant()),
+                    request.observation(), operatorId, request.reviewTicket());
+            getLogger().info("MCAce trusted disposition authorization persisted: authorization="
+                    + event.authorizationId().orElseThrow()
+                    + " journal-durable=true execution-context-bound=true player="
+                    + event.playerId() + " action=" + event.highestAction() + " policy-sequence="
+                    + event.activePolicySequence().orElseThrow());
+        } catch (java.io.IOException | RuntimeException exception) {
+            getLogger().warning("MCAce administrator-reviewed disposition authorization failed closed: "
+                    + exception.getClass().getSimpleName());
+            return MCAceDispositionReviewCommand.ReviewResult.status(
+                    MCAceDispositionReviewCommand.Status.FAILED);
+        }
+        BungeeDispositionExecutor executor = dispositionExecutor;
+        if (executor == null || !executor.offer(event)) {
+            getLogger().warning("MCAce administrator-reviewed disposition execution queue is unavailable");
+            return MCAceDispositionReviewCommand.ReviewResult.status(
+                    MCAceDispositionReviewCommand.Status.EXECUTION_QUEUE_UNAVAILABLE);
+        }
+        return new MCAceDispositionReviewCommand.ReviewResult(
+                MCAceDispositionReviewCommand.Status.AUTHORIZED,
+                Optional.of(event.highestAction()), event.winningRuleId(),
+                event.activePolicySequence(), event.authorizationId());
+    }
     private BungeeDispositionExecutor createDispositionExecutor(BungeeSessionBridge current) {
         Optional<BungeeDispositionRouteTargets> resolvedTargets = resolveDispositionRouteTargets(
                 current.dispositionExecutionMode(), current.dispositionLimitedServer(),
@@ -1183,8 +1328,17 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
                     @Override
                     public boolean isVerifiedAdmission(UUID playerId) {
                         return current.api().snapshot(playerId)
-                                .map(PlayerSecuritySnapshot::verified)
+                                .map(snapshot -> snapshot.verified()
+                                        && snapshot.admissionStatus() == AdmissionStatus.VERIFIED)
                                 .orElse(false);
+                    }
+
+                    @Override
+                    public boolean isCurrentAuthorizationContext(
+                            com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent event) {
+                        synchronized (connectionLifecycleLock) {
+                            return currentAuthorizationContextMatchesLocked(current, event);
+                        }
                     }
 
                     @Override
@@ -1207,8 +1361,12 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
                     @Override
                     public BungeeDispositionExecutor.Actions.RouteOutcome routeToServer(
                             com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent event, String server) {
-                        return routeDisposition(event.playerId(), event.sessionId(), server,
-                                event.highestAction(), Optional.of(event));
+                        synchronized (connectionLifecycleLock) {
+                            return executeWithCurrentDispositionPolicy(current, event, () ->
+                                    routeDisposition(event.playerId(), event.sessionId(), server,
+                                            event.highestAction(), Optional.of(event)))
+                                    .orElse(BungeeDispositionExecutor.Actions.RouteOutcome.UNAVAILABLE);
+                        }
                     }
 
                     @Override
@@ -1227,15 +1385,103 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
                             return true;
                         }
                     }
+
+                    @Override
+                    public boolean deny(
+                            com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent event,
+                            String message) {
+                        synchronized (connectionLifecycleLock) {
+                            return executeWithCurrentDispositionPolicy(
+                                    current, event,
+                                    () -> deny(event.playerId(), event.sessionId(), message))
+                                    .orElse(false);
+                        }
+                    }
                 },
                 activeClock(),
+                event -> isCurrentDispositionPolicy(current, event),
                 (event, result) -> {
                     if (result.status() != BungeeDispositionExecutor.Status.OBSERVE) {
                         getLogger().info("MCAce manifest disposition: action=" + result.action()
                                 + " result=" + result.status() + " player=" + event.playerId()
-                                + " session-bound=true");
+                                + " authorization=" + event.authorizationId().map(Object::toString).orElse("none")
+                                + " session-bound=true execution-context-bound="
+                                + event.authorizationContextCommitmentSha256().isPresent());
                     }
                 });
+    }
+
+    private static boolean isCurrentDispositionPolicy(
+            BungeeSessionBridge current,
+            com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent event) {
+        if (event.activePolicyVersion().isEmpty()
+                || event.activePolicySequence().isEmpty()
+                || event.activePolicyExpiresAt().isEmpty()
+                || event.winningRuleId().isEmpty()) {
+            return false;
+        }
+        return current.dispositionPolicyRuntime()
+                .map(runtime -> runtime.isCurrentActivePolicy(
+                        event.activePolicyVersion().orElseThrow(),
+                        event.activePolicySequence().orElseThrow(),
+                        event.activePolicyExpiresAt().orElseThrow(),
+                        event.winningRuleId().orElseThrow(),
+                        event.highestAction()))
+                .orElse(false);
+    }
+
+    private <T> Optional<T> executeWithCurrentDispositionPolicy(
+            BungeeSessionBridge current,
+            com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent event,
+            java.util.function.Supplier<T> operation) {
+        if (event.activePolicyVersion().isEmpty()
+                || event.activePolicySequence().isEmpty()
+                || event.activePolicyExpiresAt().isEmpty()
+                || event.winningRuleId().isEmpty()) {
+            return Optional.empty();
+        }
+        if (!Thread.holdsLock(connectionLifecycleLock)
+                || !currentAuthorizationContextMatchesLocked(current, event)) {
+            return Optional.empty();
+        }
+        return current.dispositionPolicyRuntime()
+                .flatMap(runtime -> runtime.executeIfCurrentActivePolicy(
+                        event.activePolicyVersion().orElseThrow(),
+                        event.activePolicySequence().orElseThrow(),
+                        event.activePolicyExpiresAt().orElseThrow(),
+                        event.winningRuleId().orElseThrow(), event.highestAction(), operation));
+    }
+
+    /** Call only while holding the physical-login lifecycle boundary. */
+    private boolean currentAuthorizationContextMatchesLocked(
+            BungeeSessionBridge current,
+            com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent event) {
+        if (!Thread.holdsLock(connectionLifecycleLock)
+                || event.authorizationId().isEmpty()
+                || event.authorizationContextCommitmentSha256().isEmpty()) {
+            return false;
+        }
+        ProxiedPlayer player = getProxy().getPlayer(event.playerId());
+        BungeeDeferredDispositionRoutes routes = deferredDispositionRoutes;
+        Optional<BungeeDeferredDispositionRoutes.LoginTicket> ticket = player == null || routes == null
+                ? Optional.empty() : routes.ticketFor(event.playerId(), player);
+        boolean verified = current.api().snapshot(event.playerId())
+                .map(snapshot -> snapshot.verified()
+                        && snapshot.admissionStatus() == AdmissionStatus.VERIFIED)
+                .orElse(false);
+        if (player == null || ticket.isEmpty() || !verified
+                || !isCurrentAuthenticatedPhysicalSession(
+                player, ticket.orElseThrow(), current, event.sessionId())
+                || !routes.isReady(event.playerId(), player, ticket.orElseThrow())) {
+            return false;
+        }
+        String backend = player.getServer() == null
+                ? null : player.getServer().getInfo().getName();
+        EvaluationContext context = new EvaluationContext(
+                event.playerId(), "bungeecord", backend, null, null, Set.of(), activeClock().instant());
+        return TrustedDispositionCommitments.executionContextMatches(
+                event.authorizationId().orElseThrow(), context,
+                event.authorizationContextCommitmentSha256().orElseThrow());
     }
 
     static Optional<BungeeDispositionRouteTargets> resolveDispositionRouteTargets(
@@ -1273,16 +1519,63 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
             BungeeSessionBridge current,
             PlayerSecuritySnapshot snapshot) {
         if (!isCurrentAuthenticatedPhysicalSession(player, ticket, current, sessionId)
-                || admissionSigningKey == null || admissionSnapshotCodec == null || player.getServer() == null) {
+                || admissionSigningKey == null || admissionSnapshotCodec == null) {
             return;
         }
+        // Bungee's current-server pointer is outside MCAce's lifecycle lock. Capture one exact
+        // connection so the backend id armed in the runtime and the recipient of the signed frame
+        // can never come from two sides of a concurrent server switch.
+        Server backend = player.getServer();
+        if (backend == null) return;
         try {
-            byte[] frame = admissionSnapshotCodec.sign(
-                    snapshot, BACKEND_SNAPSHOT_TTL, nextAdmissionSequence(), admissionSigningKey);
-            player.getServer().sendData(BungeeMCAceChannels.ADMISSION, frame);
+            long transportSequence = nextAdmissionSequence();
+            SignedAdmissionSnapshotCodec.SignedAdmissionSnapshot signed =
+                    admissionSnapshotCodec.signWithExpiry(
+                    snapshot, BACKEND_SNAPSHOT_TTL, transportSequence, admissionSigningKey);
+            ShadowBackendContextRuntime contextRuntime = backendContextRuntime;
+            if (contextRuntime != null) {
+                contextRuntime.expectBackend(
+                        player.getUniqueId(), sessionId, backend.getInfo().getName(),
+                        transportSequence, signed.expiresAt());
+            }
+            backend.sendData(BungeeMCAceChannels.ADMISSION, signed.encodedFrame());
         } catch (EnvelopeException exception) {
             getLogger().warning("Could not sign MCAce backend admission snapshot for " + player.getName()
                     + ": " + safeMessage(exception));
+        }
+    }
+
+    private void receiveBackendContext(PluginMessageEvent event) {
+        ShadowBackendContextRuntime runtime = backendContextRuntime;
+        if (runtime == null || !(event.getSender() instanceof Server backend)
+                || !(event.getReceiver() instanceof ProxiedPlayer player)) {
+            return;
+        }
+        ShadowBackendContextRuntime.ReceiveResult result;
+        synchronized (connectionLifecycleLock) {
+            BungeeSessionBridge current = bridge;
+            BungeeDeferredDispositionRoutes routes = deferredDispositionRoutes;
+            Optional<BungeeDeferredDispositionRoutes.LoginTicket> ticket = current == null || routes == null
+                    ? Optional.empty() : routes.ticketFor(player.getUniqueId(), player);
+            Optional<String> sessionId = current == null
+                    ? Optional.empty() : current.currentAuthenticatedSessionId(player.getUniqueId());
+            if (ticket.isEmpty() || sessionId.isEmpty()
+                    || !isCurrentAuthenticatedPhysicalSession(
+                    player, ticket.orElseThrow(), current, sessionId.orElseThrow())) {
+                return;
+            }
+            // Bungee can deliver the backend reply before getServer() advances. The runtime's
+            // authenticated session, backend id and admission sequence binding rejects stale or
+            // unrelated connections without relying on that eventually-consistent pointer.
+            result = runtime.receive(
+                    player.getUniqueId(), backend.getInfo().getName(), event.getData());
+        }
+        if (result.acceptedContext().isPresent()) {
+            getLogger().fine("MCAce accepted backend context for " + player.getName()
+                    + " status=" + result.status() + " (shadow-only)");
+        } else {
+            getLogger().warning("MCAce rejected backend context for " + player.getName()
+                    + " status=" + result.status() + " (admission unchanged)");
         }
     }
 
