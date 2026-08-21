@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="430" viewBox="0 0 1200 430" role="img" aria-labelledby="title desc">
+  <title id="title">MCAce exact Minecraft compatibility matrix</title>
+  <desc id="desc">Three exact release targets with protocol, Java, artifact mode, and verification status.</desc>
+  <rect width="1200" height="430" rx="20" fill="#0b1220"/>
+  <text x="50" y="58" fill="#f8fafc" font-family="Segoe UI, sans-serif" font-size="30" font-weight="700">Exact compatibility contract</text>
+  <text x="50" y="88" fill="#94a3b8" font-family="Segoe UI, sans-serif" font-size="16">Unsupported patch versions fail closed; no protocol-threshold inference.</text>
+  <g font-family="Segoe UI, sans-serif">
+    <rect x="50" y="120" width="350" height="245" rx="16" fill="#11223a" stroke="#38bdf8" stroke-width="2"/>
+    <text x="78" y="164" fill="#7dd3fc" font-size="26" font-weight="700">1.21.11</text>
+    <text x="78" y="200" fill="#e2e8f0" font-size="18">Protocol 774 · Java 21</text>
+    <text x="78" y="232" fill="#e2e8f0" font-size="17">Fabric Loader 0.19.3</text>
+    <text x="78" y="262" fill="#e2e8f0" font-size="17">Yarn + final remap JAR</text>
+    <rect x="78" y="292" width="120" height="38" rx="19" fill="#14532d"/>
+    <text x="138" y="317" text-anchor="middle" fill="#bbf7d0" font-size="16" font-weight="700">VERIFIED</text>
+    <rect x="425" y="120" width="350" height="245" rx="16" fill="#15243c" stroke="#a78bfa" stroke-width="2"/>
+    <text x="453" y="164" fill="#c4b5fd" font-size="26" font-weight="700">26.1.2</text>
+    <text x="453" y="200" fill="#e2e8f0" font-size="18">Protocol 775 · Java 25</text>
+    <text x="453" y="232" fill="#e2e8f0" font-size="17">Fabric Loader 0.19.3</text>
+    <text x="453" y="262" fill="#e2e8f0" font-size="17">Official named final JAR</text>
+    <rect x="453" y="292" width="120" height="38" rx="19" fill="#14532d"/>
+    <text x="513" y="317" text-anchor="middle" fill="#bbf7d0" font-size="16" font-weight="700">VERIFIED</text>
+    <rect x="800" y="120" width="350" height="245" rx="16" fill="#20223a" stroke="#fbbf24" stroke-width="2"/>
+    <text x="828" y="164" fill="#fde68a" font-size="26" font-weight="700">26.2</text>
+    <text x="828" y="200" fill="#e2e8f0" font-size="18">Protocol 776 · Java 25</text>
+    <text x="828" y="232" fill="#e2e8f0" font-size="17">Fabric Loader 0.19.3</text>
+    <text x="828" y="262" fill="#e2e8f0" font-size="17">Official named final JAR</text>
+    <rect x="828" y="292" width="120" height="38" rx="19" fill="#713f12"/>
+    <text x="888" y="317" text-anchor="middle" fill="#fef3c7" font-size="16" font-weight="700">BETA FOLIA</text>
+  </g>
+</svg>

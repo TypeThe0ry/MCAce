@@ -240,16 +240,16 @@ files below `build/` remain mutable diagnostics.
 
 `build/local-verification-bundle/` contains exactly:
 
-| File | Bytes | SHA-256 |
-| --- | ---: | --- |
-| `mcace-client-fabric-1.21.11.jar` | 3,385,438 | `e6b02463c4e65bc81a825626b98559d94ab5eed642fc84e6552a22bf7dc1d323` |
-| `mcace-client-fabric-26.1.2.jar` | 3,489,094 | `26de3b15fa56aff684f04076df4464fe409d9f0185147aec05efd0c296a72d35` |
-| `mcace-client-fabric-26.2.jar` | 3,489,092 | `4f6ee9077b3a9986f253c49db3e867c4ed480871c7e6023509d6b19d1ef4bc73` |
-| `mcace-server-velocity.jar` | 5,016,132 | `0f5afa9cc04aa3e3d21b7142fb2156ee4059d1f2f1f36508b33fbdd59c4323be` |
-| `mcace-server-bungeecord.jar` | 3,562,568 | `fc7ac9ac84a673bd08f15e5a68bbdaadd30af157ac154a20a14dcefbe6e4152a` |
-| `mcace-server-paper.jar` | 5,924,608 | `d133a093ff684490dcb3ae81e2751498c5fc9eeb9fe0c6f0bbce802f5dd23e7b` |
-| `release-manifest.properties` | 1,797 | `7e73e7cc99ea1f6328060697107caf308b0b3ecccead7c0c61621ed661cfc8f7` |
-| `SHA256SUMS` | 565 | `b0227412fe38ad781edf998a217f2338f16caa6589763e7447cb1f956a3ef6b1` |
+| File | Role |
+| --- | --- |
+| `mcace-client-fabric-1.21.11.jar` | Fabric 1.21.11 remapped client |
+| `mcace-client-fabric-26.1.2.jar` | Fabric 26.1.2 named client |
+| `mcace-client-fabric-26.2.jar` | Fabric 26.2 named client |
+| `mcace-server-velocity.jar` | Velocity proxy plugin |
+| `mcace-server-bungeecord.jar` | BungeeCord proxy plugin |
+| `mcace-server-paper.jar` | Paper/Folia backend plugin |
+| `release-manifest.properties` | release identity and artifact metadata |
+| `SHA256SUMS` | authoritative six-JAR hashes |
 
 The local manifest is `MCACE_LOCAL_VERIFICATION_BUNDLE_V1`, has
 `bundle_profile=LOCAL_VERIFICATION`, `release_identity=false`, and

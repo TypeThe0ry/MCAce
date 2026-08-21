@@ -14,6 +14,22 @@ MCAce has two independent platform gates:
 Neither gate replaces the other. The raw peer is bounded test tooling, not an
 independent client product. A server-only platform run does not prove GUI consent.
 
+## Exact compatibility contract
+
+Before a process or GUI run, validate the release bundle itself:
+
+```powershell
+.\scripts\version-compatibility-contract-smoke.ps1 -Execute
+.\scripts\version-compatibility-contract-smoke.ps1 -ReportOnly `
+  -ReportPath .\build\compatibility-contract\report.json
+```
+
+This is an exact allowlist for `1.21.11`/774/JDK21, `26.1.2`/775/JDK25, and
+`26.2`/776/JDK25. It verifies commit-bound `fabric.mod.json` metadata, final
+remap versus final named artifact mode, nested-JAR shape, exact-eight bundle
+membership, and explicit rejection of unlisted `1.21.x`/26.x patches. The
+durable result is [`version-compatibility-contract-2026-08-21.json`](evidence/version-compatibility-contract-2026-08-21.json).
+
 ## Supported target and artifact matrix
 
 | Minecraft | Protocol | Java | Paper | Folia | Fabric artifact |
