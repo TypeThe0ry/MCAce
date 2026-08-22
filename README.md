@@ -60,12 +60,14 @@ Run the contract against a current bundle:
 | Anti-cheat detection | Fixture classification and replay/integrity tests pass; real client load was disconnected and did not produce a server detection event | Defensive regression only; real server event pending |
 | Vulcan | Static contracts pass; licensed JAR and genuine external trigger are absent from this workspace | PENDING |
 | Fabric federation | V2 static contract passes; source-export/target-import GUI handoff has not been executed | PENDING |
-| Exact-commit CI/release | Protected branch CI and an older exact bundle are green; current reviewed commit still needs clean exact-commit CI and `releaseBundle` | PENDING |
+| Exact-commit CI/release | Canonical `main` run [`32562226250`](https://github.com/TypeThe0ry/MCAce/actions/runs/32562226250) passed on merge parent `22288f60d61d39d169a5b7f1552e21e8514fa9c9`; the [evidence record](docs/evidence/release-bundle-2026-08-22.json) captures the exact eight-file bundle, `release_identity=true`, and verified `SHA256SUMS` | PASS for that exact commit; a later docs-only commit requires a fresh canonical run |
 
-The reviewed source is the tip of branch `codex/release-2026-08-21`; verify the
-exact commit with `git rev-parse HEAD`. The last local exact-eight bundle was
-bound to an older source commit and is retained as historical evidence, not a
-v0.0.1 tag.
+The canonical release evidence is bound to the immutable merge-parent commit
+shown above. Verify any checkout with `git rev-parse HEAD`; do not copy an
+artifact to a tag unless its `release-manifest.properties` has
+`release_identity=true` and the `source_commit` matches that checkout exactly.
+The current v0.0.1 release decision is still controlled by the six human GUI
+approvals plus the real anti-cheat, Vulcan, and federation gates below.
 
 ![Anti-cheat evidence boundary](docs/assets/anti-cheat-evidence-flow.svg)
 
@@ -163,6 +165,9 @@ The exact distribution is eight entries: six deployable JARs,
 `release-manifest.properties`, and `SHA256SUMS`. Hashes must come from the clean
 exact-commit `releaseBundle`; do not paste hashes from an older build into a
 release note.
+The recorded bundle still carries Gradle `product_version=0.1.0-SNAPSHOT`; the
+`v0.0.1` label is not promoted to a tag while the external release gates remain
+open.
 
 | Entry | Role |
 | --- | --- |
