@@ -155,6 +155,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
     }
 
     private void receivePayload(MCAcePayload payload, ClientPlayNetworking.Context context) {
+        LOGGER.info("MCAce received handshake payload bytes={}", payload.data().length);
         SignedEnvelope envelope;
         try {
             envelope = SignedEnvelope.parseFrom(payload.data());

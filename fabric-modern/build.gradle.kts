@@ -284,13 +284,17 @@ subprojects {
         runClientTask.configure {
             dependsOn(deployableJar)
             val developmentClasspath = classpath
+            // Loom 1.17 keeps the source-set classpath when a file-backed mod is
+            // configured through `loom.mods`; removing that source origin also removes
+            // the only classpath entry from which Fabric Loader can discover the mod.
+            // Re-add only the final named production JAR so runtime discovery is real.
             classpath = developmentClasspath.filter { candidate ->
                 val candidatePath = candidate.canonicalFile.toPath()
                 forbiddenDevelopmentOrigins.get().none { forbidden ->
                     candidatePath == forbidden || candidatePath.startsWith(forbidden) ||
                         forbidden.startsWith(candidatePath)
                 }
-            }
+            }.plus(files(deployableJar))
             doFirst {
                 val expectedArtifactSha256 = smokeExpectedArtifactSha256.orNull
                     ?: throw GradleException(
@@ -378,6 +382,9 @@ subprojects {
                 }
             check(leakedOrigins.isEmpty()) {
                 "artifact-mode runClient classpath contains modern main outputs or staged MCAce root JARs"
+            }
+            check(runClientTask.get().classpath.files.map { it.canonicalFile }.contains(artifact)) {
+                "artifact-mode runClient classpath does not contain the final named JAR"
             }
             val conflictingOrigins = runClientTask.get().classpath.files
                 .map { it.canonicalFile }

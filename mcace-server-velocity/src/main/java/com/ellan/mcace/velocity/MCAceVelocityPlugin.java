@@ -1314,8 +1314,11 @@ public final class MCAceVelocityPlugin {
                     || !installTicketBoundChallenge(challengedPlayers, playerId, ticket)) return;
             try {
                 byte[] challenge = coordinator().begin(playerId);
-                if (!isCurrentPhysicalLoginLocked(player, ticket)
-                        || !player.sendPluginMessage(MCAceVelocityChannels.HANDSHAKE, challenge)) {
+                boolean sent = isCurrentPhysicalLoginLocked(player, ticket)
+                        && player.sendPluginMessage(MCAceVelocityChannels.HANDSHAKE, challenge);
+                logger.info("MCAce challenge dispatch player={} bytes={} sent={}",
+                        player.getUsername(), challenge.length, sent);
+                if (!sent) {
                     removeTicketBoundChallenge(challengedPlayers, playerId, ticket);
                     coordinator().remove(playerId);
                     logger.debug("MCAce challenge channel is not available for {}", player.getUsername());

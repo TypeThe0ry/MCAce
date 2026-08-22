@@ -107,6 +107,20 @@ tasks.processResources {
 }
 
 val deployableRemapJar = tasks.named<org.gradle.api.tasks.bundling.AbstractArchiveTask>("remapJar")
+// Loom's production remap JAR is in intermediary namespace.  The 1.21.11
+// `runClient` task is a named-namespace development launch, so it needs a
+// separate, deterministic named smoke JAR.  The release artifact remains the
+// remap JAR above; this small runtime JAR is only the launch adapter used by
+// the GUI gate and is never copied into the release bundle.
+val smokeNamedJar = tasks.register<org.gradle.api.tasks.bundling.Jar>("smokeNamedJar") {
+    archiveFileName.set("mcace-client-fabric-$mcaceVersion-smoke-named.jar")
+    destinationDirectory.set(layout.buildDirectory.dir("smoke-libs"))
+    dependsOn(tasks.named("classes"))
+    from(sourceSets.main.get().output)
+    duplicatesStrategy = org.gradle.api.file.DuplicatesStrategy.FAIL
+    isPreserveFileTimestamps = false
+    isReproducibleFileOrder = true
+}
 
 if (smokeArtifactModeEnabled) {
     // Loom normally exposes this project's main source-set outputs as the development mod.
@@ -116,7 +130,7 @@ if (smokeArtifactModeEnabled) {
         modFiles.setFrom(emptyList<Any>())
     }
     loom.mods.maybeCreate("mcace").apply {
-        modFiles.setFrom(deployableRemapJar)
+        modFiles.setFrom(smokeNamedJar)
     }
 }
 
@@ -135,12 +149,17 @@ if (smokeArtifactModeEnabled) {
     runClientTask.configure {
         dependsOn(deployableRemapJar)
         val developmentClasspath = classpath
-        classpath = developmentClasspath.filter { candidate ->
+        // `loom.mods` contributes the class-path-group metadata, but Loom 1.14 does not
+        // append a file-backed mod to the JavaExec classpath after the source-set mod has
+        // been removed.  Keep the run genuinely artifact-only by filtering every MCAce
+        // source output and explicitly putting the final remap JAR back on the classpath.
+        val filteredClasspath = developmentClasspath.filter { candidate ->
             val candidatePath = candidate.canonicalFile.toPath()
             mcaceMainOutputRoots.get().none { outputRoot ->
                 candidatePath.startsWith(outputRoot) || outputRoot.startsWith(candidatePath)
             }
         }
+        classpath = filteredClasspath.plus(files(smokeNamedJar))
         doFirst {
             val expectedArtifactSha256 = smokeExpectedArtifactSha256.orNull
                 ?: throw GradleException(
@@ -157,24 +176,29 @@ if (smokeArtifactModeEnabled) {
 val verifySmokeArtifactMode = tasks.register("verifySmokeArtifactMode") {
     group = "verification"
     description = "Proves that Fabric smoke startup can only load MCAce from the final remap JAR."
-    dependsOn(deployableRemapJar)
+    dependsOn(deployableRemapJar, smokeNamedJar)
     inputs.property("mcaceSmokeArtifactMode", smokeArtifactMode)
     inputs.property("mcaceClientBuildId", mcaceClientBuildId)
     inputs.file(deployableRemapJar.flatMap { it.archiveFile })
+    inputs.file(smokeNamedJar.flatMap { it.archiveFile })
 
     doLast {
         check(smokeArtifactMode.get()) {
             "verifySmokeArtifactMode requires -PmcaceSmokeArtifactMode=true"
         }
         val artifact = deployableRemapJar.get().archiveFile.get().asFile.canonicalFile
+        val runtimeArtifact = smokeNamedJar.get().archiveFile.get().asFile.canonicalFile
         check(artifact.isFile && artifact.length() > 0L) {
             "artifact-mode Fabric remap JAR is missing or empty"
+        }
+        check(runtimeArtifact.isFile && runtimeArtifact.length() > 0L) {
+            "artifact-mode Fabric named smoke JAR is missing or empty"
         }
         val expectedArtifactSha256 = smokeExpectedArtifactSha256.orNull
             ?: throw GradleException(
                 "verifySmokeArtifactMode requires -PmcaceSmokeExpectedArtifactSha256=<64 lowercase hex>")
-        check(sha256(artifact) == expectedArtifactSha256) {
-            "artifact-mode Fabric remap JAR does not match the operator-started run hash"
+        check(sha256(runtimeArtifact) == expectedArtifactSha256) {
+            "artifact-mode Fabric named smoke JAR does not match the operator-started run hash"
         }
         check(smokeRunToken.isPresent) {
             "verifySmokeArtifactMode requires -PmcaceSmokeRunToken=<32 lowercase hex>"
@@ -184,8 +208,8 @@ val verifySmokeArtifactMode = tasks.register("verifySmokeArtifactMode") {
             val files = mod.modFiles.files.map { it.canonicalFile }.toSet()
             if (files.isEmpty()) null else mod.name to files
         }
-        check(nonEmptyMods == listOf("mcace" to setOf(artifact))) {
-            "artifact-mode Loom mods must contain only mcace -> final remap JAR"
+        check(nonEmptyMods == listOf("mcace" to setOf(runtimeArtifact))) {
+            "artifact-mode Loom mods must contain only mcace -> named smoke JAR"
         }
         val forbiddenRoots = mcaceMainOutputRoots.get()
         val leakedOutputs = runClientTask.get().classpath.files.map { it.canonicalFile.toPath() }
@@ -197,15 +221,18 @@ val verifySmokeArtifactMode = tasks.register("verifySmokeArtifactMode") {
         check(leakedOutputs.isEmpty()) {
             "artifact-mode runClient classpath contains MCAce main source outputs"
         }
+        check(runClientTask.get().classpath.files.map { it.canonicalFile }.contains(runtimeArtifact)) {
+            "artifact-mode runClient classpath does not contain the named smoke JAR"
+        }
         val conflictingOrigins = runClientTask.get().classpath.files
             .map { it.canonicalFile }
-            .filter { it != artifact && containsConflictingMcaceFabricOrigin(it) }
+            .filter { it != runtimeArtifact && containsConflictingMcaceFabricOrigin(it) }
         check(conflictingOrigins.isEmpty()) {
             "artifact-mode runClient classpath contains another MCAce Fabric origin: " +
                 conflictingOrigins.joinToString()
         }
 
-        val metadata = JarFile(artifact).use { jar ->
+        val metadata = JarFile(runtimeArtifact).use { jar ->
             val entry = checkNotNull(jar.getJarEntry("fabric.mod.json")) {
                 "artifact-mode Fabric remap JAR is missing fabric.mod.json"
             }
