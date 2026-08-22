@@ -62,6 +62,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
             Clock.systemUTC(), ProtocolConstants.ARTIFACT_OBSERVATION_INTERVAL);
     private final ConnectionBoundIntegrityTask authenticationIntegrityTask = new ConnectionBoundIntegrityTask();
     private final ConnectionBoundIntegrityTask observationIntegrityTask = new ConnectionBoundIntegrityTask();
+    private List<String> lastReportedResourcePacks = List.of();
     private EvidenceCaptureController evidenceCapture;
     private final FederationTokenVault federationVault = new FederationTokenVault();
     private final FederationConsentController federationConsent = new FederationConsentController(Clock.systemUTC());
@@ -186,6 +187,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
         authenticationAttempts.cancel();
         authenticationIntegrityTask.cancel();
         observationIntegrityTask.cancel();
+        lastReportedResourcePacks = List.of();
         cancelQueuedEvidenceFrames();
         evidenceCapture.cancel(context.client());
         explicitFileConsent.cancel(context.client());
@@ -304,6 +306,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
     private void continueAuthentication(ClientHandshakeEngine candidate, VerifiedPolicy verifiedPolicy,
             MinecraftClient client, long generation, Set<String> consentedExplicitFiles) {
         Set<String> authorizedFiles = Set.copyOf(consentedExplicitFiles);
+        List<String> selectedResourcePacks = currentEnabledResourcePackIds(client);
         authenticationIntegrityTask.submit(taskCancellation -> {
             IntegrityScanCancellation cancellation = () ->
                     taskCancellation.cancelled() || !authenticationAttempts.isActive(generation)
@@ -327,7 +330,9 @@ public final class MCAceFabricClient implements ClientModInitializer {
                 responses = candidate.createAuthenticationFrames(
                         bundle,
                         new ArtifactObservationCollector().collect(
-                                gameDirectory, verifiedPolicy.policy(), bundle, cancellation));
+                                gameDirectory, verifiedPolicy.policy(), bundle, cancellation),
+                        selectedResourcePacks,
+                        List.of());
                 cancellation.check();
                 List<ClientHandshakeEngine.OutboundFrame> readyResponses = responses;
                 client.execute(() -> {
@@ -350,6 +355,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
                         LOGGER.warn("MCAce stopped authentication frame delivery because the connection changed or a channel was unavailable");
                         return;
                     }
+                    lastReportedResourcePacks = selectedResourcePacks;
                     LOGGER.info("MCAce answered signed policy {} sequence {} with {} scoped manifests",
                             verifiedPolicy.policy().getPolicyVersion(), verifiedPolicy.policy().getSequence(),
                             bundle.scopes().size());
@@ -892,6 +898,10 @@ public final class MCAceFabricClient implements ClientModInitializer {
         ExplicitFileAuthorization authorization = explicitFileAuthorization;
         Set<String> authorizedFiles = authorization != null && authorization.candidate() == candidate
                 && authorization.generation() == attempt ? authorization.files() : Set.of();
+        List<String> selectedResourcePacks = currentEnabledResourcePackIds(client);
+        if (!selectedResourcePacks.equals(lastReportedResourcePacks)) {
+            observationSchedule.triggerNow(attempt);
+        }
         observationIntegrityTask.submit(taskCancellation -> {
             IntegrityScanCancellation cancellation = () ->
                     taskCancellation.cancelled() || !authenticationAttempts.isActive(attempt)
@@ -902,7 +912,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
             try {
                 cancellation.check();
                 prepared = candidate.prepareRescannedArtifactObservationUpdate(
-                        gameDirectory, authorizedFiles, cancellation);
+                        gameDirectory, authorizedFiles, selectedResourcePacks, List.of(), cancellation);
                 cancellation.check();
             } catch (EnvelopeException | IntegrityScanException | RuntimeException exception) {
                 if (prepared != null) {
@@ -932,6 +942,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
                     if (sent) {
                         try {
                             candidate.commitArtifactObservationUpdate(ready);
+                            lastReportedResourcePacks = selectedResourcePacks;
                             observationSchedule.complete(attempt);
                         } catch (EnvelopeException exception) {
                             observationSchedule.cancel();
@@ -947,6 +958,13 @@ public final class MCAceFabricClient implements ClientModInitializer {
                 }
             }
         });
+    }
+
+    private static List<String> currentEnabledResourcePackIds(MinecraftClient client) {
+        return client.getResourcePackManager().getEnabledIds().stream()
+                .map(Object::toString)
+                .sorted()
+                .toList();
     }
 
     private record ExplicitFileAuthorization(

@@ -71,7 +71,13 @@ public final class AuthenticatedManifestObservationDeriver {
                 if (type == ArtifactType.MOD) {
                     observations.add(modObservation(entry, mods, issues));
                 } else {
-                    observations.add(scopeObservation(type, scope.getScope(), entry));
+                    observations.add(scopeObservation(
+                            type,
+                            scope.getScope(),
+                            entry,
+                            selectedForEntry(type, entry.getRelativePath(),
+                                    manifest.request().getSelectedResourcePacksList(),
+                                    manifest.request().getSelectedShaderPacksList())));
                     if (type == ArtifactType.RESOURCE_PACK || type == ArtifactType.SHADER_PACK) {
                         DirectoryPath directoryPath = directoryPath(entry.getRelativePath());
                         if (directoryPath.invalid()) {
@@ -106,12 +112,19 @@ public final class AuthenticatedManifestObservationDeriver {
         for (List<ModEntry> unmatched : mods.values()) {
             for (int index = 0; index < unmatched.size(); index++) issues.add("mod-list-without-scope-entry");
         }
-        appendDirectoryPackageObservations(directoryGroups, observations, issues);
+        appendDirectoryPackageObservations(
+                directoryGroups,
+                manifest.request().getSelectedResourcePacksList(),
+                manifest.request().getSelectedShaderPacksList(),
+                observations,
+                issues);
         return result(observations, issues);
     }
 
     private static void appendDirectoryPackageObservations(
             Map<DirectoryGroupKey, List<FileEntry>> groups,
+            List<String> selectedResourcePacks,
+            List<String> selectedShaderPacks,
             List<ArtifactObservation> observations,
             List<String> issues) {
         for (Map.Entry<DirectoryGroupKey, List<FileEntry>> grouped : groups.entrySet().stream()
@@ -130,16 +143,28 @@ public final class AuthenticatedManifestObservationDeriver {
             try {
                 String root = hex(IntegrityDigests.scopeRoot(entries));
                 DirectoryGroupKey key = grouped.getKey();
+                boolean selected = isSelected(key, selectedResourcePacks, selectedShaderPacks);
                 Map<String, String> metadata = Map.of(
                         "scope", key.scope(),
                         "package_kind", "directory",
-                        "content_root_sha256", root);
+                        "content_root_sha256", root,
+                        "selected", Boolean.toString(selected));
                 observations.add(observation(key.type(), directoryIdentifier(key.type(), root),
                         "unknown", null, metadata));
             } catch (IllegalArgumentException exception) {
                 issues.add("invalid-directory-content-root");
             }
         }
+    }
+
+    private static boolean isSelected(
+            DirectoryGroupKey key, List<String> selectedResourcePacks, List<String> selectedShaderPacks) {
+        List<String> selected = key.type() == ArtifactType.RESOURCE_PACK
+                ? selectedResourcePacks : selectedShaderPacks;
+        String topLevel = key.topLevel();
+        return selected.stream().anyMatch(id -> id.equals(topLevel)
+                || id.equals("file/" + topLevel)
+                || id.endsWith("/" + topLevel));
     }
 
     private static AuthenticatedManifestDerivation result(
@@ -177,9 +202,28 @@ public final class AuthenticatedManifestObservationDeriver {
         return observation(ArtifactType.MOD, mod.getId(), mod.getVersion(), fingerprint.sha256(), metadata);
     }
 
-    private static ArtifactObservation scopeObservation(ArtifactType type, String scope, FileEntry entry) {
+    private static ArtifactObservation scopeObservation(
+            ArtifactType type, String scope, FileEntry entry, boolean selected) {
         return observation(type, entry.getRelativePath(), "unknown", hex(entry.getSha256().toByteArray()),
-                Map.of("scope", scope, "artifact_path", entry.getRelativePath()));
+                Map.of("scope", scope, "artifact_path", entry.getRelativePath(),
+                        "selected", Boolean.toString(selected)));
+    }
+
+    private static boolean selectedForEntry(
+            ArtifactType type,
+            String path,
+            List<String> selectedResourcePacks,
+            List<String> selectedShaderPacks) {
+        List<String> selected = type == ArtifactType.RESOURCE_PACK
+                ? selectedResourcePacks : selectedShaderPacks;
+        String topLevel = path;
+        int separator = path.indexOf('/');
+        if (separator > 0) topLevel = path.substring(0, separator);
+        String candidate = topLevel;
+        return selected.stream().anyMatch(id -> id.equals(path)
+                || id.equals(candidate)
+                || id.equals("file/" + candidate)
+                || id.endsWith("/" + candidate));
     }
 
     private static boolean validFileEntry(FileEntry entry) {

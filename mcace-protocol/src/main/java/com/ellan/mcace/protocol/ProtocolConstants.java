@@ -19,6 +19,9 @@ public final class ProtocolConstants {
     public static final long MAX_ARTIFACT_OBSERVATION_TRANSFER_BYTES = 256L * 1024L;
     public static final int MAX_ARTIFACT_OBSERVATION_TRANSFER_CHUNKS = 16;
     public static final int MAX_ARTIFACT_OBSERVATION_COUNT = 512;
+    /** Bound for the signed list of Minecraft resource/shader pack IDs enabled at runtime. */
+    public static final int MAX_SELECTED_PACKS = 64;
+    public static final int MAX_SELECTED_PACK_ID_CHARS = 256;
     /** Dynamic snapshots are deliberately low-frequency and never run on the render thread. */
     public static final Duration ARTIFACT_OBSERVATION_INTERVAL = Duration.ofMinutes(5);
     public static final Duration MAX_ARTIFACT_OBSERVATION_AGE = Duration.ofMinutes(1);

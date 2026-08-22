@@ -314,6 +314,12 @@ message AuthRequest {
   repeated IntegrityScopeManifest scope_manifests = 7;
   bytes policy_sha256 = 8;
   uint64 policy_sequence = 9;
+  // Resource-pack IDs in the order currently enabled by the client.  This is
+  // a signed observation, not an admission assertion; the server reconciles it
+  // with the hashed resource-pack scope and its own policy.
+  repeated string selected_resource_packs = 10;
+  // Shader-pack IDs in the order currently enabled by the client.
+  repeated string selected_shader_packs = 11;
 }
 
 // A complete post-authentication snapshot of the same policy-authorized scopes used by
@@ -329,6 +335,8 @@ message ArtifactObservationUpdate {
   repeated IntegrityScopeManifest scope_manifests = 7;
   bytes policy_sha256 = 8;
   uint64 policy_sequence = 9;
+  repeated string selected_resource_packs = 10;
+  repeated string selected_shader_packs = 11;
 }
 
 message AuthResult {

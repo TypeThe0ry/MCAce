@@ -973,7 +973,13 @@ public final class MCAceVelocityPlugin {
         server.getScheduler().buildTask(this, () -> executeDisposition(event)).schedule();
     }
 
-    /** Dynamic updates are audit-only: they deliberately do not emit a disposition event. */
+    /**
+     * Dynamic updates are evaluated by the same signed policy as the initial manifest.  The
+     * resulting event is still tagged CLIENT_REPORTED by the core, so WARN/NOTICE/CHALLENGE can
+     * execute automatically while LIMIT/QUARANTINE/DENY remain gated on independent server
+     * authority.  This closes the runtime resource-pack/Mod change path without treating a client
+     * claim as a server-confirmed cheat verdict.
+     */
     private void enqueueArtifactObservationAudit(com.ellan.mcace.core.session.AuthenticatedManifest manifest) {
         if (backendContextRuntime != null) backendContextRuntime.rememberManifest(manifest);
         if (!artifactObservationAuditQueue.offer(manifest)) {
@@ -984,12 +990,18 @@ public final class MCAceVelocityPlugin {
     private void auditArtifactObservationUpdate(com.ellan.mcace.core.session.AuthenticatedManifest manifest) {
         AuthenticatedManifestAuditResult audit = manifestEvaluator.evaluate(manifest,
                 new EvaluationContext(manifest.playerId(), "velocity", null, null, null, Set.of(), clock.instant()));
-        logger.info("MCAce artifact observation audit: player={} observations={} actions={} issues={} status={} (no admission effect)",
+        AuthenticatedManifestDispositionEvent event = audit.dispositionEvent();
+        logger.info("MCAce artifact observation audit: player={} observations={} actions={} issues={} status={} selectedResourcePacks={} selectedShaderPacks={}",
                 audit.playerId(), audit.evaluation().totalObservations(), audit.evaluation().actionCounts(),
-                audit.consistencyIssues().size(), audit.evaluation().refreshStatus());
+                audit.consistencyIssues().size(), audit.evaluation().refreshStatus(),
+                manifest.request().getSelectedResourcePacksList(),
+                manifest.request().getSelectedShaderPacksList());
         artifactObservationAudit.append(new ArtifactObservationAuditRecord(
                 audit.playerId(), manifest.authenticatedAt(), clock.instant(), audit.evaluation().totalObservations(),
                 audit.consistencyIssues().size(), audit.evaluation().actionCounts(), audit.evaluation().refreshStatus()));
+        // Keep this handoff content-free and session-bound; executeDisposition repeats the current
+        // login, admission, route and policy checks on the Velocity scheduler thread.
+        server.getScheduler().buildTask(this, () -> executeDisposition(event)).schedule();
     }
 
     private MCAceDispositionReviewCommand.ReviewResult reviewDisposition(

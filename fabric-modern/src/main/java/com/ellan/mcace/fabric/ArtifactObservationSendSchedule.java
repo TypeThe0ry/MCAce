@@ -32,6 +32,12 @@ final class ArtifactObservationSendSchedule {
         inFlight = true;
         return true;
     }
+
+    synchronized void triggerNow(long attempt) {
+        if (isActive(attempt) && !inFlight) {
+            nextDueAtMillis = clock.millis();
+        }
+    }
     synchronized void complete(long attempt) {
         if (isActive(attempt) && inFlight) {
             inFlight = false;

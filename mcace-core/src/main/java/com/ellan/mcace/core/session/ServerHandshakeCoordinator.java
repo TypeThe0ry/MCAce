@@ -586,6 +586,8 @@ public final class ServerHandshakeCoordinator {
                 || !MessageDigest.isEqual(update.getPreviousAggregateRootSha256().toByteArray(), context.lastArtifactObservationRoot)
                 || update.getPolicySequence() != context.policy.getSequence()
                 || !MessageDigest.isEqual(update.getPolicySha256().toByteArray(), context.policyDigest)
+                || !validSelectedPackIds(update.getSelectedResourcePacksList(), "resource")
+                || !validSelectedPackIds(update.getSelectedShaderPacksList(), "shader")
                 || update.getModsCount() > ProtocolConstants.MAX_ARTIFACT_OBSERVATION_COUNT
                 || update.getScopeManifestsList().stream().mapToInt(IntegrityScopeManifest::getEntriesCount).sum()
                         > ProtocolConstants.MAX_ARTIFACT_OBSERVATION_COUNT) {
@@ -594,6 +596,8 @@ public final class ServerHandshakeCoordinator {
         AuthRequest candidate = context.authenticatedRequest.toBuilder()
                 .clearMods().addAllMods(update.getModsList())
                 .clearScopeManifests().addAllScopeManifests(update.getScopeManifestsList())
+                .clearSelectedResourcePacks().addAllSelectedResourcePacks(update.getSelectedResourcePacksList())
+                .clearSelectedShaderPacks().addAllSelectedShaderPacks(update.getSelectedShaderPacksList())
                 .build();
         if (!validScopes(candidate, context.policy)) {
             throw new IllegalArgumentException("artifact observation scopes are invalid");
@@ -626,6 +630,8 @@ public final class ServerHandshakeCoordinator {
                 || request.getManifestRootSha256().size() != 32
                 || request.getEnvironmentSha256().size() != 32
                 || request.getModsCount() > 4096
+                || !validSelectedPackIds(request.getSelectedResourcePacksList(), "resource")
+                || !validSelectedPackIds(request.getSelectedShaderPacksList(), "shader")
                 || request.getPolicySequence() != context.policy.getSequence()
                 || !MessageDigest.isEqual(context.policyDigest, request.getPolicySha256().toByteArray())) {
             return violation(context.session.playerId(), context, RiskEventType.POLICY_MISMATCH);
@@ -872,6 +878,18 @@ public final class ServerHandshakeCoordinator {
             }
         }
         return seenScopes.equals(rules.keySet());
+    }
+
+    private static boolean validSelectedPackIds(List<String> ids, String kind) {
+        if (ids.size() > ProtocolConstants.MAX_SELECTED_PACKS) return false;
+        Set<String> seen = new HashSet<>();
+        for (String id : ids) {
+            if (id == null || id.isBlank() || id.length() > ProtocolConstants.MAX_SELECTED_PACK_ID_CHARS
+                    || id.chars().anyMatch(Character::isISOControl) || !seen.add(id)) {
+                return false;
+            }
+        }
+        return true;
     }
 
     /** Mirrors the documented client bundle digest so the accepted scope set binds each heartbeat. */

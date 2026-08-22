@@ -64,6 +64,8 @@ import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Comparator;
 import java.util.HexFormat;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -246,8 +248,23 @@ public final class ClientHandshakeEngine {
 
     public synchronized List<OutboundFrame> createAuthenticationFrames(
             ClientIntegrityBundle bundle, List<ArtifactObservation> observations) throws EnvelopeException {
+        return createAuthenticationFrames(bundle, observations, List.of(), List.of());
+    }
+
+    /**
+     * Creates authentication frames with the exact resource/shader pack IDs that Minecraft has
+     * enabled at the time of the signed snapshot.  The IDs are supplemental client observations;
+     * the server still validates the hashed scopes and applies its signed disposition policy.
+     */
+    public synchronized List<OutboundFrame> createAuthenticationFrames(
+            ClientIntegrityBundle bundle,
+            List<ArtifactObservation> observations,
+            Collection<String> selectedResourcePacks,
+            Collection<String> selectedShaderPacks) throws EnvelopeException {
         Objects.requireNonNull(bundle, "bundle");
         Objects.requireNonNull(observations, "observations");
+        List<String> selectedResources = normalizeSelectedPacks(selectedResourcePacks, "resource");
+        List<String> selectedShaders = normalizeSelectedPacks(selectedShaderPacks, "shader");
         if (sessionId == null || acceptedHello == null || verifiedPolicy == null) {
             throw new EnvelopeException("server hello has not been accepted");
         }
@@ -262,7 +279,8 @@ public final class ClientHandshakeEngine {
                 .setBuildId(buildId)
                 .setChallengeNonce(acceptedHello.getChallengeNonce())
                 .build();
-        AuthRequest authentication = buildAuthentication(bundle, verifiedPolicy, observations);
+        AuthRequest authentication = buildAuthentication(
+                bundle, verifiedPolicy, observations, selectedResources, selectedShaders);
         byte[] helloFrame = signedFrame(PacketType.CLIENT_HELLO, clientHello.toByteArray());
         byte[] authenticationPayload = authentication.toByteArray();
         byte[] legacyAuthenticationFrame = signedFrame(PacketType.AUTH_REQUEST, authenticationPayload);
@@ -519,8 +537,19 @@ public final class ClientHandshakeEngine {
      */
     public synchronized PreparedArtifactObservationUpdate prepareArtifactObservationUpdate(
             ClientIntegrityBundle bundle, List<ArtifactObservation> observations) throws EnvelopeException {
+        return prepareArtifactObservationUpdate(bundle, observations, List.of(), List.of());
+    }
+
+    /** Creates a dynamic snapshot carrying the current enabled pack IDs. */
+    public synchronized PreparedArtifactObservationUpdate prepareArtifactObservationUpdate(
+            ClientIntegrityBundle bundle,
+            List<ArtifactObservation> observations,
+            Collection<String> selectedResourcePacks,
+            Collection<String> selectedShaderPacks) throws EnvelopeException {
         Objects.requireNonNull(bundle, "bundle");
         Objects.requireNonNull(observations, "observations");
+        List<String> selectedResources = normalizeSelectedPacks(selectedResourcePacks, "resource");
+        List<String> selectedShaders = normalizeSelectedPacks(selectedShaderPacks, "shader");
         if (sessionId == null || acceptedHeartbeatBinding == null || verifiedPolicy == null
                 || !authenticationResultReceived) {
             throw new EnvelopeException("artifact observations require accepted authentication");
@@ -533,7 +562,8 @@ public final class ClientHandshakeEngine {
         if (nextArtifactObservationSequence == Long.MAX_VALUE) {
             throw new EnvelopeException("artifact observation sequence is exhausted");
         }
-        AuthRequest snapshot = buildAuthentication(bundle, verifiedPolicy, observations);
+        AuthRequest snapshot = buildAuthentication(
+                bundle, verifiedPolicy, observations, selectedResources, selectedShaders);
         if (snapshot.getModsCount() > ProtocolConstants.MAX_ARTIFACT_OBSERVATION_COUNT
                 || snapshot.getScopeManifestsList().stream().mapToInt(IntegrityScopeManifest::getEntriesCount).sum()
                 > ProtocolConstants.MAX_ARTIFACT_OBSERVATION_COUNT) {
@@ -549,6 +579,8 @@ public final class ClientHandshakeEngine {
                 .setObservedAtEpochMs(now)
                 .addAllMods(snapshot.getModsList())
                 .addAllScopeManifests(snapshot.getScopeManifestsList())
+                .addAllSelectedResourcePacks(snapshot.getSelectedResourcePacksList())
+                .addAllSelectedShaderPacks(snapshot.getSelectedShaderPacksList())
                 .setPolicySha256(ByteString.copyFrom(binding.policyHash()))
                 .setPolicySequence(binding.policySequence())
                 .build();
@@ -577,11 +609,22 @@ public final class ClientHandshakeEngine {
             Path minecraftRoot, Set<String> consentedExplicitFiles)
             throws EnvelopeException, IntegrityScanException {
         return prepareRescannedArtifactObservationUpdate(
-                minecraftRoot, consentedExplicitFiles, IntegrityScanCancellation.NONE);
+                minecraftRoot, consentedExplicitFiles, List.of(), List.of(), IntegrityScanCancellation.NONE);
     }
 
     public synchronized PreparedArtifactObservationUpdate prepareRescannedArtifactObservationUpdate(
             Path minecraftRoot, Set<String> consentedExplicitFiles,
+            IntegrityScanCancellation cancellation)
+            throws EnvelopeException, IntegrityScanException {
+        return prepareRescannedArtifactObservationUpdate(
+                minecraftRoot, consentedExplicitFiles, List.of(), List.of(), cancellation);
+    }
+
+    public synchronized PreparedArtifactObservationUpdate prepareRescannedArtifactObservationUpdate(
+            Path minecraftRoot,
+            Set<String> consentedExplicitFiles,
+            Collection<String> selectedResourcePacks,
+            Collection<String> selectedShaderPacks,
             IntegrityScanCancellation cancellation)
             throws EnvelopeException, IntegrityScanException {
         if (verifiedPolicy == null) {
@@ -594,7 +637,8 @@ public final class ClientHandshakeEngine {
         cancellation.check();
         return prepareArtifactObservationUpdate(bundle,
                 new ArtifactObservationCollector().collect(
-                        minecraftRoot, verifiedPolicy.policy(), bundle, cancellation));
+                        minecraftRoot, verifiedPolicy.policy(), bundle, cancellation),
+                selectedResourcePacks, selectedShaderPacks);
     }
 
     /** Commits a prepared update exactly once after every fragment was accepted by the transport. */
@@ -1002,7 +1046,9 @@ public final class ClientHandshakeEngine {
     private AuthRequest buildAuthentication(
             ClientIntegrityBundle bundle,
             VerifiedPolicy policy,
-            List<ArtifactObservation> observations)
+            List<ArtifactObservation> observations,
+            Collection<String> selectedResourcePacks,
+            Collection<String> selectedShaderPacks)
             throws EnvelopeException {
         ScopeIntegrityManifest modsScope = bundle.scope("mods").orElseThrow(
                 () -> new EnvelopeException("policy result does not contain mods scope"));
@@ -1035,7 +1081,9 @@ public final class ClientHandshakeEngine {
                 .setManifestRootSha256(ByteString.copyFrom(modsScope.rootSha256()))
                 .setEnvironmentSha256(ByteString.copyFrom(environmentHash))
                 .setPolicySha256(ByteString.copyFrom(policy.policySha256()))
-                .setPolicySequence(policy.policy().getSequence());
+                .setPolicySequence(policy.policy().getSequence())
+                .addAllSelectedResourcePacks(selectedResourcePacks)
+                .addAllSelectedShaderPacks(selectedShaderPacks);
         for (ScopeIntegrityManifest scope : bundle.scopes()) {
             IntegrityScopeManifest.Builder manifest = IntegrityScopeManifest.newBuilder()
                     .setScope(scope.scope())
@@ -1052,6 +1100,26 @@ public final class ClientHandshakeEngine {
             request.addScopeManifests(manifest);
         }
         return request.build();
+    }
+
+    private static List<String> normalizeSelectedPacks(
+            Collection<String> values, String kind) throws EnvelopeException {
+        Objects.requireNonNull(values, "selected " + kind + " packs");
+        if (values.size() > ProtocolConstants.MAX_SELECTED_PACKS) {
+            throw new EnvelopeException("selected " + kind + " pack list exceeds its bound");
+        }
+        List<String> normalized = values.stream()
+                .map(value -> value == null ? "" : value.trim())
+                .filter(value -> !value.isEmpty())
+                .distinct()
+                .sorted(Comparator.naturalOrder())
+                .toList();
+        if (normalized.size() > ProtocolConstants.MAX_SELECTED_PACKS
+                || normalized.stream().anyMatch(value -> value.length() > ProtocolConstants.MAX_SELECTED_PACK_ID_CHARS
+                        || value.chars().anyMatch(Character::isISOControl))) {
+            throw new EnvelopeException("selected " + kind + " pack id is outside its bound");
+        }
+        return normalized;
     }
 
     private static Map<ManifestEntryKey, ArtifactObservation> validateObservations(
