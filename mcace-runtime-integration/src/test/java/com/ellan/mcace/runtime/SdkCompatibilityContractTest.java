@@ -154,7 +154,12 @@ final class SdkCompatibilityContractTest {
                 assertTrue(jar.getEntry(adapter.descriptor()) != null,
                         () -> adapter.name() + " deployment descriptor missing");
                 if (adapter.serviceResource() != null) {
-                    assertEquals(adapter.serviceProvider() + "\n", readUtf8(jar, adapter.serviceResource()));
+                    // Git/Gradle may preserve the platform line ending when the adapter is
+                    // packaged on Windows.  ServiceLoader accepts either form; compare the
+                    // semantic provider entry rather than making the cross-platform artifact
+                    // gate depend on CRLF vs LF.
+                    assertEquals(adapter.serviceProvider() + "\n",
+                            readUtf8(jar, adapter.serviceResource()).replace("\r\n", "\n"));
                 }
             }
             try (URLClassLoader isolated = new URLClassLoader(
