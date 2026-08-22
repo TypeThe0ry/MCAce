@@ -6,6 +6,7 @@ import com.ellan.mcace.core.persistence.AsyncSecurityAuditSink;
 import com.ellan.mcace.core.persistence.SecurityAuditSink;
 import com.ellan.mcace.core.persistence.SecurityPersistenceException;
 import com.ellan.mcace.core.disposition.EvaluationContext;
+import com.ellan.mcace.core.disposition.ArtifactObservation;
 import com.ellan.mcace.core.evidence.EvidenceIngressResult;
 import com.ellan.mcace.core.evidence.EvidencePacketClassifier;
 import com.ellan.mcace.core.evidence.EvidenceAdminService;
@@ -36,6 +37,9 @@ import com.ellan.mcace.core.proxy.TrustedDispositionAuthorizationRuntime;
 import com.ellan.mcace.core.proxy.TrustedDispositionCommitments;
 import com.ellan.mcace.core.proxy.FileArtifactObservationAuditSink;
 import com.ellan.mcace.core.proxy.ProxyPolicyRefreshStatus;
+import com.ellan.mcace.core.proxy.ServerBehaviorCorrelationResult;
+import com.ellan.mcace.core.proxy.ServerBehaviorCorrelationRuntime;
+import com.ellan.mcace.core.proxy.ServerBehaviorObservation;
 import com.ellan.mcace.core.proxy.ShadowBackendContextRuntime;
 import com.ellan.mcace.core.risk.RiskEngine;
 import com.ellan.mcace.core.risk.RiskPolicy;
@@ -138,6 +142,7 @@ public final class MCAceVelocityPlugin {
     private LoopbackEvidenceReviewService evidenceReviewService;
     private ArtifactObservationAuditSink artifactObservationAudit;
     private TrustedDispositionAuthorizationRuntime trustedDispositionAuthorizations;
+    private ServerBehaviorCorrelationRuntime serverBehaviorCorrelation;
     private VelocityFederationLifecycle federationLifecycle;
     private FederationRuntime federationRuntime;
 
@@ -193,13 +198,18 @@ public final class MCAceVelocityPlugin {
             artifactObservationAudit = new FileArtifactObservationAuditSink(
                     dataDirectory.resolve("artifact-observation-audit.log"), 8L * 1024 * 1024);
             try {
-                trustedDispositionAuthorizations = new TrustedDispositionAuthorizationRuntime(
-                        dispositionPolicies.coreRuntime(),
+                FileTrustedDispositionAuthorizationSink authorizationSink =
                         new FileTrustedDispositionAuthorizationSink(
                                 dataDirectory.resolve("trusted-disposition-authorizations.log"),
-                                8L * 1024 * 1024));
+                                8L * 1024 * 1024);
+                trustedDispositionAuthorizations = new TrustedDispositionAuthorizationRuntime(
+                        dispositionPolicies.coreRuntime(), authorizationSink);
+                serverBehaviorCorrelation = new ServerBehaviorCorrelationRuntime(
+                        dispositionPolicies.coreRuntime(), authorizationSink, clock,
+                        Duration.ofSeconds(30), Set.of("grim", "vulcan"));
             } catch (IOException exception) {
                 trustedDispositionAuthorizations = null;
+                serverBehaviorCorrelation = null;
                 logger.warn("MCAce administrator-reviewed disposition is disabled because its durable audit is unavailable");
             }
             dispositionPublisher = VelocityDispositionPolicyPublisher.create(
@@ -1002,6 +1012,27 @@ public final class MCAceVelocityPlugin {
         // Keep this handoff content-free and session-bound; executeDisposition repeats the current
         // login, admission, route and policy checks on the Velocity scheduler thread.
         server.getScheduler().buildTask(this, () -> executeDisposition(event)).schedule();
+    }
+
+    /**
+     * Provider adapter handoff for a current-session Grim/Vulcan signal. The adapter must perform
+     * its own provider authentication and supply the matching client observation; this method
+     * only accepts the bounded core correlation result and schedules an already-authorized event.
+     */
+    public Optional<ServerBehaviorCorrelationResult> submitServerBehaviorObservation(
+            UUID playerId,
+            String sessionId,
+            EvaluationContext context,
+            Instant clientObservedAt,
+            ArtifactObservation clientObservation,
+            ServerBehaviorObservation serverObservation) throws IOException {
+        ServerBehaviorCorrelationRuntime runtime = serverBehaviorCorrelation;
+        if (runtime == null) return Optional.empty();
+        Optional<ServerBehaviorCorrelationResult> result = runtime.correlate(
+                playerId, sessionId, context, clientObservedAt, clientObservation, serverObservation);
+        result.flatMap(ServerBehaviorCorrelationResult::authorizedEvent)
+                .ifPresent(event -> server.getScheduler().buildTask(this, () -> executeDisposition(event)).schedule());
+        return result;
     }
 
     private MCAceDispositionReviewCommand.ReviewResult reviewDisposition(

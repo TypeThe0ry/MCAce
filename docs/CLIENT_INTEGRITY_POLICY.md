@@ -38,7 +38,12 @@ Recommended rollout order:
 The proxy queues both the initial manifest and dynamic observation through the
 same signed policy evaluator. Queueing an event is not itself a punishment;
 the current session, policy freshness, route configuration, and evidence are
-rechecked on the scheduler thread before an action is attempted.
+rechecked on the scheduler thread before an action is attempted. A configured
+Grim/Vulcan adapter may pass a bounded `ServerBehaviorObservation` to
+`ServerBehaviorCorrelationRuntime`; only a matching current-session signal
+inside the correlation window can produce a durable `SERVER_CONFIRMED`
+authorization. The adapter remains responsible for authenticating its provider
+event before calling this boundary.
 
 ## Exact catalog entry workflow
 
@@ -53,12 +58,24 @@ $hash = (Get-FileHash -LiteralPath $jar -Algorithm SHA256).Hash.ToLowerInvariant
 ```
 
 Copy the resulting lower-case 64-hex value into the administrator-owned
-`DispositionRuleConfiguration.sha256_hex` input. For a directory resource pack,
-publish the canonical MCAce content-root value emitted by the authenticated
-manifest audit, not a hash of an unbounded directory listing. Keep the source
-revision, retrieval time, reviewer, false-positive notes, and intended action
-in the catalog entry. The publisher signs the resulting policy; the client
-never supplies policy authority.
+`DispositionRuleConfiguration.sha256_hex` input. The same workflow is
+automated (still fail-closed) by:
+
+```powershell
+pwsh -File .\scripts\new-exact-artifact-policy.ps1 `
+  -ArtifactPath C:\fixtures\reviewed-client.jar `
+  -EntryId reviewed-client-2026-08 `
+  -ArtifactType MOD -MatchType ExactSha256 `
+  -OutputPath .\build\reviewed-client-policy.textproto
+```
+
+For a directory resource pack, use `-MatchType ContentRoot`; the script emits
+the same `mcace-manifest-v1` root used by the authenticated manifest audit. It
+rejects reparse points, empty directories, unsafe paths, and oversized file
+sets. The generated catalog selection is explicitly `enabled: false`, so
+review/provenance and false-positive notes must be completed before an
+administrator enables a final action. The publisher signs the resulting policy;
+the client never supplies policy authority.
 
 ## Trust state machine
 

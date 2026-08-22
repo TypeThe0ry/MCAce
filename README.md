@@ -94,9 +94,15 @@ immediate bounded observation update; the server marks each affected entry with
 `selected=true|false` and evaluates it through the signed disposition policy.
 `NOTICE`/`WARN`/`CHALLENGE` can therefore be automated for a reviewed client
 observation, while `LIMIT`/`QUARANTINE`/`DENY` still require an independent
-server provider or durable administrator authorization. See
-[`docs/CLIENT_INTEGRITY_POLICY.md`](docs/CLIENT_INTEGRITY_POLICY.md) for the
-exact-hash/content-root workflow and trust-state table.
+server provider or durable administrator authorization. A configured
+Grim/Vulcan adapter enters through `ServerBehaviorCorrelationRuntime`: its
+signal must match the same session inside the correlation window before a
+durable `SERVER_CONFIRMED` event is returned. See
+[`docs/CLIENT_INTEGRITY_POLICY.md`](docs/CLIENT_INTEGRITY_POLICY.md),
+[`docs/CLIENT_SELF_PROTECTION.md`](docs/CLIENT_SELF_PROTECTION.md), and the
+fail-closed generator at
+[`scripts/new-exact-artifact-policy.ps1`](scripts/new-exact-artifact-policy.ps1)
+for the exact-hash/content-root workflow and trust-state table.
 
 The controlled fixture command is metadata-only and does not execute third-party
 code:

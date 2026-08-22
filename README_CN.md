@@ -83,8 +83,12 @@ Paper/Folia 后端插件。
 会立即触发一次有界 observation update；服务端给每个条目标记 `selected=true|false`，再交给
 签名 disposition policy 评估。因此，审查过的客户端观察可以自动执行 `NOTICE`/`WARN`/
 `CHALLENGE`；`LIMIT`/`QUARANTINE`/`DENY` 仍必须等独立服务端 provider 或持久化管理员授权。
-精确 hash/content-root 的录入和 `TRUSTED`/`UNTRUSTED`/`SUSPECT`/`BLOCKED`/`STALE` 状态机见
-[`docs/CLIENT_INTEGRITY_POLICY.md`](docs/CLIENT_INTEGRITY_POLICY.md)。
+provider 通过 `ServerBehaviorCorrelationRuntime` 进入授权边界：必须是配置的 Grim/Vulcan
+事件，并且和同一 session 在关联窗口内匹配，才会生成持久化的 `SERVER_CONFIRMED` 事件。
+精确 hash/content-root 的录入、客户端自保护和 fail-closed 生成脚本见
+[`docs/CLIENT_INTEGRITY_POLICY.md`](docs/CLIENT_INTEGRITY_POLICY.md)、
+[`docs/CLIENT_SELF_PROTECTION.md`](docs/CLIENT_SELF_PROTECTION.md) 和
+[`scripts/new-exact-artifact-policy.ps1`](scripts/new-exact-artifact-policy.ps1)。
 
 受控 fixture 只读 metadata，不执行第三方代码：
 
