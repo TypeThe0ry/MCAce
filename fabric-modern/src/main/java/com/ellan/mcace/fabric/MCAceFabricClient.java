@@ -964,7 +964,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
     }
 
     private static List<String> currentEnabledResourcePackIds(Minecraft client) {
-        return client.getResourcePackManager().getEnabledIds().stream()
+        return client.getResourcePackRepository().getSelectedIds().stream()
                 .map(Object::toString)
                 .sorted()
                 .toList();
