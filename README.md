@@ -63,7 +63,7 @@ Run the contract against a current bundle:
 | Exact-commit CI/release | Protected branch CI and an older exact bundle are green; current reviewed commit still needs clean exact-commit CI and `releaseBundle` | PENDING |
 
 The latest reviewed source in this checkout is commit
-`29c38e6cd26400fc9fc995b826d7969d50b09af9` on branch
+`894406b3eb0515fb0678bbca45426aa8ed20ce1a` on branch
 `codex/release-2026-08-21`. The last local exact-eight bundle was bound to an
 older source commit and is retained as historical evidence, not a v0.0.1 tag.
 

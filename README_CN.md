@@ -57,7 +57,7 @@ Paper/Folia 后端插件。
 | exact-commit CI/release | 保护分支 CI 和旧 exact 包通过；当前审查提交还需 clean exact-commit CI 与 `releaseBundle` | 待做 |
 
 当前 checkout 的审查源码为
-`29c38e6cd26400fc9fc995b826d7969d50b09af9`，分支
+`894406b3eb0515fb0678bbca45426aa8ed20ce1a`，分支
 `codex/release-2026-08-21`。最后一个本地 exact-eight 包绑定的是旧提交，只能作为历史证据，
 不能直接冒充 v0.0.1。
 
