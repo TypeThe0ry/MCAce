@@ -244,17 +244,40 @@ function Invoke-Fixture {
     $engine = (Get-Process -Id $PID).Path
     $saved = $env:MCACE_EVIDENCE_STATIC_FIXTURE
     $savedErrorActionPreference = $ErrorActionPreference
+    $process = $null
     try {
         $env:MCACE_EVIDENCE_STATIC_FIXTURE = '1'
-        # Windows PowerShell 5.1 wraps native stderr as a non-terminating
-        # ErrorRecord. Keep it in the captured output instead of allowing this
-        # fixture's top-level Stop policy to terminate before LASTEXITCODE is
-        # available.
-        $ErrorActionPreference = 'Continue'
-        $output = @(& $engine -NoProfile -NonInteractive -ExecutionPolicy Bypass `
-            -File $Path @Arguments 2>&1)
-        return [pscustomobject]@{ ExitCode = $LASTEXITCODE; Text = $output -join "`n" }
+        # Invoke the child through ProcessStartInfo rather than PowerShell's
+        # native stderr adapter. The latter can lose the child's exit code or
+        # output intermittently when Windows PowerShell and pwsh are mixed.
+        $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+        $startInfo.FileName = $engine
+        $startInfo.UseShellExecute = $false
+        $startInfo.CreateNoWindow = $true
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+        $argumentList = @('-NoProfile', '-NonInteractive', '-ExecutionPolicy', 'Bypass', '-File', $Path) + $Arguments
+        if ($startInfo.PSObject.Properties.Name -contains 'ArgumentList') {
+            foreach ($argument in $argumentList) { [void]$startInfo.ArgumentList.Add([string]$argument) }
+        } else {
+            $startInfo.Arguments = ($argumentList | ForEach-Object {
+                '"' + ([string]$_).Replace('"', '\"') + '"'
+            }) -join ' '
+        }
+        $process = [System.Diagnostics.Process]::new()
+        $process.StartInfo = $startInfo
+        [void]$process.Start()
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $process.WaitForExit()
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+        return [pscustomobject]@{
+            ExitCode = $process.ExitCode
+            Text = (($stdout, $stderr | Where-Object { -not [string]::IsNullOrEmpty($_) }) -join "`n")
+        }
     } finally {
+        if ($null -ne $process) { $process.Dispose() }
         $ErrorActionPreference = $savedErrorActionPreference
         $env:MCACE_EVIDENCE_STATIC_FIXTURE = $saved
     }
