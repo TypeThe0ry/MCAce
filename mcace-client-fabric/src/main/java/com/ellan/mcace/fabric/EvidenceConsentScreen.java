@@ -58,7 +58,9 @@ final class EvidenceConsentScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context, mouseX, mouseY, delta);
+        // 1.21.11 rejects a second blur submission in the same frame.  Keep the
+        // visible in-game gradient background without invoking Screen.applyBlur().
+        renderInGameBackground(context);
         int center = width / 2;
         ConsentLayout layout = layout();
         scrollOffset = ConsentUiSupport.clampScroll(scrollOffset, layout.maxScroll());
