@@ -85,20 +85,10 @@ jobs:
             --no-parallel \
             --max-workers=1 \
             --console=plain
-          bash ./gradlew stageModernFabricDeps \
-            --offline \
-            --dependency-verification=strict \
-            --no-build-cache \
-            --no-configuration-cache \
-            --no-daemon \
-            --no-parallel \
-            --max-workers=1 \
-            --console=plain
           test -f "$GITHUB_WORKSPACE/build/fabric-modern-deps/mcace-client-common.jar"
           export JAVA_HOME="$MCACE_JAVA25_HOME"
           export PATH="$JAVA_HOME/bin:$PATH"
           bash ./gradlew --project-dir fabric-modern resolveAndLockAll \
-            "-PmcaceRootDepsDir=$GITHUB_WORKSPACE/build/fabric-modern-deps" \
             --offline \
             --dependency-verification=strict \
             --no-build-cache \
