@@ -57,7 +57,7 @@ Paper/Folia 后端插件。
 | Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
 | exact-commit CI/release | 已记录的 canonical `main` 运行 [`32565146051`](https://github.com/TypeThe0ry/MCAce/actions/runs/32565146051) 已在不可变提交 `657a8ac8974addc0dbbfbd6c7d637792325e884d` 通过；[最终证据记录](docs/evidence/release-bundle-2026-08-22-final.json)固定八项 exact 包、`release_identity=true` 和 `SHA256SUMS` 核验 | 该精确提交 PASS；后续文档提交在打 tag 前需重新跑 canonical CI；外部 v0.0.1 门关闭前产品版本仍为 `0.1.0-SNAPSHOT` |
-| 当前 main exact-commit CI/release | 运行 [`32569343606`](https://github.com/TypeThe0ry/MCAce/actions/runs/32569343606) 已在源码 `50362a15f218b035bbbc98749ee09a22f6e059e3` 通过；[当前包证据](docs/evidence/release-bundle-2026-08-22-50362.json)记录 `release_identity=true` 与 exact-eight SHA256 全量核验 | `50362a1` 已通过；本次文档提交在打 tag 前仍需自己的 required `build` 检查 |
+| 最近记录的 exact-commit CI/release | 运行 [`32570987482`](https://github.com/TypeThe0ry/MCAce/actions/runs/32570987482) 已在合并源码 `f355a85f65173c6e98ab685e3b36f5e172b85498` 通过；[包证据](docs/evidence/release-bundle-2026-08-22-f355a85.json)记录 `release_identity=true` 与 exact-eight SHA256 全量核验 | 该不可变源码 PASS；之后任何提交在打 tag 前都必须有自己的 required `build` 检查 |
 
 规范发布证据绑定到上面的不可变提交
 `657a8ac8974addc0dbbfbd6c7d637792325e884d`。任何 checkout 都要用

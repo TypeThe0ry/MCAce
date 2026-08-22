@@ -35,6 +35,7 @@ final class ConnectionBoundIntegrityTask implements AutoCloseable {
         Control control = new Control();
         current = control;
         Future<?> future = executor.submit(() -> {
+            control.bind(Thread.currentThread());
             try {
                 task.run(control);
             } finally {
@@ -77,6 +78,7 @@ final class ConnectionBoundIntegrityTask implements AutoCloseable {
     private static final class Control implements IntegrityScanCancellation {
         private final AtomicBoolean active = new AtomicBoolean(true);
         private volatile Future<?> future;
+        private volatile Thread runner;
 
         @Override
         public boolean cancelled() {
@@ -90,11 +92,22 @@ final class ConnectionBoundIntegrityTask implements AutoCloseable {
             }
         }
 
+        private void bind(Thread value) {
+            runner = value;
+            if (!active.get()) {
+                value.interrupt();
+            }
+        }
+
         private void cancel() {
             active.set(false);
             Future<?> running = future;
             if (running != null) {
                 running.cancel(true);
+            }
+            Thread thread = runner;
+            if (thread != null) {
+                thread.interrupt();
             }
         }
     }
