@@ -60,10 +60,10 @@ Run the contract against a current bundle:
 | Anti-cheat detection | [`anti-cheat-real-server-2026-08-22.json`](docs/evidence/anti-cheat-real-server-2026-08-22.json): real Leaf 1.21.11 + GrimAC `2.3.74-155abaf` produced `SERVER_CONFIRMED` `Simulation`/`TickTimer` events and two HTTP `202` risk uploads | PASS for real detection/interception; `MONITOR`/`NONE` intentionally leaves punitive action unexercised |
 | Vulcan | Static contracts pass; licensed JAR and genuine external trigger are absent from this workspace | PENDING |
 | Fabric federation | V2 static contract passes; source-export/target-import GUI handoff has not been executed | PENDING |
-| Exact-commit CI/release | Canonical `main` run [`32562226250`](https://github.com/TypeThe0ry/MCAce/actions/runs/32562226250) passed on merge parent `22288f60d61d39d169a5b7f1552e21e8514fa9c9`; the [evidence record](docs/evidence/release-bundle-2026-08-22.json) captures the exact eight-file bundle, `release_identity=true`, and verified `SHA256SUMS` | PASS for that exact commit; a later docs-only commit requires a fresh canonical run |
+| Exact-commit CI/release | Canonical `main` run [`32564457704`](https://github.com/TypeThe0ry/MCAce/actions/runs/32564457704) passed on merge commit `14e44dc52861486b1145078c86cbfac0af6617d0`; the [final evidence record](docs/evidence/release-bundle-2026-08-22-final.json) captures the exact eight-file bundle, `release_identity=true`, and verified `SHA256SUMS` | PASS for current canonical `main`; product version remains `0.1.0-SNAPSHOT` until the external v0.0.1 gates close |
 
-The canonical release evidence is bound to the immutable merge-parent commit
-shown above. Verify any checkout with `git rev-parse HEAD`; do not copy an
+The canonical release evidence is bound to the immutable merge commit
+`14e44dc52861486b1145078c86cbfac0af6617d0` shown above. Verify any checkout with `git rev-parse HEAD`; do not copy an
 artifact to a tag unless its `release-manifest.properties` has
 `release_identity=true` and the `source_commit` matches that checkout exactly.
 The current v0.0.1 release decision is still controlled by the six human GUI
