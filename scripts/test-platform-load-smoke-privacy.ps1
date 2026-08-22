@@ -205,6 +205,7 @@ $expectedKeys = @(
     'fabric_artifact_kind',
     'fabric_java_major',
     'fabric_runtime_mode',
+    'fabric_runtime_jar_loaded',
     'fabric_release_jar_loaded',
     'fabric_client_requested',
     'fabric_evidence_requested',
@@ -267,9 +268,10 @@ $expectedBindingKeys = @(
     'schema', 'report_schema', 'report_generated_at', 'report_sha256', 'source_mode',
     'fabric_target', 'minecraft_version', 'velocity_policy_minecraft_versions',
     'velocity_policy_client_build_ids', 'fabric_api_version', 'fabric_artifact_kind',
-    'fabric_java_major', 'fabric_runtime_mode', 'fabric_release_jar_loaded',
-    'fabric_artifact_marker_observed', 'fabric_build_id', 'script_sha256',
+    'fabric_java_major', 'fabric_runtime_mode', 'fabric_runtime_jar_loaded',
+    'fabric_release_jar_loaded', 'fabric_artifact_marker_observed', 'fabric_build_id', 'script_sha256',
     'source_manifest_sha256', 'source_file_count', 'fabric_artifact_sha256',
+    'fabric_runtime_artifact_sha256',
     'velocity_plugin_sha256', 'paper_plugin_sha256', 'velocity_server_sha256',
     'paper_server_sha256', 'server_matrix_manifest_sha256',
     'paper_prepared_manifest_sha256', 'paper_prepared_tree_sha256',
@@ -284,7 +286,7 @@ $expectedBindingKeys = @(
     'gradle_launcher_sha256', 'gradle_core_sha256', 'passed'
 )
 Assert-True (($actualBindingKeys -join '|') -eq ($expectedBindingKeys -join '|')) `
-    "evidence binding V4 schema drifted: $($actualBindingKeys -join ', ')"
+    "evidence binding V5 schema drifted: $($actualBindingKeys -join ', ')"
 
 $rawLogCopies = @($ast.FindAll({
     param($node)
@@ -328,7 +330,7 @@ foreach ($required in @(
         'diagnostics_retained = [bool]$RetainDiagnostics',
         "fabric_runtime_mode = `$fabricRuntimeMode",
         'fabric_release_jar_loaded = $FabricReleaseJarLoaded',
-        "`$reportSchema = 6",
+        "`$reportSchema = 7",
         "runtime_mode = 'LOOM_FINAL_REMAP_ARTIFACT'",
         "runtime_mode = 'LOOM_FINAL_NAMED_JAR_ARTIFACT'",
         "artifact_kind = 'FINAL_REMAP_JAR'",
@@ -338,7 +340,7 @@ foreach ($required in @(
         "paper_build = '112'",
         '$fabricSmokeBuildId = "platform-smoke-$runId"',
         '"MCACE_FABRIC_ARTIFACT_LOADED version=$fabricArtifactVersion build_id=$fabricSmokeBuildId"',
-        '" code_source_sha256=$($currentEvidenceBinding.fabric_artifact_sha256)"',
+        '" code_source_sha256=$($currentEvidenceBinding.fabric_runtime_artifact_sha256)"',
         '"-PmcaceClientBuildId=$fabricSmokeBuildId"',
         '"-PmcaceSmokeExpectedArtifactSha256=$ExpectedArtifactSha256"',
         '"-PmcaceSmokeRunToken=$runToken"',
@@ -354,8 +356,8 @@ foreach ($required in @(
         'fabric_build_id = $Current.fabric_build_id',
         'velocity_policy_minecraft_versions = $Current.velocity_policy_minecraft_versions',
         'velocity_policy_client_build_ids = $Current.velocity_policy_client_build_ids',
-        'fabric_artifact_marker_observed = [bool]$Report.fabric_release_jar_loaded',
-        "`$bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V4'",
+        'fabric_artifact_marker_observed = [bool]$Report.fabric_runtime_jar_loaded',
+        "`$bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V5'",
         'function Set-ExactVelocityPolicyTuple',
         "'policy.minecraft-versions' = `$MinecraftVersion",
         "'policy.client-build-ids' = `$ClientBuildId",
@@ -1007,9 +1009,9 @@ foreach ($requiredArtifactModeClosure in @(
         'com/ellan/mcace/fabric/MCAceFabricClient.class',
         'jar.getJarEntry("fabric.mod.json")',
         'metadata["id"] == "mcace"',
-        'it != artifact && containsConflictingMcaceFabricOrigin(it)',
+        'it != runtimeArtifact && containsConflictingMcaceFabricOrigin(it)',
         'check(conflictingOrigins.isEmpty())',
-        'sha256(artifact) == expectedArtifactSha256',
+        'sha256(runtimeArtifact) == expectedArtifactSha256',
         'systemProperty("mcace.platform-smoke.expected-artifact-sha256", expectedArtifactSha256)',
         'systemProperty("mcace.smoke.run-token", runToken)')) {
     Assert-True ($fabricBuildSource.IndexOf(
