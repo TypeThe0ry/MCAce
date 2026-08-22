@@ -14,6 +14,7 @@ backend plugin.
 [security model](docs/SECURITY.md) · [anti-cheat evidence](docs/evidence/anti-cheat-real-server-2026-08-22.json)
 · [Helio static-suite evidence](docs/evidence/cluster-helio-static-suite-2026-08-22.json)
 · [latest Helio static-suite evidence](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json)
+· [active-pack iteration evidence](docs/evidence/active-pack-integrity-2026-08-22.json)
 
 ![Verification dashboard](docs/assets/verification-dashboard.svg)
 
@@ -103,6 +104,12 @@ durable `SERVER_CONFIRMED` event is returned. See
 fail-closed generator at
 [`scripts/new-exact-artifact-policy.ps1`](scripts/new-exact-artifact-policy.ps1)
 for the exact-hash/content-root workflow and trust-state table.
+
+This iteration is recorded at commit `50a537a78da9f705ff85ebc4cd0dc5c3edd3996a`.
+The local core, Velocity, Fabric `1.21.11`, and modern `26.1.2`/`26.2` checks
+passed; the Helio attempt is explicitly recorded as a Loom/JVM crash rather
+than a promoted result. GitHub run `32578975989` is the exact-commit CI gate.
+No tag or GitHub release has been created.
 
 The controlled fixture command is metadata-only and does not execute third-party
 code:

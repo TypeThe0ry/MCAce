@@ -12,6 +12,7 @@ Paper/Folia 后端插件。
 [安全模型](docs/SECURITY.md) · [反作弊证据](docs/evidence/anti-cheat-real-server-2026-08-22.json) ·
 [Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22.json) ·
 [最新 Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json)
+· [本轮 active-pack 证据](docs/evidence/active-pack-integrity-2026-08-22.json)
 
 ![验证总览](docs/assets/verification-dashboard.svg)
 
@@ -89,6 +90,11 @@ provider 通过 `ServerBehaviorCorrelationRuntime` 进入授权边界：必须�
 [`docs/CLIENT_INTEGRITY_POLICY.md`](docs/CLIENT_INTEGRITY_POLICY.md)、
 [`docs/CLIENT_SELF_PROTECTION.md`](docs/CLIENT_SELF_PROTECTION.md) 和
 [`scripts/new-exact-artifact-policy.ps1`](scripts/new-exact-artifact-policy.ps1)。
+
+本轮实现固定在提交 `50a537a78da9f705ff85ebc4cd0dc5c3edd3996a`：core、Velocity、Fabric
+`1.21.11`、现代 `26.1.2`/`26.2` 本地检查通过；Helio 尝试在 Loom 源码 remap 阶段发生 JVM
+崩溃，已按失败证据记录，没有冒充通过。GitHub exact-commit CI 为运行 `32578975989`。
+当前没有创建 tag，也没有发布 GitHub release。
 
 受控 fixture 只读 metadata，不执行第三方代码：
 
