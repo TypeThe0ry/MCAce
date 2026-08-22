@@ -1,0 +1,15 @@
+{
+  "schema": "MCACE_CLUSTER_HELIO_STATIC_SUITE_V1",
+  "captured_at": "2026-08-22",
+  "worker": "helio",
+  "worker_profile": "windows-build",
+  "source_commit": "33878f2aeb9b3dc36c3f26c4b8fa8427c8e6238a",
+  "shell": "Windows PowerShell 5.1",
+  "execution_isolation": "one child PowerShell process per wrapper",
+  "command": "Get-ChildItem scripts/test-*.ps1 | Sort-Object Name | ForEach-Object { powershell -NoProfile -ExecutionPolicy Bypass -File $_.FullName }",
+  "test_count": 14,
+  "exit_code": 0,
+  "result": "HELIO_33878F2_ISOLATED_STATIC_ALL_PASS",
+  "credential_policy": "No credentials or worker paths are retained in this record",
+  "interpretation": "All 14 repository static wrapper tests passed on an isolated Helio checkout at the recorded source commit; this does not close the external GUI, licensed Vulcan, or live federation gates."
+}

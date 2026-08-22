@@ -13,6 +13,7 @@ backend plugin.
 [中文 README](README_CN.md) · [release gates](docs/RELEASE_GATES.md) ·
 [security model](docs/SECURITY.md) · [anti-cheat evidence](docs/evidence/anti-cheat-real-server-2026-08-22.json)
 · [Helio static-suite evidence](docs/evidence/cluster-helio-static-suite-2026-08-22.json)
+· [latest Helio static-suite evidence](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json)
 
 ![Verification dashboard](docs/assets/verification-dashboard.svg)
 
@@ -56,17 +57,16 @@ Run the contract against a current bundle:
 | Gate | Current evidence | State |
 | --- | --- | --- |
 | Root + modern strict offline tests | Historical exact bundle: `171 suites / 755 tests / 0 failures / 0 errors`; [Helio targeted build evidence](docs/evidence/cluster-targeted-build-2026-08-22.json) ran Fabric, Velocity, BungeeCord, Paper, and runtime integration tests successfully | PASS within recorded source boundary |
-| Helio repository static wrappers | [Helio static-suite evidence](docs/evidence/cluster-helio-static-suite-2026-08-22.json): all 14 `scripts/test-*.ps1` wrappers passed at source commit `50362a1` under Windows PowerShell 5.1 | PASS |
+| Helio repository static wrappers | [latest Helio static-suite evidence](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json): all 14 `scripts/test-*.ps1` wrappers passed at source commit `33878f2` under Windows PowerShell 5.1, one child process per wrapper | PASS |
 | Paper/Folia × Velocity/Bungee process matrix | [`server-version-process-matrix-2026-08-22.json`](docs/evidence/server-version-process-matrix-2026-08-22.json): `12/12`, six exact version trees, cleanup zero; the sidecar binds the pre-README documentation tree | PASS for recorded snapshot; release rebind pending |
 | Fabric GUI consent | 1.21.11 reached the visible explicit-file screen; no click was recorded, so no release evidence was minted | PENDING 6 human decisions |
 | Anti-cheat detection | [`anti-cheat-real-server-2026-08-22.json`](docs/evidence/anti-cheat-real-server-2026-08-22.json): real Leaf 1.21.11 + GrimAC `2.3.74-155abaf` produced `SERVER_CONFIRMED` `Simulation`/`TickTimer` events and two HTTP `202` risk uploads | PASS for real detection/interception; `MONITOR`/`NONE` intentionally leaves punitive action unexercised |
 | Vulcan | Static contracts pass; licensed JAR and genuine external trigger are absent from this workspace | PENDING |
 | Fabric federation | V2 static contract passes; source-export/target-import GUI handoff has not been executed | PENDING |
-| Exact-commit CI/release | Recorded canonical `main` run [`32565146051`](https://github.com/TypeThe0ry/MCAce/actions/runs/32565146051) passed on immutable commit `657a8ac8974addc0dbbfbd6c7d637792325e884d`; the [final evidence record](docs/evidence/release-bundle-2026-08-22-final.json) captures the exact eight-file bundle, `release_identity=true`, and verified `SHA256SUMS` | PASS for that recorded exact commit; later documentation-only commits require their own canonical run before tagging; product version remains `0.1.0-SNAPSHOT` until the external v0.0.1 gates close |
-| Latest recorded exact-commit CI/release | Run [`32570987482`](https://github.com/TypeThe0ry/MCAce/actions/runs/32570987482) passed for merged source `f355a85f65173c6e98ab685e3b36f5e172b85498`; [bundle evidence](docs/evidence/release-bundle-2026-08-22-f355a85.json) records `release_identity=true` and a verified exact-eight SHA256 set | PASS for that immutable source; any later commit needs its own required `build` check before tagging |
+| Exact-commit CI/release | Canonical `main` run [`32573320698`](https://github.com/TypeThe0ry/MCAce/actions/runs/32573320698) passed on immutable commit `33878f2aeb9b3dc36c3f26c4b8fa8427c8e6238a`; [bundle evidence](docs/evidence/release-bundle-2026-08-22-33878f2.json) captures the exact eight-file bundle, `release_identity=true`, and verified `SHA256SUMS` | PASS for this exact commit; this documentation update needs its own required `build` before tagging; product version remains `0.1.0-SNAPSHOT` until the external v0.0.1 gates close |
 
 The canonical release evidence is bound to the immutable commit
-`657a8ac8974addc0dbbfbd6c7d637792325e884d` shown above. Verify any checkout with `git rev-parse HEAD`; do not copy an
+`33878f2aeb9b3dc36c3f26c4b8fa8427c8e6238a` shown above. Verify any checkout with `git rev-parse HEAD`; do not copy an
 artifact to a tag unless its `release-manifest.properties` has
 `release_identity=true` and the `source_commit` matches that checkout exactly.
 The current v0.0.1 release decision is still controlled by the six human GUI
@@ -143,9 +143,9 @@ not synthesize input:
 
 ```powershell
 $env:JAVA_HOME = '<JDK 21 or JDK 25 home for the target>'
-.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence
-.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2 -WithFabricEvidence
-.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2 -WithFabricEvidence
+.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence -ManualConsentTimeoutSeconds 120
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2 -WithFabricEvidence -ManualConsentTimeoutSeconds 120
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2 -WithFabricEvidence -ManualConsentTimeoutSeconds 120
 ```
 
 Use `-ReportOnly` with the emitted report/binding hashes after each successful
