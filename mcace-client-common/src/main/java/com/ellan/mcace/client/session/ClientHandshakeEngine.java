@@ -1108,12 +1108,14 @@ public final class ClientHandshakeEngine {
         if (values.size() > ProtocolConstants.MAX_SELECTED_PACKS) {
             throw new EnvelopeException("selected " + kind + " pack list exceeds its bound");
         }
-        List<String> normalized = values.stream()
-                .map(value -> value == null ? "" : value.trim())
-                .filter(value -> !value.isEmpty())
-                .distinct()
-                .sorted(Comparator.naturalOrder())
-                .toList();
+        List<String> normalized = new ArrayList<>(values.size());
+        for (String value : values) {
+            if (value == null || value.isBlank() || !value.equals(value.trim())) {
+                throw new EnvelopeException("selected " + kind + " pack id is blank or not canonical");
+            }
+            normalized.add(value);
+        }
+        normalized = normalized.stream().distinct().sorted(Comparator.naturalOrder()).toList();
         if (normalized.size() > ProtocolConstants.MAX_SELECTED_PACKS
                 || normalized.stream().anyMatch(value -> value.length() > ProtocolConstants.MAX_SELECTED_PACK_ID_CHARS
                         || value.chars().anyMatch(Character::isISOControl))) {

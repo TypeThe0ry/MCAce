@@ -109,6 +109,18 @@ final class ClientHandshakeEngineBudgetTest {
     }
 
     @Test
+    void rejectsNonCanonicalSelectedPackIdsBeforeSigningTheSnapshot() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = readyClient(server);
+        ClientIntegrityBundle bundle = ClientIntegrityBundle.of(List.of(new ScopeIntegrityManifest(
+                "mods", "mods", true, CLOCK.instant(), List.of(), new byte[32])));
+        assertThrows(EnvelopeException.class, () -> client.createAuthenticationFrames(
+                bundle, List.of(), List.of(" file/xray.zip"), List.of()));
+        assertThrows(EnvelopeException.class, () -> client.createAuthenticationFrames(
+                bundle, List.of(), java.util.Arrays.asList("xray.zip", null), List.of()));
+    }
+
+    @Test
     void fragmentsLargeAuthenticationAndReceiverReassemblesTheSameAuthRequest() throws Exception {
         KeyPair server = Ed25519Keys.generate(new SecureRandom());
         ClientHandshakeEngine client = readyClient(server);

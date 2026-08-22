@@ -586,8 +586,8 @@ public final class ServerHandshakeCoordinator {
                 || !MessageDigest.isEqual(update.getPreviousAggregateRootSha256().toByteArray(), context.lastArtifactObservationRoot)
                 || update.getPolicySequence() != context.policy.getSequence()
                 || !MessageDigest.isEqual(update.getPolicySha256().toByteArray(), context.policyDigest)
-                || !validSelectedPackIds(update.getSelectedResourcePacksList(), "resource")
-                || !validSelectedPackIds(update.getSelectedShaderPacksList(), "shader")
+                || !validSelectedPackIds(update.getSelectedResourcePacksList())
+                || !validSelectedPackIds(update.getSelectedShaderPacksList())
                 || update.getModsCount() > ProtocolConstants.MAX_ARTIFACT_OBSERVATION_COUNT
                 || update.getScopeManifestsList().stream().mapToInt(IntegrityScopeManifest::getEntriesCount).sum()
                         > ProtocolConstants.MAX_ARTIFACT_OBSERVATION_COUNT) {
@@ -630,8 +630,8 @@ public final class ServerHandshakeCoordinator {
                 || request.getManifestRootSha256().size() != 32
                 || request.getEnvironmentSha256().size() != 32
                 || request.getModsCount() > 4096
-                || !validSelectedPackIds(request.getSelectedResourcePacksList(), "resource")
-                || !validSelectedPackIds(request.getSelectedShaderPacksList(), "shader")
+                || !validSelectedPackIds(request.getSelectedResourcePacksList())
+                || !validSelectedPackIds(request.getSelectedShaderPacksList())
                 || request.getPolicySequence() != context.policy.getSequence()
                 || !MessageDigest.isEqual(context.policyDigest, request.getPolicySha256().toByteArray())) {
             return violation(context.session.playerId(), context, RiskEventType.POLICY_MISMATCH);
@@ -880,11 +880,12 @@ public final class ServerHandshakeCoordinator {
         return seenScopes.equals(rules.keySet());
     }
 
-    private static boolean validSelectedPackIds(List<String> ids, String kind) {
+    private static boolean validSelectedPackIds(List<String> ids) {
         if (ids.size() > ProtocolConstants.MAX_SELECTED_PACKS) return false;
         Set<String> seen = new HashSet<>();
         for (String id : ids) {
-            if (id == null || id.isBlank() || id.length() > ProtocolConstants.MAX_SELECTED_PACK_ID_CHARS
+            if (id == null || id.isBlank() || !id.equals(id.trim())
+                    || id.length() > ProtocolConstants.MAX_SELECTED_PACK_ID_CHARS
                     || id.chars().anyMatch(Character::isISOControl) || !seen.add(id)) {
                 return false;
             }
