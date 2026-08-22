@@ -569,8 +569,13 @@ public final class MCAceVelocityPlugin {
         if (dispositionExecutor != null) {
             retiredSession.ifPresent(sessionId -> dispositionExecutor.clearSession(playerId, sessionId));
         }
+        // Velocity may emit LoginSuccess before the downstream client has entered the
+        // play phase.  A plugin message sent in that gap is silently discarded by the
+        // vanilla client (the Paper side then waits until the handshake timeout).  Give
+        // the play-channel registration a bounded window; onChannelRegister still starts
+        // immediately when a client advertises the channel.
         server.getScheduler().buildTask(this, () -> startHandshake(player, ticket))
-                .delay(Duration.ofSeconds(1))
+                .delay(Duration.ofSeconds(5))
                 .schedule();
     }
 
