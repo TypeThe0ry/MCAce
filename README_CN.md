@@ -10,7 +10,8 @@ Paper/Folia 后端插件。
 
 [English README](README.md) · [发布门](docs/RELEASE_GATES.md) ·
 [安全模型](docs/SECURITY.md) · [反作弊证据](docs/evidence/anti-cheat-real-server-2026-08-22.json) ·
-[Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22.json)
+[Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22.json) ·
+[最新 Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json)
 
 ![验证总览](docs/assets/verification-dashboard.svg)
 
@@ -50,17 +51,16 @@ Paper/Folia 后端插件。
 | 门 | 当前证据 | 状态 |
 | --- | --- | --- |
 | 根 + modern 严格离线测试 | 历史 exact 包 `171 suites / 755 tests / 0 failures / 0 errors`；[Helio 定向构建证据](docs/evidence/cluster-targeted-build-2026-08-22.json) 已成功运行 Fabric、Velocity、BungeeCord、Paper 与 runtime integration 测试 | 在已记录源码边界内通过 |
-| Helio 仓库静态 wrappers | [Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22.json)：源码 `50362a1` 上使用 Windows PowerShell 5.1 运行全部 14 个 `scripts/test-*.ps1`，全部通过 | 通过 |
+| Helio 仓库静态 wrappers | [最新 Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json)：源码 `33878f2` 上使用 Windows PowerShell 5.1、每个 wrapper 独立子进程运行全部 14 个 `scripts/test-*.ps1`，全部通过 | 通过 |
 | Paper/Folia × Velocity/Bungee 进程矩阵 | [`server-version-process-matrix-2026-08-22.json`](docs/evidence/server-version-process-matrix-2026-08-22.json)：`12/12`、六棵精确版本树、清理为零；sidecar 绑定的是 README 修改前的 tree | 记录快照通过，发布重绑待做 |
 | Fabric GUI consent | 1.21.11 已到可见显式文件授权页；未记录人工点击，因此没有生成发布证据 | 待 6 次人工确认 |
 | 反作弊检测 | [`anti-cheat-real-server-2026-08-22.json`](docs/evidence/anti-cheat-real-server-2026-08-22.json)：真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf` 产出 `SERVER_CONFIRMED` 的 `Simulation`/`TickTimer` 事件，并完成两次 HTTP `202` 风险上传 | 真实检测/拦截上传 PASS；`MONITOR`/`NONE` 是有意保持，未执行惩罚动作 |
 | Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
-| exact-commit CI/release | 已记录的 canonical `main` 运行 [`32565146051`](https://github.com/TypeThe0ry/MCAce/actions/runs/32565146051) 已在不可变提交 `657a8ac8974addc0dbbfbd6c7d637792325e884d` 通过；[最终证据记录](docs/evidence/release-bundle-2026-08-22-final.json)固定八项 exact 包、`release_identity=true` 和 `SHA256SUMS` 核验 | 该精确提交 PASS；后续文档提交在打 tag 前需重新跑 canonical CI；外部 v0.0.1 门关闭前产品版本仍为 `0.1.0-SNAPSHOT` |
-| 最近记录的 exact-commit CI/release | 运行 [`32570987482`](https://github.com/TypeThe0ry/MCAce/actions/runs/32570987482) 已在合并源码 `f355a85f65173c6e98ab685e3b36f5e172b85498` 通过；[包证据](docs/evidence/release-bundle-2026-08-22-f355a85.json)记录 `release_identity=true` 与 exact-eight SHA256 全量核验 | 该不可变源码 PASS；之后任何提交在打 tag 前都必须有自己的 required `build` 检查 |
+| exact-commit CI/release | canonical `main` 运行 [`32573320698`](https://github.com/TypeThe0ry/MCAce/actions/runs/32573320698) 已在不可变提交 `33878f2aeb9b3dc36c3f26c4b8fa8427c8e6238a` 通过；[包证据](docs/evidence/release-bundle-2026-08-22-33878f2.json)固定八项 exact 包、`release_identity=true` 和 `SHA256SUMS` 全量核验 | 该精确提交 PASS；本次文档更新在打 tag 前需要自己的 required `build`；外部 v0.0.1 门关闭前产品版本仍为 `0.1.0-SNAPSHOT` |
 
 规范发布证据绑定到上面的不可变提交
-`657a8ac8974addc0dbbfbd6c7d637792325e884d`。任何 checkout 都要用
+`33878f2aeb9b3dc36c3f26c4b8fa8427c8e6238a`。任何 checkout 都要用
 `git rev-parse HEAD` 校验；只有 `release-manifest.properties` 中
 `release_identity=true` 且 `source_commit` 与 checkout 完全一致时，才允许把包放进 tag。
 当前 v0.0.1 放行仍由六次 GUI 人工确认、真实反作弊、Vulcan 和 federation 门共同决定。
@@ -127,9 +127,9 @@ tree-equivalent 快照；凭据和 worker 路径不会写入仓库。
 
 ```powershell
 $env:JAVA_HOME = '<目标对应的 JDK21 或 JDK25>'
-.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence
-.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2 -WithFabricEvidence
-.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2 -WithFabricEvidence
+.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence -ManualConsentTimeoutSeconds 120
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2 -WithFabricEvidence -ManualConsentTimeoutSeconds 120
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2 -WithFabricEvidence -ManualConsentTimeoutSeconds 120
 ```
 
 成功后用脚本输出的 report/binding hash 做 `-ReportOnly`；超时报告是诊断记录，不能升级成发布证据。
