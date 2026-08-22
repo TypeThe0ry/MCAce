@@ -54,10 +54,10 @@ Paper/Folia 后端插件。
 | 反作弊检测 | [`anti-cheat-real-server-2026-08-22.json`](docs/evidence/anti-cheat-real-server-2026-08-22.json)：真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf` 产出 `SERVER_CONFIRMED` 的 `Simulation`/`TickTimer` 事件，并完成两次 HTTP `202` 风险上传 | 真实检测/拦截上传 PASS；`MONITOR`/`NONE` 是有意保持，未执行惩罚动作 |
 | Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
-| exact-commit CI/release | 规范 `main` 运行 [`32564457704`](https://github.com/TypeThe0ry/MCAce/actions/runs/32564457704) 已在 merge commit `14e44dc52861486b1145078c86cbfac0af6617d0` 通过；[最终证据记录](docs/evidence/release-bundle-2026-08-22-final.json)固定八项 exact 包、`release_identity=true` 和 `SHA256SUMS` 核验 | 当前 canonical `main` 已通过；外部 v0.0.1 门关闭前产品版本仍为 `0.1.0-SNAPSHOT` |
+| exact-commit CI/release | 已记录的 canonical `main` 运行 [`32565146051`](https://github.com/TypeThe0ry/MCAce/actions/runs/32565146051) 已在不可变提交 `657a8ac8974addc0dbbfbd6c7d637792325e884d` 通过；[最终证据记录](docs/evidence/release-bundle-2026-08-22-final.json)固定八项 exact 包、`release_identity=true` 和 `SHA256SUMS` 核验 | 该精确提交 PASS；后续文档提交在打 tag 前需重新跑 canonical CI；外部 v0.0.1 门关闭前产品版本仍为 `0.1.0-SNAPSHOT` |
 
-规范发布证据绑定到上面的不可变 merge commit
-`14e44dc52861486b1145078c86cbfac0af6617d0`。任何 checkout 都要用
+规范发布证据绑定到上面的不可变提交
+`657a8ac8974addc0dbbfbd6c7d637792325e884d`。任何 checkout 都要用
 `git rev-parse HEAD` 校验；只有 `release-manifest.properties` 中
 `release_identity=true` 且 `source_commit` 与 checkout 完全一致时，才允许把包放进 tag。
 当前 v0.0.1 放行仍由六次 GUI 人工确认、真实反作弊、Vulcan 和 federation 门共同决定。
