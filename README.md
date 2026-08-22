@@ -11,7 +11,7 @@ backend plugin.
 > and a real Fabric federation handoff are recorded on the reviewed commit.
 
 [中文 README](README_CN.md) · [release gates](docs/RELEASE_GATES.md) ·
-[security model](docs/SECURITY.md) · [anti-cheat evidence](docs/evidence/anti-cheat-detection-2026-08-21.json)
+[security model](docs/SECURITY.md) · [anti-cheat evidence](docs/evidence/anti-cheat-real-server-2026-08-22.json)
 
 ![Verification dashboard](docs/assets/verification-dashboard.svg)
 
@@ -57,7 +57,7 @@ Run the contract against a current bundle:
 | Root + modern strict offline tests | Historical exact bundle: `171 suites / 755 tests / 0 failures / 0 errors`; latest Helio snapshot ran Fabric, Velocity, and runtime compatibility tests successfully | PASS within recorded source boundary |
 | Paper/Folia × Velocity/Bungee process matrix | [`server-version-process-matrix-2026-08-22.json`](docs/evidence/server-version-process-matrix-2026-08-22.json): `12/12`, six exact version trees, cleanup zero; the sidecar binds the pre-README documentation tree | PASS for recorded snapshot; release rebind pending |
 | Fabric GUI consent | 1.21.11 reached the visible explicit-file screen; no click was recorded, so no release evidence was minted | PENDING 6 human decisions |
-| Anti-cheat detection | Fixture classification and replay/integrity tests pass; real client load was disconnected and did not produce a server detection event | Defensive regression only; real server event pending |
+| Anti-cheat detection | [`anti-cheat-real-server-2026-08-22.json`](docs/evidence/anti-cheat-real-server-2026-08-22.json): real Leaf 1.21.11 + GrimAC `2.3.74-155abaf` produced `SERVER_CONFIRMED` `Simulation`/`TickTimer` events and two HTTP `202` risk uploads | PASS for real detection/interception; `MONITOR`/`NONE` intentionally leaves punitive action unexercised |
 | Vulcan | Static contracts pass; licensed JAR and genuine external trigger are absent from this workspace | PENDING |
 | Fabric federation | V2 static contract passes; source-export/target-import GUI handoff has not been executed | PENDING |
 | Exact-commit CI/release | Canonical `main` run [`32562226250`](https://github.com/TypeThe0ry/MCAce/actions/runs/32562226250) passed on merge parent `22288f60d61d39d169a5b7f1552e21e8514fa9c9`; the [evidence record](docs/evidence/release-bundle-2026-08-22.json) captures the exact eight-file bundle, `release_identity=true`, and verified `SHA256SUMS` | PASS for that exact commit; a later docs-only commit requires a fresh canonical run |
