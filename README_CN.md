@@ -9,7 +9,7 @@ Paper/Folia 后端插件。
 > event、以及 Fabric federation source→target handoff 都在审查提交上留下证据。
 
 [English README](README.md) · [发布门](docs/RELEASE_GATES.md) ·
-[安全模型](docs/SECURITY.md) · [反作弊证据](docs/evidence/anti-cheat-detection-2026-08-21.json)
+[安全模型](docs/SECURITY.md) · [反作弊证据](docs/evidence/anti-cheat-real-server-2026-08-22.json)
 
 ![验证总览](docs/assets/verification-dashboard.svg)
 
@@ -51,7 +51,7 @@ Paper/Folia 后端插件。
 | 根 + modern 严格离线测试 | 历史 exact 包 `171 suites / 755 tests / 0 failures / 0 errors`；最新 Helio 快照的 Fabric、Velocity、runtime 兼容测试成功 | 在已记录源码边界内通过 |
 | Paper/Folia × Velocity/Bungee 进程矩阵 | [`server-version-process-matrix-2026-08-22.json`](docs/evidence/server-version-process-matrix-2026-08-22.json)：`12/12`、六棵精确版本树、清理为零；sidecar 绑定的是 README 修改前的 tree | 记录快照通过，发布重绑待做 |
 | Fabric GUI consent | 1.21.11 已到可见显式文件授权页；未记录人工点击，因此没有生成发布证据 | 待 6 次人工确认 |
-| 反作弊检测 | fixture 分类、完整性、重放和关联回归通过；真实客户端未连服务端，未产出服务器检测事件 | 只有防御回归，真实事件待做 |
+| 反作弊检测 | [`anti-cheat-real-server-2026-08-22.json`](docs/evidence/anti-cheat-real-server-2026-08-22.json)：真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf` 产出 `SERVER_CONFIRMED` 的 `Simulation`/`TickTimer` 事件，并完成两次 HTTP `202` 风险上传 | 真实检测/拦截上传 PASS；`MONITOR`/`NONE` 是有意保持，未执行惩罚动作 |
 | Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
 | exact-commit CI/release | 规范 `main` 运行 [`32562226250`](https://github.com/TypeThe0ry/MCAce/actions/runs/32562226250) 已在 merge parent `22288f60d61d39d169a5b7f1552e21e8514fa9c9` 通过；[证据记录](docs/evidence/release-bundle-2026-08-22.json)固定八项 exact 包、`release_identity=true` 和 `SHA256SUMS` 核验 | 该精确提交通过；后续仅文档提交需要重新跑规范 CI |

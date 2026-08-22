@@ -1,0 +1,67 @@
+{
+  "schema": "MCACE_ANTI_CHEAT_REAL_SERVER_EVIDENCE_V1",
+  "generated_at": "2026-08-22T09:07:00Z",
+  "source_mode": "LOCAL_REAL_SERVER_LOOPBACK",
+  "source_commit": "cee47f370c9af04bd9836d249139b9bf385f12bd",
+  "target": {
+    "minecraft": "1.21.11",
+    "server": "Leaf 1.21.11-135",
+    "server_jar_sha256": "105BC2C457F2249ED2CB0F902BEC44647A291AABC9C4761BE50BAA25A46AF72B",
+    "anti_cheat": "GrimAC 2.3.74-155abaf",
+    "anti_cheat_jar_sha256": "214A44A0FF476577B66B9038FE6B8122789CE0667E48F7CBB5B0337417A24E9D",
+    "mcace_plugin": "0.1.0-SNAPSHOT",
+    "mcace_paper_jar_sha256": "D133A093FF684490DCB3AE81E2751498C5FC9EEB9FE0C6F0BBCE802F5DD23E7B"
+  },
+  "execution": {
+    "server_started": true,
+    "server_ready": true,
+    "client_protocol": "minecraft-protocol 1.67.0",
+    "client_connected": true,
+    "movement_probe_packets": 40,
+    "client_disconnected_cleanly": true,
+    "loopback_observer": "HTTP/1.1"
+  },
+  "summary": {
+    "real_server_connection": true,
+    "real_server_detection_event": true,
+    "real_server_interception_channel": true,
+    "risk_upload_http_statuses": [
+      202
+    ],
+    "observed_event_count": 2,
+    "providers": [
+      "grim"
+    ],
+    "event_origin": "SERVER_CONFIRMED",
+    "event_source_component": "grim-adapter",
+    "event_type": "BEHAVIOR_HIGH_RISK",
+    "checks": [
+      "Simulation",
+      "TickTimer"
+    ],
+    "enforcement_action": "NONE",
+    "session_action_mode": "MONITOR",
+    "automatic_kick_or_ban": false,
+    "genuine_licensed_vulcan_event_observed": false
+  },
+  "evidence": {
+    "observer_request_log_sha256": "59A21DBF57BEABFEE0F8525356507A6C56CC76794CEBA6E2A7C943DFD3A93320",
+    "observed_event_log_sha256": "BC1309C1D2534467590FEF3A2A624536B239CED8E674DF61401ECE640B03BA56",
+    "server_log_contains_grim_enable": true,
+    "server_log_contains_mcace_grim_adapter": true,
+    "server_log_contains_bot_join_and_clean_disconnect": true
+  },
+  "interpretation": "A real 1.21.11 server with the real GrimAC plugin emitted provider flags through the MCAce Grim adapter and MCAce delivered SERVER_CONFIRMED risk events to the loopback Cloud endpoint. MONITOR/NONE is intentional: this evidence proves detection and interception/upload, not a production punitive action.",
+  "limitations": [
+    "Loopback observer is a test endpoint, not production Cloud.",
+    "GrimAC is an external open-source provider; Vulcan licensed runtime remains a separate pending gate.",
+    "No automatic kick/ban is asserted because the release contract keeps MONITOR default and requires reviewable action."
+  ],
+  "sanitization": {
+    "identity_values_copied": false,
+    "process_ids_copied": false,
+    "absolute_paths_copied": false,
+    "keys_or_secrets_copied": false,
+    "raw_client_identity_copied": false
+  }
+}
