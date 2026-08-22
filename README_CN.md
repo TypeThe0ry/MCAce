@@ -68,6 +68,8 @@ Paper/Folia 后端插件。
 
 ![反作弊证据边界](docs/assets/anti-cheat-evidence-flow.svg)
 
+![启用资源包关联管线](docs/assets/active-pack-correlation.svg)
+
 ![验证结果图](docs/assets/verification-dashboard.svg)
 
 ## 反作弊与特征检测

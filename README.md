@@ -75,6 +75,8 @@ approvals plus the real anti-cheat, Vulcan, and federation gates below.
 
 ![Anti-cheat evidence boundary](docs/assets/anti-cheat-evidence-flow.svg)
 
+![Active pack correlation](docs/assets/active-pack-correlation.svg)
+
 ![Verification result map](docs/assets/verification-dashboard.svg)
 
 ## Anti-cheat and feature detection
