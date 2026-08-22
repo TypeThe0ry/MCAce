@@ -62,10 +62,10 @@ Run the contract against a current bundle:
 | Fabric federation | V2 static contract passes; source-export/target-import GUI handoff has not been executed | PENDING |
 | Exact-commit CI/release | Protected branch CI and an older exact bundle are green; current reviewed commit still needs clean exact-commit CI and `releaseBundle` | PENDING |
 
-The latest reviewed source in this checkout is commit
-`894406b3eb0515fb0678bbca45426aa8ed20ce1a` on branch
-`codex/release-2026-08-21`. The last local exact-eight bundle was bound to an
-older source commit and is retained as historical evidence, not a v0.0.1 tag.
+The reviewed source is the tip of branch `codex/release-2026-08-21`; verify the
+exact commit with `git rev-parse HEAD`. The last local exact-eight bundle was
+bound to an older source commit and is retained as historical evidence, not a
+v0.0.1 tag.
 
 ![Anti-cheat evidence boundary](docs/assets/anti-cheat-evidence-flow.svg)
 
