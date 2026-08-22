@@ -49,7 +49,8 @@
     "observed_event_log_sha256": "BC1309C1D2534467590FEF3A2A624536B239CED8E674DF61401ECE640B03BA56",
     "server_log_contains_grim_enable": true,
     "server_log_contains_mcace_grim_adapter": true,
-    "server_log_contains_bot_join_and_clean_disconnect": true
+    "server_log_contains_bot_join_and_clean_disconnect": true,
+    "server_log_sha256": "8AC0A94556E7FDF3FCDA14FA20F3825EAC47FF6FAD2DB28A7A8ED78AC0F58391"
   },
   "interpretation": "A real 1.21.11 server with the real GrimAC plugin emitted provider flags through the MCAce Grim adapter and MCAce delivered SERVER_CONFIRMED risk events to the loopback Cloud endpoint. MONITOR/NONE is intentional: this evidence proves detection and interception/upload, not a production punitive action.",
   "limitations": [
