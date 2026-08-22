@@ -67,6 +67,38 @@ final class AuthenticatedManifestObservationDeriverTest {
     }
 
     @Test
+    void marksOnlyTheClientSelectedResourcePackAndShaderPackEntries() {
+        byte[] resourceHash = new byte[32]; resourceHash[0] = 3;
+        byte[] shaderHash = new byte[32]; shaderHash[0] = 4;
+        AuthRequest request = AuthRequest.newBuilder()
+                .addSelectedResourcePacks("file/xray.zip")
+                .addSelectedShaderPacks("Complementary")
+                .addScopeManifests(IntegrityScopeManifest.newBuilder().setScope("resourcepacks").setPresent(true)
+                        .addEntries(file("xray.zip", 1, resourceHash))
+                        .addEntries(file("clean.zip", 1, resourceHash)))
+                .addScopeManifests(IntegrityScopeManifest.newBuilder().setScope("shaderpacks").setPresent(true)
+                        .addEntries(file("Complementary/shaders.properties", 1, shaderHash))
+                        .addEntries(file("Vanilla/shaders.properties", 1, shaderHash)))
+                .build();
+
+        List<ArtifactObservation> observations = new AuthenticatedManifestObservationDeriver()
+                .derive(manifest(request)).observations();
+
+        assertEquals("true", observations.stream()
+                .filter(item -> item.identifier().equals("xray.zip"))
+                .findFirst().orElseThrow().metadata().get("selected"));
+        assertEquals("false", observations.stream()
+                .filter(item -> item.identifier().equals("clean.zip"))
+                .findFirst().orElseThrow().metadata().get("selected"));
+        assertEquals("true", observations.stream()
+                .filter(item -> item.identifier().equals("Complementary/shaders.properties"))
+                .findFirst().orElseThrow().metadata().get("selected"));
+        assertEquals("false", observations.stream()
+                .filter(item -> item.identifier().equals("Vanilla/shaders.properties"))
+                .findFirst().orElseThrow().metadata().get("selected"));
+    }
+
+    @Test
     void derivesDirectoryRootsFromRebasedEntriesIndependentOfTopLevelNameOrOrder() {
         byte[] first = new byte[32]; first[0] = 1;
         byte[] second = new byte[32]; second[0] = 2;

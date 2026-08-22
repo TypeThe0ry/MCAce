@@ -49,6 +49,20 @@ final class ArtifactObservationSendScheduleTest {
     }
 
     @Test
+    void resourcePackChangesCanTriggerAnImmediateRefreshWithoutBreakingSingleFlight() {
+        MutableClock clock = new MutableClock(Instant.EPOCH);
+        ArtifactObservationSendSchedule schedule =
+                new ArtifactObservationSendSchedule(clock, Duration.ofMinutes(5));
+        schedule.activate(3L);
+        schedule.triggerNow(3L);
+        assertTrue(schedule.takeDue(3L));
+        schedule.triggerNow(3L);
+        assertFalse(schedule.takeDue(3L));
+        schedule.complete(3L);
+        assertFalse(schedule.takeDue(3L));
+    }
+
+    @Test
     void rejectsNonPositiveOrSubMillisecondConfiguration() {
         MutableClock clock = new MutableClock(Instant.EPOCH);
         assertThrows(IllegalArgumentException.class,

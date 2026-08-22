@@ -179,6 +179,39 @@ final class HandshakeIntegrationTest {
     }
 
     @Test
+    void bindsSelectedPackIdsToInitialAndDynamicAuthenticatedObservations() throws Exception {
+        AtomicReference<AuthenticatedManifest> update = new AtomicReference<>();
+        server = new ServerHandshakeCoordinator(
+                clock, new SecureRandom(), serverKeys, new RiskEngine(RiskPolicy.defaults()), api,
+                Duration.ofSeconds(5), () -> signedPolicy,
+                SecurityAuditSink.noop(), ignored -> { }, ignored -> { }, update::set,
+                com.ellan.mcace.core.evidence.EvidenceContentStore.discard(),
+                com.ellan.mcace.core.evidence.EvidenceAuditSink.noop());
+        ClientHandshakeEngine client = client(serverKeys);
+        byte[] hello = server.begin(playerId);
+        client.prepareServerHello(hello, "test.example:25565",
+                new VerifiedPolicyCache(temporaryDirectory.resolve("selected-packs"), clock));
+        List<ClientHandshakeEngine.OutboundFrame> authentication = client.createAuthenticationFrames(
+                emptyBundle(), List.of(), List.of("file/xray.zip"), List.of("Complementary"));
+        server.receive(playerId, authentication.get(0).data());
+        HandshakeAction authenticated = server.receive(playerId, authentication.get(1).data());
+        client.receiveAuthResult(authenticated.outboundFrames().getFirst());
+
+        ClientHandshakeEngine.PreparedArtifactObservationUpdate prepared =
+                client.prepareArtifactObservationUpdate(
+                        emptyBundle(), List.of(), List.of("file/xray.zip"), List.of("Complementary"));
+        for (ClientHandshakeEngine.OutboundFrame frame : prepared.frames()) {
+            server.receive(playerId, frame.data());
+        }
+        client.commitArtifactObservationUpdate(prepared);
+
+        AuthenticatedManifest observed = update.get();
+        assertTrue(observed != null);
+        assertEquals(List.of("file/xray.zip"), observed.request().getSelectedResourcePacksList());
+        assertEquals(List.of("Complementary"), observed.request().getSelectedShaderPacksList());
+    }
+
+    @Test
     void optionalMissingHeartbeatControlIsConsecutiveReversibleAndDoesNotChangeAdmission() throws Exception {
         ClientHandshakeEngine client = client(serverKeys);
         List<byte[]> frames = frames(client, server.begin(playerId));
