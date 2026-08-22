@@ -54,11 +54,12 @@ Paper/Folia 后端插件。
 | 反作弊检测 | fixture 分类、完整性、重放和关联回归通过；真实客户端未连服务端，未产出服务器检测事件 | 只有防御回归，真实事件待做 |
 | Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
-| exact-commit CI/release | 保护分支 CI 和旧 exact 包通过；当前审查提交还需 clean exact-commit CI 与 `releaseBundle` | 待做 |
+| exact-commit CI/release | 规范 `main` 运行 [`32562226250`](https://github.com/TypeThe0ry/MCAce/actions/runs/32562226250) 已在 merge parent `22288f60d61d39d169a5b7f1552e21e8514fa9c9` 通过；[证据记录](docs/evidence/release-bundle-2026-08-22.json)固定八项 exact 包、`release_identity=true` 和 `SHA256SUMS` 核验 | 该精确提交通过；后续仅文档提交需要重新跑规范 CI |
 
-当前审查源码是分支 `codex/release-2026-08-21` 的 tip，可用
-`git rev-parse HEAD` 校验精确提交。最后一个本地 exact-eight 包绑定的是旧提交，只能作为历史证据，
-不能直接冒充 v0.0.1。
+规范发布证据绑定到上面的不可变 merge-parent 提交。任何 checkout 都要用
+`git rev-parse HEAD` 校验；只有 `release-manifest.properties` 中
+`release_identity=true` 且 `source_commit` 与 checkout 完全一致时，才允许把包放进 tag。
+当前 v0.0.1 放行仍由六次 GUI 人工确认、真实反作弊、Vulcan 和 federation 门共同决定。
 
 ![反作弊证据边界](docs/assets/anti-cheat-evidence-flow.svg)
 
@@ -141,6 +142,8 @@ consent、subject binding、expiry 观察，以及零残留进程/端口。静�
 
 精确分发包固定为 8 项：六个可部署 JAR、`release-manifest.properties`、`SHA256SUMS`。
 hash 必须来自干净 exact-commit `releaseBundle`，不要把旧构建 hash 粘进 release note。
+当前记录的包仍携带 Gradle `product_version=0.1.0-SNAPSHOT`；在外部发布门全部
+关闭前，不把 `v0.0.1` 标签提升为正式 tag。
 
 | 文件 | 作用 |
 | --- | --- |

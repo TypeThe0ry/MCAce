@@ -1,0 +1,17 @@
+{
+  "schema": "MCACE_RELEASE_BUNDLE_EVIDENCE_V1",
+  "generated_at": "2026-08-22T08:33:00Z",
+  "workflow": "build",
+  "run_id": 32562226250,
+  "run_url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32562226250",
+  "source_commit": "22288f60d61d39d169a5b7f1552e21e8514fa9c9",
+  "artifact_name": "mcace-release-bundle-22288f60d61d39d169a5b7f1552e21e8514fa9c9",
+  "artifact_entries": 8,
+  "deployable_count": 6,
+  "release_identity": true,
+  "product_version": "0.1.0-SNAPSHOT",
+  "manifest_sha256": "7a46f5378a6ede99f8c1589d60fbb88285128a6447c91b5839f92cf6a5122866",
+  "sha256sums_sha256": "a1f416feeeddd9753aea812ff60eb58661b7fc1c6202d4888d887a73fa1a12ab",
+  "sha256sums_verified": true,
+  "interpretation": "Exact canonical-main release evidence for the immutable merge parent; later documentation commits require a fresh exact-main run."
+}
