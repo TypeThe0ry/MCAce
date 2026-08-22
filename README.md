@@ -88,6 +88,16 @@ The pipeline separates origin and confidence:
 4. High-impact actions require a `SERVER_CONFIRMED` producer or durable operator
    authorization. A client load is not a detection or enforcement result.
 
+The active-client telemetry path now includes the runtime-selected resource and
+shader pack IDs. A change in the enabled resource-pack repository triggers an
+immediate bounded observation update; the server marks each affected entry with
+`selected=true|false` and evaluates it through the signed disposition policy.
+`NOTICE`/`WARN`/`CHALLENGE` can therefore be automated for a reviewed client
+observation, while `LIMIT`/`QUARANTINE`/`DENY` still require an independent
+server provider or durable administrator authorization. See
+[`docs/CLIENT_INTEGRITY_POLICY.md`](docs/CLIENT_INTEGRITY_POLICY.md) for the
+exact-hash/content-root workflow and trust-state table.
+
 The controlled fixture command is metadata-only and does not execute third-party
 code:
 

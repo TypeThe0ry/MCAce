@@ -79,6 +79,13 @@ Paper/Folia 后端插件。
 4. 高影响动作必须由 `SERVER_CONFIRMED` producer 或持久化管理员授权触发；客户端加载
    不是检测/拦截结果。
 
+现在客户端遥测还会携带运行时实际启用的 resource/shader pack ID。启用资源包发生变化时，
+会立即触发一次有界 observation update；服务端给每个条目标记 `selected=true|false`，再交给
+签名 disposition policy 评估。因此，审查过的客户端观察可以自动执行 `NOTICE`/`WARN`/
+`CHALLENGE`；`LIMIT`/`QUARANTINE`/`DENY` 仍必须等独立服务端 provider 或持久化管理员授权。
+精确 hash/content-root 的录入和 `TRUSTED`/`UNTRUSTED`/`SUSPECT`/`BLOCKED`/`STALE` 状态机见
+[`docs/CLIENT_INTEGRITY_POLICY.md`](docs/CLIENT_INTEGRITY_POLICY.md)。
+
 受控 fixture 只读 metadata，不执行第三方代码：
 
 ```powershell
