@@ -1,0 +1,24 @@
+{
+  "schema": "MCACE_CLUSTER_TARGETED_BUILD_V1",
+  "captured_at": "2026-08-22",
+  "worker": "helio",
+  "worker_profile": "windows-build",
+  "source_commit": "d21cacfcec9e6ed6d260a657bbbef39efb2d2812",
+  "exit_code": 0,
+  "elapsed_seconds": 230,
+  "gradle_jvm": "JDK 21.0.10",
+  "gradle_jvm_args": "-Xmx2G -XX:TieredStopAtLevel=1",
+  "tasks": [
+    ":mcace-client-fabric:test",
+    ":mcace-server-velocity:test",
+    ":mcace-server-bungeecord:test",
+    ":mcace-server-paper:test",
+    ":mcace-runtime-integration:test"
+  ],
+  "actionable_tasks": 47,
+  "executed_tasks": 27,
+  "cached_tasks": 20,
+  "result_sha256": "87e4e1438759295e93c16b69d50202dc37b9d1181b609f18db7bef3823b194db",
+  "result": "BUILD SUCCESSFUL; expected opt-in/licensed Vulcan and runtime federation cases remained skipped",
+  "credential_policy": "No credentials or worker paths are retained in this record"
+}

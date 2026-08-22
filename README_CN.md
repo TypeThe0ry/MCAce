@@ -48,7 +48,7 @@ Paper/Folia 后端插件。
 
 | 门 | 当前证据 | 状态 |
 | --- | --- | --- |
-| 根 + modern 严格离线测试 | 历史 exact 包 `171 suites / 755 tests / 0 failures / 0 errors`；最新 Helio 快照的 Fabric、Velocity、runtime 兼容测试成功 | 在已记录源码边界内通过 |
+| 根 + modern 严格离线测试 | 历史 exact 包 `171 suites / 755 tests / 0 failures / 0 errors`；[Helio 定向构建证据](docs/evidence/cluster-targeted-build-2026-08-22.json) 已成功运行 Fabric、Velocity、BungeeCord、Paper 与 runtime integration 测试 | 在已记录源码边界内通过 |
 | Paper/Folia × Velocity/Bungee 进程矩阵 | [`server-version-process-matrix-2026-08-22.json`](docs/evidence/server-version-process-matrix-2026-08-22.json)：`12/12`、六棵精确版本树、清理为零；sidecar 绑定的是 README 修改前的 tree | 记录快照通过，发布重绑待做 |
 | Fabric GUI consent | 1.21.11 已到可见显式文件授权页；未记录人工点击，因此没有生成发布证据 | 待 6 次人工确认 |
 | 反作弊检测 | [`anti-cheat-real-server-2026-08-22.json`](docs/evidence/anti-cheat-real-server-2026-08-22.json)：真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf` 产出 `SERVER_CONFIRMED` 的 `Simulation`/`TickTimer` 事件，并完成两次 HTTP `202` 风险上传 | 真实检测/拦截上传 PASS；`MONITOR`/`NONE` 是有意保持，未执行惩罚动作 |
@@ -113,7 +113,8 @@ $env:JAVA_HOME = '<JDK 21 路径>'
 
 为减少本机占用，编译/测试通过 cluster-orchestrator 分发。最近一次远端任务运行在
 **Helio**（Windows、JDK21、RTX 4070 主机），显式使用 Gradle
-`-Xmx2G -XX:TieredStopAtLevel=1`，约 1 分 20 秒完成，退出码 0。远端使用审查提交的
+`-Xmx2G -XX:TieredStopAtLevel=1`，约 3 分 50 秒完成，退出码 0。对应的脱敏记录见
+[cluster-targeted-build-2026-08-22.json](docs/evidence/cluster-targeted-build-2026-08-22.json)。远端使用审查提交的
 tree-equivalent 快照；凭据和 worker 路径不会写入仓库。
 
 ## 三版本 GUI 人工门

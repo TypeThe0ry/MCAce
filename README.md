@@ -54,7 +54,7 @@ Run the contract against a current bundle:
 
 | Gate | Current evidence | State |
 | --- | --- | --- |
-| Root + modern strict offline tests | Historical exact bundle: `171 suites / 755 tests / 0 failures / 0 errors`; latest Helio snapshot ran Fabric, Velocity, and runtime compatibility tests successfully | PASS within recorded source boundary |
+| Root + modern strict offline tests | Historical exact bundle: `171 suites / 755 tests / 0 failures / 0 errors`; [Helio targeted build evidence](docs/evidence/cluster-targeted-build-2026-08-22.json) ran Fabric, Velocity, BungeeCord, Paper, and runtime integration tests successfully | PASS within recorded source boundary |
 | Paper/Folia × Velocity/Bungee process matrix | [`server-version-process-matrix-2026-08-22.json`](docs/evidence/server-version-process-matrix-2026-08-22.json): `12/12`, six exact version trees, cleanup zero; the sidecar binds the pre-README documentation tree | PASS for recorded snapshot; release rebind pending |
 | Fabric GUI consent | 1.21.11 reached the visible explicit-file screen; no click was recorded, so no release evidence was minted | PENDING 6 human decisions |
 | Anti-cheat detection | [`anti-cheat-real-server-2026-08-22.json`](docs/evidence/anti-cheat-real-server-2026-08-22.json): real Leaf 1.21.11 + GrimAC `2.3.74-155abaf` produced `SERVER_CONFIRMED` `Simulation`/`TickTimer` events and two HTTP `202` risk uploads | PASS for real detection/interception; `MONITOR`/`NONE` intentionally leaves punitive action unexercised |
@@ -126,7 +126,8 @@ Server process verification:
 To reduce controller load, meaningful compile/test jobs are dispatched to the
 configured cluster. The latest verified remote job ran on **Helio** (Windows,
 JDK 21, RTX 4070 host) with explicit Gradle JVM settings
-`-Xmx2G -XX:TieredStopAtLevel=1`; it completed in about 1m20s with exit code 0.
+`-Xmx2G -XX:TieredStopAtLevel=1`; it completed in about 3m50s with exit code 0. The
+sanitized record is [`cluster-targeted-build-2026-08-22.json`](docs/evidence/cluster-targeted-build-2026-08-22.json).
 The remote checkout was a sanitized tree-equivalent snapshot of the reviewed
 commit. Credentials and worker paths are never copied into the repository.
 
