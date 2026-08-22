@@ -56,9 +56,8 @@ Paper/Folia 后端插件。
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
 | exact-commit CI/release | 保护分支 CI 和旧 exact 包通过；当前审查提交还需 clean exact-commit CI 与 `releaseBundle` | 待做 |
 
-当前 checkout 的审查源码为
-`894406b3eb0515fb0678bbca45426aa8ed20ce1a`，分支
-`codex/release-2026-08-21`。最后一个本地 exact-eight 包绑定的是旧提交，只能作为历史证据，
+当前审查源码是分支 `codex/release-2026-08-21` 的 tip，可用
+`git rev-parse HEAD` 校验精确提交。最后一个本地 exact-eight 包绑定的是旧提交，只能作为历史证据，
 不能直接冒充 v0.0.1。
 
 ![反作弊证据边界](docs/assets/anti-cheat-evidence-flow.svg)
