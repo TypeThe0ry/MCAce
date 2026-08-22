@@ -9,7 +9,8 @@ Paper/Folia 后端插件。
 > event、以及 Fabric federation source→target handoff 都在审查提交上留下证据。
 
 [English README](README.md) · [发布门](docs/RELEASE_GATES.md) ·
-[安全模型](docs/SECURITY.md) · [反作弊证据](docs/evidence/anti-cheat-real-server-2026-08-22.json)
+[安全模型](docs/SECURITY.md) · [反作弊证据](docs/evidence/anti-cheat-real-server-2026-08-22.json) ·
+[Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22.json)
 
 ![验证总览](docs/assets/verification-dashboard.svg)
 
@@ -49,12 +50,14 @@ Paper/Folia 后端插件。
 | 门 | 当前证据 | 状态 |
 | --- | --- | --- |
 | 根 + modern 严格离线测试 | 历史 exact 包 `171 suites / 755 tests / 0 failures / 0 errors`；[Helio 定向构建证据](docs/evidence/cluster-targeted-build-2026-08-22.json) 已成功运行 Fabric、Velocity、BungeeCord、Paper 与 runtime integration 测试 | 在已记录源码边界内通过 |
+| Helio 仓库静态 wrappers | [Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22.json)：源码 `50362a1` 上使用 Windows PowerShell 5.1 运行全部 14 个 `scripts/test-*.ps1`，全部通过 | 通过 |
 | Paper/Folia × Velocity/Bungee 进程矩阵 | [`server-version-process-matrix-2026-08-22.json`](docs/evidence/server-version-process-matrix-2026-08-22.json)：`12/12`、六棵精确版本树、清理为零；sidecar 绑定的是 README 修改前的 tree | 记录快照通过，发布重绑待做 |
 | Fabric GUI consent | 1.21.11 已到可见显式文件授权页；未记录人工点击，因此没有生成发布证据 | 待 6 次人工确认 |
 | 反作弊检测 | [`anti-cheat-real-server-2026-08-22.json`](docs/evidence/anti-cheat-real-server-2026-08-22.json)：真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf` 产出 `SERVER_CONFIRMED` 的 `Simulation`/`TickTimer` 事件，并完成两次 HTTP `202` 风险上传 | 真实检测/拦截上传 PASS；`MONITOR`/`NONE` 是有意保持，未执行惩罚动作 |
 | Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
 | exact-commit CI/release | 已记录的 canonical `main` 运行 [`32565146051`](https://github.com/TypeThe0ry/MCAce/actions/runs/32565146051) 已在不可变提交 `657a8ac8974addc0dbbfbd6c7d637792325e884d` 通过；[最终证据记录](docs/evidence/release-bundle-2026-08-22-final.json)固定八项 exact 包、`release_identity=true` 和 `SHA256SUMS` 核验 | 该精确提交 PASS；后续文档提交在打 tag 前需重新跑 canonical CI；外部 v0.0.1 门关闭前产品版本仍为 `0.1.0-SNAPSHOT` |
+| 当前 main exact-commit CI/release | 运行 [`32569343606`](https://github.com/TypeThe0ry/MCAce/actions/runs/32569343606) 已在源码 `50362a15f218b035bbbc98749ee09a22f6e059e3` 通过；[当前包证据](docs/evidence/release-bundle-2026-08-22-50362.json)记录 `release_identity=true` 与 exact-eight SHA256 全量核验 | `50362a1` 已通过；本次文档提交在打 tag 前仍需自己的 required `build` 检查 |
 
 规范发布证据绑定到上面的不可变提交
 `657a8ac8974addc0dbbfbd6c7d637792325e884d`。任何 checkout 都要用

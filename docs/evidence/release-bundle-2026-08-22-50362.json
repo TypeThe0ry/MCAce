@@ -1,0 +1,37 @@
+{
+  "schema": "MCACE_RELEASE_BUNDLE_EVIDENCE_V1",
+  "generated_at": "2026-08-22T11:11:50Z",
+  "source": "github_actions",
+  "workflow": "build",
+  "run_id": 32569343606,
+  "run_url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32569343606",
+  "head_sha": "50362a15f218b035bbbc98749ee09a22f6e059e3",
+  "conclusion": "success",
+  "release_identity": true,
+  "bundle_profile": "RELEASE",
+  "product_version": "0.1.0-SNAPSHOT",
+  "deployable_count": 6,
+  "bundle_entry_count": 8,
+  "source_commit": "50362a15f218b035bbbc98749ee09a22f6e059e3",
+  "runtime": {
+    "root_java": "21.0.7",
+    "modern_java": "25.0.3",
+    "gradle": "9.6.1"
+  },
+  "manifest_sha256": "4fb3b6e5208c824ec7da34a9648773b167bdfd4997a35f9eece0da381deda510",
+  "sha256sums_sha256": "94b0d00b14a90f022ef250986ead4625b5172890410c60584983be0649c00532",
+  "sha256sums_verified": true,
+  "artifacts": {
+    "mcace-client-fabric-1.21.11.jar": "43f3ba688ebe9fb2d036fe743e7e8e68ae7507a6a5b52519b9ae425fb3213f7b",
+    "mcace-client-fabric-26.1.2.jar": "f7edc5cee6434e7c1407549d5537186a6c52579e314db2000cb3646e50db243f",
+    "mcace-client-fabric-26.2.jar": "c8afd0cd1e5ac331003bd05399d3428eb69ec1e594c4fddc1a4ef19656603b54",
+    "mcace-server-velocity.jar": "485ea9924fd61991f927cbab929870260008829ae8f6fadd58a14d9397fc46cc",
+    "mcace-server-bungeecord.jar": "fc7ac9ac84a673bd08f15e5a68bbdaadd30af157ac154a20a14dcefbe6e4152a",
+    "mcace-server-paper.jar": "d133a093ff684490dcb3ae81e2751498c5fc9eeb9fe0c6f0bbce802f5dd23e7b"
+  },
+  "interpretation": "The current main source commit produced the exact eight-entry release bundle and every SHA256SUMS entry matched after download.",
+  "limitations": [
+    "Product version remains 0.1.0-SNAPSHOT until the operator completes the external v0.0.1 gates.",
+    "This record does not assert the six GUI decisions, real federation handoff, or genuine licensed Vulcan event."
+  ]
+}
