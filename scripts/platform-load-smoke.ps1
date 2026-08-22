@@ -13,6 +13,9 @@ param(
     [string]$FabricEvidencePlayerName,
     [Parameter(ParameterSetName = 'Execute')]
     [switch]$RetainDiagnostics,
+    [Parameter(ParameterSetName = 'Execute')]
+    [ValidateRange(30, 600)]
+    [int]$ManualConsentTimeoutSeconds = 120,
     [Parameter(ParameterSetName = 'Report', Mandatory)]
     [switch]$ReportOnly,
     [Parameter(ParameterSetName = 'Report', Mandatory)]
@@ -93,7 +96,11 @@ $runLeaf = '{0}-{1}-{2}' -f $runId, $FabricTarget.Replace('.', '_'), $runToken
 $runRoot = Join-Path $runsRoot $runLeaf
 $velocityRoot = Join-Path $runRoot 'velocity'
 $paperRoot = Join-Path $runRoot 'paper'
-$manualConsentHandshakeTimeoutSeconds = 30
+$manualConsentHandshakeTimeoutSeconds = if ($WithFabricEvidence) {
+    $ManualConsentTimeoutSeconds
+} else {
+    30
+}
 $gradleVersion = '9.6.1'
 $reportSchema = 7
 $bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V5'
