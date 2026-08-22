@@ -569,8 +569,13 @@ public final class MCAceVelocityPlugin {
         if (dispositionExecutor != null) {
             retiredSession.ifPresent(sessionId -> dispositionExecutor.clearSession(playerId, sessionId));
         }
+        // Velocity may emit LoginSuccess before the downstream client has entered the
+        // play phase.  A plugin message sent in that gap is silently discarded by the
+        // vanilla client (the Paper side then waits until the handshake timeout).  Give
+        // the play-channel registration a bounded window; onChannelRegister still starts
+        // immediately when a client advertises the channel.
         server.getScheduler().buildTask(this, () -> startHandshake(player, ticket))
-                .delay(Duration.ofSeconds(1))
+                .delay(Duration.ofSeconds(5))
                 .schedule();
     }
 
@@ -1314,8 +1319,11 @@ public final class MCAceVelocityPlugin {
                     || !installTicketBoundChallenge(challengedPlayers, playerId, ticket)) return;
             try {
                 byte[] challenge = coordinator().begin(playerId);
-                if (!isCurrentPhysicalLoginLocked(player, ticket)
-                        || !player.sendPluginMessage(MCAceVelocityChannels.HANDSHAKE, challenge)) {
+                boolean sent = isCurrentPhysicalLoginLocked(player, ticket)
+                        && player.sendPluginMessage(MCAceVelocityChannels.HANDSHAKE, challenge);
+                logger.info("MCAce challenge dispatch player={} bytes={} sent={}",
+                        player.getUsername(), challenge.length, sent);
+                if (!sent) {
                     removeTicketBoundChallenge(challengedPlayers, playerId, ticket);
                     coordinator().remove(playerId);
                     logger.debug("MCAce challenge channel is not available for {}", player.getUsername());

@@ -1,48 +1,42 @@
 # MCAce（中文说明）
 
-MCAce 是面向现代 Minecraft 网络的防御性信任、准入、证据与可逆处置平台。
-它提供签名客户端证明、范围化完整性清单、抗重放会话、服务器上下文和可解释
-处置动作。
+MCAce 是面向现代 Minecraft 网络的隐私优先信任、准入、证据与可逆处置栈。
+发布面严格收窄为 Fabric 客户端 Mod、Velocity/BungeeCord 代理插件以及一个
+Paper/Folia 后端插件。
 
-> **发布候选边界：** 当前可以作为经过审查的 Release Candidate 发布，但不能
-> 宣称覆盖所有 `1.21.x`，也不能把客户端特征当成完成的行为反作弊。客户端事实
-> 默认只是低置信度观察；高影响动作必须有独立服务器信号或持久化管理员授权。
+> **v0.0.1 当前仍未放行。** 代码和服务端矩阵已在工作，但正式 tag 必须等
+> 三版本可见 GUI 人工确认、真实服务器检测/拦截事件、真实 Vulcan genuine
+> event、以及 Fabric federation source→target handoff 都在审查提交上留下证据。
 
-[English README](README.md) · [安全模型](docs/SECURITY.md) · [反作弊证据](docs/evidence/anti-cheat-detection-2026-08-21.json)
+[English README](README.md) · [发布门](docs/RELEASE_GATES.md) ·
+[安全模型](docs/SECURITY.md) · [反作弊证据](docs/evidence/anti-cheat-detection-2026-08-21.json)
 
 ![验证总览](docs/assets/verification-dashboard.svg)
 
-## 当前进度
+## 产品边界与隐私契约
 
-| 项目 | 当前结果 | 含义 |
-| --- | --- | --- |
-| 根构建 + modern 构建 | `171 suites / 755 tests / 0 failures / 0 errors` | JDK21 根模块 + JDK25 modern 客户端 |
-| exact 发布包 | `8/8` | 六个可部署 JAR + manifest + `SHA256SUMS` |
-| 服务端真实进程矩阵 | `12/12` | Paper/Folia × Velocity/Bungee；Folia 26.2 为 beta |
-| 版本兼容合同 | `3/3` | 协议、Java、metadata、nested JAR、拒绝未知版本 |
-| 反作弊回归 | `31` 项 | 特征分类、完整性、重放、行为关联、真实客户端加载 |
-
-当前分支为 [`codex/release-2026-08-21`](https://github.com/TypeThe0ry/MCAce/tree/codex/release-2026-08-21)，
-精确 source commit 记录在 `release-manifest.properties` 中。
-详细交接记录见 [下一轮迭代状态](docs/NEXT_ITERATION_2026-08-21.md)。
+- Fabric 客户端 Mod：`1.21.11`、`26.1.2`、`26.2`。
+- Velocity、BungeeCord 代理插件。
+- Paper/Folia 后端插件。
+- 默认 `MONITOR`；客户端来源事实只能观察，不能单独处罚玩家。
+- 文件/截图证据必须经过可见、明确的人工同意。
+- `DENY` 只作用于当前连接，可复核、可撤销；没有自动永久 BAN。
+- 发布面不包含 launcher、agent、内核驱动、隐藏采集、键盘记录、摄像头/麦克风、
+  任意封包利用或强制 Cloud 服务。
 
 ## 精确版本适配
 
-兼容性采用精确 allowlist，不根据协议号大小推导：
+兼容性是精确 tuple allowlist，不按协议号大小推断。
 
 ![版本矩阵](docs/assets/version-compatibility.svg)
 
-| Minecraft | 协议号 | Java | Fabric Loader | Fabric API | 产物 |
+| Minecraft | 协议号 | Java | Fabric Loader | Fabric API | 客户端产物 |
 | --- | ---: | ---: | --- | --- | --- |
-| `1.21.11` | `774` | `21` | `0.19.3` | `0.141.6+1.21.11` | Loom remap 最终 JAR |
-| `26.1.2` | `775` | `25` | `0.19.3` | `0.155.2+26.1.2` | official named 最终 JAR |
-| `26.2` | `776` | `25` | `0.19.3` | `0.157.0+26.2` | official named 最终 JAR |
+| `1.21.11` | `774` | `21` | `0.19.3` | `0.141.6+1.21.11` | 最终 remap JAR |
+| `26.1.2` | `775` | `25` | `0.19.3` | `0.155.2+26.1.2` | 最终 named JAR |
+| `26.2` | `776` | `25` | `0.19.3` | `0.157.0+26.2` | 最终 named JAR |
 
-当前真正验证的 `1.21.x` 只有 `1.21.11`。`1.21.1`、`1.21.10`、`26.1`、
-`26.3` 和其他未列出的 patch 会 fail-closed；新增版本必须重新核对 wire
-profile、资产、构建、加载和真实进程证据。
-
-运行版本合同检查：
+当前真正验证的 `1.21.x` 只有 `1.21.11`，未列出的 patch 全部 fail-closed：
 
 ```powershell
 .\scripts\version-compatibility-contract-smoke.ps1 -Execute
@@ -50,135 +44,140 @@ profile、资产、构建、加载和真实进程证据。
   -ReportPath .\build\compatibility-contract\report.json
 ```
 
-它检查协议号、Java 主版本、Fabric metadata、commit-bound build ID、产物模式、
-nested JAR 结构、exact-8 包以及未知版本拒绝。耐久证据见
-[`version-compatibility-contract-2026-08-21.json`](docs/evidence/version-compatibility-contract-2026-08-21.json)。
+## 证据仪表盘
 
-## 构建与验证
+| 门 | 当前证据 | 状态 |
+| --- | --- | --- |
+| 根 + modern 严格离线测试 | 历史 exact 包 `171 suites / 755 tests / 0 failures / 0 errors`；最新 Helio 快照的 Fabric、Velocity、runtime 兼容测试成功 | 在已记录源码边界内通过 |
+| Paper/Folia × Velocity/Bungee 进程矩阵 | [`server-version-process-matrix-2026-08-22.json`](docs/evidence/server-version-process-matrix-2026-08-22.json)：`12/12`、六棵精确版本树、清理为零；sidecar 绑定的是 README 修改前的 tree | 记录快照通过，发布重绑待做 |
+| Fabric GUI consent | 1.21.11 已到可见显式文件授权页；未记录人工点击，因此没有生成发布证据 | 待 6 次人工确认 |
+| 反作弊检测 | fixture 分类、完整性、重放和关联回归通过；真实客户端未连服务端，未产出服务器检测事件 | 只有防御回归，真实事件待做 |
+| Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |
+| Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
+| exact-commit CI/release | 保护分支 CI 和旧 exact 包通过；当前审查提交还需 clean exact-commit CI 与 `releaseBundle` | 待做 |
 
-根工程使用 Temurin `21.0.7+6`，`fabric-modern` 使用 `25.0.3+9`：
+当前审查源码是分支 `codex/release-2026-08-21` 的 tip，可用
+`git rev-parse HEAD` 校验精确提交。最后一个本地 exact-eight 包绑定的是旧提交，只能作为历史证据，
+不能直接冒充 v0.0.1。
+
+![反作弊证据边界](docs/assets/anti-cheat-evidence-flow.svg)
+
+![验证结果图](docs/assets/verification-dashboard.svg)
+
+## 反作弊与特征检测
+
+检测管线严格区分来源和置信度：
+
+1. `CLIENT_REPORTED` 的 Mod/资源包事实只是低置信度观察。
+2. 签名、nonce、sequence、expiry、replay、scope 检查拒绝伪造或过期证据。
+3. 只有配置的 provider 和时间窗口共同佐证时，关联器才产生 review 信号。
+4. 高影响动作必须由 `SERVER_CONFIRMED` producer 或持久化管理员授权触发；客户端加载
+   不是检测/拦截结果。
+
+受控 fixture 只读 metadata，不执行第三方代码：
 
 ```powershell
-$env:JAVA_HOME = '<Temurin 21.0.7+6 路径>'
-.\gradlew.bat clean build releaseBundle `
+.\scripts\anticheat-fixture-smoke.ps1 -Execute `
+  -MinecraftVersion 1.21.11 `
+  -MeteorJar 'C:\fixtures\meteor-client.jar' -MeteorSha256 '<sha256>' `
+  -XrayPack 'C:\fixtures\Spectator_Xray_1.2.1.zip' -XraySha256 '<sha256>'
+```
+
+耐久真实客户端记录只证明客户端发现/资源加载，并明确写出
+`real_server_connection=false`、`real_server_detection_event=false`、
+`real_server_enforcement_exercised=false`。因此当前不宣称检测 precision、kick/DENY
+效果或 BAN 效果。
+
+## 构建与测试
+
+根模块使用 JDK21，modern 客户端使用 JDK25；严格离线并启用依赖校验：
+
+```powershell
+$env:JAVA_HOME = '<JDK 21 路径>'
+.\gradlew.bat clean build localVerificationBundle `
   "-PmcaceSourceCommit=$(git rev-parse HEAD)" `
-  "-PmcaceModernJavaHome=<Temurin 25.0.3+9 路径>" `
+  "-PmcaceModernJavaHome=<JDK 25 路径>" `
   --offline --dependency-verification=strict --rerun-tasks `
   --no-build-cache --no-configuration-cache --no-daemon `
   --no-parallel --max-workers=1 --console=plain
 ```
 
-权威服务端进程矩阵：
+服务端权威矩阵：
 
 ```powershell
 .\scripts\server-version-process-matrix.ps1 -Execute
 .\scripts\server-version-process-matrix.ps1 -ReportOnly
 ```
 
-该矩阵覆盖三个精确版本、Paper/Folia、Velocity/Bungee，并绑定服务端 JAR、
-prepared runtime、Java 哈希、协议 profile、raw report、清理结果和当前源码。
+为减少本机占用，编译/测试通过 cluster-orchestrator 分发。最近一次远端任务运行在
+**Helio**（Windows、JDK21、RTX 4070 主机），显式使用 Gradle
+`-Xmx2G -XX:TieredStopAtLevel=1`，约 1 分 20 秒完成，退出码 0。远端使用审查提交的
+tree-equivalent 快照；凭据和 worker 路径不会写入仓库。
 
-## 反作弊和特征检测
+## 三版本 GUI 人工门
 
-![反作弊证据边界](docs/assets/anti-cheat-evidence-flow.svg)
-
-检测链路严格区分证据来源：
-
-1. `CLIENT_REPORTED` 的 mod/resourcepack/行为事实只能作为低置信度观察。
-2. 完整性、nonce、sequence、expiry、重放和 scope 检查负责拒绝伪造或过期证据。
-3. 行为关联只有在配置的 provider 和时间窗口共同满足时才产生 review 信号。
-4. 高影响动作需要服务器确认或管理员持久授权；DENY 只关闭当前连接，没有自动永久 BAN。
-
-受控 fixture 会检查 Meteor JAR 和 Xray 资源包的 metadata，但不会执行第三方代码：
+每个目标需要两次可见决定：显式文件授权，以及单独的 `GAME_RENDER_FRAME` 证据授权。
+脚本等待真人点击并记录页面阶段、决定、产物 hash、清理和 binding，不模拟输入：
 
 ```powershell
-.\scripts\anticheat-fixture-smoke.ps1 -Execute `
-  -MeteorJar <绝对路径> -MeteorSha256 <sha256> `
-  -XrayResourcePack <绝对路径> -XraySha256 <sha256> `
-  -TargetVersion 1.21.11
+$env:JAVA_HOME = '<目标对应的 JDK21 或 JDK25>'
+.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2 -WithFabricEvidence
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2 -WithFabricEvidence
 ```
 
-另外完成了一次有界真实客户端 smoke：1.21.11 Fabric 客户端实际发现并初始化
-Meteor，并重载 `Spectator_Xray_1.2.1.zip`。该运行没有连接服务器，也没有启用
-作弊模块，所以它证明的是客户端加载，不是服务器检测率、踢出、DENY 或封禁效果；
-客户端未做网络隔离，并尝试了正常账号/Realms 请求。完整边界见
-[`anti-cheat-detection-2026-08-21.json`](docs/evidence/anti-cheat-detection-2026-08-21.json)
-和 [`DETECTION_AND_EVIDENCE.md`](docs/DETECTION_AND_EVIDENCE.md)。
+成功后用脚本输出的 report/binding hash 做 `-ReportOnly`；超时报告是诊断记录，不能升级成发布证据。
 
-![反作弊验证总览](docs/assets/verification-dashboard.svg)
+## Vulcan 与 federation
+
+Vulcan 需要操作者提供 licensed JAR、当前源码结构预检、隔离 Paper enablement，以及一次
+外部真实触发的 genuine event。MCAce 不下载、不打包该授权产物；genuine-event wrapper
+拒绝 synthetic event injection，只保存脱敏证据。
+
+Federation 需要 source export consent、source disconnect、直接连接 target、target import
+consent、subject binding、expiry 观察，以及零残留进程/端口。静态测试不等于真实 handoff。
 
 ## 发布产物
 
-本地 exact 包位于 `build/release-bundle/`，包含六个 JAR、manifest 和
-`SHA256SUMS`。manifest 与 sums 文件是唯一权威 hash 来源，不要把上一提交的
-JAR hash 复制到文档中。
+精确分发包固定为 8 项：六个可部署 JAR、`release-manifest.properties`、`SHA256SUMS`。
+hash 必须来自干净 exact-commit `releaseBundle`，不要把旧构建 hash 粘进 release note。
 
 | 文件 | 作用 |
 | --- | --- |
-| `mcace-client-fabric-1.21.11.jar` | Fabric 1.21.11 remap 客户端 |
-| `mcace-client-fabric-26.1.2.jar` | Fabric 26.1.2 named 客户端 |
-| `mcace-client-fabric-26.2.jar` | Fabric 26.2 named 客户端 |
+| `mcace-client-fabric-1.21.11.jar` | Fabric 1.21.11 客户端 |
+| `mcace-client-fabric-26.1.2.jar` | Fabric 26.1.2 客户端 |
+| `mcace-client-fabric-26.2.jar` | Fabric 26.2 客户端 |
 | `mcace-server-velocity.jar` | Velocity 代理插件 |
 | `mcace-server-bungeecord.jar` | BungeeCord 代理插件 |
 | `mcace-server-paper.jar` | Paper/Folia 后端插件 |
-| `release-manifest.properties` | source commit、运行时、身份和产物 metadata |
-| `SHA256SUMS` | 六个可部署 JAR 的 hash |
+| `release-manifest.properties` | exact source/runtime 身份 |
+| `SHA256SUMS` | 权威 JAR hash |
 
-直接校验当前字节：
-
-```powershell
-Get-Content .\build\release-bundle\SHA256SUMS
-Get-FileHash .\build\release-bundle\*.jar -Algorithm SHA256
-```
-
-## 下一步迭代
-
-已完成：三版本产物、协议 profile、12-case 服务端矩阵、双 JDK 严格离线构建、
-反作弊特征分类、Meteor/Xray 真实客户端加载和源码绑定证据。
-
-下一步按优先级：
-
-1. 完成三个目标各两次可见 GUI consent，共六次人工确认。
-2. 用批准的测试账号连接真实本地服务器，记录服务器检测、处置和误报边界。
-3. 完成当前 Vulcan 源码/enablement/genuine event 验证，并审查
-   `SERVER_CONFIRMED` provider/profile/key/topology。
-4. 完成真实 Fabric federation：source export → 断开 → target import → 跨 TTL 在线。
-5. 通过受保护分支 exact-commit CI 后再打正式 tag/release。
-
-## 架构图
+## 架构
 
 ```mermaid
 flowchart LR
-  client[Fabric 客户端\n1.21.11 / 26.1.2 / 26.2] -->|签名 envelope| proxy[Velocity / Bungee]
-  proxy -->|准入 + policy| paper[Paper / Folia]
-  paper --> context[有界服务器上下文]
-  client -->|CLIENT_REPORTED| observe[低置信度观察]
-  context --> correlate[服务器/provider 关联]
-  observe --> correlate
-  correlate --> review[人工审核 / 持久授权]
-  review --> action[当前连接可逆动作]
+  c[Fabric 客户端\n1.21.11 / 26.1.2 / 26.2] -->|签名 envelope| p[Velocity / Bungee]
+  p -->|准入 + policy| s[Paper / Folia]
+  c -->|CLIENT_REPORTED| o[低置信度观察]
+  s --> x[有界服务器上下文]
+  o --> r[关联 + 人工审核]
+  x --> r
+  r --> a[当前连接可逆动作]
 ```
 
-## 目录说明
+## 目录
 
 | 模块 | 职责 |
 | --- | --- |
 | `mcace-protocol` | wire contract、签名、重放防护 |
-| `mcace-core` | session、policy、risk、disposition、federation 基础 |
-| `mcace-client-common` | loader-neutral 完整性和证据原语 |
-| `mcace-client-fabric` | 1.21.11 remap 客户端 |
-| `fabric-modern/client-26.1.2` | JDK25 official-namespace 客户端 |
-| `fabric-modern/client-26.2` | JDK25 official-namespace 客户端 |
+| `mcace-core` | session、policy、risk、disposition、federation |
+| `mcace-client-common` | loader-neutral 完整性/证据原语 |
+| `mcace-client-fabric` | 1.21.11 客户端与 consent UI |
+| `fabric-modern` | JDK25 official-namespace 客户端 |
 | `mcace-server-velocity` / `mcace-server-bungeecord` | 代理适配器 |
-| `mcace-server-paper` | Paper/Folia 后端适配器 |
-| `scripts/` | 构建、资产、兼容性和进程 gate |
+| `mcace-server-paper` | Paper/Folia 适配器 |
+| `scripts/` | 构建、资产、兼容性与证据 gate |
 
-更多资料：[架构](docs/ARCHITECTURE.md)、[运行](docs/OPERATIONS.md)、
-[平台测试](docs/PLATFORM_TESTING.md)、[发布门](docs/RELEASE_GATES.md)、
-[迁移](docs/MIGRATION.md)、[安全](docs/SECURITY.md)、[federation](docs/FEDERATION.md)。
-
-## 安全边界
-
-MCAce 不做全盘扫描、键盘记录、摄像头/麦克风访问、浏览器检查、隐藏执行、
-内核驱动、封包利用或绕过开发。未知 artifact 不是自动作弊结论；高影响动作必须
-服务器确认、可解释、可逆并可审计。
+更多资料：[架构](docs/ARCHITECTURE.md)、[运行](docs/OPERATIONS.md)、[平台测试](docs/PLATFORM_TESTING.md)、
+[发布门](docs/RELEASE_GATES.md)、[安全](docs/SECURITY.md)、[federation](docs/FEDERATION.md)。

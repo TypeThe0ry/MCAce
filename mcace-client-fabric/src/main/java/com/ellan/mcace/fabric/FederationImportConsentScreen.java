@@ -46,7 +46,8 @@ final class FederationImportConsentScreen extends Screen {
 
     @Override
     public void render(DrawContext context, int mouseX, int mouseY, float delta) {
-        renderBackground(context, mouseX, mouseY, delta);
+        // 1.21.11 rejects a second blur submission in the same frame.
+        renderInGameBackground(context);
         int contentWidth = Math.max(1, Math.min(WIDTH, width - 40));
         int y = 24;
         for (String paragraph : displayLines(presentation)) {

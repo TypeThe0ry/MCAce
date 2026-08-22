@@ -95,8 +95,8 @@ $velocityRoot = Join-Path $runRoot 'velocity'
 $paperRoot = Join-Path $runRoot 'paper'
 $manualConsentHandshakeTimeoutSeconds = 30
 $gradleVersion = '9.6.1'
-$reportSchema = 6
-$bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V4'
+$reportSchema = 7
+$bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V5'
 $fabricArtifactClass = 'sanitized-final-fabric-gui-evidence'
 $fabricArtifactVersion = '0.1.0-SNAPSHOT'
 $fabricSmokeBuildId = "platform-smoke-$runId"
@@ -115,12 +115,14 @@ $fabricTargets = [ordered]@{
         java_major = 21
         artifact_kind = 'FINAL_REMAP_JAR'
         runtime_mode = 'LOOM_FINAL_REMAP_ARTIFACT'
+        runtime_artifact_kind = 'NAMED_SMOKE_JAR'
         project_directory = Join-Path $repoRoot 'mcace-client-fabric'
         gradle_project_directory = $repoRoot
         build_task = ':mcace-client-fabric:remapJar'
         verify_task = ':mcace-client-fabric:verifySmokeArtifactMode'
         run_task = ':mcace-client-fabric:runClient'
         artifact_path = Join-Path $repoRoot 'mcace-client-fabric\build\libs\mcace-client-fabric-0.1.0-SNAPSHOT.jar'
+        runtime_artifact_path = Join-Path $repoRoot 'mcace-client-fabric\build\smoke-libs\mcace-client-fabric-0.1.0-SNAPSHOT-smoke-named.jar'
         asset_index = '29'
         version_info_sha1 = '4b5fd518c8f06ea3f9fdef2895f729c204f0bf5e'
         version_info_sha256 = 'f6ce577abd648a59766f2236dcaa76b5a3817a8122fc704713976f5cc6895962'
@@ -136,12 +138,14 @@ $fabricTargets = [ordered]@{
         java_major = 25
         artifact_kind = 'FINAL_NAMED_JAR'
         runtime_mode = 'LOOM_FINAL_NAMED_JAR_ARTIFACT'
+        runtime_artifact_kind = 'FINAL_NAMED_JAR'
         project_directory = Join-Path $repoRoot 'fabric-modern\client-26.1.2'
         gradle_project_directory = Join-Path $repoRoot 'fabric-modern'
         build_task = ':client-26.1.2:jar'
         verify_task = ':client-26.1.2:verifySmokeArtifactMode'
         run_task = ':client-26.1.2:runClient'
         artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.1.2\build\libs\mcace-client-fabric-26.1.2-0.1.0-SNAPSHOT.jar'
+        runtime_artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.1.2\build\libs\mcace-client-fabric-26.1.2-0.1.0-SNAPSHOT.jar'
         asset_index = '30'
         version_info_sha1 = 'edcfd100a4856650b6e9797bac8f7fd76821979e'
         version_info_sha256 = '92dc2a84d8151cf8ff26b4be4c0b1d3b9e88f0c28a860e1cae1a5b3fbdefee9a'
@@ -157,12 +161,14 @@ $fabricTargets = [ordered]@{
         java_major = 25
         artifact_kind = 'FINAL_NAMED_JAR'
         runtime_mode = 'LOOM_FINAL_NAMED_JAR_ARTIFACT'
+        runtime_artifact_kind = 'FINAL_NAMED_JAR'
         project_directory = Join-Path $repoRoot 'fabric-modern\client-26.2'
         gradle_project_directory = Join-Path $repoRoot 'fabric-modern'
         build_task = ':client-26.2:jar'
         verify_task = ':client-26.2:verifySmokeArtifactMode'
         run_task = ':client-26.2:runClient'
         artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.2\build\libs\mcace-client-fabric-26.2-0.1.0-SNAPSHOT.jar'
+        runtime_artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.2\build\libs\mcace-client-fabric-26.2-0.1.0-SNAPSHOT.jar'
         asset_index = '32'
         version_info_sha1 = 'dc69be58cf16ad99f4b1ae7360c9a29c8c819ca5'
         version_info_sha256 = 'd4a21bea5568a8e194ff8fc94081489cf2b694a9d04c7bc4e673add58a10955f'
@@ -177,6 +183,7 @@ $fabricDescriptor = $fabricTargets[$FabricTarget]
 if ($null -eq $fabricDescriptor) { throw 'PLATFORM_SMOKE_FABRIC_TARGET_INVALID' }
 $fabricRuntimeMode = [string]$fabricDescriptor.runtime_mode
 $fabricArtifactJar = [string]$fabricDescriptor.artifact_path
+$fabricRuntimeArtifactJar = [string]$fabricDescriptor.runtime_artifact_path
 $preparedPaperRoot = ''
 
 $velocityArtifact = @{
@@ -680,6 +687,7 @@ function New-SanitizedReleaseReport(
         [System.Collections.IDictionary]$ConsentEvidence,
         [bool]$FabricClientRequested,
         [bool]$FabricEvidenceRequested,
+        [bool]$FabricRuntimeJarLoaded,
         [bool]$FabricReleaseJarLoaded,
         [bool]$ExplicitFileFixturePresent,
         [bool]$EvidenceAuditSummaryObserved,
@@ -708,6 +716,7 @@ function New-SanitizedReleaseReport(
         fabric_artifact_kind = [string]$fabricDescriptor.artifact_kind
         fabric_java_major = [int]$fabricDescriptor.java_major
         fabric_runtime_mode = $fabricRuntimeMode
+        fabric_runtime_jar_loaded = $FabricRuntimeJarLoaded
         fabric_release_jar_loaded = $FabricReleaseJarLoaded
         fabric_client_requested = $FabricClientRequested
         fabric_evidence_requested = $FabricEvidenceRequested
@@ -1496,13 +1505,14 @@ function Get-ImmutableInputSnapshot {
 
 function Get-CurrentEvidenceBinding {
     $input = Get-ImmutableInputSnapshot
-    foreach ($artifact in @($fabricArtifactJar, $velocityPlugin, $paperPlugin)) {
+    foreach ($artifact in @($fabricArtifactJar, $fabricRuntimeArtifactJar, $velocityPlugin, $paperPlugin)) {
         $null = Assert-DirectLocalPath $artifact
     }
     $fabricIdentity = Get-FabricArtifactIdentity $fabricArtifactJar $fabricDescriptor
     $current = [ordered]@{}
     foreach ($name in @($input.Keys)) { $current[$name] = $input[$name] }
     $current['fabric_artifact_sha256'] = Get-Sha256 $fabricArtifactJar
+    $current['fabric_runtime_artifact_sha256'] = Get-Sha256 $fabricRuntimeArtifactJar
     $current['fabric_build_id'] = $fabricIdentity.build_id
     $current['velocity_policy_minecraft_versions'] = [string]$fabricDescriptor.minecraft_version
     $current['velocity_policy_client_build_ids'] = $fabricIdentity.build_id
@@ -1588,7 +1598,7 @@ function Assert-PassingReportRaw([string]$Raw, [switch]$RequireFullFabricEvidenc
         'diagnostics_retained', 'fabric_target', 'minecraft_version', 'fabric_api_version',
         'velocity_policy_minecraft_versions', 'velocity_policy_client_build_ids',
         'fabric_artifact_kind', 'fabric_java_major', 'fabric_runtime_mode',
-        'fabric_release_jar_loaded',
+        'fabric_runtime_jar_loaded', 'fabric_release_jar_loaded',
         'fabric_client_requested', 'fabric_evidence_requested', 'explicit_file_fixture_present',
         'explicit_file_manifest_entries', 'explicit_file_manifest_entries_observed',
         'explicit_file_consent_requested', 'explicit_file_consent_rendered',
@@ -1623,7 +1633,8 @@ function Assert-PassingReportRaw([string]$Raw, [switch]$RequireFullFabricEvidenc
             throw "PLATFORM_SMOKE_REPORT_ASSERTION_INVALID: $name"
         }
     }
-    foreach ($name in @('release_evidence', 'diagnostics_retained', 'fabric_release_jar_loaded', 'raw_evidence_retained')) {
+    foreach ($name in @('release_evidence', 'diagnostics_retained', 'fabric_runtime_jar_loaded',
+            'fabric_release_jar_loaded', 'raw_evidence_retained')) {
         if ($report.$name -isnot [bool]) { throw "PLATFORM_SMOKE_REPORT_TYPE_INVALID: $name" }
     }
     foreach ($name in @('fabric_client_requested', 'fabric_evidence_requested',
@@ -1671,8 +1682,9 @@ function Assert-PassingReportRaw([string]$Raw, [switch]$RequireFullFabricEvidenc
             [int]$report.fabric_java_major -ne [int]$fabricDescriptor.java_major -or
             $report.fabric_runtime_mode -cne $fabricRuntimeMode -or
             $report.release_evidence -or $report.raw_evidence_retained -or
-            ([bool]$report.fabric_release_jar_loaded -ne [bool]$report.fabric_client_requested) -or
-            ($RequireFullFabricEvidence -and -not $report.fabric_release_jar_loaded) -or
+            ([bool]$report.fabric_runtime_jar_loaded -ne [bool]$report.fabric_client_requested) -or
+            ($report.fabric_release_jar_loaded -and -not $report.fabric_runtime_jar_loaded) -or
+            ($RequireFullFabricEvidence -and -not $report.fabric_runtime_jar_loaded) -or
             -not (Test-JsonInteger $report.explicit_file_manifest_entries) -or
             $report.explicit_file_manifest_entries -ne $(if ($report.fabric_client_requested) { 1 } else { 0 }) -or
             -not (Test-JsonInteger $report.loopback_listener_count) -or
@@ -1690,9 +1702,11 @@ function Assert-BindingRaw([string]$Raw, [string]$ReportSha256, [object]$Report,
     $names = @('schema', 'report_schema', 'report_generated_at', 'report_sha256', 'source_mode',
         'fabric_target', 'minecraft_version', 'velocity_policy_minecraft_versions',
         'velocity_policy_client_build_ids', 'fabric_api_version', 'fabric_artifact_kind',
-        'fabric_java_major', 'fabric_runtime_mode', 'fabric_release_jar_loaded',
+        'fabric_java_major', 'fabric_runtime_mode', 'fabric_runtime_jar_loaded',
+        'fabric_release_jar_loaded',
         'fabric_artifact_marker_observed', 'fabric_build_id', 'script_sha256',
         'source_manifest_sha256', 'source_file_count', 'fabric_artifact_sha256',
+        'fabric_runtime_artifact_sha256',
         'velocity_plugin_sha256', 'paper_plugin_sha256', 'velocity_server_sha256',
         'paper_server_sha256', 'server_matrix_manifest_sha256',
         'paper_prepared_manifest_sha256', 'paper_prepared_tree_sha256',
@@ -1727,10 +1741,12 @@ function Assert-BindingRaw([string]$Raw, [string]$ReportSha256, [object]$Report,
             [int]$binding.fabric_java_major -ne [int]$fabricDescriptor.java_major -or
             [int]$binding.fabric_java_major -ne [int]$Report.fabric_java_major -or
             $binding.fabric_runtime_mode -cne $fabricRuntimeMode -or
+            $binding.fabric_runtime_jar_loaded -isnot [bool] -or
+            [bool]$binding.fabric_runtime_jar_loaded -ne [bool]$Report.fabric_runtime_jar_loaded -or
             $binding.fabric_release_jar_loaded -isnot [bool] -or
             [bool]$binding.fabric_release_jar_loaded -ne [bool]$Report.fabric_release_jar_loaded -or
             $binding.fabric_artifact_marker_observed -isnot [bool] -or
-            [bool]$binding.fabric_artifact_marker_observed -ne [bool]$Report.fabric_release_jar_loaded -or
+            [bool]$binding.fabric_artifact_marker_observed -ne [bool]$Report.fabric_runtime_jar_loaded -or
             [string]$binding.fabric_build_id -cnotmatch '^platform-smoke-[0-9]{8}T[0-9]{9}Z$' -or
             $binding.passed -isnot [bool] -or -not $binding.passed -or
             $binding.fabric_asset_cache_verified -isnot [bool] -or
@@ -1767,7 +1783,7 @@ function Assert-BindingRaw([string]$Raw, [string]$ReportSha256, [object]$Report,
     foreach ($name in @('fabric_target', 'minecraft_version', 'fabric_api_version',
             'velocity_policy_minecraft_versions', 'velocity_policy_client_build_ids',
             'fabric_artifact_kind', 'fabric_runtime_mode', 'fabric_build_id', 'script_sha256',
-            'source_manifest_sha256', 'fabric_artifact_sha256',
+            'source_manifest_sha256', 'fabric_artifact_sha256', 'fabric_runtime_artifact_sha256',
             'velocity_plugin_sha256', 'paper_plugin_sha256', 'velocity_server_sha256',
             'paper_server_sha256', 'server_matrix_manifest_sha256',
             'paper_prepared_manifest_sha256', 'paper_prepared_tree_sha256',
@@ -1857,13 +1873,15 @@ function New-EvidenceBinding([byte[]]$ReportBytes, [object]$Report,
         fabric_artifact_kind = $Current.fabric_artifact_kind
         fabric_java_major = [int]$Current.fabric_java_major
         fabric_runtime_mode = $Current.fabric_runtime_mode
+        fabric_runtime_jar_loaded = [bool]$Report.fabric_runtime_jar_loaded
         fabric_release_jar_loaded = [bool]$Report.fabric_release_jar_loaded
-        fabric_artifact_marker_observed = [bool]$Report.fabric_release_jar_loaded
+        fabric_artifact_marker_observed = [bool]$Report.fabric_runtime_jar_loaded
         fabric_build_id = $Current.fabric_build_id
         script_sha256 = $Current.script_sha256
         source_manifest_sha256 = $Current.source_manifest_sha256
         source_file_count = $Current.source_file_count
         fabric_artifact_sha256 = $Current.fabric_artifact_sha256
+        fabric_runtime_artifact_sha256 = $Current.fabric_runtime_artifact_sha256
         velocity_plugin_sha256 = $Current.velocity_plugin_sha256
         paper_plugin_sha256 = $Current.paper_plugin_sha256
         velocity_server_sha256 = $Current.velocity_server_sha256
@@ -1964,6 +1982,7 @@ $smokeBuildProperties = @(
 $rootBuildTasks = @(':mcace-server-velocity:shadowJar', ':mcace-server-paper:shadowJar')
 if ([int]$fabricDescriptor.java_major -eq 21) {
     $rootBuildTasks += [string]$fabricDescriptor.build_task
+    $rootBuildTasks += ':mcace-client-fabric:smokeNamedJar'
 } else {
     $rootBuildTasks += ':stageModernFabricDeps'
 }
@@ -1981,12 +2000,14 @@ if ([int]$fabricDescriptor.java_major -eq 25) {
 }
 
 if (-not (Test-Path -LiteralPath $velocityPlugin) -or -not (Test-Path -LiteralPath $paperPlugin) -or
-        -not (Test-Path -LiteralPath $fabricArtifactJar)) {
+        -not (Test-Path -LiteralPath $fabricArtifactJar) -or
+        -not (Test-Path -LiteralPath $fabricRuntimeArtifactJar)) {
     throw 'Expected MCAce platform artifacts were not produced'
 }
 $builtFabricArtifactSha256 = Get-Sha256 (Assert-DirectLocalPath $fabricArtifactJar)
+$builtFabricRuntimeArtifactSha256 = Get-Sha256 (Assert-DirectLocalPath $fabricRuntimeArtifactJar)
 $verificationProperties = @($smokeBuildProperties) + @(
-    "-PmcaceSmokeExpectedArtifactSha256=$builtFabricArtifactSha256"
+    "-PmcaceSmokeExpectedArtifactSha256=$builtFabricRuntimeArtifactSha256"
 )
 if ([int]$fabricDescriptor.java_major -eq 25) {
     $verificationProperties += @(
@@ -2004,7 +2025,7 @@ if ($currentEvidenceBinding.fabric_build_id -cne $fabricSmokeBuildId) {
 }
 $fabricExpectedArtifactMarker =
     "MCACE_FABRIC_ARTIFACT_LOADED version=$fabricArtifactVersion build_id=$fabricSmokeBuildId" +
-    " code_source_sha256=$($currentEvidenceBinding.fabric_artifact_sha256)"
+    " code_source_sha256=$($currentEvidenceBinding.fabric_runtime_artifact_sha256)"
 $velocityTransportClassesPresent = Test-JarEntry $velocityPlugin 'com/ellan/mcace/velocity/MCAceVelocityChannels.class'
 if (-not $velocityTransportClassesPresent) {
     throw 'Velocity MCAce plugin artifact is missing its client transport channel implementation'
@@ -2174,7 +2195,7 @@ try {
         }
         $fabricGuiStage = 'CLIENT_STARTING'
         $fabricClient = Start-FabricClient $fabricRoot $serverAddress $WithFabricEvidence `
-            $currentEvidenceBinding.fabric_artifact_sha256
+            $currentEvidenceBinding.fabric_runtime_artifact_sha256
         $fabricLog = Join-Path $fabricRoot 'logs\latest.log'
         Wait-ServiceLog $fabricClient $fabricLog @(
             $fabricExpectedArtifactMarker,
@@ -2370,6 +2391,9 @@ try {
         $WithFabricClient `
         $WithFabricEvidence `
         $fabricArtifactMarkerObserved `
+        ($fabricArtifactMarkerObserved -and
+            ($currentEvidenceBinding.fabric_runtime_artifact_sha256 -ceq
+                $currentEvidenceBinding.fabric_artifact_sha256)) `
         $explicitFileFixturePresent `
         $evidenceAuditSummaryObserved `
         ($identityFingerprintBeforeRestart -eq $identityFingerprintAfterRestart) `
@@ -2459,6 +2483,7 @@ try {
             fabric_artifact_kind = [string]$fabricDescriptor.artifact_kind
             fabric_java_major = [int]$fabricDescriptor.java_major
             fabric_runtime_mode = $fabricRuntimeMode
+            fabric_runtime_jar_loaded = [bool]$fabricArtifactMarkerObserved
             fabric_release_jar_loaded = [bool]$fabricArtifactMarkerObserved
             fabric_artifact_marker_observed = [bool]$fabricArtifactMarkerObserved
             fabric_build_id = $fabricSmokeBuildId
