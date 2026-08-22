@@ -135,6 +135,23 @@ final class DispositionPolicyCompilerTest {
     }
 
     @Test
+    void compilesSelectedResourcePackMetadataAsAnAdvisoryRule() {
+        DetectionRule rule = baseRule("selected-xray")
+                .setSelector(DetectionSelector.newBuilder()
+                        .setArtifactType(DetectionArtifactType.DETECTION_ARTIFACT_RESOURCE_PACK)
+                        .setMatchType(DetectionMatchType.DETECTION_MATCH_METADATA)
+                        .putMetadata("selected", "true"))
+                .setDefaultAction(com.ellan.mcace.protocol.generated.DispositionAction.DISPOSITION_WARN)
+                .build();
+
+        DispositionRule compiled = DispositionPolicyCompiler.compileVerified(document(rule)).rules().getFirst();
+        assertEquals(ArtifactType.RESOURCE_PACK, compiled.selector().type());
+        assertEquals(MatchType.METADATA, compiled.selector().matchType());
+        assertEquals(Map.of("selected", "true"), compiled.selector().requiredMetadata());
+        assertEquals(DispositionAction.WARN, compiled.action());
+    }
+
+    @Test
     void rejectsUnknownAndUnsafeValues() {
         assertThrows(DispositionPolicyCompileException.class, () -> DispositionPolicyCompiler.artifactType(DetectionArtifactType.DETECTION_ARTIFACT_TYPE_UNSPECIFIED));
         assertThrows(DispositionPolicyCompileException.class, () -> DispositionPolicyCompiler.artifactType(DetectionArtifactType.UNRECOGNIZED));
