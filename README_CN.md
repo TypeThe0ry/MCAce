@@ -49,7 +49,7 @@ Paper/Folia 后端插件。
 | 门 | 当前证据 | 状态 |
 | --- | --- | --- |
 | 根 + modern 严格离线测试 | 历史 exact 包 `171 suites / 755 tests / 0 failures / 0 errors`；最新 Helio 快照的 Fabric、Velocity、runtime 兼容测试成功 | 在已记录源码边界内通过 |
-| Paper/Folia × Velocity/Bungee 进程矩阵 | [`server-version-process-matrix-2026-08-22.json`](docs/evidence/server-version-process-matrix-2026-08-22.json)：`12/12`、六棵精确版本树、清理为零，并绑定当前源码清单 | 当前 tree 内通过 |
+| Paper/Folia × Velocity/Bungee 进程矩阵 | [`server-version-process-matrix-2026-08-22.json`](docs/evidence/server-version-process-matrix-2026-08-22.json)：`12/12`、六棵精确版本树、清理为零；sidecar 绑定的是 README 修改前的 tree | 记录快照通过，发布重绑待做 |
 | Fabric GUI consent | 1.21.11 已到可见显式文件授权页；未记录人工点击，因此没有生成发布证据 | 待 6 次人工确认 |
 | 反作弊检测 | fixture 分类、完整性、重放和关联回归通过；真实客户端未连服务端，未产出服务器检测事件 | 只有防御回归，真实事件待做 |
 | Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |

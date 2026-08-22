@@ -55,7 +55,7 @@ Run the contract against a current bundle:
 | Gate | Current evidence | State |
 | --- | --- | --- |
 | Root + modern strict offline tests | Historical exact bundle: `171 suites / 755 tests / 0 failures / 0 errors`; latest Helio snapshot ran Fabric, Velocity, and runtime compatibility tests successfully | PASS within recorded source boundary |
-| Paper/Folia × Velocity/Bungee process matrix | [`server-version-process-matrix-2026-08-22.json`](docs/evidence/server-version-process-matrix-2026-08-22.json): `12/12`, six exact version trees, cleanup zero, current source manifest bound | PASS within current tree |
+| Paper/Folia × Velocity/Bungee process matrix | [`server-version-process-matrix-2026-08-22.json`](docs/evidence/server-version-process-matrix-2026-08-22.json): `12/12`, six exact version trees, cleanup zero; the sidecar binds the pre-README documentation tree | PASS for recorded snapshot; release rebind pending |
 | Fabric GUI consent | 1.21.11 reached the visible explicit-file screen; no click was recorded, so no release evidence was minted | PENDING 6 human decisions |
 | Anti-cheat detection | Fixture classification and replay/integrity tests pass; real client load was disconnected and did not produce a server detection event | Defensive regression only; real server event pending |
 | Vulcan | Static contracts pass; licensed JAR and genuine external trigger are absent from this workspace | PENDING |
