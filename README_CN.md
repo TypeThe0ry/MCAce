@@ -9,7 +9,7 @@ Paper/Folia 后端插件。
 > source→target handoff 都在审查提交上留下证据。
 
 [English README](README.md) · [发布门](docs/RELEASE_GATES.md) ·
-[安全模型](docs/SECURITY.md) · [反作弊证据](docs/evidence/anti-cheat-real-server-2026-08-23.json) ·
+[安全模型](docs/SECURITY.md) · [反作弊证据](docs/evidence/anti-cheat-real-server-2026-08-23.json) · [当前 Helio 复测](docs/evidence/real-server-2026-08-23/rerun-2026-08-23.json) ·
 [Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22.json) ·
 [最新 Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json)
 · [当前提交回归证据](docs/evidence/static-regression-2026-08-23.json)
@@ -56,7 +56,7 @@ Paper/Folia 后端插件。
 | 当前提交回归套件 | [当前提交回归证据](docs/evidence/static-regression-2026-08-23-current.json)：本机 15/15 wrapper 通过；修复后的 server-matrix/preparer 门在 Helio 源码等价 checkout 通过；GitHub build `32613574956` 对 exact commit `20e08619f038531da5b66d06cc7dbac12c6fb944` 通过 | 通过 |
 | Paper/Folia × Velocity/Bungee 进程矩阵 | [`server-version-process-matrix-2026-08-23-current.json`](docs/evidence/server-version-process-matrix-2026-08-23-current.json)：当前源码 Execute + ReportOnly 均通过，`12/12`、六棵精确版本树、清理为零；source manifest `749c21e7…` / 688 文件，绑定 `eb36229…` | feature 分支快照通过，发布重绑待做 |
 | Fabric GUI consent | 1.21.11 已到可见显式文件授权页；未记录人工点击，因此没有生成发布证据 | 待 6 次人工确认 |
-| 反作弊检测 | [`anti-cheat-real-server-2026-08-23.json`](docs/evidence/anti-cheat-real-server-2026-08-23.json)：source `4568e772…` 构建的插件产物（截至当前 HEAD 字节不变）在真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf` 上产出三次 `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK`（`AimDuplicateLook`、`Simulation`、`TickTimer`），并完成三次 HTTP `202` 风险上传 | 真实检测/拦截上传 PASS；`MONITOR`/`NONE` 是有意保持，未执行惩罚动作 |
+| 反作弊检测 | [`rerun-2026-08-23.json`](docs/evidence/real-server-2026-08-23/rerun-2026-08-23.json) 将当前 HEAD `d05f98c…` 与 Helio 重复实测绑定：真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf`，40 个移动探针，三次 `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK`（`AimDuplicateLook`、`Simulation`、`TickTimer`），三次 loopback 风险上传 | 真实检测/拦截上传 PASS；`MONITOR`/`NONE` 有意保留，未执行惩罚动作 |
 | Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
 | exact-commit CI/release | 最新 feature 分支 exact-checkout CI 运行 [`32611684113`](https://github.com/TypeThe0ry/MCAce/actions/runs/32611684113) 已对不可变提交 `eb362296213838ab307fec9d9ea184eebb244a71` 通过，完成 build/test 和 local verification bundle；feature 分支按设计跳过 release candidate | 该提交 PASS；受保护 `main` release CI 和 clean exact-commit release bundle 仍待完成 |

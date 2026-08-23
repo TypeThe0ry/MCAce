@@ -1,0 +1,82 @@
+{
+  "schema": "MCACE_ANTI_CHEAT_REAL_SERVER_RERUN_EVIDENCE_V1",
+  "generated_at": "2026-08-23T03:17:00Z",
+  "source_mode": "LOCAL_REAL_SERVER_LOOPBACK_REPEAT",
+  "source_commit": "d05f98cd467b012c260c42cc17d47b79d37529cd",
+  "execution_node": "helio",
+  "run_id": "20260823-real-server-rerun-20260823-111535",
+  "target": {
+    "minecraft": "1.21.11",
+    "server": "Leaf 1.21.11-135",
+    "server_jar_sha256": "105BC2C457F2249ED2CB0F902BEC44647A291AABC9C4761BE50BA25A46AF72B",
+    "anti_cheat": "GrimAC 2.3.74-155abaf",
+    "anti_cheat_jar_sha256": "214A44A0FF476577B66B9038FE6B8122789CE0667E48F7CBB5B0337417A24E9D",
+    "mcace_plugin": "0.1.0-SNAPSHOT",
+    "mcace_paper_jar_sha256": "3C44FA8529B08D2DB517D7460D47656AB727A3FDC0E38F06A431055748619180",
+    "java": "Oracle JDK 21.0.10",
+    "runtime_flag": "-XX:TieredStopAtLevel=1"
+  },
+  "execution": {
+    "server_started": true,
+    "server_ready": true,
+    "client_protocol": "minecraft-protocol 1.67.0",
+    "client_connected": true,
+    "movement_probe_packets": 40,
+    "client_probe_done": true,
+    "client_result_exit": 0,
+    "client_disconnected_cleanly": true,
+    "server_stopped_after_probe": true,
+    "loopback_observer": "HTTP/1.1",
+    "probe_transport": "position_look packets with 1.21.3+ flags"
+  },
+  "summary": {
+    "real_server_connection": true,
+    "real_server_detection_event": true,
+    "real_server_interception_channel": true,
+    "risk_upload_http_statuses": [201, 202],
+    "observed_event_count": 3,
+    "providers": ["grim"],
+    "event_origin": "SERVER_CONFIRMED",
+    "event_source_component": "grim-adapter",
+    "event_type": "BEHAVIOR_HIGH_RISK",
+    "checks": ["AimDuplicateLook", "Simulation", "TickTimer"],
+    "stable_checks": [
+      "grim.aim.duplicate_look",
+      "grim.prediction.simulation",
+      "grim.timer.tick"
+    ],
+    "per_event_flag_count": 3,
+    "enforcement_action": "NONE",
+    "session_action_mode": "MONITOR",
+    "automatic_kick_or_ban": false,
+    "genuine_licensed_vulcan_event_observed": false
+  },
+  "remote_artifact_hashes": {
+    "observer_jsonl": "8EAC6C7206EADF6F3237084181FCAFD97D20F58F71AB66A1948964CD89A6B654",
+    "client_result_json": "E8E04184436ED7E3BF552A8BE8BC878365FCB1CA9E1B878810BF2BA8745F46A1",
+    "server_stdout_log": "61B5102F979F6F2C6670E0044E21D1B150E947F34B4C0576558BE92EF1C133CA",
+    "server_stderr_log": "0996E4FEB18A5780AD7EFCA2F0B823069402244769AC021E4F9B8649CD7AE4E9"
+  },
+  "remote_artifacts": {
+    "node_job": "jobs/20260823-mcace-real-server-4568e77/20260823-real-server-rerun-20260823-111535",
+    "observer": "observer.jsonl",
+    "client": "client-result.json",
+    "server_stdout": "server.stdout.log",
+    "server_stderr": "server.stderr.log"
+  },
+  "interpretation": "A repeat Helio run against a real Leaf 1.21.11 process with the real GrimAC plugin and the current-HEAD MCAce Paper artifact connected a 1.21.11 protocol client, sent 40 movement probes, emitted three SERVER_CONFIRMED BEHAVIOR_HIGH_RISK events (AimDuplicateLook, Simulation, TickTimer), and delivered all three to the authenticated loopback observer. MONITOR/NONE remains intentional and proves detection plus upload, not production punitive action.",
+  "limitations": [
+    "The observer is a loopback test endpoint, not production Cloud.",
+    "The server is offline-mode and bound to loopback for a reproducible lab run.",
+    "GrimAC is an external provider; a genuine licensed Vulcan runtime event remains a separate pending gate.",
+    "No automatic kick/ban is asserted because the release contract keeps MONITOR default and requires reviewable action.",
+    "This rerun is Paper/Leaf 1.21.11; it does not replace the pending Fabric GUI/federation handoff or production topology gate."
+  ],
+  "sanitization": {
+    "identity_values_copied": false,
+    "process_ids_copied": false,
+    "absolute_paths_copied": false,
+    "keys_or_secrets_copied": false,
+    "raw_client_identity_copied": false
+  }
+}
