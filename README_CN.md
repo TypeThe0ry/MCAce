@@ -14,6 +14,7 @@ Paper/Folia 后端插件。
 [最新 Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json)
 · [当前提交回归证据](docs/evidence/static-regression-2026-08-23.json)
 · [本轮 active-pack 证据](docs/evidence/active-pack-integrity-2026-08-22.json)
+· [当前 e7f6f74 发布包证据](docs/evidence/release-bundle-e7f6f74.json)
 
 ![验证总览](docs/assets/verification-dashboard.svg)
 
@@ -56,15 +57,15 @@ Paper/Folia 后端插件。
 | 当前提交回归套件 | [当前提交回归证据](docs/evidence/static-regression-2026-08-23-current.json)：本机 15/15 wrapper 通过；修复后的 server-matrix/preparer 门在 Helio 源码等价 checkout 通过；GitHub push `32615615400` 与 PR `32615617012` 均对已测试源码提交 `27bb101…` 通过；之后提交仅更新证据文档 | 已记录源码边界通过 |
 | Paper/Folia × Velocity/Bungee 进程矩阵 | [`server-version-process-matrix-2026-08-23-current.json`](docs/evidence/server-version-process-matrix-2026-08-23-current.json)：当前源码 Execute + ReportOnly 均通过，`12/12`、六棵精确版本树、清理为零；source manifest `749c21e7…` / 688 文件，绑定 `eb36229…` | feature 分支快照通过，发布重绑待做 |
 | Fabric GUI consent | 1.21.11 已到可见显式文件授权页；未记录人工点击，因此没有生成发布证据 | 待 6 次人工确认 |
-| 反作弊检测 | [`current-candidate-fe5f2d1.json`](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json) 将 exact-release Paper artifact（源码提交 `fe5f2d1…`）与 Helio 当前实测绑定：真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf`，40 个移动探针，三次 `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK`（`AimDuplicateLook`、`Simulation`、`TickTimer`），三次 loopback 风险上传；较早的重复记录仍保留在 [`rerun-2026-08-23.json`](docs/evidence/real-server-2026-08-23/rerun-2026-08-23.json) | 真实检测/拦截上传 PASS；`MONITOR`/`NONE` 有意保留，未执行惩罚动作 |
+| 反作弊检测 | [`current-candidate-fe5f2d1.json`](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json) 将 e7f6f74 发布包所用的同一 Paper artifact SHA 与 Helio 当前实测关联：真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf`，40 个移动探针，三次 `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK`（`AimDuplicateLook`、`Simulation`、`TickTimer`），三次 loopback 风险上传；运行记录的源码绑定仍是 `fe5f2d1…`，因为后续只修复兼容性脚本 | 真实检测/拦截上传 PASS；`MONITOR`/`NONE` 有意保留，未执行惩罚动作 |
 | Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
-| exact-commit CI/release | push [`32615615400`](https://github.com/TypeThe0ry/MCAce/actions/runs/32615615400) 与 PR [`32615617012`](https://github.com/TypeThe0ry/MCAce/actions/runs/32615617012) 均对已测试源码提交 `27bb101d68bd0fcbc8891020951f28a523105038` 通过，完成 build/test 和 local verification bundle；feature 分支按设计跳过 release candidate | 该 feature 源码提交 PASS；受保护 `main` release CI 和 clean exact-commit release bundle 仍待完成 |
-| Helio exact-commit release candidate | Helio 对 `fe5f2d1fba35d0f6222d8bf7f8a90a5b4894e97c` 构建 `releaseBundle`：六个 deployable + exact-eight manifest；bundle ZIP SHA-256 为 `3faefd15…`；根 JDK `21.0.10`、modern JDK `25.0.4.1`、Gradle `9.6.1`，八项 hash 已在本机复核 | 当前候选通过；受保护 `main` CI、外部 GUI/Vulcan/federation 门和最终 tag 仍待完成 |
+| exact-commit CI/release | push [`32615615400`](https://github.com/TypeThe0ry/MCAce/actions/runs/32615615400) 与 PR [`32615617012`](https://github.com/TypeThe0ry/MCAce/actions/runs/32615617012) 均对已测试源码提交 `27bb101d68bd0fcbc8891020951f28a523105038` 通过；e7f6f74 兼容性修复仍需受保护 main 的 exact-commit CI | 当前 HEAD CI 待补 |
+| Helio exact-commit release candidate | [`release-bundle-e7f6f74.json`](docs/evidence/release-bundle-e7f6f74.json) 记录 Helio 对 `e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834` 构建 `releaseBundle`：六个 deployable + exact-eight manifest，`product_version=0.0.1`，bundle ZIP SHA-256 为 `4799733be6a178a7ed119d69f4945453dec1d73fbab7a22e95e51e259e035ded`，八项 hash 与三版本兼容性契约均通过 | 当前 feature 候选通过；受保护 `main` CI、外部 GUI/Vulcan/federation 门和最终 tag 仍待完成 |
 
 最新记录的 exact-commit CI 证据绑定到
-`27bb101d68bd0fcbc8891020951f28a523105038`；当前候选服务端和分发包证据独立绑定到
-`fe5f2d1fba35d0f6222d8bf7f8a90a5b4894e97c`。每个 artifact 都要用
+`27bb101d68bd0fcbc8891020951f28a523105038`；当前 Helio 发布包候选独立绑定到
+`e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834`。每个 artifact 都要用
 `git rev-parse HEAD` 校验；只有 `release-manifest.properties` 中
 `release_identity=true` 且 `source_commit` 与 checkout 完全一致时，才允许把包放进 tag。
 当前 v0.0.1 放行仍由六次 GUI 人工确认、真实反作弊、Vulcan 和 federation 门共同决定。
@@ -96,8 +97,8 @@ provider 通过 `ServerBehaviorCorrelationRuntime` 进入授权边界：必须�
 [`docs/CLIENT_SELF_PROTECTION.md`](docs/CLIENT_SELF_PROTECTION.md) 和
 [`scripts/new-exact-artifact-policy.ps1`](scripts/new-exact-artifact-policy.ps1)。
 
-当前候选记录绑定源码 `fe5f2d1fba35d0f6222d8bf7f8a90a5b4894e97c`：Helio 已构建 exact-release
-candidate，并用同一 Paper artifact 实测真实 Leaf/GrimAC 路径。Node.js v22.23.2 完成探针；Helio
+当前 Helio 发布包候选绑定源码 `e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834`：Helio 已构建 exact-release
+candidate；真实 Leaf/GrimAC 运行记录使用相同 Paper artifact SHA，但源码绑定仍记录为 `fe5f2d1…`，因为后续变更只修复兼容性脚本。Node.js v22.23.2 完成探针；Helio
 Node.js v24.18.0 在生成结果前崩溃，仅作为诊断限制保留。当前没有创建 tag，也没有发布 GitHub release。
 
 受控 fixture 只读 metadata，不执行第三方代码：
@@ -168,8 +169,8 @@ consent、subject binding、expiry 观察，以及零残留进程/端口。静�
 
 精确分发包固定为 8 项：六个可部署 JAR、`release-manifest.properties`、`SHA256SUMS`。
 hash 必须来自干净 exact-commit `releaseBundle`，不要把旧构建 hash 粘进 release note。
-当前记录的包仍携带 Gradle `product_version=0.1.0-SNAPSHOT`；在外部发布门全部
-关闭前，不把 `v0.0.1` 标签提升为正式 tag。
+当前 Helio 候选包已携带 Gradle `product_version=0.0.1` 且
+`release_identity=true`；在外部发布门全部关闭前，仍不把 `v0.0.1` 标签提升为正式 tag。
 
 | 文件 | 作用 |
 | --- | --- |
