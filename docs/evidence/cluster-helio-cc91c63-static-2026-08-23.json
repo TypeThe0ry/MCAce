@@ -1,0 +1,31 @@
+{
+  "schema": "MCACE_CLUSTER_HELIO_STATIC_SUITE_V2",
+  "captured_at": "2026-08-23",
+  "worker": "helio",
+  "profile": "windows",
+  "source_commit": "cc91c632948ca6839fa02a6347e0fecd04ef2fd2",
+  "test_count": 14,
+  "exit_code": 0,
+  "result": "HELIO_STATIC_ALL_PASS",
+  "result_artifact_sha256": "861b2d97c1b0abec3cd3f8e3f49fa4d7ba94faea8ad04589688e05df49ef2c7d",
+  "tests": [
+    "test-catalog-provenance.ps1",
+    "test-exact-artifact-policy.ps1",
+    "test-anticheat-fixture-smoke.ps1",
+    "test-fabric-federation-gui-handoff-smoke.ps1",
+    "test-federation-evidence-binding.ps1",
+    "test-platform-load-smoke-privacy.ps1",
+    "test-prepare-server-version-matrix.ps1",
+    "test-proxy-admission-player-smoke.ps1",
+    "test-proxy-folia-context-smoke.ps1",
+    "test-server-version-process-matrix.ps1",
+    "test-version-compatibility-contract.ps1",
+    "test-vulcan-genuine-event-smoke.ps1",
+    "test-vulcan-licensed-api-compatibility-smoke.ps1",
+    "test-vulcan-paper-enablement-smoke.ps1"
+  ],
+  "limitations": [
+    "Static wrappers do not close visible GUI consent, real federation handoff, licensed Vulcan runtime, or production authority topology.",
+    "No worker credentials or private worker paths are retained."
+  ]
+}
