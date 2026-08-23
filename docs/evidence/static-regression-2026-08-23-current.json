@@ -1,7 +1,7 @@
 {
   "schema": "MCACE_STATIC_REGRESSION_EVIDENCE_V1",
   "generated_at": "2026-08-23T02:51:52.0047854+00:00",
-  "source_commit": "20e08619f038531da5b66d06cc7dbac12c6fb944",
+  "source_commit": "27bb101d68bd0fcbc8891020951f28a523105038",
   "controller": {
     "shell": "PowerShell 7.6.4",
     "test_count": 15,
@@ -42,11 +42,11 @@
   },
   "github": {
     "workflow": "build",
-    "run_id": 32613574956,
+    "run_id": 32615615400,
     "status": "success",
-    "head_sha": "20e08619f038531da5b66d06cc7dbac12c6fb944",
-    "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32613574956",
-    "note": "Exact checkout 20e0861; build/test and local verification bundle passed; release candidate intentionally skipped on feature branch."
+    "head_sha": "27bb101d68bd0fcbc8891020951f28a523105038",
+    "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32615615400",
+    "note": "Exact checkout 27bb101; build/test and local verification bundle passed; release candidate intentionally skipped on feature branch."
   },
   "limitations": [
     "This record does not close GUI consent, federation handoff, licensed Vulcan, or production topology gates.",

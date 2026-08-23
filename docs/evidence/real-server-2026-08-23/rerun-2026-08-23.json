@@ -2,7 +2,7 @@
   "schema": "MCACE_ANTI_CHEAT_REAL_SERVER_RERUN_EVIDENCE_V1",
   "generated_at": "2026-08-23T03:17:00Z",
   "source_mode": "LOCAL_REAL_SERVER_LOOPBACK_REPEAT",
-  "source_commit": "d05f98cd467b012c260c42cc17d47b79d37529cd",
+  "source_commit": "27bb101d68bd0fcbc8891020951f28a523105038",
   "execution_node": "helio",
   "run_id": "20260823-real-server-rerun-20260823-111535",
   "target": {
