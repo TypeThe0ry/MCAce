@@ -1159,7 +1159,9 @@ function Get-RawRunDirectorySet {
         }
         [void]$set.Add([IO.Path]::GetFullPath($directory.FullName))
     }
-    return $set
+    # PowerShell enumerates collection output; preserve the empty HashSet as a
+    # single object so the first matrix case can pass it to Find-FreshRawReport.
+    return ,$set
 }
 
 function Find-FreshRawReport {
