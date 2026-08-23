@@ -36,10 +36,10 @@ Assert-True ($bothModes -like '*SERVER_VERSION_MATRIX_EXPLICIT_MODE_REQUIRED*') 
 $expectedAssets = @(
     @('paper','1.21.11','132','5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba','54846016','STABLE','21'),
     @('paper','26.1.2','74','1d70b1dab9cf4a6de615209a536f3a45a2186240253c428213ce2188ab95e5f7','52893229','STABLE','25'),
-    @('paper','26.2','112','bd3a58cf96874e5ea6643f5f6fe9b4f5bf9e34b795fa078c2f0ee8b98b2f907e','61859678','STABLE','25'),
+    @('paper','26.2','116','17eee738bc0f6b747646be4199672c4efcb2084efd7e291ec5254a45d5ae6f2e','64426830','STABLE','25'),
     @('folia','1.21.11','14','f52c408490a0225611e67907a3ca19f7e6da2c6bc899e715d5f46844e7103c39','55082693','STABLE','21'),
     @('folia','26.1.2','8','607afd1c3320008e1ffd2eaee6780ace4419d5f8c527b75e79f259be79ebf57b','53184326','STABLE','25'),
-    @('folia','26.2','4','19c81c308ba4de4b9fc0a61860c86281836d26ac046f696ea241766eea4b2468','62126906','BETA','25'),
+    @('folia','26.2','6','9a728381da3a3bea6732ee210519f8f6ab7d6affe132a430ee167c44c4603d08','64694365','BETA','25'),
     @('velocity','3.5.1-615','615','b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3','18932366','REVIEWED','21'),
     @('bungeecord','2085','2085','e6914a29c0ae04c0ed6335f201e409322b3c67548906a91e92e832d665cd6fce','25599274','REVIEWED','21')
 )
@@ -407,10 +407,10 @@ exit /b 7
     $assetDescriptors = @(
         [ordered]@{ project='paper'; version='1.21.11'; build='132'; channel='STABLE'; java_major=21 },
         [ordered]@{ project='paper'; version='26.1.2'; build='74'; channel='STABLE'; java_major=25 },
-        [ordered]@{ project='paper'; version='26.2'; build='112'; channel='STABLE'; java_major=25 },
+        [ordered]@{ project='paper'; version='26.2'; build='116'; channel='STABLE'; java_major=25 },
         [ordered]@{ project='folia'; version='1.21.11'; build='14'; channel='STABLE'; java_major=21 },
         [ordered]@{ project='folia'; version='26.1.2'; build='8'; channel='STABLE'; java_major=25 },
-        [ordered]@{ project='folia'; version='26.2'; build='4'; channel='BETA'; java_major=25 },
+        [ordered]@{ project='folia'; version='26.2'; build='6'; channel='BETA'; java_major=25 },
         [ordered]@{ project='velocity'; version='3.5.1-615'; build='615'; channel='REVIEWED'; java_major=21 },
         [ordered]@{ project='bungeecord'; version='2085'; build='2085'; channel='REVIEWED'; java_major=21 }
     )

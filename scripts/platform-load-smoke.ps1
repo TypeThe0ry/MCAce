@@ -185,9 +185,9 @@ $fabricTargets = [ordered]@{
         version_info_sha256 = 'd4a21bea5568a8e194ff8fc94081489cf2b694a9d04c7bc4e673add58a10955f'
         asset_index_sha1 = 'cf75b185cb35b32e299b0c8e674fa202d7911a3c'
         asset_index_size = 586366L
-        paper_build = '112'
-        paper_sha256 = 'bd3a58cf96874e5ea6643f5f6fe9b4f5bf9e34b795fa078c2f0ee8b98b2f907e'
-        paper_size = 61859678L
+        paper_build = '116'
+        paper_sha256 = '17eee738bc0f6b747646be4199672c4efcb2084efd7e291ec5254a45d5ae6f2e'
+        paper_size = 64426830L
     }
 }
 $fabricDescriptor = $fabricTargets[$FabricTarget]

@@ -337,7 +337,7 @@ foreach ($required in @(
         "artifact_kind = 'FINAL_NAMED_JAR'",
         "paper_build = '132'",
         "paper_build = '74'",
-        "paper_build = '112'",
+        "paper_build = '116'",
         '$fabricSmokeBuildId = "platform-smoke-$runId"',
         '"MCACE_FABRIC_ARTIFACT_LOADED version=$fabricArtifactVersion build_id=$fabricSmokeBuildId"',
         '" code_source_sha256=$($currentEvidenceBinding.fabric_runtime_artifact_sha256)"',
