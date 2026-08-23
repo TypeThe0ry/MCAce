@@ -20,6 +20,13 @@ try {
     [IO.File]::WriteAllText((Join-Path (Join-Path $directory 'assets') 'test.txt'), 'fixture', [Text.UTF8Encoding]::new($false))
     $root = (& $tool -ArtifactPath $directory -EntryId 'fixture-root' -ArtifactType RESOURCE_PACK -MatchType ContentRoot) -join "`n"
     if ($root -notmatch 'content_root_sha256_hex: "[0-9a-f]{64}"') { throw 'content root was not emitted' }
+    $output = Join-Path $temporary 'generated.textproto'
+    & $tool -ArtifactPath $artifact -EntryId 'fixture-output' -ArtifactType RESOURCE_PACK -MatchType ExactSha256 -OutputPath $output | Out-Null
+    if (-not (Test-Path -LiteralPath $output -PathType Leaf)) { throw 'OutputPath file was not created' }
+    $outputText = [IO.File]::ReadAllText($output)
+    if ($outputText -notmatch 'entry_id: "fixture-output"' -or $outputText -notmatch 'enabled: false') {
+        throw 'OutputPath content was not written atomically'
+    }
     [Console]::Out.WriteLine('{"schema":1,"tool":"mcace-exact-artifact-policy-tests","status":"passed"}')
 } finally {
     Remove-Item -LiteralPath $temporary -Recurse -Force -ErrorAction SilentlyContinue

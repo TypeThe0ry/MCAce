@@ -64,6 +64,16 @@ function Convert-ToHexCompat([byte[]]$Bytes) {
     return $builder.ToString()
 }
 
+function Test-FullyQualifiedPathCompat([string]$Path) {
+    $method = [IO.Path].GetMethod('IsPathFullyQualified', [Type[]]@([string]))
+    if ($null -ne $method) { return [IO.Path]::IsPathFullyQualified($Path) }
+    if (-not [IO.Path]::IsPathRooted($Path)) { return $false }
+    if ($Path -match '^[A-Za-z]:[\\/]') { return $true }
+    if ($Path -match '^\\\\') { return $true }
+    return $Path.StartsWith([IO.Path]::DirectorySeparatorChar) -and
+        -not $Path.StartsWith([IO.Path]::DirectorySeparatorChar + [IO.Path]::DirectorySeparatorChar)
+}
+
 function Get-RelativePathCompat([string]$Root, [string]$Path) {
     # Windows worker validation still runs under inbox Windows PowerShell 5.1,
     # whose .NET Framework Path type does not expose GetRelativePath. Keep the
@@ -134,7 +144,7 @@ function Quote-TextProto([string]$Value) {
 
 function Write-Utf8Atomic([string]$Path, [string]$Text) {
     $full = [IO.Path]::GetFullPath($Path)
-    if (-not [IO.Path]::IsPathFullyQualified($full)) { throw 'OutputPath must be absolute' }
+    if (-not (Test-FullyQualifiedPathCompat $full)) { throw 'OutputPath must be absolute' }
     $parent = Split-Path -Parent $full
     if (-not (Test-Path -LiteralPath $parent -PathType Container)) { throw 'OutputPath parent does not exist' }
     if (Test-Path -LiteralPath $full) { Assert-RegularNoReparse (Get-Item -LiteralPath $full) 'OutputPath' }
