@@ -315,7 +315,22 @@ function Assert-AssetManifest {
             @($manifest.assets).Count -ne 8) {
         throw 'SERVER_VERSION_MATRIX_ASSET_MANIFEST_SCHEMA_INVALID'
     }
-    try { $null = [DateTimeOffset]::Parse([string]$manifest.generated_at) }
+    try {
+        # PowerShell's JSON parser materializes ISO timestamps as DateTime using
+        # the host's local culture/time zone.  Do not stringify that object and
+        # feed the localized value back through DateTimeOffset.Parse: zh-SG
+        # renders `08/23/2026 09:44:35`, which is not parseable on every worker.
+        if ($manifest.generated_at -is [DateTimeOffset]) {
+            $null = [DateTimeOffset]$manifest.generated_at
+        } elseif ($manifest.generated_at -is [DateTime]) {
+            $null = [DateTimeOffset]$manifest.generated_at
+        } else {
+            $null = [DateTimeOffset]::Parse(
+                [string]$manifest.generated_at,
+                [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::RoundtripKind)
+        }
+    }
     catch { throw 'SERVER_VERSION_MATRIX_ASSET_MANIFEST_TIME_INVALID' }
 
     $expectedKeys = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -409,7 +424,18 @@ function Assert-PreparedManifest([object]$AssetState) {
             @($manifest.trees).Count -ne 6) {
         throw 'SERVER_VERSION_MATRIX_PREPARED_MANIFEST_SCHEMA_INVALID'
     }
-    try { $null = [DateTimeOffset]::Parse([string]$manifest.generated_at) }
+    try {
+        if ($manifest.generated_at -is [DateTimeOffset]) {
+            $null = [DateTimeOffset]$manifest.generated_at
+        } elseif ($manifest.generated_at -is [DateTime]) {
+            $null = [DateTimeOffset]$manifest.generated_at
+        } else {
+            $null = [DateTimeOffset]::Parse(
+                [string]$manifest.generated_at,
+                [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::RoundtripKind)
+        }
+    }
     catch { throw 'SERVER_VERSION_MATRIX_PREPARED_MANIFEST_TIME_INVALID' }
 
     $trees = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
