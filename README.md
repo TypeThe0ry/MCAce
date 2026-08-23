@@ -59,16 +59,16 @@ Run the contract against a current bundle:
 | Gate | Current evidence | State |
 | --- | --- | --- |
 | Root + modern strict offline tests | Historical exact bundle: `171 suites / 755 tests / 0 failures / 0 errors`; [Helio targeted build evidence](docs/evidence/cluster-targeted-build-2026-08-22.json) ran Fabric, Velocity, BungeeCord, Paper, and runtime integration tests successfully | PASS within recorded source boundary |
-| Current-head regression suite | [current-head regression evidence](docs/evidence/static-regression-2026-08-23.json): all 15 wrappers passed locally; the post-fix server-matrix and preparer gates also passed on Helio; GitHub build run `32611168722` passed for exact commit `2ab18f1` | PASS |
-| Paper/Folia × Velocity/Bungee process matrix | [`server-version-process-matrix-2026-08-22.json`](docs/evidence/server-version-process-matrix-2026-08-22.json): `12/12`, six exact version trees, cleanup zero; the sidecar binds the pre-README documentation tree | PASS for recorded snapshot; release rebind pending |
+| Current-head regression suite | [current-head regression evidence](docs/evidence/static-regression-2026-08-23.json): all 15 wrappers passed locally; the post-fix server-matrix and preparer gates also passed on Helio; GitHub build run `32611684113` passed for exact commit `eb362296213838ab307fec9d9ea184eebb244a71` | PASS |
+| Paper/Folia × Velocity/Bungee process matrix | [`server-version-process-matrix-2026-08-23-current.json`](docs/evidence/server-version-process-matrix-2026-08-23-current.json): current-source Execute + ReportOnly validation, `12/12`, six exact version trees, cleanup zero; source manifest `749c21e7…` / 688 files, bound to commit `eb36229…` | PASS for feature-branch snapshot; release rebind pending |
 | Fabric GUI consent | 1.21.11 reached the visible explicit-file screen; no click was recorded, so no release evidence was minted | PENDING 6 human decisions |
 | Anti-cheat detection | [`anti-cheat-real-server-2026-08-23.json`](docs/evidence/anti-cheat-real-server-2026-08-23.json): plugin artifact from source `4568e772…` (byte-identical through current HEAD) on real Leaf 1.21.11 + GrimAC `2.3.74-155abaf` produced three `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK` events (`AimDuplicateLook`, `Simulation`, `TickTimer`) and three HTTP `202` risk uploads | PASS for real detection/interception; `MONITOR`/`NONE` intentionally leaves punitive action unexercised |
 | Vulcan | Static contracts pass; licensed JAR and genuine external trigger are absent from this workspace | PENDING |
 | Fabric federation | V2 static contract passes; source-export/target-import GUI handoff has not been executed | PENDING |
-| Exact-commit CI/release | Latest feature-branch exact-checkout CI run [`32611168722`](https://github.com/TypeThe0ry/MCAce/actions/runs/32611168722) passed for immutable commit `2ab18f1415ffe321ec25e977c4ed4c26ed3773dc`; it built/tests and uploaded the local verification bundle, while the release candidate is intentionally skipped off `main` | PASS for this commit; protected `main` release CI and the clean exact-commit release bundle remain pending |
+| Exact-commit CI/release | Latest feature-branch exact-checkout CI run [`32611684113`](https://github.com/TypeThe0ry/MCAce/actions/runs/32611684113) passed for immutable commit `eb362296213838ab307fec9d9ea184eebb244a71`; it built/tests and uploaded the local verification bundle, while the release candidate is intentionally skipped off `main` | PASS for this commit; protected `main` release CI and the clean exact-commit release bundle remain pending |
 
 The latest exact-commit CI evidence is bound to
-`2ab18f1415ffe321ec25e977c4ed4c26ed3773dc` shown above. Verify any checkout with `git rev-parse HEAD`; do not copy an
+`eb362296213838ab307fec9d9ea184eebb244a71` shown above. Verify any checkout with `git rev-parse HEAD`; do not copy an
 artifact to a tag unless its `release-manifest.properties` has
 `release_identity=true` and the `source_commit` matches that checkout exactly.
 The current v0.0.1 release decision is still controlled by the six human GUI
