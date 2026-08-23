@@ -54,7 +54,7 @@ Paper/Folia 后端插件。
 | 门 | 当前证据 | 状态 |
 | --- | --- | --- |
 | 根 + modern 严格离线测试 | 历史 exact 包 `171 suites / 755 tests / 0 failures / 0 errors`；[Helio 定向构建证据](docs/evidence/cluster-targeted-build-2026-08-22.json) 已成功运行 Fabric、Velocity、BungeeCord、Paper 与 runtime integration 测试 | 在已记录源码边界内通过 |
-| 当前提交回归套件 | [当前提交回归证据](docs/evidence/static-regression-2026-08-23-current.json)：本机 15/15 wrapper 通过；修复后的 server-matrix/preparer 门在 Helio 源码等价 checkout 通过；GitHub push `32615615400` 与 PR `32615617012` 均对已测试源码提交 `27bb101…` 通过；之后提交仅更新证据文档 | 已记录源码边界通过 |
+| 当前提交回归套件 | [当前提交回归证据](docs/evidence/static-regression-2026-08-23-current.json)：本机 15/15 wrapper 通过；当前 HEAD 的 server-matrix/preparer 门通过；Helio 独立 checkout 的 Gradle `test` 通过；GitHub push `32650770008` 与 PR `32650767358` 均对精确源码 `614eda9…` 通过 | 当前 feature HEAD 通过，受保护主分支 release 路径仍待完成 |
 | Paper/Folia × Velocity/Bungee 进程矩阵 | [`server-version-process-matrix-2026-08-23-219e146.json`](docs/evidence/server-version-process-matrix-2026-08-23-219e146.json)：当前 HEAD Execute + ReportOnly 均通过，`12/12`、六棵精确版本树、清理为零；source manifest `beb3d4ad…` / 688 文件，绑定 `219e146…` | 当前 feature HEAD 通过，受保护主分支发布 CI 仍待完成 |
 | Fabric GUI consent | 1.21.11 已到可见显式文件授权页；未记录人工点击，因此没有生成发布证据 | 待 6 次人工确认 |
 | 反作弊检测 | [`current-candidate-fe5f2d1.json`](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json) 将 e7f6f74 发布包所用的同一 Paper artifact SHA 与 Helio 当前实测关联：真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf`，40 个移动探针，三次 `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK`（`AimDuplicateLook`、`Simulation`、`TickTimer`），三次 loopback 风险上传；运行记录的源码绑定仍是 `fe5f2d1…`，因为后续只修复兼容性脚本 | 真实检测/拦截上传 PASS；`MONITOR`/`NONE` 有意保留，未执行惩罚动作 |
