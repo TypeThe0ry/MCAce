@@ -57,6 +57,12 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 final class HandshakeIntegrationTest {
+    private static final String PRODUCT_VERSION_PROPERTY = "mcace.test.product-version";
+
+    private static String productVersion() {
+        return System.getProperty(PRODUCT_VERSION_PROPERTY, "0.1.0-SNAPSHOT");
+    }
+
     private MutableClock clock;
     private InMemoryMCAceApi api;
     private KeyPair serverKeys;
@@ -348,7 +354,7 @@ final class HandshakeIntegrationTest {
         byte[] wrongChallenge = new byte[32];
         java.util.Arrays.fill(wrongChallenge, (byte) 0x7f);
         ClientHello wrongHello = ClientHello.newBuilder()
-                .setClientVersion("0.1.0-SNAPSHOT")
+                .setClientVersion(productVersion())
                 .setLoader(LoaderType.FABRIC)
                 .setMinecraftVersion("1.21.1")
                 .setPublicKeyX509(ByteString.copyFrom(attackerKeys.getPublic().getEncoded()))
@@ -553,7 +559,7 @@ final class HandshakeIntegrationTest {
     private ClientHandshakeEngine client(KeyPair pinnedServer) throws EnvelopeException {
         return new ClientHandshakeEngine(
                 playerId,
-                "0.1.0-SNAPSHOT",
+                productVersion(),
                 "1.21.1",
                 "test-build",
                 LoaderType.FABRIC,

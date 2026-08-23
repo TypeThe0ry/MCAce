@@ -380,6 +380,7 @@ subprojects {
 
     tasks.withType<Test>().configureEach {
         useJUnitPlatform()
+        systemProperty("mcace.test.product-version", project.version.toString())
         testLogging {
             events("failed", "skipped")
         }

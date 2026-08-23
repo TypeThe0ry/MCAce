@@ -431,6 +431,7 @@ subprojects {
     tasks.withType<Test>().configureEach {
         dependsOn(deployableJar)
         useJUnitPlatform()
+        systemProperty("mcace.test.product-version", project.version.toString())
         inputs.file(deployableJar.flatMap { it.archiveFile })
             .withPathSensitivity(PathSensitivity.NONE)
         inputs.property("minecraftVersion", minecraftVersion)
