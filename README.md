@@ -11,7 +11,7 @@ backend plugin.
 > reviewed commit.
 
 [中文 README](README_CN.md) · [release gates](docs/RELEASE_GATES.md) ·
-[security model](docs/SECURITY.md) · [anti-cheat evidence](docs/evidence/anti-cheat-real-server-2026-08-23.json) · [current Helio recheck](docs/evidence/real-server-2026-08-23/rerun-2026-08-23.json)
+[security model](docs/SECURITY.md) · [anti-cheat evidence](docs/evidence/anti-cheat-real-server-2026-08-23.json) · [current Helio recheck](docs/evidence/real-server-2026-08-23/rerun-2026-08-23.json) · [current-candidate Helio run](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json)
 · [Helio static-suite evidence](docs/evidence/cluster-helio-static-suite-2026-08-22.json)
 · [latest Helio static-suite evidence](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json)
 · [current-head regression evidence](docs/evidence/static-regression-2026-08-23.json)
@@ -62,13 +62,16 @@ Run the contract against a current bundle:
 | Current-head regression suite | [current-head regression evidence](docs/evidence/static-regression-2026-08-23-current.json): all 15 wrappers passed locally; the post-fix server-matrix and preparer gates passed on Helio source-equivalent checkout; GitHub push run [`32615615400`](https://github.com/TypeThe0ry/MCAce/actions/runs/32615615400) and PR run [`32615617012`](https://github.com/TypeThe0ry/MCAce/actions/runs/32615617012) passed for the tested source commit `27bb101…`; later commits in this evidence update are documentation-only | PASS for the recorded source boundary |
 | Paper/Folia × Velocity/Bungee process matrix | [`server-version-process-matrix-2026-08-23-current.json`](docs/evidence/server-version-process-matrix-2026-08-23-current.json): current-source Execute + ReportOnly validation, `12/12`, six exact version trees, cleanup zero; source manifest `749c21e7…` / 688 files, bound to commit `eb36229…` | PASS for feature-branch snapshot; release rebind pending |
 | Fabric GUI consent | 1.21.11 reached the visible explicit-file screen; no click was recorded, so no release evidence was minted | PENDING 6 human decisions |
-| Anti-cheat detection | [`rerun-2026-08-23.json`](docs/evidence/real-server-2026-08-23/rerun-2026-08-23.json) binds the tested MCAce Paper artifact from source commit `27bb101…` to a repeat Helio run on real Leaf 1.21.11 + GrimAC `2.3.74-155abaf`: 40 movement probes, three `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK` events (`AimDuplicateLook`, `Simulation`, `TickTimer`), three loopback risk uploads | PASS for real detection/interception; `MONITOR`/`NONE` intentionally leaves punitive action unexercised |
+| Anti-cheat detection | [`current-candidate-fe5f2d1.json`](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json) binds the exact-release Paper artifact from source commit `fe5f2d1…` to a current Helio run on real Leaf 1.21.11 + GrimAC `2.3.74-155abaf`: 40 movement probes, three `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK` events (`AimDuplicateLook`, `Simulation`, `TickTimer`), three loopback risk uploads; the earlier repeat is retained in [`rerun-2026-08-23.json`](docs/evidence/real-server-2026-08-23/rerun-2026-08-23.json) | PASS for real detection/interception; `MONITOR`/`NONE` intentionally leaves punitive action unexercised |
 | Vulcan | Static contracts pass; licensed JAR and genuine external trigger are absent from this workspace | PENDING |
 | Fabric federation | V2 static contract passes; source-export/target-import GUI handoff has not been executed | PENDING |
 | Exact-commit CI/release | Push [`32615615400`](https://github.com/TypeThe0ry/MCAce/actions/runs/32615615400) and PR [`32615617012`](https://github.com/TypeThe0ry/MCAce/actions/runs/32615617012) passed for immutable tested source `27bb101d68bd0fcbc8891020951f28a523105038`; build/test and local verification bundle passed, while the release candidate is intentionally skipped off `main` | PASS for the recorded feature source; protected `main` release CI and the clean exact-commit release bundle remain pending |
+| Helio exact-commit release candidate | Helio built `releaseBundle` for `fe5f2d1fba35d0f6222d8bf7f8a90a5b4894e97c` with six deployables and exact-eight manifest; bundle ZIP SHA-256 `3faefd15…`; root JDK `21.0.10`, modern JDK `25.0.4.1`, Gradle `9.6.1`; all eight entry hashes verified locally | PASS for this candidate; protected `main` CI, external GUI/Vulcan/federation gates, and final tag remain pending |
 
-The latest exact-commit CI evidence is bound to
-`27bb101d68bd0fcbc8891020951f28a523105038` shown above. Verify the source commit used for the evidence with `git rev-parse HEAD`; later documentation-only commits do not change the tested plugin artifact. Do not copy an
+The latest recorded exact-commit CI evidence is bound to
+`27bb101d68bd0fcbc8891020951f28a523105038`; the current-candidate server and
+bundle evidence is independently bound to `fe5f2d1fba35d0f6222d8bf7f8a90a5b4894e97c`.
+Verify the source commit used for each artifact with `git rev-parse HEAD`; later documentation-only commits do not change the tested plugin artifact. Do not copy an
 artifact to a tag unless its `release-manifest.properties` has
 `release_identity=true` and the `source_commit` matches that checkout exactly.
 The current v0.0.1 release decision is still controlled by the six human GUI
@@ -108,14 +111,11 @@ fail-closed generator at
 [`scripts/new-exact-artifact-policy.ps1`](scripts/new-exact-artifact-policy.ps1)
 for the exact-hash/content-root workflow and trust-state table.
 
-This iteration is recorded at current HEAD `2ab18f1415ffe321ec25e977c4ed4c26ed3773dc`.
-The local core, Velocity, Fabric `1.21.11`, and modern `26.1.2`/`26.2` checks
-passed; the Helio attempt is explicitly recorded as a Loom/JVM crash rather
-than a promoted result. GitHub run `32611168722` is the current feature-branch
-exact-checkout gate; the real-server anti-cheat evidence itself was produced
-from source `4568e772…`, and the subsequent commits changed only evidence/docs
-and the culture-stable matrix timestamp parser, not the deployed plugin modules.
-No tag or GitHub release has been created.
+The current-candidate record is bound to source `fe5f2d1fba35d0f6222d8bf7f8a90a5b4894e97c`.
+Helio built the exact-release candidate and exercised the real Leaf/GrimAC path
+with the same Paper artifact. Node.js v22.23.2 completed the probe; the Helio
+Node.js v24.18.0 image crashed before producing a result and is retained only
+as a diagnostic limitation. No tag or GitHub release has been created.
 
 The controlled fixture command is metadata-only and does not execute third-party
 code:
