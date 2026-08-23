@@ -14,6 +14,7 @@ backend plugin.
 [security model](docs/SECURITY.md) · [anti-cheat evidence](docs/evidence/anti-cheat-real-server-2026-08-23.json)
 · [Helio static-suite evidence](docs/evidence/cluster-helio-static-suite-2026-08-22.json)
 · [latest Helio static-suite evidence](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json)
+· [current-head regression evidence](docs/evidence/static-regression-2026-08-23.json)
 · [active-pack iteration evidence](docs/evidence/active-pack-integrity-2026-08-22.json)
 
 ![Verification dashboard](docs/assets/verification-dashboard.svg)
@@ -58,16 +59,16 @@ Run the contract against a current bundle:
 | Gate | Current evidence | State |
 | --- | --- | --- |
 | Root + modern strict offline tests | Historical exact bundle: `171 suites / 755 tests / 0 failures / 0 errors`; [Helio targeted build evidence](docs/evidence/cluster-targeted-build-2026-08-22.json) ran Fabric, Velocity, BungeeCord, Paper, and runtime integration tests successfully | PASS within recorded source boundary |
-| Helio repository static wrappers | [latest Helio static-suite evidence](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json): all 14 `scripts/test-*.ps1` wrappers passed at source commit `33878f2` under Windows PowerShell 5.1, one child process per wrapper | PASS |
+| Current-head regression suite | [current-head regression evidence](docs/evidence/static-regression-2026-08-23.json): all 15 wrappers passed locally; the post-fix server-matrix and preparer gates also passed on Helio; GitHub build run `32611168722` passed for exact commit `2ab18f1` | PASS |
 | Paper/Folia × Velocity/Bungee process matrix | [`server-version-process-matrix-2026-08-22.json`](docs/evidence/server-version-process-matrix-2026-08-22.json): `12/12`, six exact version trees, cleanup zero; the sidecar binds the pre-README documentation tree | PASS for recorded snapshot; release rebind pending |
 | Fabric GUI consent | 1.21.11 reached the visible explicit-file screen; no click was recorded, so no release evidence was minted | PENDING 6 human decisions |
-| Anti-cheat detection | [`anti-cheat-real-server-2026-08-23.json`](docs/evidence/anti-cheat-real-server-2026-08-23.json): current HEAD plugin `3C44FA85…` on real Leaf 1.21.11 + GrimAC `2.3.74-155abaf` produced three `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK` events (`AimDuplicateLook`, `Simulation`, `TickTimer`) and three HTTP `202` risk uploads | PASS for real detection/interception; `MONITOR`/`NONE` intentionally leaves punitive action unexercised |
+| Anti-cheat detection | [`anti-cheat-real-server-2026-08-23.json`](docs/evidence/anti-cheat-real-server-2026-08-23.json): plugin artifact from source `4568e772…` (byte-identical through current HEAD) on real Leaf 1.21.11 + GrimAC `2.3.74-155abaf` produced three `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK` events (`AimDuplicateLook`, `Simulation`, `TickTimer`) and three HTTP `202` risk uploads | PASS for real detection/interception; `MONITOR`/`NONE` intentionally leaves punitive action unexercised |
 | Vulcan | Static contracts pass; licensed JAR and genuine external trigger are absent from this workspace | PENDING |
 | Fabric federation | V2 static contract passes; source-export/target-import GUI handoff has not been executed | PENDING |
-| Exact-commit CI/release | Latest exact-commit CI run [`32579360473`](https://github.com/TypeThe0ry/MCAce/actions/runs/32579360473) passed on immutable commit `4568e772326563303e50b2dcc48cd4a628c92c32`; this is CI evidence only, not a release tag | PASS for the recorded commit; this documentation update needs its own required `build` before tagging; product version remains `0.1.0-SNAPSHOT` until the remaining external v0.0.1 gates close |
+| Exact-commit CI/release | Latest feature-branch exact-checkout CI run [`32611168722`](https://github.com/TypeThe0ry/MCAce/actions/runs/32611168722) passed for immutable commit `2ab18f1415ffe321ec25e977c4ed4c26ed3773dc`; it built/tests and uploaded the local verification bundle, while the release candidate is intentionally skipped off `main` | PASS for this commit; protected `main` release CI and the clean exact-commit release bundle remain pending |
 
 The latest exact-commit CI evidence is bound to
-`4568e772326563303e50b2dcc48cd4a628c92c32` shown above. Verify any checkout with `git rev-parse HEAD`; do not copy an
+`2ab18f1415ffe321ec25e977c4ed4c26ed3773dc` shown above. Verify any checkout with `git rev-parse HEAD`; do not copy an
 artifact to a tag unless its `release-manifest.properties` has
 `release_identity=true` and the `source_commit` matches that checkout exactly.
 The current v0.0.1 release decision is still controlled by the six human GUI
@@ -107,10 +108,13 @@ fail-closed generator at
 [`scripts/new-exact-artifact-policy.ps1`](scripts/new-exact-artifact-policy.ps1)
 for the exact-hash/content-root workflow and trust-state table.
 
-This iteration is recorded at current HEAD `4568e772326563303e50b2dcc48cd4a628c92c32`.
+This iteration is recorded at current HEAD `2ab18f1415ffe321ec25e977c4ed4c26ed3773dc`.
 The local core, Velocity, Fabric `1.21.11`, and modern `26.1.2`/`26.2` checks
 passed; the Helio attempt is explicitly recorded as a Loom/JVM crash rather
-than a promoted result. GitHub run `32579360473` is the exact-commit CI gate.
+than a promoted result. GitHub run `32611168722` is the current feature-branch
+exact-checkout gate; the real-server anti-cheat evidence itself was produced
+from source `4568e772…`, and the subsequent commits changed only evidence/docs
+and the culture-stable matrix timestamp parser, not the deployed plugin modules.
 No tag or GitHub release has been created.
 
 The controlled fixture command is metadata-only and does not execute third-party
