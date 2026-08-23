@@ -1,0 +1,55 @@
+{
+  "schema": "MCACE_STATIC_REGRESSION_EVIDENCE_V1",
+  "generated_at": "2026-08-23T02:51:52.0047854+00:00",
+  "source_commit": "20e08619f038531da5b66d06cc7dbac12c6fb944",
+  "controller": {
+    "shell": "PowerShell 7.6.4",
+    "test_count": 15,
+    "passed_count": 15,
+    "failed_count": 0,
+    "command": "foreach ($test in Get-ChildItem scripts/test-*.ps1) { pwsh -NoProfile -NonInteractive -ExecutionPolicy Bypass -File $test.FullName }",
+    "status": "PASS",
+    "test_sha256": {
+      "test-anticheat-fixture-smoke.ps1": "d833e219815c12a01514af22179b4ac7ab63737328fd342f369564f645f20549",
+      "test-catalog-provenance.ps1": "0e210dee0125a0c20ebb2d3b819052d504d85f9956dddc47b14758b595cf3abc",
+      "test-disposition-trusted-evidence-binding.ps1": "8dc9a72bea1338964bab46560910151418b4a4cb791badc870f8c27bc2e8344b",
+      "test-exact-artifact-policy.ps1": "8413e1ef80f7d4f795e53c9e8044828d7866ad4f0d5b3999a66dcae8d4a26bdb",
+      "test-fabric-federation-gui-handoff-smoke.ps1": "7abcca8291ca4c165ab60a24cccdb773f90f5dfc56befeebf6b4b5844c9ff572",
+      "test-federation-evidence-binding.ps1": "de215530051335906578fb6af9f90ff518bd013bc1bd03482471fcb6ef89a634",
+      "test-platform-load-smoke-privacy.ps1": "9c0e3251a5d31240cb7cc7f23ee2373d9d8a259f2892e15c997b16da81a0ede4",
+      "test-prepare-server-version-matrix.ps1": "b1ab74c2ff68ed34bd47948ef95e6a1817fcbf85d3182a15e4ef17d8ebb4aacb",
+      "test-proxy-admission-player-smoke.ps1": "1fde3e0b59eafd76f280afed0ccf5e9e0ea4113f2faef425a19f46230120d298",
+      "test-proxy-folia-context-smoke.ps1": "fa0d79ae0927518159b237c4683773a812979ba505d7edf5d0905173be2d55e3",
+      "test-server-version-process-matrix.ps1": "b8ded4a03679dede11bf05ae22df95b98a0e1b5bec096f22b12b58ab4b6bff34",
+      "test-version-compatibility-contract.ps1": "ad89e1996e8fe66c5109b6fea10adb1f41aaa32655d6191b2581fb9e20768554",
+      "test-vulcan-genuine-event-smoke.ps1": "a44ba7f693403d4382d61906bf4c4ed9cf1fae2de187aa07fd417e9ecc946dd2",
+      "test-vulcan-licensed-api-compatibility-smoke.ps1": "8fd52c0b9c81f2f96b3767c78fcb72678cbae19eb28c74e8c362e762a16bd576",
+      "test-vulcan-paper-enablement-smoke.ps1": "fb9d062e0a97a900d6807311b605f356d506de56686dc097181de72c493148b8"
+    }
+  },
+  "helio": {
+    "node": "helio",
+    "shell": "PowerShell 7.6.4",
+    "checkout_source_commit": "2ab18f1415ffe321ec25e977c4ed4c26ed3773dc",
+    "targeted_tests": [
+      "test-server-version-process-matrix.ps1",
+      "test-prepare-server-version-matrix.ps1"
+    ],
+    "passed_count": 2,
+    "failed_count": 0,
+    "status": "PASS",
+    "source_equivalence": "The targeted wrapper files are unchanged through current source commit; the worker checkout predates documentation-only commits."
+  },
+  "github": {
+    "workflow": "build",
+    "run_id": 32613574956,
+    "status": "success",
+    "head_sha": "20e08619f038531da5b66d06cc7dbac12c6fb944",
+    "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32613574956",
+    "note": "Exact checkout 20e0861; build/test and local verification bundle passed; release candidate intentionally skipped on feature branch."
+  },
+  "limitations": [
+    "This record does not close GUI consent, federation handoff, licensed Vulcan, or production topology gates.",
+    "Helio targeted evidence is a source-equivalent worker checkout for the wrapper files, not a fresh full worker suite for documentation-only commit 20e0861."
+  ]
+}

@@ -53,7 +53,7 @@ Paper/Folia 后端插件。
 | 门 | 当前证据 | 状态 |
 | --- | --- | --- |
 | 根 + modern 严格离线测试 | 历史 exact 包 `171 suites / 755 tests / 0 failures / 0 errors`；[Helio 定向构建证据](docs/evidence/cluster-targeted-build-2026-08-22.json) 已成功运行 Fabric、Velocity、BungeeCord、Paper 与 runtime integration 测试 | 在已记录源码边界内通过 |
-| 当前提交回归套件 | [当前提交回归证据](docs/evidence/static-regression-2026-08-23.json)：本机 15/15 wrapper 通过；修复后的 server-matrix/preparer 门在 Helio 独立 checkout 通过；GitHub build `32611684113` 对 exact commit `eb362296213838ab307fec9d9ea184eebb244a71` 通过 | 通过 |
+| 当前提交回归套件 | [当前提交回归证据](docs/evidence/static-regression-2026-08-23-current.json)：本机 15/15 wrapper 通过；修复后的 server-matrix/preparer 门在 Helio 源码等价 checkout 通过；GitHub build `32613574956` 对 exact commit `20e08619f038531da5b66d06cc7dbac12c6fb944` 通过 | 通过 |
 | Paper/Folia × Velocity/Bungee 进程矩阵 | [`server-version-process-matrix-2026-08-23-current.json`](docs/evidence/server-version-process-matrix-2026-08-23-current.json)：当前源码 Execute + ReportOnly 均通过，`12/12`、六棵精确版本树、清理为零；source manifest `749c21e7…` / 688 文件，绑定 `eb36229…` | feature 分支快照通过，发布重绑待做 |
 | Fabric GUI consent | 1.21.11 已到可见显式文件授权页；未记录人工点击，因此没有生成发布证据 | 待 6 次人工确认 |
 | 反作弊检测 | [`anti-cheat-real-server-2026-08-23.json`](docs/evidence/anti-cheat-real-server-2026-08-23.json)：source `4568e772…` 构建的插件产物（截至当前 HEAD 字节不变）在真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf` 上产出三次 `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK`（`AimDuplicateLook`、`Simulation`、`TickTimer`），并完成三次 HTTP `202` 风险上传 | 真实检测/拦截上传 PASS；`MONITOR`/`NONE` 是有意保持，未执行惩罚动作 |
