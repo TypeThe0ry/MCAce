@@ -1,15 +1,21 @@
 # Server-confirmed backend authority contract
 
 Status: Phase 1 protocol/verifier, Phase 2.5 hardened durable issuance, and the
-Phase 2.6 inert Paper coordinator are implemented and default-disabled; no production producer or
-`SERVER_CONFIRMED` process/release coverage.
+Phase 2.6 inert Paper coordinator are implemented and default-disabled. A real
+GrimAC 2.3.74 loopback run now proves the observational behavior-correlation
+path can emit `SERVER_CONFIRMED` CloudRiskEvents; the signed Phase 1 authority
+channel, production topology, and release coverage remain open.
 
 This document defines the minimum security boundary for a future production
 `SERVER_CONFIRMED` behavior observation that may enter MCAce's high-impact
 disposition path. The repository contains the inert protocol/verifier foundation
-and a durable-before-return issuance primitive, but not a producer. It does not
-declare Grim, Vulcan, Fabric evidence, backend context, Cloud correlation, or any
-current process test to be such a producer.
+and a durable-before-return issuance primitive. The current Grim adapter is a
+separate CloudRiskEvent producer for observational correlation only: it is
+bound to a real Paper/Leaf loopback process in
+[`anti-cheat-real-server-2026-08-23.json`](evidence/anti-cheat-real-server-2026-08-23.json),
+but it is not the signed backend-authority producer described by this contract.
+Vulcan, Fabric evidence, backend context, Cloud production topology, and any
+punitive release behavior remain separate gates.
 
 The current repository has a hardened `ADMIN_REVIEWED` authorization and
 execution *downstream*:
@@ -26,9 +32,11 @@ execution *downstream*:
 - `DENY` ends only the current physical connection and never creates a permanent
   ban.
 
-There is intentionally no `SERVER_CONFIRMED` authorization entry point or
-production source feeding that downstream today. Adding both is a separate
-release gate.
+The signed `SERVER_CONFIRMED` authorization entry point and production source
+feeding that downstream are still intentionally absent. The observed Grim
+`SERVER_CONFIRMED` value is an origin on the observational CloudRiskEvent and
+does not by itself authorize a disposition. Adding a signed producer and
+production wiring is a separate release gate.
 
 ## Current Phase 1 through Phase 2.6 implementation boundary
 
@@ -92,16 +100,17 @@ The JDK 21 offline authority selections passed 8 suites and 51 tests with zero
 failures/errors and one host-capability symlink skip. These are library tests. The
 current root build covers Phase 2.6 at 147 suites and 681 tests with zero failures
 or errors; isolated modern Fabric adds 24 suites and 74 tests, for 171 suites and
-755 tests combined. None of those tests creates a production authority producer
-or real-process producer evidence.
+755 tests combined. The current real-server evidence is separate from these
+library tests and is recorded in the anti-cheat evidence file linked above.
 
-This foundation has no production authority runtime path. In particular, no
-Velocity, BungeeCord, Paper, or Folia plugin registers the reserved authority
-channel or sends an authority frame. There is no production provider
-correlation, configured signer/grant receiver, enabled lifecycle or coordinator,
-trusted-authorization/executor wiring, platform process evidence, or release coverage.
-The library cannot cause a disposition and must not be described as a live
-`SERVER_CONFIRMED` producer.
+This foundation has no Phase 1 production authority runtime path. In
+particular, no Velocity, BungeeCord, Paper, or Folia plugin registers the
+reserved authority channel or sends an authority frame, and the signed
+grant/observation lifecycle is not wired to trusted authorization/execution.
+The separate Paper behavior pipeline does have a real Grim loopback producer,
+but it emits only observational CloudRiskEvents and the release contract keeps
+`MONITOR`/`NONE`; it must not be described as a live signed authority producer
+or as production punitive coverage.
 
 ## Non-negotiable boundary
 
@@ -166,9 +175,12 @@ origin enum and `CloudRiskEvent` are not the disposition-domain authority type.
 The current pipeline is optional Cloud delivery and must remain disconnected from
 high-impact execution.
 
-Raw typed Grim or licensed Vulcan events may later be inputs to a new local
-correlator, but the existing correlator and Cloud event must not be reused as the
-verified output.
+The current typed Grim adapter is already an input to the existing local
+behavior correlator and Cloud event; the real loopback evidence records that
+path. Raw Grim or licensed Vulcan events must not be reused as the verified
+signed authority output. A future local authority correlator must bind the
+same-session/backend grant, durable issuance, independent provider profile,
+and signed observation before any trusted disposition can consume it.
 
 Relevant boundary:
 
