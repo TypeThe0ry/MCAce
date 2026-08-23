@@ -16,10 +16,12 @@ silently treated as compatible.
 | Compatibility contract | 3/3 | exact metadata and fail-closed unknown versions |
 | Anti-cheat fixtures | Passed | classification, integrity, replay, correlation |
 | Real client load | Passed with boundary | Meteor initialized and Xray pack reloaded; no server connection |
-| Production server detection | Pending | requires real server connection and approved provider signal |
+| Real server detection/interception | Passed with boundary | Leaf 1.21.11 + GrimAC real-process runs emitted three `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK` events and three loopback uploads; `MONITOR/NONE` remained intentional |
+| Production SERVER_CONFIRMED authority | Pending | requires provider/profile/key/topology/action-ceiling freeze; Grim loopback is not production signed authority |
 | Visible GUI consent | Pending | six human decisions, two per target |
 | Vulcan genuine event | Pending | licensed/current-source event delivery |
 | Federation human handoff | Pending | source export → target import → live-through-TTL |
+| Current HEAD Helio verification | Passed | Paper module 37 tests (0 failures, 0 errors, 1 skip) plus 14/14 static wrappers on `cc91c63…` |
 
 ## What changed in this iteration
 
@@ -56,10 +58,10 @@ silently treated as compatible.
 ## Next acceptance gates
 
 1. Run each target’s visible explicit-file and frame consent prompts.
-2. Connect an approved test account to a local server and capture a sanitized
-   server-side detection/decision record.
-3. Prove a genuine `SERVER_CONFIRMED` provider path, including profile, key,
-   topology, expiry, and action ceiling.
+2. Freeze the production `SERVER_CONFIRMED` provider/profile/key/topology and
+   action ceiling; keep the real Grim loopback record separate from that claim.
+3. Supply the licensed Vulcan 2.9.0 JAR, rerun current-source structural
+   preflight, isolated Paper enablement, and one genuine external event.
 4. Run the real Fabric federation handoff with both visible consent decisions.
 5. Run protected exact-commit CI and publish a tag only after the bundle and
    source commit match.

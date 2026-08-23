@@ -15,6 +15,8 @@ backend plugin.
 · [Helio static-suite evidence](docs/evidence/cluster-helio-static-suite-2026-08-22.json)
 · [latest Helio static-suite evidence](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json)
 · [current-head regression evidence](docs/evidence/static-regression-2026-08-23.json)
+· [current HEAD Helio Paper test](docs/evidence/cluster-helio-cc91c63-paper-test-2026-08-23.json)
+· [current HEAD Helio static wrappers](docs/evidence/cluster-helio-cc91c63-static-2026-08-23.json)
 · [active-pack iteration evidence](docs/evidence/active-pack-integrity-2026-08-22.json)
 · [current e7f6f74 release-bundle evidence](docs/evidence/release-bundle-e7f6f74.json)
 
@@ -60,7 +62,7 @@ Run the contract against a current bundle:
 | Gate | Current evidence | State |
 | --- | --- | --- |
 | Root + modern strict offline tests | Historical exact bundle: `171 suites / 755 tests / 0 failures / 0 errors`; [Helio targeted build evidence](docs/evidence/cluster-targeted-build-2026-08-22.json) ran Fabric, Velocity, BungeeCord, Paper, and runtime integration tests successfully | PASS within recorded source boundary |
-| Current-head regression suite | [473ef5b evidence](docs/evidence/static-regression-2026-08-24-473ef5b.json) records 15/15 wrappers on exact source `473ef5b…`; [Helio exact test](docs/evidence/cluster-helio-473ef5b-gradle-test-2026-08-24.json) records `BUILD SUCCESSFUL`, 69 tasks, JDK 21.0.10; push CI [`32652019710`](https://github.com/TypeThe0ry/MCAce/actions/runs/32652019710) and rerun [`32652017358`](https://github.com/TypeThe0ry/MCAce/actions/runs/32652017358) both passed after one flaky Linux cancellation-test failure | PASS for source `473ef5b`; later documentation commits require their own current-head checks |
+| Current-head regression suite | [473ef5b evidence](docs/evidence/static-regression-2026-08-24-473ef5b.json) records 15/15 wrappers on exact source `473ef5b…`; current HEAD adds [Helio Paper test](docs/evidence/cluster-helio-cc91c63-paper-test-2026-08-23.json), 37 tests, 0 failures, 0 errors, 1 skip, and [14/14 static wrappers](docs/evidence/cluster-helio-cc91c63-static-2026-08-23.json) | PASS for current feature HEAD `cc91c63…`/`6925dab…`; protected-main release path still pending |
 | Paper/Folia × Velocity/Bungee process matrix | [`server-version-process-matrix-2026-08-23-219e146.json`](docs/evidence/server-version-process-matrix-2026-08-23-219e146.json): current HEAD Execute + ReportOnly validation, `12/12`, six exact version trees, cleanup zero; source manifest `beb3d4ad…` / 688 files, bound to commit `219e146…` | PASS for current feature HEAD; protected-main release CI still pending |
 | Fabric GUI consent | 1.21.11 reached the visible explicit-file screen; no click was recorded, so no release evidence was minted | PENDING 6 human decisions |
 | Anti-cheat detection | [`current-candidate-fe5f2d1.json`](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json) binds the exact Paper artifact SHA used by the e7f6f74 bundle to a Helio run on real Leaf 1.21.11 + GrimAC `2.3.74-155abaf`: 40 movement probes, three `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK` events (`AimDuplicateLook`, `Simulation`, `TickTimer`), three loopback risk uploads; the runtime record is source-bound to `fe5f2d1…`, while the Paper JAR bytes are identical in the e7f6f74 manifest | PASS for real detection/interception; `MONITOR`/`NONE` intentionally leaves punitive action unexercised |

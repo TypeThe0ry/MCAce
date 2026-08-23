@@ -13,6 +13,8 @@ Paper/Folia 后端插件。
 [Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22.json) ·
 [最新 Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json)
 · [当前提交回归证据](docs/evidence/static-regression-2026-08-23.json)
+· [当前 HEAD Helio Paper 测试](docs/evidence/cluster-helio-cc91c63-paper-test-2026-08-23.json)
+· [当前 HEAD Helio 静态 wrapper](docs/evidence/cluster-helio-cc91c63-static-2026-08-23.json)
 · [本轮 active-pack 证据](docs/evidence/active-pack-integrity-2026-08-22.json)
 · [当前 e7f6f74 发布包证据](docs/evidence/release-bundle-e7f6f74.json)
 
@@ -54,7 +56,7 @@ Paper/Folia 后端插件。
 | 门 | 当前证据 | 状态 |
 | --- | --- | --- |
 | 根 + modern 严格离线测试 | 历史 exact 包 `171 suites / 755 tests / 0 failures / 0 errors`；[Helio 定向构建证据](docs/evidence/cluster-targeted-build-2026-08-22.json) 已成功运行 Fabric、Velocity、BungeeCord、Paper 与 runtime integration 测试 | 在已记录源码边界内通过 |
-| 当前提交回归套件 | [473ef5b 回归证据](docs/evidence/static-regression-2026-08-24-473ef5b.json) 记录精确源码 `473ef5b…` 的 15/15 wrapper 通过；[Helio exact test](docs/evidence/cluster-helio-473ef5b-gradle-test-2026-08-24.json) 记录 `BUILD SUCCESSFUL`、69 tasks、JDK 21.0.10；push CI [`32652019710`](https://github.com/TypeThe0ry/MCAce/actions/runs/32652019710) 与复跑 [`32652017358`](https://github.com/TypeThe0ry/MCAce/actions/runs/32652017358) 均已通过（此前一次 Linux 取消竞态） | 源码 `473ef5b` 本机/Helio/CI 全绿；后续文档提交仍需自己的当前 HEAD 检查 |
+| 当前提交回归套件 | [473ef5b 回归证据](docs/evidence/static-regression-2026-08-24-473ef5b.json) 记录精确源码 `473ef5b…` 的 15/15 wrapper 通过；当前 HEAD 另有 [Helio Paper 测试](docs/evidence/cluster-helio-cc91c63-paper-test-2026-08-23.json)：37 tests、0 failures、0 errors、1 skip，以及 [14/14 静态 wrapper](docs/evidence/cluster-helio-cc91c63-static-2026-08-23.json) | 当前 feature HEAD `cc91c63…`/`6925dab…` 通过；受保护 main 发布路径仍待完成 |
 | Paper/Folia × Velocity/Bungee 进程矩阵 | [`server-version-process-matrix-2026-08-23-219e146.json`](docs/evidence/server-version-process-matrix-2026-08-23-219e146.json)：当前 HEAD Execute + ReportOnly 均通过，`12/12`、六棵精确版本树、清理为零；source manifest `beb3d4ad…` / 688 文件，绑定 `219e146…` | 当前 feature HEAD 通过，受保护主分支发布 CI 仍待完成 |
 | Fabric GUI consent | 1.21.11 已到可见显式文件授权页；未记录人工点击，因此没有生成发布证据 | 待 6 次人工确认 |
 | 反作弊检测 | [`current-candidate-fe5f2d1.json`](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json) 将 e7f6f74 发布包所用的同一 Paper artifact SHA 与 Helio 当前实测关联：真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf`，40 个移动探针，三次 `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK`（`AimDuplicateLook`、`Simulation`、`TickTimer`），三次 loopback 风险上传；运行记录的源码绑定仍是 `fe5f2d1…`，因为后续只修复兼容性脚本 | 真实检测/拦截上传 PASS；`MONITOR`/`NONE` 有意保留，未执行惩罚动作 |
