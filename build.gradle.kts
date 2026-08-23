@@ -339,7 +339,11 @@ abstract class MCAceReleaseBundleTask : DefaultTask() {
 
 allprojects {
     group = "com.ellan.mcace"
-    version = "0.1.0-SNAPSHOT"
+    // Keep snapshot builds reproducible by default, but allow the protected
+    // release workflow to stamp the immutable bundle with its release version
+    // without editing source between the final gate run and the tag.
+    version = providers.gradleProperty("mcaceProductVersion")
+        .getOrElse("0.1.0-SNAPSHOT")
 
     repositories {
         mavenCentral()

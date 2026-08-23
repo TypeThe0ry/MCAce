@@ -103,10 +103,12 @@ jobs:
         shell: bash
         env:
           MCACE_SOURCE_COMMIT: ${{ github.sha }}
+          MCACE_PRODUCT_VERSION: '0.0.1'
         run: |
           set -euo pipefail
           bash ./gradlew clean build releaseBundle \
             "-PmcaceSourceCommit=$MCACE_SOURCE_COMMIT" \
+            "-PmcaceProductVersion=$MCACE_PRODUCT_VERSION" \
             "-PmcaceModernJavaHome=$MCACE_JAVA25_HOME" \
             --offline \
             --dependency-verification=strict \
