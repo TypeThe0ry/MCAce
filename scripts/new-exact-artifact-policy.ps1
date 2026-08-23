@@ -47,11 +47,45 @@ function Get-HashHex([string]$Path) {
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
 }
 
+function Convert-FromHexCompat([string]$Hex) {
+    if (($Hex.Length % 2) -ne 0 -or $Hex -notmatch '^[0-9A-Fa-f]*$') {
+        throw 'hex input is malformed'
+    }
+    $bytes = New-Object byte[] ($Hex.Length / 2)
+    for ($index = 0; $index -lt $bytes.Length; $index++) {
+        $bytes[$index] = [Convert]::ToByte($Hex.Substring($index * 2, 2), 16)
+    }
+    return $bytes
+}
+
+function Convert-ToHexCompat([byte[]]$Bytes) {
+    $builder = New-Object System.Text.StringBuilder ($Bytes.Length * 2)
+    foreach ($byte in $Bytes) { [void]$builder.Append($byte.ToString('x2')) }
+    return $builder.ToString()
+}
+
+function Get-RelativePathCompat([string]$Root, [string]$Path) {
+    # Windows worker validation still runs under inbox Windows PowerShell 5.1,
+    # whose .NET Framework Path type does not expose GetRelativePath. Keep the
+    # canonical .NET Core path on pwsh, but use a URI-relative fallback there.
+    $method = [IO.Path].GetMethod('GetRelativePath', [Type[]]@([string], [string]))
+    if ($null -ne $method) {
+        return [IO.Path]::GetRelativePath($Root, $Path)
+    }
+
+    $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd([IO.Path]::DirectorySeparatorChar,
+        [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    $pathFull = [IO.Path]::GetFullPath($Path)
+    $rootUri = New-Object System.Uri($rootFull)
+    $pathUri = New-Object System.Uri($pathFull)
+    return [Uri]::UnescapeDataString($rootUri.MakeRelativeUri($pathUri).ToString()).Replace('/', '\')
+}
+
 function Get-DirectoryContentRoot([string]$Root) {
     $files = @(Get-RegularFiles $Root)
     if ($files.Count -eq 0) { throw 'content-root artifact directory is empty' }
     $entries = foreach ($file in $files) {
-        $relative = [IO.Path]::GetRelativePath($Root, $file.FullName).Replace('\', '/')
+        $relative = (Get-RelativePathCompat $Root $file.FullName).Replace('\', '/')
         if ($relative.Length -eq 0 -or $relative.Length -gt $script:MaxPathChars -or
                 $relative.StartsWith('/') -or $relative.Contains('//')) { throw 'artifact relative path is outside bounds' }
         foreach ($segment in $relative.Split('/')) {
@@ -85,10 +119,10 @@ function Get-DirectoryContentRoot([string]$Root) {
             $stream.Write($pathLength, 0, $pathLength.Length)
             $stream.Write($pathBytes, 0, $pathBytes.Length)
             $stream.Write($sizeBytes, 0, $sizeBytes.Length)
-            $hashBytes = [Convert]::FromHexString($entry.Hash)
+            $hashBytes = Convert-FromHexCompat $entry.Hash
             $stream.Write($hashBytes, 0, $hashBytes.Length)
         }
-        return [Convert]::ToHexString($digest.ComputeHash($stream.ToArray())).ToLowerInvariant()
+        return Convert-ToHexCompat ($digest.ComputeHash($stream.ToArray()))
     } finally {
         $stream.Dispose(); $digest.Dispose()
     }
