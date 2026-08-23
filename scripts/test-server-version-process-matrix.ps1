@@ -517,3 +517,4 @@ Assert-AssetManifest
 }
 
 Write-Output 'SERVER_VERSION_PROCESS_MATRIX_STATIC_TEST_PASS'
+exit 0
