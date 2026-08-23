@@ -5,11 +5,11 @@ MCAce 是面向现代 Minecraft 网络的隐私优先信任、准入、证据与
 Paper/Folia 后端插件。
 
 > **v0.0.1 当前仍未放行。** 代码和服务端矩阵已在工作，但正式 tag 必须等
-> 三版本可见 GUI 人工确认、真实服务器检测/拦截事件、真实 Vulcan genuine
-> event、以及 Fabric federation source→target handoff 都在审查提交上留下证据。
+> 三版本可见 GUI 人工确认、真实 Vulcan genuine event、以及 Fabric federation
+> source→target handoff 都在审查提交上留下证据。
 
 [English README](README.md) · [发布门](docs/RELEASE_GATES.md) ·
-[安全模型](docs/SECURITY.md) · [反作弊证据](docs/evidence/anti-cheat-real-server-2026-08-22.json) ·
+[安全模型](docs/SECURITY.md) · [反作弊证据](docs/evidence/anti-cheat-real-server-2026-08-23.json) ·
 [Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22.json) ·
 [最新 Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json)
 · [本轮 active-pack 证据](docs/evidence/active-pack-integrity-2026-08-22.json)
@@ -55,13 +55,13 @@ Paper/Folia 后端插件。
 | Helio 仓库静态 wrappers | [最新 Helio 静态套件证据](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json)：源码 `33878f2` 上使用 Windows PowerShell 5.1、每个 wrapper 独立子进程运行全部 14 个 `scripts/test-*.ps1`，全部通过 | 通过 |
 | Paper/Folia × Velocity/Bungee 进程矩阵 | [`server-version-process-matrix-2026-08-22.json`](docs/evidence/server-version-process-matrix-2026-08-22.json)：`12/12`、六棵精确版本树、清理为零；sidecar 绑定的是 README 修改前的 tree | 记录快照通过，发布重绑待做 |
 | Fabric GUI consent | 1.21.11 已到可见显式文件授权页；未记录人工点击，因此没有生成发布证据 | 待 6 次人工确认 |
-| 反作弊检测 | [`anti-cheat-real-server-2026-08-22.json`](docs/evidence/anti-cheat-real-server-2026-08-22.json)：真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf` 产出 `SERVER_CONFIRMED` 的 `Simulation`/`TickTimer` 事件，并完成两次 HTTP `202` 风险上传 | 真实检测/拦截上传 PASS；`MONITOR`/`NONE` 是有意保持，未执行惩罚动作 |
+| 反作弊检测 | [`anti-cheat-real-server-2026-08-23.json`](docs/evidence/anti-cheat-real-server-2026-08-23.json)：当前 HEAD 插件 `3C44FA85…` 在真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf` 上产出三次 `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK`（`AimDuplicateLook`、`Simulation`、`TickTimer`），并完成三次 HTTP `202` 风险上传 | 真实检测/拦截上传 PASS；`MONITOR`/`NONE` 是有意保持，未执行惩罚动作 |
 | Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
-| exact-commit CI/release | canonical `main` 运行 [`32573320698`](https://github.com/TypeThe0ry/MCAce/actions/runs/32573320698) 已在不可变提交 `33878f2aeb9b3dc36c3f26c4b8fa8427c8e6238a` 通过；[包证据](docs/evidence/release-bundle-2026-08-22-33878f2.json)固定八项 exact 包、`release_identity=true` 和 `SHA256SUMS` 全量核验 | 该精确提交 PASS；本次文档更新在打 tag 前需要自己的 required `build`；外部 v0.0.1 门关闭前产品版本仍为 `0.1.0-SNAPSHOT` |
+| exact-commit CI/release | 最新 exact-commit CI 运行 [`32579360473`](https://github.com/TypeThe0ry/MCAce/actions/runs/32579360473) 已在不可变提交 `4568e772326563303e50b2dcc48cd4a628c92c32` 通过；这只是 CI 证据，不是 release tag | 该记录提交 PASS；本次文档更新在打 tag 前需要自己的 required `build`；剩余外部 v0.0.1 门关闭前产品版本仍为 `0.1.0-SNAPSHOT` |
 
-规范发布证据绑定到上面的不可变提交
-`33878f2aeb9b3dc36c3f26c4b8fa8427c8e6238a`。任何 checkout 都要用
+最新 exact-commit CI 证据绑定到上面的不可变提交
+`4568e772326563303e50b2dcc48cd4a628c92c32`。任何 checkout 都要用
 `git rev-parse HEAD` 校验；只有 `release-manifest.properties` 中
 `release_identity=true` 且 `source_commit` 与 checkout 完全一致时，才允许把包放进 tag。
 当前 v0.0.1 放行仍由六次 GUI 人工确认、真实反作弊、Vulcan 和 federation 门共同决定。
@@ -93,9 +93,9 @@ provider 通过 `ServerBehaviorCorrelationRuntime` 进入授权边界：必须�
 [`docs/CLIENT_SELF_PROTECTION.md`](docs/CLIENT_SELF_PROTECTION.md) 和
 [`scripts/new-exact-artifact-policy.ps1`](scripts/new-exact-artifact-policy.ps1)。
 
-本轮实现固定在提交 `50a537a78da9f705ff85ebc4cd0dc5c3edd3996a`：core、Velocity、Fabric
+本轮实现固定在当前 HEAD `4568e772326563303e50b2dcc48cd4a628c92c32`：core、Velocity、Fabric
 `1.21.11`、现代 `26.1.2`/`26.2` 本地检查通过；Helio 尝试在 Loom 源码 remap 阶段发生 JVM
-崩溃，已按失败证据记录，没有冒充通过。GitHub exact-commit CI 为运行 `32578975989`。
+崩溃，已按失败证据记录，没有冒充通过。GitHub exact-commit CI 为运行 `32579360473`。
 当前没有创建 tag，也没有发布 GitHub release。
 
 受控 fixture 只读 metadata，不执行第三方代码：

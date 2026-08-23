@@ -1,0 +1,96 @@
+{
+  "schema": "MCACE_ANTI_CHEAT_REAL_SERVER_EVIDENCE_V1",
+  "generated_at": "2026-08-23T01:21:25Z",
+  "source_mode": "LOCAL_REAL_SERVER_LOOPBACK",
+  "source_commit": "4568e772326563303e50b2dcc48cd4a628c92c32",
+  "execution_node": "helio",
+  "target": {
+    "minecraft": "1.21.11",
+    "server": "Leaf 1.21.11-135",
+    "server_jar_sha256": "105BC2C457F2249ED2CB0F902BEC44647A291AABC9C4761BE50BA25A46AF72B",
+    "anti_cheat": "GrimAC 2.3.74-155abaf",
+    "anti_cheat_jar_sha256": "214A44A0FF476577B66B9038FE6B8122789CE0667E48F7CBB5B0337417A24E9D",
+    "mcace_plugin": "0.1.0-SNAPSHOT",
+    "mcace_paper_jar_sha256": "3C44FA8529B08D2DB517D7460D47656AB727A3FDC0E38F06A431055748619180",
+    "java": "Oracle JDK 21.0.10",
+    "runtime_flag": "-XX:TieredStopAtLevel=1"
+  },
+  "execution": {
+    "server_started": true,
+    "server_ready": true,
+    "client_protocol": "minecraft-protocol 1.67.0",
+    "client_connected": true,
+    "movement_probe_packets": 40,
+    "client_disconnected_cleanly": true,
+    "loopback_observer": "HTTP/1.1",
+    "probe_transport": "position_look packets with 1.21.3+ flags",
+    "run_exit_codes": {
+      "client": 0,
+      "observer": 0,
+      "server_stopped_after_probe": true
+    }
+  },
+  "summary": {
+    "real_server_connection": true,
+    "real_server_detection_event": true,
+    "real_server_interception_channel": true,
+    "risk_upload_http_statuses": [
+      201,
+      202
+    ],
+    "observed_event_count": 3,
+    "providers": [
+      "grim"
+    ],
+    "event_origin": "SERVER_CONFIRMED",
+    "event_source_component": "grim-adapter",
+    "event_type": "BEHAVIOR_HIGH_RISK",
+    "checks": [
+      "AimDuplicateLook",
+      "Simulation",
+      "TickTimer"
+    ],
+    "stable_checks": [
+      "grim.aim.duplicate_look",
+      "grim.prediction.simulation",
+      "grim.timer.tick"
+    ],
+    "per_event_flag_count": 3,
+    "enforcement_action": "NONE",
+    "session_action_mode": "MONITOR",
+    "automatic_kick_or_ban": false,
+    "genuine_licensed_vulcan_event_observed": false
+  },
+  "evidence": {
+    "observer_request_log_sha256": "46931B498E252769F70486899BAD85A0DD7586A7A8A6D7CD372839C092A539F4",
+    "client_result_sha256": "F3EE73B830102C26F5E75C900222D1B067255C3B95AEECF28167EE07DB677AF2",
+    "server_log_sha256": "42478A9E61EE66EA4C12BE247D75531092E9BB58F2566D8B7EB9D83D7E14232B",
+    "server_log_contains_grim_enable": true,
+    "server_log_contains_mcace_grim_adapter": true,
+    "server_log_contains_bot_join_and_clean_disconnect": true,
+    "server_log_contains_current_head_plugin_hash": true,
+    "observer_http_202_count": 3,
+    "observer_auth_challenge_status": 201,
+    "observer_auth_token_status": 201
+  },
+  "interpretation": "A real Leaf 1.21.11 server with the real GrimAC plugin and the MCAce plugin built from the current HEAD emitted three SERVER_CONFIRMED BEHAVIOR_HIGH_RISK events (AimDuplicateLook, Simulation, TickTimer) after a 40-packet movement probe. MCAce authenticated to the loopback observer and delivered all three risk events with HTTP 202. MONITOR/NONE is intentional: this evidence proves server-side detection, admission/authentication, interception, and upload, not a production punitive action.",
+  "limitations": [
+    "The observer is a loopback test endpoint, not production Cloud.",
+    "The server is offline-mode and bound to loopback for a reproducible lab run.",
+    "GrimAC is an external provider; a genuine licensed Vulcan runtime event remains a separate pending gate.",
+    "No automatic kick/ban is asserted because the release contract keeps MONITOR default and requires reviewable action.",
+    "The Helio Gradle Loom remapping build crashed under JDK 21; the deployed plugin jar was independently verified against the controller build artifact for the current HEAD."
+  ],
+  "artifacts": {
+    "observer_log": "docs/evidence/real-server-2026-08-23/observer.jsonl",
+    "client_result": "docs/evidence/real-server-2026-08-23/client-result.json",
+    "server_log": "docs/evidence/real-server-2026-08-23/server.stdout.log"
+  },
+  "sanitization": {
+    "identity_values_copied": false,
+    "process_ids_copied": false,
+    "absolute_paths_copied": false,
+    "keys_or_secrets_copied": false,
+    "raw_client_identity_copied": false
+  }
+}
