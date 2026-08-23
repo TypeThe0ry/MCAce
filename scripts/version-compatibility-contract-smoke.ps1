@@ -29,10 +29,10 @@ $targets = @(
         artifact = 'mcace-client-fabric-1.21.11.jar'
         artifact_mode = 'FINAL_REMAP_JAR'
         expected_nested = @(
-            'META-INF/jars/mcace-client-common-0.1.0-SNAPSHOT.jar'
-            'META-INF/jars/mcace-core-0.1.0-SNAPSHOT.jar'
-            'META-INF/jars/mcace-protocol-0.1.0-SNAPSHOT.jar'
-            'META-INF/jars/mcace-sdk-0.1.0-SNAPSHOT.jar'
+            'META-INF/jars/mcace-client-common-{VERSION}.jar'
+            'META-INF/jars/mcace-core-{VERSION}.jar'
+            'META-INF/jars/mcace-protocol-{VERSION}.jar'
+            'META-INF/jars/mcace-sdk-{VERSION}.jar'
             'META-INF/jars/protobuf-java-4.32.1.jar'
         )
     }
@@ -117,8 +117,15 @@ function Assert-TargetArtifact([object]$Target, [object]$Manifest, [string]$Root
     if ($javaRequirement -cne ">=$($Target.java_major)") {
         throw "MCACE_COMPATIBILITY_JAVA_REQUIREMENT_MISMATCH|$($Target.minecraft_version)"
     }
+    $productVersion = [string]$Manifest.product_version
+    if ($productVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$') {
+        throw 'MCACE_COMPATIBILITY_PRODUCT_VERSION_INVALID'
+    }
+    $expectedNested = @($Target.expected_nested | ForEach-Object {
+        $_ -replace '\{VERSION\}', $productVersion
+    })
     $nested = @($metadata.jars | ForEach-Object { [string]$_.file })
-    if ((@($nested) -join '|') -cne (@($Target.expected_nested) -join '|')) {
+    if ((@($nested) -join '|') -cne (@($expectedNested) -join '|')) {
         throw "MCACE_COMPATIBILITY_NESTED_JAR_CONTRACT_MISMATCH|$($Target.minecraft_version)"
     }
     [ordered]@{
@@ -145,6 +152,7 @@ function Invoke-Execute {
     if ([string]$manifest.schema -cne 'MCACE_RELEASE_BUNDLE_V3' -or
             [string]$manifest.bundle_profile -cne 'RELEASE' -or
             [string]$manifest.release_identity -cne 'true' -or
+            [string]$manifest.product_version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$' -or
             [int]$manifest.deployable_count -ne 6 -or
             [int]$manifest.bundle_entry_count -ne 8) {
         throw 'MCACE_COMPATIBILITY_RELEASE_MANIFEST_CONTRACT_INVALID'
