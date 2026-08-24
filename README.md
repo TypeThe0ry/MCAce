@@ -18,9 +18,11 @@ backend plugin.
 · [current HEAD Helio Paper test](docs/evidence/cluster-helio-cc91c63-paper-test-2026-08-23.json)
 · [current HEAD Helio static wrappers](docs/evidence/cluster-helio-cd3921c-static-2026-08-23.json)
 · [active-pack iteration evidence](docs/evidence/active-pack-integrity-2026-08-22.json)
-· [current e7f6f74 release-bundle evidence](docs/evidence/release-bundle-e7f6f74.json)
+· [historical e7f6f74 release-bundle evidence](docs/evidence/release-bundle-e7f6f74.json)
 · [current Helio 12/12 server matrix evidence](docs/evidence/server-version-process-matrix-2026-08-25-f404971.json)
 · [latest feature exact-commit CI evidence](docs/evidence/github-feature-ci-2026-08-25-8db8634.json)
+· [current fail-closed readiness report](docs/evidence/release-readiness-2026-08-25-1beccc7.json)
+· [D-drive migration record](docs/PROJECT_MIGRATION.md)
 
 ![Verification dashboard](docs/assets/verification-dashboard.svg)
 
@@ -67,17 +69,19 @@ Run the contract against a current bundle:
 | Current-head regression suite | [473ef5b evidence](docs/evidence/static-regression-2026-08-24-473ef5b.json) and the Helio wrapper records remain retained as historical witnesses; the feature branch now has documentation-only commits after the tested code commit `f404971…`, while the resumable server-matrix static test and Helio execution remain bound to that code commit | PASS for the recorded checks; fresh protected-main release CI is still pending |
 | Paper/Folia × Velocity/Bungee process matrix | [Helio evidence index](docs/evidence/server-version-process-matrix-2026-08-25-f404971.json) plus the immutable [report](docs/evidence/server-version-process-matrix/2026-08-24T21-33-47-1914356Z/report.json), [binding](docs/evidence/server-version-process-matrix/2026-08-24T21-33-47-1914356Z/binding.json), and [commit marker](docs/evidence/server-version-process-matrix/2026-08-24T21-33-47-1914356Z/commit.json): exact feature commit `f404971…`, `12/12`, `10` STABLE + `2` BETA, cleanup zero, source manifest `db15e970…` / 686 files; Paper 26.2 build `116`, Folia 26.2 build `6` | PASS on Helio; protected-main release CI still pending |
 | Fabric GUI consent | 1.21.11 reached the visible explicit-file screen; no click was recorded, so no release evidence was minted | PENDING 6 human decisions |
-| Anti-cheat detection | [`current-candidate-fe5f2d1.json`](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json) binds the exact Paper artifact SHA used by the e7f6f74 bundle to a Helio run on real Leaf 1.21.11 + GrimAC `2.3.74-155abaf`: 40 movement probes, three `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK` events (`AimDuplicateLook`, `Simulation`, `TickTimer`), three loopback risk uploads; the runtime record is source-bound to `fe5f2d1…`, while the Paper JAR bytes are identical in the e7f6f74 manifest | PASS for real detection/interception; `MONITOR`/`NONE` intentionally leaves punitive action unexercised |
+| Anti-cheat detection | [`current-candidate-fe5f2d1.json`](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json) binds the exact Paper artifact SHA used by the historical e7f6f74 bundle to a Helio run on real Leaf 1.21.11 + GrimAC `2.3.74-155abaf`: 40 movement probes, three `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK` events (`AimDuplicateLook`, `Simulation`, `TickTimer`), and three loopback risk uploads; the runtime record is source-bound to `fe5f2d1…`, while the Paper JAR bytes are identical in the historical manifest | PASS for real observational detection/correlation/upload; `MONITOR`/`NONE` intentionally leaves punitive action unexercised |
 | Vulcan | Static contracts pass; licensed JAR and genuine external trigger are absent from this workspace | PENDING |
 | Fabric federation | V2 static contract passes; source-export/target-import GUI handoff has not been executed | PENDING |
 | Exact-commit CI/release | [Push run `32781778301`](https://github.com/TypeThe0ry/MCAce/actions/runs/32781778301) and [PR run `32781782319`](https://github.com/TypeThe0ry/MCAce/actions/runs/32781782319) passed for exact source `8db8634e62a4c6f208ba07c284be399b2ae76464`: build/test, local verification bundle, and exact-eight upload passed; releaseBundle and the main-only readiness gate were correctly skipped on the feature branch. See [sanitized evidence](docs/evidence/github-feature-ci-2026-08-25-8db8634.json). | PASS for the current feature witness; protected-main exact-commit releaseBundle remains pending |
-| Helio exact-commit release candidate | [`release-bundle-e7f6f74.json`](docs/evidence/release-bundle-e7f6f74.json) records Helio `releaseBundle` for `e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834`: six deployables, exact-eight manifest, `product_version=0.0.1`, bundle ZIP SHA-256 `4799733be6a178a7ed119d69f4945453dec1d73fbab7a22e95e51e259e035ded`, and all eight entry hashes verified locally; compatibility contract is 3/3 PASS | PASS for feature-branch candidate; protected `main` CI, external GUI/Vulcan/federation gates, and final tag remain pending |
+| Historical Helio release candidate | [`release-bundle-e7f6f74.json`](docs/evidence/release-bundle-e7f6f74.json) records Helio `releaseBundle` for `e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834`: six deployables, exact-eight manifest, `product_version=0.0.1`, bundle ZIP SHA-256 `4799733be6a178a7ed119d69f4945453dec1d73fbab7a22e95e51e259e035ded`, and all eight entry hashes verified locally; compatibility contract is 3/3 PASS | Historical feature-branch candidate only; protected `main` CI, external GUI/Vulcan/federation gates, current-source releaseBundle, and final tag remain pending |
+| Current release readiness | [`release-readiness-2026-08-25-1beccc7.json`](docs/evidence/release-readiness-2026-08-25-1beccc7.json) is generated by the fail-closed gate against current HEAD `1beccc771cf9fac4e0e0e9c57462db9fcbda4b73` | BLOCKED: 5 named external/protected gates remain open; no tag or release is claimed |
 
 The latest retained feature exact-commit CI evidence is bound to
 `8db8634e62a4c6f208ba07c284be399b2ae76464`; the current Helio server-matrix
 evidence is independently bound to `f404971e6e9a9ac1d30e5cf4e2692750aa83f1b1`.
-The `e7f6f74` Helio release bundle remains a historical feature-branch candidate,
-not evidence for the current HEAD.
+The current HEAD is `1beccc771cf9fac4e0e0e9c57462db9fcbda4b73`, a documentation/evidence-only
+descendant accepted by the provenance gate. The `e7f6f74` Helio release bundle
+remains a historical feature-branch candidate, not evidence for the current HEAD.
 Verify the source commit used for each artifact with `git rev-parse HEAD`; later documentation-only commits do not change the tested plugin artifact. Do not copy an
 artifact to a tag unless its `release-manifest.properties` has
 `release_identity=true` and the `source_commit` matches that checkout exactly.
@@ -125,7 +129,10 @@ source-bound to `fe5f2d1…`; it used the same Paper artifact SHA as the older
 anti-cheat run's provenance.
 Node.js v22.23.2 completed the probe; the Helio Node.js v24.18.0 image crashed
 before producing a result and is retained only as a diagnostic limitation. No
-tag or GitHub release has been created.
+tag or GitHub release has been created. The source workspace was migrated to
+`D:\Projects\MCAce`; the original `C:\Users\admin\MCAce` directory was removed
+only after exact file/byte and RoboCopy dry-run verification, as recorded in
+[`docs/PROJECT_MIGRATION.md`](docs/PROJECT_MIGRATION.md).
 
 The controlled fixture command is metadata-only and does not execute third-party
 code:

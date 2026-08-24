@@ -1,0 +1,59 @@
+{
+  "schema": "MCACE_RELEASE_READINESS_V1",
+  "generated_at": "2026-08-25T06:26:39.9454846+08:00",
+  "source_commit": "1beccc771cf9fac4e0e0e9c57462db9fcbda4b73",
+  "observed_head": "1beccc771cf9fac4e0e0e9c57462db9fcbda4b73",
+  "release_ready": false,
+  "gates": [
+    {
+      "name": "server_matrix_exact_source",
+      "passed": true,
+      "evidence": "docs/evidence/server-version-process-matrix-2026-08-25-f404971.json",
+      "detail": "matrix evidence is bound to tested source f404971e6e9a9ac1d30e5cf4e2692750aa83f1b1; current descendant contains only docs/evidence and release-gate harness changes"
+    },
+    {
+      "name": "fabric_gui_six_human_decisions",
+      "passed": false,
+      "evidence": "docs/evidence/fabric-gui-consent-*.json",
+      "detail": "found 0/3 current-source passing target records; stale or diagnostic attempts do not count"
+    },
+    {
+      "name": "fabric_federation_real_handoff",
+      "passed": false,
+      "evidence": "docs/evidence/federation-gui-handoff-*.json",
+      "detail": "no current-source real GUI source-to-target handoff record with both approvals and expiry proof"
+    },
+    {
+      "name": "vulcan_genuine_event",
+      "passed": false,
+      "evidence": "docs/evidence/vulcan-genuine-event-*.json",
+      "detail": "licensed current-source Vulcan enablement and genuine external event are absent"
+    },
+    {
+      "name": "production_server_confirmed_authority",
+      "passed": false,
+      "evidence": "docs/evidence/server-confirmed-production-*.json",
+      "detail": "production SERVER_CONFIRMED authority freeze and real producer matrix are absent"
+    },
+    {
+      "name": "protected_exact_release_bundle",
+      "passed": false,
+      "evidence": "docs/evidence/release-bundle-*.json",
+      "detail": "no current-source protected-main exact-eight release bundle evidence"
+    },
+    {
+      "name": "clean_worktree",
+      "passed": true,
+      "evidence": "git status --porcelain",
+      "detail": "worktree is clean"
+    }
+  ],
+  "blockers": [
+    "fabric_gui_six_human_decisions",
+    "fabric_federation_real_handoff",
+    "vulcan_genuine_event",
+    "production_server_confirmed_authority",
+    "protected_exact_release_bundle"
+  ],
+  "interpretation": "Fail-closed: one or more release gates are missing, stale, or not bound to the requested exact source."
+}
