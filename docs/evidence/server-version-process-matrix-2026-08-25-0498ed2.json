@@ -53,5 +53,13 @@
     "This proves the signed admission/proxy-to-backend process path and cleanup across the named matrix.",
     "It does not prove visible GUI human consent, a licensed Vulcan genuine event, Fabric federation GUI handoff, production SERVER_CONFIRMED authority freeze, or ACE kernel/DMA protection.",
     "The matrix ran on Helio Windows with the published worker job and no remaining MCAce server Java processes after completion."
-  ]
+  ],
+  "report_only": {
+    "command": "scripts/server-version-process-matrix.ps1 -ReportOnly",
+    "result": "SERVER_VERSION_PROCESS_MATRIX_REPORT_ONLY_PASS",
+    "report": "build/server-version-process-matrix/runs/2026-08-24T16-20-40-2184910Z/report.json",
+    "worker": "helio",
+    "transport_exit": 0,
+    "observed_at": "2026-08-25T01:03:00+08:00"
+  }
 }
