@@ -1,6 +1,9 @@
 # MCAce release gates
 
-Status snapshot: August 25, 2026. Files below `build/` are mutable diagnostics.
+Status snapshot: August 25, 2026. Current feature HEAD is
+`6cd6e48cfdbc3fdf9e170f35c9fca40b4ee4f143`; it is a documentation/evidence-only
+descendant of the tested code commit and is accepted by the provenance gate.
+Files below `build/` are mutable diagnostics.
 Only the bounded records copied to `docs/evidence/` are durable repository
 evidence, and a passing local record is not automatically an exact-commit release.
 
@@ -33,6 +36,7 @@ historical only and cannot be promoted to the current three-version release.
 | Strict offline Windows reproducibility | Passed locally | [`local-build-2026-08-20.json`](evidence/local-build-2026-08-20.json); independent clean August 20 A/D runs each completed 118/118 tasks. Root: 147 suites / 681 tests / 0 failures / 0 errors / 28 skipped. Modern: 24 / 74 / 0 / 0 / 0. Combined: 171 / 755 / 0 / 0 / 28. Exact-eight A/D bytes match. | Strong sanitized local reproducibility evidence. The manifest is `LOCAL_VERIFICATION`, `release_identity=false`, and `source_commit=LOCAL_UNSPECIFIED`; it is not a release candidate. |
 | Linux network-none rehearsal | Passed for current boundary | [`local-build-2026-08-20.json`](evidence/local-build-2026-08-20.json), run `cb6dc44ddad744b5a20dc2986c0a6d70`; strict offline network-none; exact JDK 21.0.7+6/JDK 25.0.3+9; 118 root actionable tasks plus 15/15 modern tasks; 171 suites / 755 tests / 0 failures / 0 errors / 33 environment-conditioned skips; unchanged 735-file source manifest; all eight entries stream-byte-identical to Windows A/D; cleanup zero at 0/30/60 seconds. | Current Linux parity is proven for the LOCAL exact-eight boundary. The detailed raw witness remains external; the repository record is sanitized. This is not exact-commit release identity. |
 | GitHub Actions / exact commit | Passed for feature source `8db8634e62a4c6f208ba07c284be399b2ae76464`; protected-main release path pending | [Push run `32781778301`](https://github.com/TypeThe0ry/MCAce/actions/runs/32781778301) and [PR run `32781782319`](https://github.com/TypeThe0ry/MCAce/actions/runs/32781782319), with sanitized [evidence](evidence/github-feature-ci-2026-08-25-8db8634.json), passed exact checkout, build/test, local-verification bundle, and exact-eight upload; releaseBundle and the main-only readiness gate were correctly skipped on the feature branch. | Current feature witness is green. Merge to protected `main` only after external gates close, then rerun exact-commit CI/releaseBundle and verify the eight-file artifact before tagging. |
+| Current fail-closed readiness | Blocked for current feature HEAD `6cd6e48cfdbc3fdf9e170f35c9fca40b4ee4f143` | [`release-readiness-2026-08-25-1beccc7.json`](evidence/release-readiness-2026-08-25-1beccc7.json) records the latest complete fail-closed evaluation before this docs-only descendant: server matrix and clean worktree passed; GUI six decisions, federation handoff, licensed Vulcan genuine event, production authority freeze, and protected exact release bundle remain false. | No tag/release claim is valid while any named blocker remains open. Rerun `scripts/release-readiness.ps1` after every evidence change. |
 | Latest recorded exact-commit CI / release bundle | Passed for merged source `f355a85f65173c6e98ab685e3b36f5e172b85498` | Run [`32570987482`](https://github.com/TypeThe0ry/MCAce/actions/runs/32570987482) verified the exact checkout, ran build/test, built the exact release candidate, uploaded all eight entries, and passed local SHA256 verification. See [`release-bundle-2026-08-22-f355a85.json`](evidence/release-bundle-2026-08-22-f355a85.json). | This immutable source is green. Any later source/documentation commit must receive its own required `build` check before tagging. |
 | Helio exact-commit release candidate | Passed for immutable source `e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834` | [`release-bundle-e7f6f74.json`](evidence/release-bundle-e7f6f74.json) records Helio `releaseBundle`: six deployables plus `release-manifest.properties` and `SHA256SUMS`; bundle ZIP SHA-256 `4799733be6a178a7ed119d69f4945453dec1d73fbab7a22e95e51e259e035ded`; `product_version=0.0.1`; root JDK `21.0.10`, modern JDK `25.0.4.1`, Gradle `9.6.1`; all eight entries and the three-version compatibility contract were independently verified locally. | Candidate build is green; it is not a protected-main CI result and cannot be tagged until the GUI, federation, Vulcan, production provider freeze, and current-head CI gates close. |
 | Helio repository static wrappers | Passed 14/14 | [`cluster-helio-static-suite-2026-08-22.json`](evidence/cluster-helio-static-suite-2026-08-22.json) records `HELIO_STATIC_ALL_PASS` on `helio` with Windows PowerShell 5.1 at source `50362a1`. | Cluster execution is verified; this does not close the external GUI, licensed Vulcan, or real federation gates. |
@@ -63,6 +67,11 @@ The current local-build and matrix repository JSON files hash to
 `ebbecbf1b322322f3ba78de89e00016e447ab2fca310a6889bbf9d9b1f086060`
 and `f62c2c846203bd8d6d411246ddeaddaa8d62dc81abb1ca3b135e7eaae021ea63`,
 respectively.
+
+The source workspace is maintained at `D:\Projects\MCAce`. The original
+`C:\Users\admin\MCAce` tree was removed only after exact file/byte and RoboCopy
+dry-run verification; the migration manifest and logs are recorded in
+[`PROJECT_MIGRATION.md`](PROJECT_MIGRATION.md).
 The external Linux witness hashes to
 `de6d82fedace1c7b961ba9879b6e924df1bc8a1d085b851134194bac91d44b48`;
 it is not copied repository evidence.
