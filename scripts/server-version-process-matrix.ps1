@@ -1623,13 +1623,14 @@ function Write-ExecutionCheckpoint {
     $bytes = ConvertTo-CompactJsonBytes $checkpoint
     Assert-SanitizedEvidenceBytes $bytes 'checkpoint'
     $tempPath = Join-Path $workRoot ('.checkpoint-' + [IO.Path]::GetRandomFileName())
+    $backupPath = Join-Path $workRoot ('.checkpoint-backup-' + [IO.Path]::GetRandomFileName())
     try {
         Write-NewFileBytes $tempPath $bytes
         if (Test-Path -LiteralPath $checkpointPath -PathType Leaf) {
             [IO.File]::Replace(
                 (Assert-DirectLocalPath $tempPath),
                 (Assert-DirectLocalPath $checkpointPath),
-                $null,
+                $backupPath,
                 $true)
         } else {
             [IO.File]::Move(
@@ -1639,6 +1640,9 @@ function Write-ExecutionCheckpoint {
     } finally {
         if (Test-Path -LiteralPath $tempPath -PathType Leaf) {
             [IO.File]::Delete((Assert-DirectLocalPath $tempPath))
+        }
+        if (Test-Path -LiteralPath $backupPath -PathType Leaf) {
+            [IO.File]::Delete((Assert-DirectLocalPath $backupPath))
         }
     }
 }
