@@ -36,7 +36,7 @@ durable result is [`version-compatibility-contract-2026-08-21.json`](evidence/ve
 | --- | ---: | ---: | --- | --- | --- |
 | `1.21.11` | 774 | 21 | build 132, STABLE | build 14, STABLE | final remapped JAR |
 | `26.1.2` | 775 | 25 | build 74, STABLE | build 8, STABLE | final named JAR |
-| `26.2` | 776 | 25 | build 112, STABLE | build 4, **BETA** | final named JAR |
+| `26.2` | 776 | 25 | build 116, STABLE | build 6, **BETA** | final named JAR |
 
 Both proxy assets are shared across the matrix:
 
@@ -54,7 +54,7 @@ The backend pins are:
 | Paper | `26.2-112` | STABLE | `bd3a58cf96874e5ea6643f5f6fe9b4f5bf9e34b795fa078c2f0ee8b98b2f907e` |
 | Folia | `1.21.11-14` | STABLE | `f52c408490a0225611e67907a3ca19f7e6da2c6bc899e715d5f46844e7103c39` |
 | Folia | `26.1.2-8` | STABLE | `607afd1c3320008e1ffd2eaee6780ace4419d5f8c527b75e79f259be79ebf57b` |
-| Folia | `26.2-4` | BETA | `19c81c308ba4de4b9fc0a61860c86281836d26ac046f696ea241766eea4b2468` |
+| Folia | `26.2-6` | BETA | `9a728381da3a3bea6732ee210519f8f6ab7d6affe132a430ee167c44c4603d08` |
 
 Artifacts are pinned in `build/runtime-assets/manifest.json`. Initialized
 server trees are bound by `build/runtime-assets/prepared-manifest.json`; only
@@ -87,12 +87,12 @@ The wrapper has no implicit mode. It fails unless exactly one of `-Execute` and
 8. publishes `report.json`, `binding.json`, and `commit.json` by a same-volume
    atomic directory rename.
 
-The August 20 run `2026-08-20T12-01-09-3951618Z` passed 12/12 and then passed
+The current Helio run `2026-08-24T16-20-40-2184910Z` passed 12/12 and then passed
 `-ReportOnly`: Paper 6/6, Folia 6/6, Velocity 6/6, Bungee 6/6, with 10 STABLE
-cases and the two Folia 26.2 BETA cases. It binds 675 source files under manifest
-`80d7753f8c7d47b9f779fde26c229f8df236ef192404708557925f31f0faada7`.
-Its current sanitized repository evidence is
-[`evidence/server-version-process-matrix-2026-08-20.json`](evidence/server-version-process-matrix-2026-08-20.json).
+cases and the two Folia 26.2 BETA cases. It binds 686 source files under manifest
+`db15e9707ac1deb87958f0d031fe3946d9bbf961ba01844550983fd5f8fcec72` on exact
+code commit `0498ed2…`. Its current sanitized repository evidence is
+[`evidence/server-version-process-matrix-2026-08-25-0498ed2.json`](evidence/server-version-process-matrix-2026-08-25-0498ed2.json).
 
 `-ReportOnly` starts no server or proxy. It re-derives current source, asset,
 prepared-tree, product-JAR, Java, Gradle, wrapper, and raw-report bindings and

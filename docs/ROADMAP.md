@@ -17,8 +17,9 @@
 - [x] Seal the post-fix authoritative 12-case server process matrix: three
   versions × Paper/Folia × Velocity/Bungee, then `-ReportOnly`. Paper 6/6,
   Folia 6/6, Velocity 6/6, Bungee 6/6; 10 STABLE plus two Folia 26.2 BETA
-  cases; cleanup zero. Retained evidence:
-  `docs/evidence/server-version-process-matrix-2026-08-20.json`.
+  cases; cleanup zero. The current Helio record is bound to code commit
+  `0498ed277f9a5af39ebd6ae4940e6e9fdbc85e32` and retained at
+  `docs/evidence/server-version-process-matrix-2026-08-25-0498ed2.json`.
 - [x] Pass server-only `platform-load-smoke.ps1 -FabricTarget <target>` for all
   three targets and prewarm/verify all required Minecraft asset objects.
 - [ ] Complete the visible Fabric evidence gate for all three targets: one
@@ -32,8 +33,9 @@
   network-none with JDK 21, isolated JDK 25, strict offline verification,
   unchanged source, and exact-eight stream-byte parity with Windows A/D. The old
   JDK-21 exact-six and superseded pre-fix exact-eight records are historical.
-- [ ] Review, commit, and push the current changes; retain protected exact-commit
-  CI and generate a clean exact-commit `releaseBundle` candidate.
+- [x] Review, commit, and push the current migration/evidence/documentation
+  changes to `feature/active-pack-integrity`; the protected exact-commit CI and
+  clean exact-commit `releaseBundle` candidate remain separate release gates.
 
 The enforcement invariants remain fixed: MONITOR default, no permanent automatic
 BAN, DENY current connection only, CLIENT_REPORTED never authorizes a high-impact
@@ -161,9 +163,9 @@ identity, and the Java 21/25 target split.
 
 The old 1.21.1/1.21.4 preparation runs and wrappers are retained only as
 historical diagnostics. Their Paper 1.21.1-133, BungeeCord 2028, and Folia
-1.21.4-6 ALPHA pins are not current release inputs. The August 20
+1.21.4-6 ALPHA pins are not current release inputs. The current Helio
 three-version process evidence is
-`docs/evidence/server-version-process-matrix-2026-08-20.json`.
+`docs/evidence/server-version-process-matrix-2026-08-25-0498ed2.json`.
 
 The final post-fix source/JAR/asset/prepared-tree-bound three-version raw-peer
 matrix reached
