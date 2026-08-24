@@ -78,9 +78,9 @@ if ($requestedCommit -notmatch '^[0-9a-f]{40}$') {
 }
 
 $gates = [System.Collections.Generic.List[object]]::new()
-$matrixIndexPath = 'docs/evidence/server-version-process-matrix-2026-08-25-0498ed2.json'
+$matrixIndexPath = 'docs/evidence/server-version-process-matrix-2026-08-25-395a769.json'
 $matrixIndex = Read-JsonFile $matrixIndexPath
-$matrixTripletRoot = 'docs/evidence/server-version-process-matrix/2026-08-24T16-20-40-2184910Z'
+$matrixTripletRoot = 'docs/evidence/server-version-process-matrix/2026-08-24T20-23-23-6783068Z'
 $matrixReport = Read-JsonFile (Join-Path $matrixTripletRoot 'report.json')
 $matrixBinding = Read-JsonFile (Join-Path $matrixTripletRoot 'binding.json')
 $matrixCommit = Read-JsonFile (Join-Path $matrixTripletRoot 'commit.json')

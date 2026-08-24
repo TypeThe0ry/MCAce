@@ -76,11 +76,11 @@ upstream JARs, protocol profile, JDK/Gradle identities, prepared server tree, an
 raw-report digest. Private/delegated keys and forwarding secrets must be absent
 after cleanup.
 
-The current Helio run `2026-08-24T16-20-40-2184910Z` passed all 12 cases and then
+The current Helio run `2026-08-24T20-23-23-6783068Z` passed all 12 cases and then
 passed `-ReportOnly`: Paper 6/6, Folia 6/6, Velocity 6/6, and BungeeCord 6/6. Folia
 26.2 build 6 remains explicitly BETA. Current durable evidence is
-[`evidence/server-version-process-matrix-2026-08-25-0498ed2.json`](evidence/server-version-process-matrix-2026-08-25-0498ed2.json),
-bound to code commit `0498ed2…`.
+[`evidence/server-version-process-matrix-2026-08-25-395a769.json`](evidence/server-version-process-matrix-2026-08-25-395a769.json),
+bound to code commit `395a769…`.
 The standard-backend observer requires admission and context while the same peer
 socket remains live; it does not count post-close log output.
 The context path is shadow-only and cannot invoke admission, routing,
