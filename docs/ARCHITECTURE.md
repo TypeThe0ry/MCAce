@@ -185,15 +185,16 @@ disconnect cleanup, and that `MONITOR` never executes a high-impact disposition.
 The backend artifact declares Folia support and selects Paper or Folia scheduling
 at runtime. Expiry work runs on the global scheduler; player-bound delivery and
 cleanup use the owning entity scheduler; future location work has an explicit
-region scheduler entry point. The August 20 authoritative process matrix passed
-all 12 combinations of 1.21.11/26.1.2/26.2, Paper/Folia, and Velocity/Bungee,
-then passed `-ReportOnly`. Standard-backend admission and context are accepted
-only while the same raw-peer connection remains live; post-close log fallback is
-not evidence. Folia 26.2 build 4 remains the explicit two-case BETA lane. The
-current 675-file source-bound aggregate is
-`docs/evidence/server-version-process-matrix-2026-08-20.json`; compatibility is
-never inferred from unit tests, a stale source binding, or a nearby Minecraft
-version.
+region scheduler entry point. The current Helio process matrix passed all 12
+combinations of 1.21.11/26.1.2/26.2, Paper/Folia, and Velocity/Bungee, then
+passed `-ReportOnly`, on exact source `0498ed2…`. Standard-backend admission and
+context are accepted only while the same raw-peer connection remains live;
+post-close log fallback is not evidence. Paper 26.2 build 116 is STABLE; Folia
+26.2 build 6 remains the explicit two-case BETA lane. The current 686-file
+source-bound aggregate is recorded in
+`docs/evidence/server-version-process-matrix-2026-08-25-0498ed2.json`;
+compatibility is never inferred from unit tests, a stale source binding, or a
+nearby Minecraft version.
 
 ## Proxy-safe transport budget
 

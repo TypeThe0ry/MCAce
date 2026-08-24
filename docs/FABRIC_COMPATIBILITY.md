@@ -9,12 +9,13 @@ Minecraft release, a broad `1.21.x` range, or a successful server-only run.
 | `26.1.2` | Official named namespace; final named JAR | 25 | `0.19.3` | `0.155.2+26.1.2` | Build, final-artifact isolation, package verification, and post-fix server matrix passed | Same two visible consent decisions |
 | `26.2` | Official named namespace; final named JAR | 25 | `0.19.3` | `0.157.0+26.2` | Build, final-artifact isolation, package verification, and post-fix server matrix passed | Same two visible consent decisions |
 
-The current server-process claim is the August 20 Execute+ReportOnly 12/12
-record at
-[`evidence/server-version-process-matrix-2026-08-20.json`](evidence/server-version-process-matrix-2026-08-20.json).
-It binds 675 current source files, all three exact protocol profiles, and the
-reviewed upstream artifacts. Paper 26.2 is STABLE; only the two Folia 26.2
-combinations use the upstream BETA lane.
+The current server-process claim is the Helio Execute+ReportOnly 12/12 record
+at [`evidence/server-version-process-matrix-2026-08-25-0498ed2.json`](evidence/server-version-process-matrix-2026-08-25-0498ed2.json),
+with the immutable report/binding/commit triplet under
+[`evidence/server-version-process-matrix/2026-08-24T16-20-40-2184910Z/`](evidence/server-version-process-matrix/2026-08-24T16-20-40-2184910Z/).
+It binds 686 current source files, all three exact protocol profiles, and the
+reviewed upstream artifacts. Paper 26.2 build 116 is STABLE; only the two Folia
+26.2 combinations use the upstream BETA lane (build 6).
 
 The root build is configured and executed by JDK `21.0.7+6`. The isolated
 `fabric-modern/` composite is configured and executed by JDK `25.0.3+9`; it

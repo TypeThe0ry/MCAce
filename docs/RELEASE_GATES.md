@@ -1,6 +1,6 @@
 # MCAce release gates
 
-Status snapshot: August 23, 2026. Files below `build/` are mutable diagnostics.
+Status snapshot: August 25, 2026. Files below `build/` are mutable diagnostics.
 Only the bounded records copied to `docs/evidence/` are durable repository
 evidence, and a passing local record is not automatically an exact-commit release.
 
@@ -40,7 +40,7 @@ historical only and cannot be promoted to the current three-version release.
 | Current HEAD Helio Paper test | Passed 37 tests (0 failures, 0 errors, 1 skip) | [`cluster-helio-cc91c63-paper-test-2026-08-23.json`](evidence/cluster-helio-cc91c63-paper-test-2026-08-23.json) records exact detached source `cc91c632…`, Helio `BUILD SUCCESSFUL`, 179.005 s, `c2_crash=false`, and result/log hashes. | This closes the current-head Paper module test witness only; it is not protected-main `releaseBundle` CI and does not close GUI, federation, Vulcan, or production-authority gates. |
 | Current HEAD Helio static wrappers | Passed 15/15 | [`cluster-helio-cd3921c-static-2026-08-23.json`](evidence/cluster-helio-cd3921c-static-2026-08-23.json) records all 15 wrapper exit codes as zero on exact source `cd3921c…` under Windows PowerShell 5.1; it closes the prior `GetRelativePath`/`FromHexString` compatibility failure. | Static wrappers are green; visible human consent, real federation, licensed Vulcan runtime, and production authority topology remain separate gates. |
 | Fabric packaging, all targets | Passed | 1.21.11 final remapped artifact; 26.1.2 and 26.2 final named artifacts; target-specific metadata, build IDs, CodeSource/hash contracts, and package tests passed. | Packaging support is current for exactly the three documented tuples. |
-| Paper/Folia × Velocity/Bungee version process matrix | Passed 12/12 | [`server-version-process-matrix-2026-08-23-219e146.json`](evidence/server-version-process-matrix-2026-08-23-219e146.json) with the executed binding/commit triplet; current HEAD `-Execute` and `-ReportOnly` both passed, all 12 cases, 10 stable + 2 beta, cleanup zero; source manifest `beb3d4ad…` / 688 files, bound to `219e146…`. | Signed admission and shadow backend context are proven on all three versions while the peer remains live. Folia 26.2 build 4 remains the two-case BETA lane. Online-mode/public-network behavior is not claimed. Protected-main CI and the external GUI/federation/Vulcan gates remain open. |
+| Paper/Folia × Velocity/Bungee version process matrix | Passed 12/12 on Helio | [Evidence index](evidence/server-version-process-matrix-2026-08-25-0498ed2.json) plus the immutable report/binding/commit triplet under [`evidence/server-version-process-matrix/2026-08-24T16-20-40-2184910Z/`](evidence/server-version-process-matrix/2026-08-24T16-20-40-2184910Z/); exact source `0498ed277f9a5af39ebd6ae4940e6e9fdbc85e32`, 10 STABLE + 2 BETA, cleanup zero, source manifest `db15e970…` / 686 files. | Signed admission and shadow backend context are proven on all three versions while the peer remains live. Paper 26.2 build 116 is STABLE; Folia 26.2 build 6 remains the two-case BETA lane. A transient JVM startup crash on the first resumed attempt was recovered by the checkpointed `-Resume` run and is documented in the evidence index. Online-mode/public-network behavior is not claimed. Protected-main CI and the external GUI/federation/Vulcan gates remain open. |
 | Fabric server-only platform startup | Passed for all three targets | `platform-load-smoke.ps1 -FabricTarget <target>` passed for 1.21.11, 26.1.2, and 26.2 after full Minecraft asset prewarm. | Assets and server startup are not blockers. They are not visible-client consent evidence. |
 | Fabric explicit-file and frame consent | Pending six human clicks | Report schema 7 and binding `MCACE_FABRIC_GUI_EVIDENCE_BINDING_V5` are implemented, including the named runtime-artifact hash and exact `velocity_policy_minecraft_versions` / `velocity_policy_client_build_ids` bindings. The latest current-source 1.21.11 attempt reached `EXPLICIT_FILE_CONSENT_RENDERED` and timed out without a human click; see [`fabric-gui-consent-attempt-2026-08-22.json`](evidence/fabric-gui-consent-attempt-2026-08-22.json). | Three targets × two prompts = six human approvals. Automation must not click or synthesize them. |
 | Client-origin enforcement guard | Passed current-source 24/24 | [`disposition-current-2026-08-21.json`](evidence/disposition-current-2026-08-21.json); 8/8 on each of 1.21.11, 26.1.2, and 26.2; Execute and ReportOnly both passed. | `CLIENT_REPORTED` LIMIT/QUARANTINE/DENY remained advisory and no high-impact route executed. This remains distinct from SERVER_CONFIRMED. |
@@ -109,8 +109,8 @@ The current three-version proxy/backend gate is:
 ```
 
 It pins Velocity `3.5.1-615`, BungeeCord `2085`, Paper builds
-`1.21.11-132` / `26.1.2-74` / `26.2-112`, and Folia builds
-`1.21.11-14` / `26.1.2-8` / `26.2-4`. It verifies the runtime-assets and
+`1.21.11-132` / `26.1.2-74` / `26.2-116`, and Folia builds
+`1.21.11-14` / `26.1.2-8` / `26.2-6`. It verifies the runtime-assets and
 prepared-tree manifests, current source and product JARs, JDK/Gradle identities,
 12 raw process results, the sanitized report/binding/commit triplet, cleanup, and
 the absence of retained forwarding/private-key material.

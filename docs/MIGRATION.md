@@ -129,7 +129,7 @@ For Folia, do not replace MCAce's scheduler path with direct asynchronous player
 access. The plugin routes player-facing work through the entity scheduler and
 expiry/cleanup through the global scheduler. Before deploying any supported
 version, run the authoritative three-version process matrix and confirm the exact
-target row. Folia 26.2 build 4 is a BETA lane and requires an explicit rollout
+target row. Folia 26.2 build 6 is a BETA lane and requires an explicit rollout
 decision; 1.21.11 and 26.1.2 use the reviewed STABLE Folia builds.
 
 ### Phase 1 verification and rollback

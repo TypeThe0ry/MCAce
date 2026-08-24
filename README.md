@@ -19,6 +19,7 @@ backend plugin.
 · [current HEAD Helio static wrappers](docs/evidence/cluster-helio-cd3921c-static-2026-08-23.json)
 · [active-pack iteration evidence](docs/evidence/active-pack-integrity-2026-08-22.json)
 · [current e7f6f74 release-bundle evidence](docs/evidence/release-bundle-e7f6f74.json)
+· [current Helio 12/12 server matrix evidence](docs/evidence/server-version-process-matrix-2026-08-25-0498ed2.json)
 
 ![Verification dashboard](docs/assets/verification-dashboard.svg)
 
@@ -62,8 +63,8 @@ Run the contract against a current bundle:
 | Gate | Current evidence | State |
 | --- | --- | --- |
 | Root + modern strict offline tests | Historical exact bundle: `171 suites / 755 tests / 0 failures / 0 errors`; [Helio targeted build evidence](docs/evidence/cluster-targeted-build-2026-08-22.json) ran Fabric, Velocity, BungeeCord, Paper, and runtime integration tests successfully | PASS within recorded source boundary |
-| Current-head regression suite | [473ef5b evidence](docs/evidence/static-regression-2026-08-24-473ef5b.json) records 15/15 wrappers on exact source `473ef5b…`; [Helio current-source static evidence](docs/evidence/cluster-helio-cd3921c-static-2026-08-23.json) records 15/15 wrappers under Windows PowerShell 5.1 after the compatibility fix, while the current HEAD remains CI-green | PASS for feature HEAD `4fb9c8b…`; protected-main release path still pending |
-| Paper/Folia × Velocity/Bungee process matrix | [`server-version-process-matrix-2026-08-23-219e146.json`](docs/evidence/server-version-process-matrix-2026-08-23-219e146.json): current HEAD Execute + ReportOnly validation, `12/12`, six exact version trees, cleanup zero; source manifest `beb3d4ad…` / 688 files, bound to commit `219e146…` | PASS for current feature HEAD; protected-main release CI still pending |
+| Current-head regression suite | [473ef5b evidence](docs/evidence/static-regression-2026-08-24-473ef5b.json) and the Helio wrapper records remain retained as historical witnesses; the current feature HEAD is `0498ed2…`, with the resumable server-matrix static test passing locally and on Helio | PASS for the recorded checks; fresh protected-main release CI is still pending |
+| Paper/Folia × Velocity/Bungee process matrix | [Helio evidence index](docs/evidence/server-version-process-matrix-2026-08-25-0498ed2.json) plus the immutable [report](docs/evidence/server-version-process-matrix/2026-08-24T16-20-40-2184910Z/report.json), [binding](docs/evidence/server-version-process-matrix/2026-08-24T16-20-40-2184910Z/binding.json), and [commit marker](docs/evidence/server-version-process-matrix/2026-08-24T16-20-40-2184910Z/commit.json): exact feature commit `0498ed2…`, `12/12`, `10` STABLE + `2` BETA, cleanup zero, source manifest `db15e970…` / 686 files; Paper 26.2 build `116`, Folia 26.2 build `6` | PASS on Helio; protected-main release CI still pending |
 | Fabric GUI consent | 1.21.11 reached the visible explicit-file screen; no click was recorded, so no release evidence was minted | PENDING 6 human decisions |
 | Anti-cheat detection | [`current-candidate-fe5f2d1.json`](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json) binds the exact Paper artifact SHA used by the e7f6f74 bundle to a Helio run on real Leaf 1.21.11 + GrimAC `2.3.74-155abaf`: 40 movement probes, three `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK` events (`AimDuplicateLook`, `Simulation`, `TickTimer`), three loopback risk uploads; the runtime record is source-bound to `fe5f2d1…`, while the Paper JAR bytes are identical in the e7f6f74 manifest | PASS for real detection/interception; `MONITOR`/`NONE` intentionally leaves punitive action unexercised |
 | Vulcan | Static contracts pass; licensed JAR and genuine external trigger are absent from this workspace | PENDING |
@@ -71,9 +72,11 @@ Run the contract against a current bundle:
 | Exact-commit CI/release | Push [`32656909125`](https://github.com/TypeThe0ry/MCAce/actions/runs/32656909125) and PR [`32656911462`](https://github.com/TypeThe0ry/MCAce/actions/runs/32656911462) passed for exact source `4fb9c8b072e55d116e4b678a33048857c70ae686`; feature-branch releaseBundle was correctly skipped | PENDING protected-main exact-commit releaseBundle |
 | Helio exact-commit release candidate | [`release-bundle-e7f6f74.json`](docs/evidence/release-bundle-e7f6f74.json) records Helio `releaseBundle` for `e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834`: six deployables, exact-eight manifest, `product_version=0.0.1`, bundle ZIP SHA-256 `4799733be6a178a7ed119d69f4945453dec1d73fbab7a22e95e51e259e035ded`, and all eight entry hashes verified locally; compatibility contract is 3/3 PASS | PASS for feature-branch candidate; protected `main` CI, external GUI/Vulcan/federation gates, and final tag remain pending |
 
-The latest recorded exact-commit CI evidence is bound to
-`27bb101d68bd0fcbc8891020951f28a523105038`; the current Helio release-bundle
-candidate is independently bound to `e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834`.
+The latest retained exact-commit CI evidence is historical and is bound to
+`27bb101d68bd0fcbc8891020951f28a523105038`; the current Helio server-matrix
+evidence is independently bound to `0498ed277f9a5af39ebd6ae4940e6e9fdbc85e32`.
+The `e7f6f74` Helio release bundle remains a historical feature-branch candidate,
+not evidence for the current HEAD.
 Verify the source commit used for each artifact with `git rev-parse HEAD`; later documentation-only commits do not change the tested plugin artifact. Do not copy an
 artifact to a tag unless its `release-manifest.properties` has
 `release_identity=true` and the `source_commit` matches that checkout exactly.
@@ -114,10 +117,11 @@ fail-closed generator at
 [`scripts/new-exact-artifact-policy.ps1`](scripts/new-exact-artifact-policy.ps1)
 for the exact-hash/content-root workflow and trust-state table.
 
-The current Helio bundle record is bound to source
-`e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834`. The retained real Leaf/GrimAC
-probe used the same Paper artifact SHA (the runtime record is source-bound to
-`fe5f2d1…` because the later change only fixed compatibility validation).
+The retained real Leaf/GrimAC probe is a separate historical witness and is
+source-bound to `fe5f2d1…`; it used the same Paper artifact SHA as the older
+`e7f6f74` candidate. The current Helio server matrix is source-bound to
+`0498ed277f9a5af39ebd6ae4940e6e9fdbc85e32` and does not silently inherit that
+anti-cheat run's provenance.
 Node.js v22.23.2 completed the probe; the Helio Node.js v24.18.0 image crashed
 before producing a result and is retained only as a diagnostic limitation. No
 tag or GitHub release has been created.
