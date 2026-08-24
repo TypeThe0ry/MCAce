@@ -18,8 +18,8 @@
   versions × Paper/Folia × Velocity/Bungee, then `-ReportOnly`. Paper 6/6,
   Folia 6/6, Velocity 6/6, Bungee 6/6; 10 STABLE plus two Folia 26.2 BETA
   cases; cleanup zero. The current Helio record is bound to code commit
-  `395a7693e67a5f9048c03e0b40a78202cf6b34ab` and retained at
-  `docs/evidence/server-version-process-matrix-2026-08-25-395a769.json`.
+  `f404971e6e9a9ac1d30e5cf4e2692750aa83f1b1` and retained at
+  `docs/evidence/server-version-process-matrix-2026-08-25-f404971.json`.
 - [x] Pass server-only `platform-load-smoke.ps1 -FabricTarget <target>` for all
   three targets and prewarm/verify all required Minecraft asset objects.
 - [ ] Complete the visible Fabric evidence gate for all three targets: one
@@ -165,7 +165,7 @@ The old 1.21.1/1.21.4 preparation runs and wrappers are retained only as
 historical diagnostics. Their Paper 1.21.1-133, BungeeCord 2028, and Folia
 1.21.4-6 ALPHA pins are not current release inputs. The current Helio
 three-version process evidence is
-`docs/evidence/server-version-process-matrix-2026-08-25-395a769.json`.
+`docs/evidence/server-version-process-matrix-2026-08-25-f404971.json`.
 
 The final post-fix source/JAR/asset/prepared-tree-bound three-version raw-peer
 matrix reached

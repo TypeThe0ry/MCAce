@@ -87,12 +87,12 @@ The wrapper has no implicit mode. It fails unless exactly one of `-Execute` and
 8. publishes `report.json`, `binding.json`, and `commit.json` by a same-volume
    atomic directory rename.
 
-The current Helio run `2026-08-24T20-23-23-6783068Z` passed 12/12 and then passed
+The current Helio run `2026-08-24T21-33-47-1914356Z` passed 12/12 and then passed
 `-ReportOnly`: Paper 6/6, Folia 6/6, Velocity 6/6, Bungee 6/6, with 10 STABLE
-cases and the two Folia 26.2 BETA cases. It binds 688 source files under manifest
-`bcc0ead261ab3ee5924aeca7c54340753e94a515a3d683b768d445bda4aaf45d` on exact
-code commit `395a769…`. Its current sanitized repository evidence is
-[`evidence/server-version-process-matrix-2026-08-25-395a769.json`](evidence/server-version-process-matrix-2026-08-25-395a769.json).
+cases and the two Folia 26.2 BETA cases. It binds 686 source files under manifest
+`db15e9707ac1deb87958f0d031fe3946d9bbf961ba01844550983fd5f8fcec72` on exact
+code commit `f404971…`. Its current sanitized repository evidence is
+[`evidence/server-version-process-matrix-2026-08-25-f404971.json`](evidence/server-version-process-matrix-2026-08-25-f404971.json).
 
 `-ReportOnly` starts no server or proxy. It re-derives current source, asset,
 prepared-tree, product-JAR, Java, Gradle, wrapper, and raw-report bindings and

@@ -97,7 +97,7 @@ does not automatically ban, punish, or create a confirmed-cheat label.
   decisions per target (six total).
 
 The three-version server process matrix itself is current and passed 12/12 under
-the Helio Execute+ReportOnly record bound to code commit `395a769…` (see
-`evidence/server-version-process-matrix-2026-08-25-395a769.json`). Separately, all three Fabric clients now
+the Helio Execute+ReportOnly record bound to code commit `f404971…` (see
+`evidence/server-version-process-matrix-2026-08-25-f404971.json`). Separately, all three Fabric clients now
 contain distinct source-export and target-import federation consent screens, but
 the real human-carried source-to-target GUI run remains pending.

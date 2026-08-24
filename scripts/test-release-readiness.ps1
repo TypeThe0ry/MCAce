@@ -14,7 +14,10 @@ foreach ($required in @(
     'protected_exact_release_bundle',
     'MCACE_RELEASE_READINESS_BLOCKED',
     'current-source',
-    'synthetic_event'
+    'synthetic_event',
+    'Test-SourceProvenance',
+    'merge-base --is-ancestor',
+    'scripts/release-readiness.ps1'
 )) {
     if ($source.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
         throw "RELEASE_READINESS_STATIC_ASSERTION_FAILED|$required"

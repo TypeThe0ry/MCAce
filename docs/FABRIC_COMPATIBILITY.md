@@ -10,10 +10,10 @@ Minecraft release, a broad `1.21.x` range, or a successful server-only run.
 | `26.2` | Official named namespace; final named JAR | 25 | `0.19.3` | `0.157.0+26.2` | Build, final-artifact isolation, package verification, and post-fix server matrix passed | Same two visible consent decisions |
 
 The current server-process claim is the Helio Execute+ReportOnly 12/12 record
-at [`evidence/server-version-process-matrix-2026-08-25-395a769.json`](evidence/server-version-process-matrix-2026-08-25-395a769.json),
+at [`evidence/server-version-process-matrix-2026-08-25-f404971.json`](evidence/server-version-process-matrix-2026-08-25-f404971.json),
 with the immutable report/binding/commit triplet under
-[`evidence/server-version-process-matrix/2026-08-24T20-23-23-6783068Z/`](evidence/server-version-process-matrix/2026-08-24T20-23-23-6783068Z/).
-It binds 688 current source files, all three exact protocol profiles, and the
+[`evidence/server-version-process-matrix/2026-08-24T21-33-47-1914356Z/`](evidence/server-version-process-matrix/2026-08-24T21-33-47-1914356Z/).
+It binds 686 current source files, all three exact protocol profiles, and the
 reviewed upstream artifacts. Paper 26.2 build 116 is STABLE; only the two Folia
 26.2 combinations use the upstream BETA lane (build 6).
 

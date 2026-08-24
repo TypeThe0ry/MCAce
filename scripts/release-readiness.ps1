@@ -56,8 +56,29 @@ function Add-Gate {
     })
 }
 
-function Get-CurrentSourceMatch([object]$Value, [string]$Current) {
-    return Test-StringEqual $Value $Current
+function Test-SourceProvenance([object]$Value, [string]$Current) {
+    if ($null -eq $Value -or [string]$Value -notmatch '^[0-9a-f]{40}$' -or
+            $Current -notmatch '^[0-9a-f]{40}$') {
+        return $false
+    }
+    if (Test-StringEqual $Value $Current) { return $true }
+
+    # Evidence is allowed to be committed after the tested product source only
+    # when the descendant changes are documentation/evidence or this gate's own
+    # static harness. Any product, build, dependency, workflow, or runtime
+    # source change requires a fresh exact-source matrix. Allowed gate file:
+    # scripts/release-readiness.ps1 (and its static test companion).
+    & git -C $repoRoot merge-base --is-ancestor ([string]$Value) $Current 2>$null
+    if ($LASTEXITCODE -ne 0) { return $false }
+    $changed = @(& git -C $repoRoot diff --name-only ("$Value..$Current") 2>$null)
+    if ($LASTEXITCODE -ne 0) { return $false }
+    foreach ($path in $changed) {
+        $normalized = ([string]$path).Replace('\','/')
+        if ($normalized -notmatch '^(README\.md|README_CN\.md|docs/|scripts/release-readiness\.ps1$|scripts/test-release-readiness\.ps1$)') {
+            return $false
+        }
+    }
+    return $true
 }
 
 if ([string]::IsNullOrWhiteSpace($ReportPath)) {
@@ -78,9 +99,9 @@ if ($requestedCommit -notmatch '^[0-9a-f]{40}$') {
 }
 
 $gates = [System.Collections.Generic.List[object]]::new()
-$matrixIndexPath = 'docs/evidence/server-version-process-matrix-2026-08-25-395a769.json'
+$matrixIndexPath = 'docs/evidence/server-version-process-matrix-2026-08-25-f404971.json'
 $matrixIndex = Read-JsonFile $matrixIndexPath
-$matrixTripletRoot = 'docs/evidence/server-version-process-matrix/2026-08-24T20-23-23-6783068Z'
+$matrixTripletRoot = 'docs/evidence/server-version-process-matrix/2026-08-24T21-33-47-1914356Z'
 $matrixReport = Read-JsonFile (Join-Path $matrixTripletRoot 'report.json')
 $matrixBinding = Read-JsonFile (Join-Path $matrixTripletRoot 'binding.json')
 $matrixCommit = Read-JsonFile (Join-Path $matrixTripletRoot 'commit.json')
@@ -89,7 +110,7 @@ $matrixPass = (
     ($null -ne $matrixReport) -and
     ($null -ne $matrixBinding) -and
     ($null -ne $matrixCommit) -and
-    (Get-CurrentSourceMatch $matrixIndex.source_commit $requestedCommit) -and
+    (Test-SourceProvenance $matrixIndex.source_commit $requestedCommit) -and
     (Test-Boolean $matrixIndex.result.all_cases_passed) -and
     (Test-Boolean $matrixIndex.result.cleanup_all_zero) -and
     ([int]$matrixIndex.result.expected_case_count -eq 12) -and
@@ -102,8 +123,10 @@ $matrixPass = (
 )
 $matrixDetail = if ($null -eq $matrixIndex) {
     'current Helio matrix evidence index is missing'
-} elseif (-not (Get-CurrentSourceMatch $matrixIndex.source_commit $requestedCommit)) {
+} elseif (-not (Test-SourceProvenance $matrixIndex.source_commit $requestedCommit)) {
     "matrix evidence is bound to $($matrixIndex.source_commit), requested source is $requestedCommit"
+} elseif (-not (Test-StringEqual $matrixIndex.source_commit $requestedCommit)) {
+    "matrix evidence is bound to tested source $($matrixIndex.source_commit); current descendant contains only docs/evidence and release-gate harness changes"
 } elseif (-not $matrixPass) {
     'matrix triplet/result fields are incomplete or failed'
 } else {
@@ -121,7 +144,7 @@ if (Test-Path -LiteralPath $guiRoot -PathType Container) {
 }
 $guiTargets = @('1.21.11','26.1.2','26.2')
 $guiTargetPass = @($guiEvidence | Where-Object {
-    (Get-CurrentSourceMatch $_.source_commit $requestedCommit) -and
+    (Test-SourceProvenance $_.source_commit $requestedCommit) -and
     (Test-Boolean $_.human_confirmation) -and
     (Test-Boolean $_.explicit_file_consent_accepted) -and
     (Test-Boolean $_.game_render_frame_consent_accepted) -and
@@ -142,7 +165,7 @@ foreach ($file in @(Get-ChildItem -LiteralPath $guiRoot -File -Filter 'federatio
     if ($null -ne $item) { $federationEvidence += $item }
 }
 $federationPass = @($federationEvidence | Where-Object {
-    (Get-CurrentSourceMatch $_.source_commit $requestedCommit) -and
+    (Test-SourceProvenance $_.source_commit $requestedCommit) -and
     (Test-Boolean $_.real_source_to_target_gui_handoff) -and
     (Test-Boolean $_.source_export_approved) -and
     (Test-Boolean $_.target_import_approved) -and
@@ -160,7 +183,7 @@ foreach ($file in @(Get-ChildItem -LiteralPath $guiRoot -File -Filter 'vulcan-ge
     if ($null -ne $item) { $vulcanEvidence += $item }
 }
 $vulcanPass = @($vulcanEvidence | Where-Object {
-    (Get-CurrentSourceMatch $_.source_commit $requestedCommit) -and
+    (Test-SourceProvenance $_.source_commit $requestedCommit) -and
     (Test-Boolean $_.genuine_external_trigger) -and
     (-not (Test-Boolean $_.synthetic_event)) -and
     (Test-Boolean $_.real_behavior_event_delivery_coverage) -and
@@ -178,7 +201,7 @@ foreach ($file in @(Get-ChildItem -LiteralPath $guiRoot -File -Filter 'server-co
     if ($null -ne $item) { $authorityEvidence += $item }
 }
 $authorityPass = @($authorityEvidence | Where-Object {
-    (Get-CurrentSourceMatch $_.source_commit $requestedCommit) -and
+    (Test-SourceProvenance $_.source_commit $requestedCommit) -and
     (Test-Boolean $_.provider_profile_key_topology_frozen) -and
     (Test-Boolean $_.real_process_matrix_passed) -and
     (Test-Boolean $_.action_ceiling_frozen)
@@ -194,7 +217,7 @@ foreach ($file in @(Get-ChildItem -LiteralPath $guiRoot -File -Filter 'release-b
     if ($null -ne $item) { $releaseEvidence += $item }
 }
 $releasePass = @($releaseEvidence | Where-Object {
-    (Get-CurrentSourceMatch $_.source_commit $requestedCommit) -and
+    (Test-SourceProvenance $_.source_commit $requestedCommit) -and
     (Test-Boolean $_.release_identity) -and
     [string]$_.product_version -ceq '0.0.1' -and
     [int]$_.deployable_count -eq 6 -and

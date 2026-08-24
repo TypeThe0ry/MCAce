@@ -190,7 +190,7 @@ remain historical. Exact-commit CI remains pending.
 The authoritative current process gate is
 `scripts/server-version-process-matrix.ps1 -Execute`, followed by
 `-ReportOnly`. Its current Helio sanitized aggregate at
-`docs/evidence/server-version-process-matrix-2026-08-25-395a769.json` passed 12/12:
+`docs/evidence/server-version-process-matrix-2026-08-25-f404971.json` passed 12/12:
 Paper 6/6, Folia 6/6, Velocity 6/6, Bungee 6/6, ten STABLE and two Folia 26.2
 build-6 BETA cases. `-ReportOnly` accepted the final committed triplet and
 cleanup was zero.

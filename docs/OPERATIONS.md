@@ -515,11 +515,11 @@ The authoritative release wrapper is:
 ```
 
 It executes the complete 3 versions × Paper/Folia × Velocity/Bungee matrix. The
-current Helio run `2026-08-24T20-23-23-6783068Z` passed 12/12 and then passed
+current Helio run `2026-08-24T21-33-47-1914356Z` passed 12/12 and then passed
 `-ReportOnly`: Paper 6/6, Folia 6/6, Velocity 6/6, Bungee 6/6, with 10 STABLE
 cases and two Folia 26.2 BETA cases. Current durable evidence is
-[`evidence/server-version-process-matrix-2026-08-25-395a769.json`](evidence/server-version-process-matrix-2026-08-25-395a769.json),
-bound to code commit `395a769…`.
+[`evidence/server-version-process-matrix-2026-08-25-f404971.json`](evidence/server-version-process-matrix-2026-08-25-f404971.json),
+bound to code commit `f404971…`.
 
 `-ReportOnly` starts no process. It validates only the latest complete committed
 report/binding/commit triplet against current inputs. Any source, wrapper, asset,
