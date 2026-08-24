@@ -1151,7 +1151,7 @@ function Get-RawRunDirectorySet {
         [StringComparer]::OrdinalIgnoreCase
     } else { [StringComparer]::Ordinal }
     $set = [Collections.Generic.HashSet[string]]::new($comparer)
-    if (-not (Test-Path -LiteralPath $rawRunsRoot -PathType Container)) { return $set }
+    if (-not (Test-Path -LiteralPath $rawRunsRoot -PathType Container)) { return ,$set }
     $null = Assert-DirectLocalPath $rawRunsRoot -Directory
     foreach ($directory in @(Get-ChildItem -LiteralPath $rawRunsRoot -Directory -Force -ErrorAction Stop)) {
         if (($directory.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
