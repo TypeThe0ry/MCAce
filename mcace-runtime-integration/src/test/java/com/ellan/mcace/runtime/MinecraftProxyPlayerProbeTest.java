@@ -3365,6 +3365,18 @@ final class MinecraftProxyPlayerProbeTest {
 
         private String readStartupOutput(OwnedProcess process) {
             StringBuilder result = new StringBuilder(readProcessOutput(process));
+            // On Windows, ProcessBuilder's redirected stdout may be exclusively held by the
+            // child while it is still booting. Velocity also mirrors its startup messages to
+            // the rolling log, so include that append-only source before waiting for markers.
+            Path platformLog = platformLogFor(process);
+            if (Files.isRegularFile(platformLog)) {
+                try {
+                    result.append(Files.readString(platformLog, StandardCharsets.UTF_8))
+                            .append('\n');
+                } catch (IOException ignored) {
+                    // A log being rotated or temporarily locked is ordinary during startup.
+                }
+            }
             // BungeeCord writes its live bootstrap/plugin output to proxy.log.N before the
             // inherited stdout redirect is reliably flushed. This fallback is only used for
             // Bungee's initial startup; the Velocity restart residual gate uses the exact
