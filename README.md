@@ -6,8 +6,9 @@ Fabric client Mods, Velocity/BungeeCord proxy plugins, and one Paper/Folia
 backend plugin.
 
 > **v0.0.1 status: release gates still open.** The code and server matrix are
-> active, but the tag is not claimed until the three visible GUI approvals, a genuine
-> licensed Vulcan event, and a real Fabric federation handoff are recorded on the
+> active, but the tag is not claimed until all six visible GUI decisions (two per
+> target), a genuine licensed Vulcan event, and a real Fabric federation handoff
+> are recorded on the
 > reviewed commit.
 
 [中文 README](README_CN.md) · [release gates](docs/RELEASE_GATES.md) ·

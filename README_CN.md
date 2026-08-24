@@ -5,7 +5,7 @@ MCAce 是面向现代 Minecraft 网络的隐私优先信任、准入、证据与
 Paper/Folia 后端插件。
 
 > **v0.0.1 当前仍未放行。** 代码和服务端矩阵已在工作，但正式 tag 必须等
-> 三版本可见 GUI 人工确认、真实 Vulcan genuine event、以及 Fabric federation
+> 三个版本共六次可见 GUI 人工决定（每个版本两次）、真实 Vulcan genuine event、以及 Fabric federation
 > source→target handoff 都在审查提交上留下证据。
 
 [English README](README.md) · [发布门](docs/RELEASE_GATES.md) ·
