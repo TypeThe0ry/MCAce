@@ -2,6 +2,7 @@
 param(
     [switch]$Execute,
     [switch]$ReportOnly,
+    [switch]$Resume,
     [ValidateRange(1, 10080)]
     [int]$MaximumReportAgeMinutes = 1440
 )
@@ -27,6 +28,8 @@ $workRoot = Join-Path $repoRoot 'build\server-version-process-matrix'
 $invocationRoot = Join-Path $workRoot 'invocations'
 $evidenceRunsRoot = Join-Path $workRoot 'runs'
 $lockPath = Join-Path $workRoot 'matrix.lock'
+$checkpointPath = Join-Path $workRoot 'checkpoint.json'
+$checkpointSchema = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_CHECKPOINT_V1'
 
 $productJarRelatives = [ordered]@{
     velocity = 'mcace-server-velocity/build/libs/mcace-server-velocity-0.1.0-SNAPSHOT.jar'
@@ -1599,8 +1602,72 @@ function Assert-NoActiveExecution {
     }
 }
 
+function Clear-ExecutionCheckpoint {
+    if (Test-Path -LiteralPath $checkpointPath -PathType Leaf) {
+        [IO.File]::Delete((Assert-DirectLocalPath $checkpointPath))
+    }
+}
+
+function Write-ExecutionCheckpoint {
+    param(
+        [Parameter(Mandatory)][object]$Current,
+        [Parameter(Mandatory)][object[]]$Cases
+    )
+    $checkpoint = [pscustomobject][ordered]@{
+        schema = $checkpointSchema
+        generated_at = [DateTimeOffset]::UtcNow.ToString('o')
+        current_sha256 = Get-BytesSha256 (ConvertTo-CompactJsonBytes $Current.public)
+        case_count = @($Cases).Count
+        cases = @($Cases)
+    }
+    $bytes = ConvertTo-CompactJsonBytes $checkpoint
+    Assert-SanitizedEvidenceBytes $bytes 'checkpoint'
+    $tempPath = Join-Path $workRoot ('.checkpoint-' + [IO.Path]::GetRandomFileName())
+    try {
+        Write-NewFileBytes $tempPath $bytes
+        if (Test-Path -LiteralPath $checkpointPath -PathType Leaf) {
+            [IO.File]::Replace(
+                (Assert-DirectLocalPath $tempPath),
+                (Assert-DirectLocalPath $checkpointPath),
+                $null,
+                $true)
+        } else {
+            [IO.File]::Move(
+                (Assert-DirectLocalPath $tempPath),
+                $checkpointPath)
+        }
+    } finally {
+        if (Test-Path -LiteralPath $tempPath -PathType Leaf) {
+            [IO.File]::Delete((Assert-DirectLocalPath $tempPath))
+        }
+    }
+}
+
+function Read-ExecutionCheckpoint([object]$Current) {
+    if (-not (Test-Path -LiteralPath $checkpointPath -PathType Leaf)) {
+        return @()
+    }
+    $evidence = Read-StableJson $checkpointPath
+    $value = $evidence.value
+    if (-not (Test-ExactProperties $value @('schema','generated_at','current_sha256',
+            'case_count','cases')) -or
+            [string]$value.schema -cne $checkpointSchema -or
+            [int]$value.case_count -lt 0 -or [int]$value.case_count -gt 12 -or
+            @($value.cases).Count -ne [int]$value.case_count) {
+        throw 'SERVER_VERSION_MATRIX_CHECKPOINT_INVALID'
+    }
+    $currentSha256 = Get-BytesSha256 (ConvertTo-CompactJsonBytes $Current.public)
+    if ([string]$value.current_sha256 -cne $currentSha256) {
+        throw 'SERVER_VERSION_MATRIX_CHECKPOINT_SOURCE_MISMATCH'
+    }
+    return @($value.cases)
+}
+
 if ([bool]$Execute -eq [bool]$ReportOnly) {
     throw 'SERVER_VERSION_MATRIX_EXPLICIT_MODE_REQUIRED|specify exactly one of -Execute or -ReportOnly'
+}
+if ($Resume -and -not $Execute) {
+    throw 'SERVER_VERSION_MATRIX_RESUME_EXECUTE_REQUIRED|specify -Execute with -Resume'
 }
 
 if ($ReportOnly) {
@@ -1624,19 +1691,39 @@ try {
         jdk21 = Resolve-CachedJdk 21
         gradle = Resolve-CachedGradle961
     }
+    if (-not $Resume) {
+        Clear-ExecutionCheckpoint
+    }
     Invoke-ProductBuild $tooling
     $currentBefore = Get-CurrentBinding
+    $checkpointCases = if ($Resume) {
+        @(Read-ExecutionCheckpoint $currentBefore)
+    } else { @() }
     $cases = [Collections.Generic.List[object]]::new()
     $ordinal = 1
     foreach ($definition in $currentBefore.definitions) {
-        $invocation = Invoke-MatrixCase $definition $currentBefore $ordinal
-        [void]$cases.Add($invocation.case)
+        $saved = @($checkpointCases | Where-Object {
+            [string]$_.case_id -ceq [string]$definition.case_id
+        })
+        if ($saved.Count -gt 1) {
+            throw "SERVER_VERSION_MATRIX_CHECKPOINT_DUPLICATE|$($definition.case_id)"
+        }
+        if ($saved.Count -eq 1) {
+            Assert-CaseBinding $saved[0] $definition $currentBefore
+            [void]$cases.Add($saved[0])
+            Write-Output "SERVER_VERSION_MATRIX_RESUME_SKIP|$($definition.case_id)"
+        } else {
+            $invocation = Invoke-MatrixCase $definition $currentBefore $ordinal
+            [void]$cases.Add($invocation.case)
+            Write-ExecutionCheckpoint $currentBefore $cases.ToArray()
+        }
         $ordinal++
     }
     if ($cases.Count -ne 12) { throw 'SERVER_VERSION_MATRIX_COMPLETE_12_OF_12_REQUIRED' }
     $currentAfter = Get-CurrentBinding
     Compare-PublicBinding $currentBefore.public $currentAfter.public
     $published = New-EvidenceTriplet $currentAfter $cases.ToArray()
+    Clear-ExecutionCheckpoint
     Write-Output "SERVER_VERSION_PROCESS_MATRIX_PASS|$(ConvertTo-RepositoryRelative $published)"
 } finally {
     if ($null -ne $lock) { $lock.Dispose() }

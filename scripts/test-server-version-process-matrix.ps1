@@ -34,6 +34,11 @@ try { & $target -Execute -ReportOnly 2>&1 | Out-Null }
 catch { $bothModes = $_.Exception.Message }
 Assert-True ($bothModes -like '*SERVER_VERSION_MATRIX_EXPLICIT_MODE_REQUIRED*') `
     'dual-mode invocation did not fail closed'
+$resumeOnly = $null
+try { & $target -Resume -ReportOnly 2>&1 | Out-Null }
+catch { $resumeOnly = $_.Exception.Message }
+Assert-True ($resumeOnly -like '*SERVER_VERSION_MATRIX_RESUME_EXECUTE_REQUIRED*') `
+    'resume without Execute did not fail closed'
 
 $expectedAssets = @(
     @('paper','1.21.11','132','5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba','54846016','STABLE','21'),
@@ -59,7 +64,10 @@ foreach ($token in @(
     'MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V1',
     'MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V1',
     'MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V1',
-    'MCACE_PREPARED_TREE_SHA256_V1')) {
+    'MCACE_PREPARED_TREE_SHA256_V1',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_CHECKPOINT_V1',
+    'Read-ExecutionCheckpoint', 'Write-ExecutionCheckpoint',
+    'SERVER_VERSION_MATRIX_RESUME_EXECUTE_REQUIRED')) {
     Assert-Contains $source $token "matrix/protocol/schema token missing: $token"
 }
 
