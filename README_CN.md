@@ -18,7 +18,7 @@ Paper/Folia 后端插件。
 · [本轮 active-pack 证据](docs/evidence/active-pack-integrity-2026-08-22.json)
 · [当前 e7f6f74 发布包证据](docs/evidence/release-bundle-e7f6f74.json)
 · [当前 Helio 12/12 服务端矩阵证据](docs/evidence/server-version-process-matrix-2026-08-25-f404971.json)
-· [最新 feature 精确提交 CI 证据](docs/evidence/github-feature-ci-2026-08-25-42f80b7.json)
+· [最新 feature 精确提交 CI 证据](docs/evidence/github-feature-ci-2026-08-25-8db8634.json)
 
 ![验证总览](docs/assets/verification-dashboard.svg)
 
@@ -64,11 +64,11 @@ Paper/Folia 后端插件。
 | 反作弊检测 | [`current-candidate-fe5f2d1.json`](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json) 将 e7f6f74 发布包所用的同一 Paper artifact SHA 与 Helio 当前实测关联：真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf`，40 个移动探针，三次 `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK`（`AimDuplicateLook`、`Simulation`、`TickTimer`），三次 loopback 风险上传；运行记录的源码绑定仍是 `fe5f2d1…`，因为后续只修复兼容性脚本 | 真实检测/拦截上传 PASS；`MONITOR`/`NONE` 有意保留，未执行惩罚动作 |
 | Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
-| exact-commit CI/release | [push 运行 `32757636048`](https://github.com/TypeThe0ry/MCAce/actions/runs/32757636048) 与 [PR 运行 `32757641327`](https://github.com/TypeThe0ry/MCAce/actions/runs/32757641327) 对精确源码 `42f80b74c182b6a16b0e9afa57e48e34ce487c56` 通过：build/test、本地验证包和 exact-eight 上传通过；feature 分支按设计跳过 releaseBundle 与仅 main 执行的 readiness gate。见[脱敏证据](docs/evidence/github-feature-ci-2026-08-25-42f80b7.json) | 当前 feature 见证通过；仍待受保护 main 的 exact-commit releaseBundle |
+| exact-commit CI/release | [push 运行 `32781778301`](https://github.com/TypeThe0ry/MCAce/actions/runs/32781778301) 与 [PR 运行 `32781782319`](https://github.com/TypeThe0ry/MCAce/actions/runs/32781782319) 对精确源码 `8db8634e62a4c6f208ba07c284be399b2ae76464` 通过：build/test、本地验证包和 exact-eight 上传通过；feature 分支按设计跳过 releaseBundle 与仅 main 执行的 readiness gate。见[脱敏证据](docs/evidence/github-feature-ci-2026-08-25-8db8634.json) | 当前 feature 见证通过；仍待受保护 main 的 exact-commit releaseBundle |
 | Helio exact-commit release candidate | [`release-bundle-e7f6f74.json`](docs/evidence/release-bundle-e7f6f74.json) 记录 Helio 对 `e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834` 构建 `releaseBundle`：六个 deployable + exact-eight manifest，`product_version=0.0.1`，bundle ZIP SHA-256 为 `4799733be6a178a7ed119d69f4945453dec1d73fbab7a22e95e51e259e035ded`，八项 hash 与三版本兼容性契约均通过 | 当前 feature 候选通过；受保护 `main` CI、外部 GUI/Vulcan/federation 门和最终 tag 仍待完成 |
 
 最新保留的 feature exact-commit CI 证据绑定到
-`42f80b74c182b6a16b0e9afa57e48e34ce487c56`；当前 Helio 服务端矩阵证据独立绑定到
+`8db8634e62a4c6f208ba07c284be399b2ae76464`；当前 Helio 服务端矩阵证据独立绑定到
 `f404971e6e9a9ac1d30e5cf4e2692750aa83f1b1`。`e7f6f74` Helio 发布包只是历史
 feature 分支候选，不代表当前 HEAD。每个 artifact 都要用
 `git rev-parse HEAD` 校验；只有 `release-manifest.properties` 中

@@ -20,7 +20,7 @@ backend plugin.
 · [active-pack iteration evidence](docs/evidence/active-pack-integrity-2026-08-22.json)
 · [current e7f6f74 release-bundle evidence](docs/evidence/release-bundle-e7f6f74.json)
 · [current Helio 12/12 server matrix evidence](docs/evidence/server-version-process-matrix-2026-08-25-f404971.json)
-· [latest feature exact-commit CI evidence](docs/evidence/github-feature-ci-2026-08-25-42f80b7.json)
+· [latest feature exact-commit CI evidence](docs/evidence/github-feature-ci-2026-08-25-8db8634.json)
 
 ![Verification dashboard](docs/assets/verification-dashboard.svg)
 
@@ -70,11 +70,11 @@ Run the contract against a current bundle:
 | Anti-cheat detection | [`current-candidate-fe5f2d1.json`](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json) binds the exact Paper artifact SHA used by the e7f6f74 bundle to a Helio run on real Leaf 1.21.11 + GrimAC `2.3.74-155abaf`: 40 movement probes, three `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK` events (`AimDuplicateLook`, `Simulation`, `TickTimer`), three loopback risk uploads; the runtime record is source-bound to `fe5f2d1…`, while the Paper JAR bytes are identical in the e7f6f74 manifest | PASS for real detection/interception; `MONITOR`/`NONE` intentionally leaves punitive action unexercised |
 | Vulcan | Static contracts pass; licensed JAR and genuine external trigger are absent from this workspace | PENDING |
 | Fabric federation | V2 static contract passes; source-export/target-import GUI handoff has not been executed | PENDING |
-| Exact-commit CI/release | [Push run `32757636048`](https://github.com/TypeThe0ry/MCAce/actions/runs/32757636048) and [PR run `32757641327`](https://github.com/TypeThe0ry/MCAce/actions/runs/32757641327) passed for exact source `42f80b74c182b6a16b0e9afa57e48e34ce487c56`: build/test, local verification bundle, and exact-eight upload passed; releaseBundle and the main-only readiness gate were correctly skipped on the feature branch. See [sanitized evidence](docs/evidence/github-feature-ci-2026-08-25-42f80b7.json). | PASS for the current feature witness; protected-main exact-commit releaseBundle remains pending |
+| Exact-commit CI/release | [Push run `32781778301`](https://github.com/TypeThe0ry/MCAce/actions/runs/32781778301) and [PR run `32781782319`](https://github.com/TypeThe0ry/MCAce/actions/runs/32781782319) passed for exact source `8db8634e62a4c6f208ba07c284be399b2ae76464`: build/test, local verification bundle, and exact-eight upload passed; releaseBundle and the main-only readiness gate were correctly skipped on the feature branch. See [sanitized evidence](docs/evidence/github-feature-ci-2026-08-25-8db8634.json). | PASS for the current feature witness; protected-main exact-commit releaseBundle remains pending |
 | Helio exact-commit release candidate | [`release-bundle-e7f6f74.json`](docs/evidence/release-bundle-e7f6f74.json) records Helio `releaseBundle` for `e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834`: six deployables, exact-eight manifest, `product_version=0.0.1`, bundle ZIP SHA-256 `4799733be6a178a7ed119d69f4945453dec1d73fbab7a22e95e51e259e035ded`, and all eight entry hashes verified locally; compatibility contract is 3/3 PASS | PASS for feature-branch candidate; protected `main` CI, external GUI/Vulcan/federation gates, and final tag remain pending |
 
 The latest retained feature exact-commit CI evidence is bound to
-`42f80b74c182b6a16b0e9afa57e48e34ce487c56`; the current Helio server-matrix
+`8db8634e62a4c6f208ba07c284be399b2ae76464`; the current Helio server-matrix
 evidence is independently bound to `f404971e6e9a9ac1d30e5cf4e2692750aa83f1b1`.
 The `e7f6f74` Helio release bundle remains a historical feature-branch candidate,
 not evidence for the current HEAD.
