@@ -5,6 +5,7 @@ import com.ellan.mcace.client.integrity.IntegrityScanCancellation;
 import com.ellan.mcace.client.integrity.IntegrityScanException;
 import com.ellan.mcace.client.integrity.PolicyDrivenIntegrityCollector;
 import com.ellan.mcace.client.observation.ArtifactObservationCollector;
+import com.ellan.mcace.client.observation.ShaderPackObservation;
 import com.ellan.mcace.client.policy.VerifiedPolicy;
 import com.ellan.mcace.client.policy.VerifiedPolicyCache;
 import com.ellan.mcace.client.session.ClientHandshakeEngine;
@@ -63,6 +64,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
     private final ConnectionBoundIntegrityTask authenticationIntegrityTask = new ConnectionBoundIntegrityTask();
     private final ConnectionBoundIntegrityTask observationIntegrityTask = new ConnectionBoundIntegrityTask();
     private List<String> lastReportedResourcePacks = List.of();
+    private List<String> lastReportedShaderPacks = List.of();
     private EvidenceCaptureController evidenceCapture;
     private final FederationTokenVault federationVault = new FederationTokenVault();
     private final FederationConsentController federationConsent = new FederationConsentController(Clock.systemUTC());
@@ -188,6 +190,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
         authenticationIntegrityTask.cancel();
         observationIntegrityTask.cancel();
         lastReportedResourcePacks = List.of();
+        lastReportedShaderPacks = List.of();
         cancelQueuedEvidenceFrames();
         evidenceCapture.cancel(context.client());
         explicitFileConsent.cancel(context.client());
@@ -307,6 +310,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
             MinecraftClient client, long generation, Set<String> consentedExplicitFiles) {
         Set<String> authorizedFiles = Set.copyOf(consentedExplicitFiles);
         List<String> selectedResourcePacks = currentEnabledResourcePackIds(client);
+        List<String> selectedShaderPacks = currentEnabledShaderPackIds();
         authenticationIntegrityTask.submit(taskCancellation -> {
             IntegrityScanCancellation cancellation = () ->
                     taskCancellation.cancelled() || !authenticationAttempts.isActive(generation)
@@ -332,7 +336,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
                         new ArtifactObservationCollector().collect(
                                 gameDirectory, verifiedPolicy.policy(), bundle, cancellation),
                         selectedResourcePacks,
-                        List.of());
+                        selectedShaderPacks);
                 cancellation.check();
                 List<ClientHandshakeEngine.OutboundFrame> readyResponses = responses;
                 client.execute(() -> {
@@ -356,6 +360,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
                         return;
                     }
                     lastReportedResourcePacks = selectedResourcePacks;
+                    lastReportedShaderPacks = selectedShaderPacks;
                     LOGGER.info("MCAce answered signed policy {} sequence {} with {} scoped manifests",
                             verifiedPolicy.policy().getPolicyVersion(), verifiedPolicy.policy().getSequence(),
                             bundle.scopes().size());
@@ -638,6 +643,8 @@ public final class MCAceFabricClient implements ClientModInitializer {
         observationSchedule.cancel();
         pendingChallenge = null;
         handshake = null;
+        lastReportedResourcePacks = List.of();
+        lastReportedShaderPacks = List.of();
         federationConsent.cancel(MinecraftClient.getInstance());
         federationImportConsent.cancel(MinecraftClient.getInstance());
         federationVault.cancelTargetClaims();
@@ -899,7 +906,9 @@ public final class MCAceFabricClient implements ClientModInitializer {
         Set<String> authorizedFiles = authorization != null && authorization.candidate() == candidate
                 && authorization.generation() == attempt ? authorization.files() : Set.of();
         List<String> selectedResourcePacks = currentEnabledResourcePackIds(client);
-        if (!selectedResourcePacks.equals(lastReportedResourcePacks)) {
+        List<String> selectedShaderPacks = currentEnabledShaderPackIds();
+        if (!selectedResourcePacks.equals(lastReportedResourcePacks)
+                || !selectedShaderPacks.equals(lastReportedShaderPacks)) {
             observationSchedule.triggerNow(attempt);
         }
         observationIntegrityTask.submit(taskCancellation -> {
@@ -912,7 +921,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
             try {
                 cancellation.check();
                 prepared = candidate.prepareRescannedArtifactObservationUpdate(
-                        gameDirectory, authorizedFiles, selectedResourcePacks, List.of(), cancellation);
+                        gameDirectory, authorizedFiles, selectedResourcePacks, selectedShaderPacks, cancellation);
                 cancellation.check();
             } catch (EnvelopeException | IntegrityScanException | RuntimeException exception) {
                 if (prepared != null) {
@@ -943,6 +952,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
                         try {
                             candidate.commitArtifactObservationUpdate(ready);
                             lastReportedResourcePacks = selectedResourcePacks;
+                            lastReportedShaderPacks = selectedShaderPacks;
                             observationSchedule.complete(attempt);
                         } catch (EnvelopeException exception) {
                             observationSchedule.cancel();
@@ -965,6 +975,10 @@ public final class MCAceFabricClient implements ClientModInitializer {
                 .map(Object::toString)
                 .sorted()
                 .toList();
+    }
+
+    private static List<String> currentEnabledShaderPackIds() {
+        return ShaderPackObservation.currentEnabledShaderPackIds();
     }
 
     private record ExplicitFileAuthorization(
