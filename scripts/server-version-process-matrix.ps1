@@ -1015,7 +1015,12 @@ function Assert-RunRootBytes {
     $backendJar = Get-StableFileDigest (Join-Path $root (Join-Path 'paper' $backendJarName))
     $proxyPlugin = Get-StableFileDigest (Join-Path $root 'proxy\plugins\mcace.jar')
     $backendPlugin = Get-StableFileDigest (Join-Path $root 'paper\plugins\mcace.jar')
-    $preparedCopy = Get-PreparedTreeSnapshot (Join-Path $root 'paper')
+    # The live Folia/Paper work tree is mutable: newer Folia bootstrap versions can rewrite
+    # versions/<minecraft>/<server>.jar during startup. Verify the immutable pre-launch snapshot
+    # retained by the harness instead of mistaking that legitimate bootstrap rewrite for asset
+    # drift. The backend/proxy/plugin bytes below remain checked from the live run tree.
+    $preparedSnapshotRoot = Join-Path $root 'prepared-snapshot'
+    $preparedCopy = Get-PreparedTreeSnapshot $preparedSnapshotRoot
     $expectedProxyProduct = if ($Definition.proxy -ceq 'VELOCITY') {
         $Current.public.product_jars.velocity
     } else { $Current.public.product_jars.bungee }

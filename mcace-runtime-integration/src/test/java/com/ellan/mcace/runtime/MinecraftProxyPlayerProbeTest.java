@@ -1720,6 +1720,13 @@ final class MinecraftProxyPlayerProbeTest {
         private final List<Integer> cleanupProcessIds = new ArrayList<>();
         private Path proxyRoot;
         private Path paperRoot;
+        /**
+         * Immutable copy of the prepared runtime payload retained separately from the live
+         * backend work tree. Newer Folia bootstrap versions may rewrite the version jar in-place
+         * while starting; the release gate must verify the bytes that were actually handed to the
+         * process, not the post-bootstrap mutable copy.
+         */
+        private Path preparedSnapshotRoot;
         private Path limitedPaperRoot;
         private Path quarantinePaperRoot;
         private int proxyPort;
@@ -1806,6 +1813,8 @@ final class MinecraftProxyPlayerProbeTest {
                 Files.writeString(proxyRoot.resolve("config.yml"), bungeeConfig(), StandardCharsets.UTF_8);
                 forwardingMode = "bungee-ip-forwarding";
             }
+            preparedSnapshotRoot = runRoot.resolve("prepared-snapshot");
+            copyPreparedRuntime(prepared, preparedSnapshotRoot);
             copyPreparedRuntime(prepared, paperRoot);
             Files.createDirectories(paperRoot.resolve("plugins/MCAce"));
             Files.copy(backendJar, paperRoot.resolve(backendJarFileName()));
