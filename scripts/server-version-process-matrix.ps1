@@ -1308,8 +1308,13 @@ function Assert-Report {
             @($Report.cases).Count -ne 12) {
         throw 'SERVER_VERSION_MATRIX_REPORT_INVALID'
     }
-    try { $generated = [DateTimeOffset]::Parse([string]$Report.generated_at) }
-    catch { throw 'SERVER_VERSION_MATRIX_REPORT_TIME_INVALID' }
+    try {
+        # ConvertFrom-Json materializes ISO timestamps as DateTime on Windows.  Feeding
+        # its localized string form back to DateTimeOffset.Parse breaks on zh-SG workers
+        # (for example, `08/24/2026 19:25:47`).  Normalize the object itself and use the
+        # invariant helper for string values.
+        $generated = ConvertTo-ExactDateTimeOffset $Report.generated_at 'report.generated_at'
+    } catch { throw 'SERVER_VERSION_MATRIX_REPORT_TIME_INVALID' }
     $age = [DateTimeOffset]::UtcNow - $generated.ToUniversalTime()
     if ($age.TotalMinutes -lt 0 -or $age.TotalMinutes -gt $MaximumReportAgeMinutes) {
         throw 'SERVER_VERSION_MATRIX_REPORT_STALE'
@@ -1319,7 +1324,8 @@ function Assert-Report {
         $definition = $Current.definitions[$index]
         $case = @($Report.cases)[$index]
         Assert-CaseBinding $case $definition $Current
-        $finished = [DateTimeOffset]::Parse([string]$case.invocation_finished_at)
+        $finished = ConvertTo-ExactDateTimeOffset $case.invocation_finished_at `
+            "case[$index].invocation_finished_at"
         if ($finished.ToUniversalTime() -gt $generated.ToUniversalTime()) {
             throw "SERVER_VERSION_MATRIX_CASE_AFTER_REPORT|$($definition.case_id)"
         }
