@@ -2973,7 +2973,7 @@ final class MinecraftProxyPlayerProbeTest {
                 // On Windows a live child may buffer or exclusively hold both console and rolling
                 // log files. The identity pin is created by the MCAce plugin after its phase-2
                 // initialization, so it is a stronger startup barrier than a text marker.
-                waitForPath(proxyDataDirectory().resolve("identity/server-public-key.txt"), 90);
+                waitForPath(proxy, proxyDataDirectory().resolve("identity/server-public-key.txt"), 90);
             } else {
                 waitFor(proxy, "MCAce BungeeCord adapter enabled", 90);
             }
@@ -3143,6 +3143,20 @@ final class MinecraftProxyPlayerProbeTest {
                 Thread.sleep(250);
             }
             throw new IOException("identity was not created: " + path);
+        }
+
+        private void waitForPath(OwnedProcess process, Path path, int seconds) throws Exception {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
+            while (System.nanoTime() < deadline) {
+                if (Files.isRegularFile(path)) return;
+                if (!process.process().isAlive()) {
+                    throw new IOException(process.name() + " exited before identity was created: " + path
+                            + "\n" + readStartupOutput(process));
+                }
+                Thread.sleep(250L);
+            }
+            throw new IOException(process.name() + " did not create identity within " + seconds
+                    + " seconds: " + path + "\n" + readStartupOutput(process));
         }
 
         private void sendProxyCommand(String command) throws IOException {
