@@ -3110,6 +3110,15 @@ final class MinecraftProxyPlayerProbeTest {
             Path stderr = runRoot.resolve(name + "-" + generation + ".stderr.log");
             ProcessBuilder builder = new ProcessBuilder(
                     javaExecutable(), heap, "-jar", jar.toString());
+            // The matrix runner may set JAVA_TOOL_OPTIONS/GRADLE_OPTS to keep the
+            // Gradle build deterministic on Helio.  Those build-only flags (notably
+            // TieredStopAtLevel=0) also propagate to the real Paper/Velocity child
+            // and can leave an interpreted server JVM stuck in bootstrap long enough
+            // to trip the startup timeout.  The server process must use the normal
+            // JIT/runtime environment; its executable and all input artifacts remain
+            // explicitly pinned above.
+            builder.environment().remove("JAVA_TOOL_OPTIONS");
+            builder.environment().remove("GRADLE_OPTS");
             if (name.startsWith("paper") || name.startsWith("folia")) {
                 builder.command().add("--nogui");
             }
