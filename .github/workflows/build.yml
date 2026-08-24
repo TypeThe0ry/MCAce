@@ -126,3 +126,11 @@ jobs:
           name: mcace-release-bundle-${{ github.sha }}
           path: build/release-bundle/
           if-no-files-found: error
+      - name: Run fail-closed release readiness gate
+        if: ${{ github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        shell: pwsh
+        env:
+          MCACE_SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./scripts/release-readiness.ps1 -SourceCommit $env:MCACE_SOURCE_COMMIT

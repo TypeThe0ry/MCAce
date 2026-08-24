@@ -61,7 +61,7 @@ function Get-CurrentSourceMatch([object]$Value, [string]$Current) {
 }
 
 if ([string]::IsNullOrWhiteSpace($ReportPath)) {
-    $ReportPath = Join-Path $repoRoot 'build\release-readiness\report.json'
+    $ReportPath = Join-Path $repoRoot 'build/release-readiness/report.json'
 }
 $ReportPath = ConvertTo-AbsoluteRepoPath $ReportPath
 $reportDirectory = Split-Path -Parent $ReportPath
@@ -112,7 +112,7 @@ $matrixDetail = if ($null -eq $matrixIndex) {
 Add-Gate $gates 'server_matrix_exact_source' $matrixPass $matrixIndexPath $matrixDetail
 
 $guiEvidence = @()
-$guiRoot = Join-Path $repoRoot 'docs\evidence'
+$guiRoot = Join-Path $repoRoot 'docs/evidence'
 if (Test-Path -LiteralPath $guiRoot -PathType Container) {
     foreach ($file in @(Get-ChildItem -LiteralPath $guiRoot -File -Filter 'fabric-gui-consent-*.json')) {
         $item = Read-JsonFile $file.FullName

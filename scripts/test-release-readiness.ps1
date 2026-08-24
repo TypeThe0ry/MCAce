@@ -21,7 +21,7 @@ foreach ($required in @(
     }
 }
 
-$testRoot = Join-Path $repoRoot 'build\release-readiness-test'
+$testRoot = Join-Path $repoRoot 'build/release-readiness-test'
 [void][IO.Directory]::CreateDirectory($testRoot)
 $reportPath = Join-Path $testRoot 'blocked-report.json'
 $stdoutPath = Join-Path $testRoot 'stdout.txt'
