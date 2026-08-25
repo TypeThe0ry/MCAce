@@ -108,9 +108,12 @@ The pipeline separates origin and confidence:
    authorization. A client load is not a detection or enforcement result.
 
 The active-client telemetry path now includes the runtime-selected resource and
-shader pack IDs. A change in the enabled resource-pack repository triggers an
+shader pack IDs. Resource-pack changes and active shader-pack changes trigger an
 immediate bounded observation update; the server marks each affected entry with
 `selected=true|false` and evaluates it through the signed disposition policy.
+Shader-loader integration is optional and reflection-only (Iris is supported
+without a hard compile dependency); disabled, failed, or unavailable loaders
+report an empty shader selection instead of a guessed directory entry.
 `NOTICE`/`WARN`/`CHALLENGE` can therefore be automated for a reviewed client
 observation, while `LIMIT`/`QUARANTINE`/`DENY` still require an independent
 server provider or durable administrator authorization. A configured

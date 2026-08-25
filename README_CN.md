@@ -95,10 +95,12 @@ Paper/Folia 后端插件。
 4. 高影响动作必须由 `SERVER_CONFIRMED` producer 或持久化管理员授权触发；客户端加载
    不是检测/拦截结果。
 
-现在客户端遥测还会携带运行时实际启用的 resource/shader pack ID。启用资源包发生变化时，
-会立即触发一次有界 observation update；服务端给每个条目标记 `selected=true|false`，再交给
+现在客户端遥测还会携带运行时实际启用的 resource/shader pack ID。资源包或当前 shader pack
+发生变化时，会立即触发一次有界 observation update；服务端给每个条目标记 `selected=true|false`，再交给
 签名 disposition policy 评估。因此，审查过的客户端观察可以自动执行 `NOTICE`/`WARN`/
 `CHALLENGE`；`LIMIT`/`QUARANTINE`/`DENY` 仍必须等独立服务端 provider 或持久化管理员授权。
+Shader loader 使用反射式可选适配，不硬依赖 Iris；loader 缺失、关闭或编译失败时上报空的
+shader selection，不根据目录猜测当前材质包。
 provider 通过 `ServerBehaviorCorrelationRuntime` 进入授权边界：必须是配置的 Grim/Vulcan
 事件，并且和同一 session 在关联窗口内匹配，才会生成持久化的 `SERVER_CONFIRMED` 事件。
 精确 hash/content-root 的录入、客户端自保护和 fail-closed 生成脚本见

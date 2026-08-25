@@ -12,12 +12,15 @@ At the signed authentication snapshot the Fabric client sends:
 - the locally derived ModList entries reconciled to the exact `mods` file
   name/size/SHA-256 tuple;
 - `selected_resource_packs` from the runtime pack repository; and
-- `selected_shader_packs` when a loader exposes that repository.
+- `selected_shader_packs` when an optional shader loader exposes the active
+  pack. The Fabric clients use a reflection-only Iris adapter, so the mod has
+  no hard shader-loader dependency; a missing, disabled, or failed loader
+  reports an empty list rather than a guessed directory entry.
 
 The same selected-pack lists are included in every bounded
-`ArtifactObservationUpdate`. A runtime resource-pack change calls
-`ArtifactObservationSendSchedule.triggerNow`, so it is reported immediately;
-the normal bounded refresh remains periodic and single-flight.
+`ArtifactObservationUpdate`. A runtime resource-pack or active shader-pack
+change calls `ArtifactObservationSendSchedule.triggerNow`, so it is reported
+immediately; the normal bounded refresh remains periodic and single-flight.
 
 ## Server interpretation
 
