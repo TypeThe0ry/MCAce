@@ -23,7 +23,7 @@
 - [x] Pass server-only `platform-load-smoke.ps1 -FabricTarget <target>` for all
   three targets and prewarm/verify all required Minecraft asset objects.
 - [ ] Complete the visible Fabric evidence gate for all three targets: one
-  explicit-file decision and one frame decision per target, six human clicks.
+  connection-level `Enable MCAce` decision per target, three human clicks total.
 - [ ] Complete the distinct real Fabric federation export/import GUI handoff.
 - [ ] Rerun the licensed Vulcan structural preflight against current source, then
   pass Paper enablement and one genuine externally triggered event.
@@ -212,7 +212,7 @@ default-disabled library but does not substitute for producer process evidence.
 - [x] Stable read-only third-party SDK 1.0, capability negotiation, cross-classloader JDK-only bridge, and three-platform compatibility suite
 - [x] Cross-network federation threat model, reciprocal operator-pin contract, per-target one-time player consent state machine, privacy boundary, and executable attack/release matrix
 - [x] Versioned four-message federation protocol: explicit source-operator request, signed Fabric consent, source-signed client-carried grant, target-session PoP presentation, dual offline key fingerprints, strict <=5 minute bounds, final-step replay consumption, and protocol attack corpus
-- [x] Complete disabled-by-default federation runtime under `docs/FEDERATION.md`: source operator issue/audit, distinct Fabric source-export and target-import `Allow once` screens, bounded in-memory grant/key vault, independent target-local `VERIFIED` prerequisite, exact prepared-presentation reservation, proxy observation-only store, and cleanup/noninterference tests; no source-target channel, HTTP/socket, token broker, Cloud, or instant remote revocation.
+- [x] Complete disabled-by-default federation runtime under `docs/FEDERATION.md`: source operator issue/audit, one connection-level Fabric `Enable MCAce` decision inherited by source-export and target-import, bounded in-memory grant/key vault, independent target-local `VERIFIED` prerequisite, exact prepared-presentation reservation, proxy observation-only store, and cleanup/noninterference tests; no source-target channel, HTTP/socket, token broker, Cloud, or instant remote revocation.
 - [x] Make federation audit fail closed: successful issue/grant/observation waits for a bounded durable worker acknowledgement; queue admission is never durable success; background/file/timeout faults are sticky, clear ephemeral state, disable federation only, and surface content-free health in both proxy commands. Unit and fault-injection gates pass.
 - [x] Durably retain the historical August 13 schema-2 federation process record in `docs/evidence/federation-durable-audit-2026-08-13.json`: the tested matrix passed 4/4 plus `-ReportOnly`, with healthy source/target audit, unchanged local trust/risk/Paper admission, and zero residual processes. The record binds older proxy artifacts/source, so it is not current release evidence. It records `residual_reacceptance=true`, `durable_replay_protection=false`, and `fabric_gui_coverage=false`.
 - [ ] Rerun the raw-peer federation matrix and target-restart process gate against the current source and exact proxy artifacts.
@@ -220,11 +220,11 @@ default-disabled library but does not substitute for producer process evidence.
   federation wrapper plus source-export/target-import screens and six exact
   runtime markers; its static contract tests pass under PowerShell 7 and Windows
   PowerShell 5.
-- [ ] Pass the remaining real Fabric federation gate: human-visible source-export
-  `Allow once`, disconnect/direct-connect to the exact target, a distinct visible
-  target-import `Allow once`, actual client-carried transition, a live target
-  session through expiry, cleanup, and GUI privacy evidence. Static and raw-peer
-  evidence do not claim this coverage.
+- [ ] Pass the remaining real Fabric federation gate: one human-visible connection-level
+  `Enable MCAce`, disconnect/direct-connect to the exact target, inherited target
+  handoff, actual client-carried transition, a live target session through expiry,
+  cleanup, and GUI privacy evidence. Static and raw-peer evidence do not claim this
+  coverage.
 
 Additional client loaders are outside the current Fabric-first product roadmap.
 

@@ -9,7 +9,8 @@ metadata, proxy-safe authenticated manifest fragmentation, and live
 Velocity/Bungee policy adapters. Both proxies now derive and evaluate initial
   artifact observations from the complete authenticated manifest, but the result
   is audit-only: it does not alter admission or routing. Fabric can now collect one
-  Minecraft render frame only after a visible, per-request `Allow once` decision.
+  Minecraft render frame only after the connection-level visible `Enable MCAce`
+  decision; the render request itself does not open a second prompt.
 Operating-system window and desktop capture remain unsupported, zero-content, and
 disabled. The repository has an explicit opt-in encrypted content-store control,
 but no raw-image reviewer retrieval UI; default operation discards raw bytes.
@@ -47,10 +48,21 @@ sequence, and freshness binding. The shadow runtime evaluates the latest authent
 does not upgrade a client-reported artifact into `SERVER_CONFIRMED` provenance.
 
 The opt-in real-process Fabric evidence smoke uses the ordinary signed proxy
-request and the same consent screen. It waits for a human `Allow once` action,
-then verifies bounded Begin/Chunk/Commit upload and the server-signed `COMPLETE` ACK,
-and Velocity's content-free audit line. It has no automatic consent, desktop or
-window capture, mouse automation, or account-authentication bypass.
+request and the same connection-level enablement screen. It waits for one human
+`Enable MCAce` action, then verifies bounded Begin/Chunk/Commit upload and the
+server-signed `COMPLETE` ACK, and Velocity's content-free audit line. It has no
+automatic consent, desktop or window capture, mouse automation, or
+account-authentication bypass. Decline/close keeps MCAce disabled and sends no
+handshake, evidence, or federation frame.
+
+The controlled anti-cheat fixture smoke exercises the same provenance boundary
+without executing third-party code: a bounded mod/resource-pack fixture is
+collected as `CLIENT_REPORTED`, and an independent same-session server signal is
+fed through `ServerBehaviorCorrelator`. Both observations must upgrade to
+`SERVER_CONFIRMED`/`CONFIRMED`; the fixture report records
+`OBSERVE_ONLY_UNTIL_SIGNED_POLICY`, so no kick, deny, or ban is implied. This
+proves client/server correlation logic only, not a real public-server detection
+rate or kernel-level ACE capability.
 
 ## Trust and provenance
 
@@ -154,7 +166,7 @@ Screenshot scopes are intentionally non-substitutable:
 
 | Scope | Definition | Initial capability |
 | --- | --- | --- |
-| `GAME_RENDER_FRAME` | One Minecraft-rendered frame. | Fabric, visible per-request consent only. |
+| `GAME_RENDER_FRAME` | One Minecraft-rendered frame. | Fabric, after the single visible connection enablement; no second prompt. |
 | `GAME_WINDOW` | Operating-system capture of the Minecraft window. | Unsupported and disabled. |
 | `DESKTOP` | A user-selected display/desktop. | Unsupported and disabled. |
 
@@ -325,7 +337,6 @@ resource-loading result only, not evidence of server-side detection, a
 because the normal client attempted account/Realms requests, so it must not be
 described as a safe third-party sandbox or as an effectiveness benchmark.
 The remaining distinct gates are a real-process `SERVER_CONFIRMED` artifact/behavior
-authorization producer, the three-target explicit-file/frame GUI flow (six human
-decisions), and the separate two-decision Fabric federation source-export/target-
-import handoff. The federation V2 UI/wrapper static contract passes, but no real
-human handoff PASS exists.
+authorization producer, the single connection-level enablement GUI flow, and the
+Fabric federation source-export/target-import handoff. The federation V2
+UI/wrapper static contract passes, but no real human handoff PASS exists.

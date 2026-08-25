@@ -140,7 +140,7 @@ function Assert-ReportMutationRejected(
 $parameters = @($ast.ParamBlock.Parameters | ForEach-Object { $_.Name.VariablePath.UserPath })
 $expectedParameters = @(
     'Execute', 'ReportOnly', 'FabricTarget', 'SourceProxy', 'TargetProxy',
-    'SourceExportHumanAttested', 'TargetImportHumanAttested',
+    'EnablementHumanAttested',
     'ExpectedFabricArtifactSha256', 'ExpectedVelocityPluginSha256',
     'ExpectedBungeePluginSha256', 'ExpectedPaperPluginSha256',
     'ExpectedVelocityServerSha256', 'ExpectedBungeeServerSha256',
@@ -160,8 +160,8 @@ foreach ($name in @('FabricTarget', 'SourceProxy', 'TargetProxy')) {
     Assert-True (Test-MandatoryParameter $name 'Execute') "$name is not mandatory for Execute"
     Assert-True (Test-MandatoryParameter $name 'Report') "$name is not mandatory for ReportOnly"
 }
-foreach ($name in @('SourceExportHumanAttested', 'TargetImportHumanAttested')) {
-    Assert-True (Test-MandatoryParameter $name 'Execute') "$name is not a mandatory human Execute attestation"
+foreach ($name in @('EnablementHumanAttested')) {
+    Assert-True (Test-MandatoryParameter $name 'Execute') "$name is not the single mandatory human Execute attestation"
     Assert-True (-not (Test-MandatoryParameter $name 'Report')) "$name leaks into ReportOnly"
 }
 $reportHashParameters = @(
@@ -296,12 +296,11 @@ foreach ($token in @('Assert-PassingReportRaw', 'Assert-BindingRaw', 'Assert-Com
 }
 
 $markers = @(
-    'MCAce federation source export consent requested',
-    'MCAce federation source export consent screen rendered',
-    'MCAce federation source export consent allowed once',
-    'MCAce federation target import consent requested',
-    'MCAce federation target import consent screen rendered',
-    'MCAce federation target import consent allowed once'
+    'MCAce enablement consent requested for signed policy',
+    'MCAce enablement consent screen rendered',
+    'MCAce enablement accepted for the current connection; no additional consent screens will be shown',
+    'MCAce federation source export consent inherited from connection enablement',
+    'MCAce federation target import consent inherited from connection enablement'
 )
 foreach ($marker in $markers) {
     Assert-True ([regex]::Matches($source, [regex]::Escape($marker)).Count -eq 1) `
@@ -330,7 +329,7 @@ foreach ($forbiddenApi in @('SendKeys', 'mouse_event', 'SetCursorPos', 'java.awt
     Assert-True (-not $source.Contains($forbiddenApi)) "GUI automation surface present: $forbiddenApi"
 }
 foreach ($token in @(
-        'FABRIC_FEDERATION_GUI_TWO_EXPLICIT_HUMAN_ATTESTATIONS_REQUIRED',
+        'FABRIC_FEDERATION_GUI_ONE_EXPLICIT_HUMAN_ATTESTATION_REQUIRED',
         'Assert-ExactHumanGuiMarkers $fabricLog',
         'MCAce session verified at trust level VERIFIED with risk score 0',
         'Accepted signed MCAce admission state', 'admission=VERIFIED, trust=VERIFIED, risk=0',
@@ -515,24 +514,23 @@ Set-StrictMode -Version Latest
             source_proxy = 'VELOCITY'
             target_proxy = 'BUNGEE'
             federation_assertion_ttl_seconds = 120
-            operator_human_attestation_count = 2
-            human_visible_federation_consent_count = 2
+            operator_human_attestation_count = 1
+            human_visible_federation_consent_count = 1
             no_gui_automation = $true
             raw_peer_evidence_used = $false
             raw_content_retained = $false
             fabric_artifact_mode_verified = $true
             source_local_auth_verified = $true
             source_paper_admission_verified = $true
-            source_export_consent_requested = $true
-            source_export_consent_rendered = $true
-            source_export_consent_allowed_once = $true
+            enablement_consent_requested = $true
+            enablement_consent_rendered = $true
+            enablement_consent_accepted = $true
+            source_export_consent_inherited = $true
             source_grant_stored_memory_only = $true
             source_grant_ready_observed = $true
             source_disconnected_before_target_auth = $true
             target_local_auth_verified = $true
-            target_import_consent_requested = $true
-            target_import_consent_rendered = $true
-            target_import_consent_allowed_once = $true
+            target_import_consent_inherited = $true
             presentation_sent = $true
             target_observation_recorded = $true
             target_subject_bound = $true
@@ -574,10 +572,10 @@ Set-StrictMode -Version Latest
             "old V1 report accepted for $targetName"
         Assert-ReportMutationRejected $validator $report $current 'raw_peer_evidence_used' $true `
             "raw-peer evidence accepted for $targetName"
-        Assert-ReportMutationRejected $validator $report $current 'operator_human_attestation_count' 1 `
-            "one attestation can mint PASS for $targetName"
-        Assert-ReportMutationRejected $validator $report $current 'target_import_consent_allowed_once' $false `
-            "missing target GUI click can mint PASS for $targetName"
+        Assert-ReportMutationRejected $validator $report $current 'operator_human_attestation_count' 0 `
+            "missing enablement attestation can mint PASS for $targetName"
+        Assert-ReportMutationRejected $validator $report $current 'enablement_consent_accepted' $false `
+            "missing single GUI enablement click can mint PASS for $targetName"
         Assert-ReportMutationRejected $validator $report $current 'target_paper_admission_verified' $false `
             "missing target Paper admission can mint PASS for $targetName"
         Assert-ReportMutationRejected $validator $report $current 'target_subject_bound' $false `

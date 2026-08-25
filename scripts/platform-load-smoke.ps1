@@ -106,8 +106,8 @@ $manualConsentHandshakeTimeoutSeconds = if ($WithFabricEvidence) {
 # window never produces an invalid server configuration.
 $velocityHandshakeTimeoutSeconds = [Math]::Min(30, $manualConsentHandshakeTimeoutSeconds)
 $gradleVersion = '9.6.1'
-$reportSchema = 7
-$bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V5'
+$reportSchema = 8
+$bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6'
 $fabricArtifactClass = 'sanitized-final-fabric-gui-evidence'
 $fabricArtifactVersion = '0.1.0-SNAPSHOT'
 $fabricSmokeBuildId = "platform-smoke-$runId"
@@ -648,13 +648,17 @@ function Update-FabricConsentEvidence(
         }
     }
     $markers = [ordered]@{
+        enablement_requested = 'MCAce enablement consent requested for signed policy; explicit-file paths='
+        enablement_rendered = 'MCAce enablement consent screen rendered'
+        enablement_accepted = 'MCAce enablement accepted for the current connection'
         explicit_file_requested = 'MCAce explicit-file consent requested for '
         explicit_file_rendered = 'MCAce explicit-file consent screen rendered'
         explicit_file_accepted = 'MCAce explicit-file authorization accepted for the current connection'
         authenticated = 'MCAce session verified at trust level VERIFIED'
-        game_render_frame_requested = 'MCAce evidence consent requested for signed GAME_RENDER_FRAME request'
+        game_render_frame_requested = 'MCAce evidence request accepted under connection enablement; no second consent screen'
         game_render_frame_rendered = 'MCAce evidence consent screen rendered for signed GAME_RENDER_FRAME request'
         game_render_frame_allowed = 'MCAce evidence consent allowed once for signed GAME_RENDER_FRAME request'
+        game_render_frame_inherited = 'MCAce evidence consent inherited from connection enablement'
         game_render_frame_completed = 'MCAce evidence transfer COMPLETE request='
     }
     foreach ($entry in $markers.GetEnumerator()) {
@@ -662,26 +666,33 @@ function Update-FabricConsentEvidence(
             $Evidence[$entry.Key] = $true
         }
     }
+    # Compatibility aliases remain in the sanitized report for consumers of schema 7.  The
+    # explicit-file fields now describe the single enablement screen, not a second prompt.
+    if ([bool]$Evidence['enablement_requested']) { $Evidence['explicit_file_requested'] = $true }
+    if ([bool]$Evidence['enablement_rendered']) { $Evidence['explicit_file_rendered'] = $true }
+    if ([bool]$Evidence['enablement_accepted']) { $Evidence['explicit_file_accepted'] = $true }
+    if ([bool]$Evidence['game_render_frame_inherited']) {
+        $Evidence['game_render_frame_consent_allowed'] = $true
+    }
 }
 
 function Get-FabricGuiStage(
         [System.Collections.IDictionary]$Evidence,
         [string]$Fallback) {
     if ([bool]$Evidence['game_render_frame_completed']) { return 'EVIDENCE_COMPLETE' }
-    if ([bool]$Evidence['game_render_frame_allowed']) { return 'EVIDENCE_ALLOWED' }
-    if ([bool]$Evidence['game_render_frame_rendered']) { return 'EVIDENCE_CONSENT_RENDERED' }
+    if ([bool]$Evidence['game_render_frame_inherited']) { return 'EVIDENCE_INHERITED' }
     if ([bool]$Evidence['game_render_frame_requested']) { return 'EVIDENCE_REQUESTED' }
     if ([bool]$Evidence['authenticated']) { return 'AUTHENTICATED' }
-    if ([bool]$Evidence['explicit_file_accepted']) { return 'EXPLICIT_FILE_CONSENT_ACCEPTED' }
-    if ([bool]$Evidence['explicit_file_rendered']) { return 'EXPLICIT_FILE_CONSENT_RENDERED' }
-    if ([bool]$Evidence['explicit_file_requested']) { return 'EXPLICIT_FILE_CONSENT_REQUESTED' }
+    if ([bool]$Evidence['enablement_accepted']) { return 'ENABLEMENT_ACCEPTED' }
+    if ([bool]$Evidence['enablement_rendered']) { return 'ENABLEMENT_RENDERED' }
+    if ([bool]$Evidence['enablement_requested']) { return 'ENABLEMENT_REQUESTED' }
     return $Fallback
 }
 
 function Test-FabricGuiCoverage([System.Collections.IDictionary]$Evidence) {
-    return [bool]$Evidence['explicit_file_requested'] -and
-        [bool]$Evidence['explicit_file_rendered'] -and
-        [bool]$Evidence['explicit_file_accepted'] -and
+    return [bool]$Evidence['enablement_requested'] -and
+        [bool]$Evidence['enablement_rendered'] -and
+        [bool]$Evidence['enablement_accepted'] -and
         [int]$Evidence['explicit_file_manifest_entries'] -eq 1 -and
         [bool]$Evidence['authenticated']
 }
@@ -689,8 +700,7 @@ function Test-FabricGuiCoverage([System.Collections.IDictionary]$Evidence) {
 function Test-FabricEvidenceCoverage([System.Collections.IDictionary]$Evidence) {
     return (Test-FabricGuiCoverage $Evidence) -and
         [bool]$Evidence['game_render_frame_requested'] -and
-        [bool]$Evidence['game_render_frame_rendered'] -and
-        [bool]$Evidence['game_render_frame_allowed'] -and
+        [bool]$Evidence['game_render_frame_inherited'] -and
         [bool]$Evidence['game_render_frame_completed']
 }
 
@@ -731,6 +741,9 @@ function New-SanitizedReleaseReport(
         fabric_release_jar_loaded = $FabricReleaseJarLoaded
         fabric_client_requested = $FabricClientRequested
         fabric_evidence_requested = $FabricEvidenceRequested
+        enablement_consent_requested = [bool]$ConsentEvidence['enablement_requested']
+        enablement_consent_rendered = [bool]$ConsentEvidence['enablement_rendered']
+        enablement_consent_accepted = [bool]$ConsentEvidence['enablement_accepted']
         explicit_file_fixture_present = $ExplicitFileFixturePresent
         explicit_file_manifest_entries = [int]$ConsentEvidence['explicit_file_manifest_entries']
         explicit_file_manifest_entries_observed = ([int]$ConsentEvidence['explicit_file_manifest_entries'] -eq 1)
@@ -741,6 +754,7 @@ function New-SanitizedReleaseReport(
         game_render_frame_requested = [bool]$ConsentEvidence['game_render_frame_requested']
         game_render_frame_consent_rendered = [bool]$ConsentEvidence['game_render_frame_rendered']
         game_render_frame_consent_allowed = [bool]$ConsentEvidence['game_render_frame_allowed']
+        game_render_frame_consent_inherited = [bool]$ConsentEvidence['game_render_frame_inherited']
         game_render_frame_completed = [bool]$ConsentEvidence['game_render_frame_completed']
         fabric_gui_coverage = ($FabricClientRequested -and (Test-FabricGuiCoverage $ConsentEvidence))
         fabric_evidence_coverage = ($FabricEvidenceRequested -and (Test-FabricEvidenceCoverage $ConsentEvidence))
@@ -1611,10 +1625,12 @@ function Assert-PassingReportRaw([string]$Raw, [switch]$RequireFullFabricEvidenc
         'fabric_artifact_kind', 'fabric_java_major', 'fabric_runtime_mode',
         'fabric_runtime_jar_loaded', 'fabric_release_jar_loaded',
         'fabric_client_requested', 'fabric_evidence_requested', 'explicit_file_fixture_present',
+        'enablement_consent_requested', 'enablement_consent_rendered', 'enablement_consent_accepted',
         'explicit_file_manifest_entries', 'explicit_file_manifest_entries_observed',
         'explicit_file_consent_requested', 'explicit_file_consent_rendered',
         'explicit_file_consent_accepted', 'fabric_authenticated', 'game_render_frame_requested',
         'game_render_frame_consent_rendered', 'game_render_frame_consent_allowed',
+        'game_render_frame_consent_inherited',
         'game_render_frame_completed', 'fabric_gui_coverage', 'fabric_evidence_coverage',
         'raw_evidence_retained', 'evidence_audit_summary_observed', 'persistent_identity_unchanged',
         'velocity_transport_classes_present', 'paper_admission_channel_enabled',
@@ -1649,19 +1665,25 @@ function Assert-PassingReportRaw([string]$Raw, [switch]$RequireFullFabricEvidenc
         if ($report.$name -isnot [bool]) { throw "PLATFORM_SMOKE_REPORT_TYPE_INVALID: $name" }
     }
     foreach ($name in @('fabric_client_requested', 'fabric_evidence_requested',
-            'explicit_file_fixture_present', 'explicit_file_manifest_entries_observed',
+            'explicit_file_fixture_present', 'enablement_consent_requested',
+            'enablement_consent_rendered', 'enablement_consent_accepted',
+            'explicit_file_manifest_entries_observed',
             'explicit_file_consent_requested', 'explicit_file_consent_rendered',
             'explicit_file_consent_accepted', 'fabric_authenticated', 'game_render_frame_requested',
             'game_render_frame_consent_rendered', 'game_render_frame_consent_allowed',
+            'game_render_frame_consent_inherited',
             'game_render_frame_completed', 'fabric_gui_coverage', 'fabric_evidence_coverage',
             'evidence_audit_summary_observed')) {
         if ($report.$name -isnot [bool]) { throw "PLATFORM_SMOKE_REPORT_TYPE_INVALID: $name" }
     }
-    $guiFields = @('explicit_file_fixture_present', 'explicit_file_manifest_entries_observed',
+    $guiFields = @('explicit_file_fixture_present', 'enablement_consent_requested',
+        'enablement_consent_rendered', 'enablement_consent_accepted',
+        'explicit_file_manifest_entries_observed',
         'explicit_file_consent_requested', 'explicit_file_consent_rendered',
         'explicit_file_consent_accepted', 'fabric_authenticated', 'fabric_gui_coverage')
     $evidenceFields = @('game_render_frame_requested', 'game_render_frame_consent_rendered',
-        'game_render_frame_consent_allowed', 'game_render_frame_completed',
+        'game_render_frame_consent_allowed', 'game_render_frame_consent_inherited',
+        'game_render_frame_completed',
         'fabric_evidence_coverage', 'evidence_audit_summary_observed')
     foreach ($name in $guiFields) {
         if ([bool]$report.$name -ne [bool]$report.fabric_client_requested) {
@@ -2101,6 +2123,9 @@ $currentAfterRun = $null
 $velocityPolicyTuple = $null
 $fabricConsentEvidence = [ordered]@{
     explicit_file_manifest_entries = 0
+    enablement_requested = $false
+    enablement_rendered = $false
+    enablement_accepted = $false
     explicit_file_requested = $false
     explicit_file_rendered = $false
     explicit_file_accepted = $false
@@ -2108,6 +2133,7 @@ $fabricConsentEvidence = [ordered]@{
     game_render_frame_requested = $false
     game_render_frame_rendered = $false
     game_render_frame_allowed = $false
+    game_render_frame_inherited = $false
     game_render_frame_completed = $false
 }
 $fabricGuiStage = if ($WithFabricClient) { 'CLIENT_PENDING' } else { 'NOT_REQUESTED' }
@@ -2222,11 +2248,11 @@ try {
         } catch {
             Update-FabricConsentEvidence $fabricConsentEvidence $fabricLog
             $fabricGuiStage = Get-FabricGuiStage $fabricConsentEvidence $fabricGuiStage
-            if ([bool]$fabricConsentEvidence['explicit_file_rendered']) {
-                throw "Fabric explicit-file consent screen rendered but was not approved before the $manualConsentHandshakeTimeoutSeconds-second smoke handshake timeout"
+            if ([bool]$fabricConsentEvidence['enablement_rendered']) {
+                throw "Fabric MCAce enablement screen rendered but was not approved before the $manualConsentHandshakeTimeoutSeconds-second smoke handshake timeout"
             }
-            if ([bool]$fabricConsentEvidence['explicit_file_requested']) {
-                throw "Fabric explicit-file consent was requested but no completed render was observed before the $manualConsentHandshakeTimeoutSeconds-second smoke handshake timeout"
+            if ([bool]$fabricConsentEvidence['enablement_requested']) {
+                throw "Fabric MCAce enablement was requested but no completed render was observed before the $manualConsentHandshakeTimeoutSeconds-second smoke handshake timeout"
             }
             throw
         }
@@ -2265,26 +2291,20 @@ try {
             Wait-ServiceLog $fabricClient $fabricLog @(
                 'MCAce platform evidence smoke verified; waiting for a signed GAME_RENDER_FRAME request'
             ) 30
-            # The console request is intentionally the only automated action. Consent remains a
-            # visible, per-request human decision; this script has no cursor, window, desktop, or
-            # operating-system screen-capture API.
-            Write-Host 'MCAce evidence smoke: approve Allow once in the visible Fabric client window.'
+            # The console request is intentionally the only automated action. The single
+            # connection-level enablement decision above covers this signed frame request; this
+            # script has no cursor, window, desktop, or operating-system screen-capture API.
             $velocity.Process.StandardInput.WriteLine(
                 "mcaceevidence request $evidencePlayerName frame platform-smoke-frame")
             $velocity.Process.StandardInput.Flush()
             Wait-ServiceLog $fabricClient $fabricLog @(
-                'MCAce evidence consent requested for signed GAME_RENDER_FRAME request'
+                'MCAce evidence request accepted under connection enablement; no second consent screen'
             ) 30
             Update-FabricConsentEvidence $fabricConsentEvidence $fabricLog
             $fabricGuiStage = Get-FabricGuiStage $fabricConsentEvidence $fabricGuiStage
             Wait-ServiceLog $fabricClient $fabricLog @(
-                'MCAce evidence consent screen rendered for signed GAME_RENDER_FRAME request'
+                'MCAce evidence consent inherited from connection enablement'
             ) 30
-            Update-FabricConsentEvidence $fabricConsentEvidence $fabricLog
-            $fabricGuiStage = Get-FabricGuiStage $fabricConsentEvidence $fabricGuiStage
-            Wait-ServiceLog $fabricClient $fabricLog @(
-                'MCAce evidence consent allowed once for signed GAME_RENDER_FRAME request'
-            ) 120
             Update-FabricConsentEvidence $fabricConsentEvidence $fabricLog
             $fabricGuiStage = Get-FabricGuiStage $fabricConsentEvidence $fabricGuiStage
             Wait-ServiceLog $fabricClient $fabricLog @(
@@ -2319,7 +2339,7 @@ try {
             $evidenceReport = [ordered]@{
                 outcome = 'COMPLETE'
                 request_scope = 'GAME_RENDER_FRAME'
-                consent = 'manual-visible-allow-once'
+                consent = 'single-visible-connection-enablement'
                 raw_content_retained = $false
             }
         }
@@ -2505,6 +2525,9 @@ try {
             fabric_gui_stage = $fabricGuiStage
             explicit_file_fixture_present = $explicitFileFixturePresent
             explicit_file_manifest_entries = [int]$fabricConsentEvidence['explicit_file_manifest_entries']
+            enablement_consent_requested = [bool]$fabricConsentEvidence['enablement_requested']
+            enablement_consent_rendered = [bool]$fabricConsentEvidence['enablement_rendered']
+            enablement_consent_accepted = [bool]$fabricConsentEvidence['enablement_accepted']
             explicit_file_consent_requested = [bool]$fabricConsentEvidence['explicit_file_requested']
             explicit_file_consent_rendered = [bool]$fabricConsentEvidence['explicit_file_rendered']
             explicit_file_consent_accepted = [bool]$fabricConsentEvidence['explicit_file_accepted']
@@ -2513,6 +2536,7 @@ try {
             game_render_frame_requested = [bool]$fabricConsentEvidence['game_render_frame_requested']
             game_render_frame_consent_rendered = [bool]$fabricConsentEvidence['game_render_frame_rendered']
             game_render_frame_consent_allowed = [bool]$fabricConsentEvidence['game_render_frame_allowed']
+            game_render_frame_consent_inherited = [bool]$fabricConsentEvidence['game_render_frame_inherited']
             game_render_frame_completed = [bool]$fabricConsentEvidence['game_render_frame_completed']
             fabric_gui_coverage = ($WithFabricClient -and (Test-FabricGuiCoverage $fabricConsentEvidence))
             fabric_evidence_coverage = ($WithFabricEvidence -and (Test-FabricEvidenceCoverage $fabricConsentEvidence))

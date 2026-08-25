@@ -7,7 +7,7 @@ $scriptPath = Join-Path $PSScriptRoot 'release-readiness.ps1'
 $source = Get-Content -LiteralPath $scriptPath -Raw
 foreach ($required in @(
     'server_matrix_exact_source',
-    'fabric_gui_six_human_decisions',
+    'fabric_gui_single_enablement_confirmation',
     'fabric_federation_real_handoff',
     'vulcan_genuine_event',
     'production_server_confirmed_authority',

@@ -5,9 +5,9 @@ Minecraft release, a broad `1.21.x` range, or a successful server-only run.
 
 | Minecraft | Namespace / artifact | Java | Fabric Loader | Fabric API | Packaging state | Remaining GUI gate |
 | --- | --- | ---: | --- | --- | --- | --- |
-| `1.21.11` | Yarn/remapped; final `remapJar` | 21 | `0.19.3` | `0.141.6+1.21.11` | Build, final-artifact isolation, package verification, and post-fix server matrix passed | Explicit-file prompt plus one `GAME_RENDER_FRAME` prompt must be clicked in a visible client |
-| `26.1.2` | Official named namespace; final named JAR | 25 | `0.19.3` | `0.155.2+26.1.2` | Build, final-artifact isolation, package verification, and post-fix server matrix passed | Same two visible consent decisions |
-| `26.2` | Official named namespace; final named JAR | 25 | `0.19.3` | `0.157.0+26.2` | Build, final-artifact isolation, package verification, and post-fix server matrix passed | Same two visible consent decisions |
+| `1.21.11` | Yarn/remapped; final `remapJar` | 21 | `0.19.3` | `0.141.6+1.21.11` | Build, final-artifact isolation, package verification, and post-fix server matrix passed | One connection-level `Enable MCAce` prompt must be clicked in a visible client |
+| `26.1.2` | Official named namespace; final named JAR | 25 | `0.19.3` | `0.155.2+26.1.2` | Build, final-artifact isolation, package verification, and post-fix server matrix passed | Same single connection-level enablement decision |
+| `26.2` | Official named namespace; final named JAR | 25 | `0.19.3` | `0.157.0+26.2` | Build, final-artifact isolation, package verification, and post-fix server matrix passed | Same single connection-level enablement decision |
 
 The current server-process claim is the Helio Execute+ReportOnly 12/12 record
 at [`evidence/server-version-process-matrix-2026-08-25-f404971.json`](evidence/server-version-process-matrix-2026-08-25-f404971.json),
@@ -51,12 +51,14 @@ The authoritative GUI wrapper always requires an explicit target:
 
 All three Mojang version manifests, asset indexes, and asset-object sets are
 already present in the verified local cache. That removes asset download as a
-blocker. It does not replace the human gate: each target needs one visible
-explicit-file decision and one separate visible frame decision, for six human
-clicks total. Automation must not manufacture those decisions.
+blocker. It does not replace the human gate: the reviewed client shows one
+visible connection-level MCAce enablement decision. The explicit-file,
+render-frame, and federation paths inherit that decision, so the reviewed
+three-target compatibility matrix no longer requires six repeated prompts.
+Automation must not manufacture the one decision.
 
-A passing retained pair uses report schema `6` and binding schema
-`MCACE_FABRIC_GUI_EVIDENCE_BINDING_V4`. `-ReportOnly` also requires
+A passing retained pair uses report schema `8` and binding schema
+`MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6`. `-ReportOnly` also requires
 `-FabricTarget` plus independently reviewed SHA-256 values for the Fabric
 artifact, both MCAce server plugins, Velocity, Paper, the prepared Paper tree,
 and the target's Minecraft asset bindings. It also binds the exact rewritten
@@ -86,5 +88,6 @@ Velocity policy values in `velocity_policy_minecraft_versions` and
 
 Adding a target requires an exact dependency tuple, a final-artifact verification
 task, the complete client/common/protocol suite, all four real proxy/backend
-matrix cases for that version, server-only platform startup, and the two visible
-consent decisions. Editing only a policy allowlist does not add support.
+matrix cases for that version, server-only platform startup, and the one visible
+connection-level enablement decision. Editing only a policy allowlist does not
+add support.

@@ -14,7 +14,10 @@ if ($errors.Count -ne 0) { throw 'ANTICHEAT_FIXTURE_SCRIPT_PARSE_FAILED' }
 
 foreach ($required in @(
         'MCACE_ANTICHEAT_FIXTURE_CLASSIFICATION_V1',
-        'STATIC_FIXTURE_ONLY_NO_THIRD_PARTY_CODE_EXECUTION',
+        'CONTROLLED_LAB_FIXTURE_METADATA_AND_SERVER_CORRELATION',
+        'server_client_correlated',
+        'server_confirmed_count',
+        'OBSERVE_ONLY_UNTIL_SIGNED_POLICY',
         'third_party_network_access',
         'executable_code_loaded',
         'ReportOnly',

@@ -48,7 +48,7 @@ historical only and cannot be promoted to the current three-version release.
 | Fabric packaging, all targets | Passed | 1.21.11 final remapped artifact; 26.1.2 and 26.2 final named artifacts; target-specific metadata, build IDs, CodeSource/hash contracts, and package tests passed. | Packaging support is current for exactly the three documented tuples. |
 | Paper/Folia × Velocity/Bungee version process matrix | Passed 12/12 on Helio | [Evidence index](evidence/server-version-process-matrix-2026-08-25-f404971.json) plus the immutable report/binding/commit triplet under [`evidence/server-version-process-matrix/2026-08-24T21-33-47-1914356Z/`](evidence/server-version-process-matrix/2026-08-24T21-33-47-1914356Z/); exact source `f404971e6e9a9ac1d30e5cf4e2692750aa83f1b1`, 10 STABLE + 2 BETA, cleanup zero, source manifest `db15e970…` / 686 files. | Signed admission and shadow backend context are proven on all three versions while the peer remains live. Paper 26.2 build 116 is STABLE; Folia 26.2 build 6 remains the two-case BETA lane. The exact checkout completed a clean `-Execute` run and a subsequent `-ReportOnly` recheck; the canonical triplet contains only that final 12/12 result. Online-mode/public-network behavior is not claimed. Protected-main CI and the external GUI/federation/Vulcan gates remain open. |
 | Fabric server-only platform startup | Passed for all three targets | `platform-load-smoke.ps1 -FabricTarget <target>` passed for 1.21.11, 26.1.2, and 26.2 after full Minecraft asset prewarm. | Assets and server startup are not blockers. They are not visible-client consent evidence. |
-| Fabric explicit-file and frame consent | Pending six human clicks | Report schema 7 and binding `MCACE_FABRIC_GUI_EVIDENCE_BINDING_V5` are implemented, including the named runtime-artifact hash and exact `velocity_policy_minecraft_versions` / `velocity_policy_client_build_ids` bindings. The latest current-source 1.21.11 attempt reached `EXPLICIT_FILE_CONSENT_RENDERED` and timed out without a human click; see [`fabric-gui-consent-attempt-2026-08-22.json`](evidence/fabric-gui-consent-attempt-2026-08-22.json). | Three targets × two prompts = six human approvals. Automation must not click or synthesize them. |
+| Fabric MCAce enablement consent | Pending one human click | The client now renders one connection-bound `Enable MCAce` screen. Report schema 8 / binding `MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6` records the rendered/accepted decision and fail-closed decline behavior; evidence and federation requests inherit the accepted session state without opening another prompt. | One visible confirmation is required. Decline/close must leave MCAce disabled; automation must not click or synthesize it. |
 | Client-origin enforcement guard | Passed current-source 24/24 | [`disposition-current-2026-08-21.json`](evidence/disposition-current-2026-08-21.json); 8/8 on each of 1.21.11, 26.1.2, and 26.2; Execute and ReportOnly both passed. | `CLIENT_REPORTED` LIMIT/QUARANTINE/DENY remained advisory and no high-impact route executed. This remains distinct from SERVER_CONFIRMED. |
 | Trusted administrator disposition | Passed current-source 18/18 | [`disposition-current-2026-08-21.json`](evidence/disposition-current-2026-08-21.json); 6/6 on each of 1.21.11, 26.1.2, and 26.2; Execute and ReportOnly both passed; `UUID_CONTEXT_COMMITMENT_V3`. | Durable authorization preceded execution and DENY remained current-connection-only; the real Grim producer is recorded separately in [`anti-cheat-real-server-2026-08-22.json`](evidence/anti-cheat-real-server-2026-08-22.json). |
 | Real server anti-cheat detection/interception | Passed for real 1.21.11 loopback server and repeated against the tested MCAce artifact | [`rerun-2026-08-23.json`](evidence/real-server-2026-08-23/rerun-2026-08-23.json) binds tested source `27bb101…` to a Helio repeat run with Leaf 1.21.11 + real GrimAC `2.3.74-155abaf`: 40 movement probes, `AimDuplicateLook`/`Simulation`/`TickTimer`, three `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK` events and three loopback risk uploads. | Detection and interception/upload are proven twice. `MONITOR`/`NONE` is intentional; no automatic kick/ban is asserted. Vulcan, GUI/federation, and production topology gates remain separate. |
@@ -136,8 +136,9 @@ context but are not the three-version release gate.
 
 1. On an unlocked display-capable desktop, run
    `platform-load-smoke.ps1 -FabricTarget <target> -WithFabricEvidence` once for
-   each target and complete the two visible consent decisions per run. Revalidate
-   each schema-7/V5 pair with `-ReportOnly` and independently reviewed hashes.
+   each target and complete the one visible connection-level `Enable MCAce`
+   decision per run. Revalidate each schema-8/V6 pair with `-ReportOnly` and
+   independently reviewed hashes.
 2. Complete the separate real Fabric federation source-export and target-import
    visible handoff gate. Raw-peer evidence must not be promoted to GUI coverage.
 3. Freeze the SERVER_CONFIRMED provider/profile/key/topology choices in
@@ -154,7 +155,7 @@ context but are not the three-version release gate.
 The three Fabric targets, six deployables, strict local A/D build, post-fix
 12-case server matrix, and current Linux network-none rehearsal are green within
 their documented local boundaries. An unqualified release claim remains
-premature until the six visible GUI decisions and real Fabric federation handoff
+premature until the single visible GUI enablement decision and real Fabric federation handoff
 complete, current-source Vulcan gates and the genuine SERVER_CONFIRMED
 producer/configuration freeze complete, and exact-commit CI plus the clean
 exact-commit release bundle pass.

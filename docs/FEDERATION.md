@@ -33,7 +33,7 @@ Every message has a distinct packet type and fixed direction:
 | Step | Packet type | Direction | Payload and effect |
 | --- | --- | --- | --- |
 | 1 | `FEDERATION_CONSENT_REQUEST` (17) | source server -> client | Operator-initiated, target-specific disclosure request; allocates no grant |
-| 2 | `FEDERATION_CONSENT_RESPONSE` (18) | client -> source server | Ed25519-signed `Allow once` response; absence means decline/close/timeout |
+| 2 | `FEDERATION_CONSENT_RESPONSE` (18) | client -> source server | Ed25519-signed response inherited from the connection-level `Enable MCAce` decision; absence means decline/close/timeout |
 | 3 | `FEDERATION_GRANT` (19) | source server -> client | Client consent plus source-signed assertion and the short-lived client session public key |
 | 4 | `FEDERATION_PRESENTATION` (20) | client -> target server | Complete grant plus fresh target-session proof of possession |
 
@@ -93,37 +93,40 @@ checks the source key against its pin and the target key against its own current
 identity key. A same-name network with a different key therefore cannot reuse
 consent or act as the audience.
 
-Key rotation requires explicit offline configuration on both sides and a new
-visible player consent. Removing a local target-side source pin prevents future
-acceptance immediately after the local configuration reload. Removing a source
-pin cannot remotely revoke an already signed grant because no control channel
-exists.
+Key rotation requires explicit offline configuration on both sides and a fresh
+connection-level MCAce enablement decision. Removing a local target-side source
+pin prevents future acceptance immediately after the local configuration reload.
+Removing a source pin cannot remotely revoke an already signed grant because no
+control channel exists.
 
 ## Player consent and Fabric vault
 
-Before signing step 2, Fabric displays the source-export in-game prompt containing:
+Before any MCAce handshake, Fabric displays one connection-level `Enable MCAce`
+screen containing the verified network/policy disclosure. The same decision
+covers federation and contains:
 
 - exact source and target network names/IDs;
 - short source and target key fingerprints;
 - the single disclosed statement, in plain language;
 - the exact expiry and the five-minute maximum;
 - that the statement is observation-only and cannot replace local verification;
-- equally clear `Allow once` and `Decline` actions;
+- equally clear `Enable MCAce` and `Decline` actions;
 - that decline, close, timeout, or failure causes no automatic action.
 
 There is no `Always allow`, preselected approval, gameplay-key shortcut, inferred
 approval, or approval inherited from server terms. Closing the prompt produces
-no signed response. A request changed after display is not the request the
-player approved.
+no `CLIENT_HELLO`, manifest, evidence, or federation response. A policy changed
+after display is not the policy the player approved. The decision is held only
+for the current connection and is never persisted.
 
 After the target independently authenticates the same short-lived client key,
-Fabric prepares one target-session/challenge-bound presentation and displays a
-second, distinct target-import prompt. It repeats the exact source/target IDs,
-key fingerprints, disclosed observation, and expiry; says that target-local
-authentication succeeded first; and says that only this exact prepared
-presentation will be sent. Target import has its own `Allow once` and `Decline`.
-It does not inherit the source decision. Closing, ignoring, declining, expiry,
-or a changed connection sends nothing and cannot change local admission.
+Fabric prepares one target-session/challenge-bound presentation. Target import
+inherits the already accepted connection-level enablement; it does not render a
+second prompt or create a second human decision. The client still repeats the
+exact source/target IDs, key fingerprints, disclosed observation, and expiry in
+the signed presentation, and sends only the exact prepared object. A declined,
+closed, expired, or changed connection therefore sends nothing and cannot
+change local admission.
 
 After validating a grant, Fabric keeps only the grant and the associated
 short-lived source-session private key in a bounded in-memory vault. This is a
@@ -185,19 +188,19 @@ bounded globally and one-time per source/target/assertion scope.
 ```mermaid
 stateDiagram-v2
     [*] --> IDLE
-    IDLE --> CONSENT_PENDING: source operator explicitly issues request
-    CONSENT_PENDING --> DECLINED: Decline or close
-    CONSENT_PENDING --> EXPIRED: request deadline
-    CONSENT_PENDING --> CONSENT_SIGNED: Fabric Allow once
+    IDLE --> ENABLEMENT_PENDING: signed MCAce hello is verified
+    ENABLEMENT_PENDING --> DECLINED: Decline or close
+    ENABLEMENT_PENDING --> EXPIRED: request deadline
+    ENABLEMENT_PENDING --> CONSENT_SIGNED: Fabric Enable MCAce
     CONSENT_SIGNED --> GRANT_READY: source verifies consent and signs assertion
     GRANT_READY --> CARRIED: Fabric validates and stores grant/key in memory
     CARRIED --> CARRIED: source disconnect or source restart
     CARRIED --> EXPIRED: grant deadline
     CARRIED --> DISCARDED: local discard or client shutdown
     CARRIED --> TARGET_LOCAL_VERIFIED: target independently verifies same client key
-    TARGET_LOCAL_VERIFIED --> IMPORT_PENDING: Fabric prepares PoP and renders target import
-    IMPORT_PENDING --> PRESENTING: distinct target Allow once
-    IMPORT_PENDING --> DISCARDED: target Decline or close
+    TARGET_LOCAL_VERIFIED --> IMPORT_PENDING: Fabric prepares PoP under enablement
+    IMPORT_PENDING --> PRESENTING: connection enablement remains accepted
+    IMPORT_PENDING --> DISCARDED: disconnect, expiry, or transport failure
     IMPORT_PENDING --> EXPIRED: assertion deadline
     PRESENTING --> OBSERVED: target validates all fields then atomically consumes replay state
     PRESENTING --> FAILED: any mismatch, replay, capacity, or freshness failure
@@ -212,13 +215,13 @@ stateDiagram-v2
 
 | State/input | Required guard | Effect |
 | --- | --- | --- |
-| `IDLE -> CONSENT_PENDING` | Authorized source operator; enabled offline target pin; live source local session; bounded request capacity | Show one prompt; create no assertion |
-| `CONSENT_PENDING -> CONSENT_SIGNED` | Exact unexpired request and explicit `Allow once` | Sign one response with the bound client key |
+| `IDLE -> ENABLEMENT_PENDING` | Signed server hello/policy; enabled offline target pin; live local session; bounded request capacity | Show one connection-level `Enable MCAce` prompt; create no assertion |
+| `ENABLEMENT_PENDING -> CONSENT_SIGNED` | Exact unexpired request and explicit `Enable MCAce` | Sign one response with the bound client key; all later evidence/federation requests inherit it |
 | `CONSENT_SIGNED -> GRANT_READY` | Source verifies client signature, pending request, local session, both configured key IDs, time, and local verification | Sign only `FEDERATION_SOURCE_LOCALLY_VERIFIED` |
 | `GRANT_READY -> CARRIED` | Fabric verifies source signature, consent signature, consent hash, all bindings, original request, key, audience, and time | Store bounded grant/key only in memory |
 | `CARRIED -> TARGET_LOCAL_VERIFIED` | Target independently returns local `VERIFIED` using the same short-lived client key | Preserve local trust; make PoP possible |
-| `TARGET_LOCAL_VERIFIED -> IMPORT_PENDING` | Current target session ID and fresh server challenge available | Sign and reserve one complete presentation; show the distinct target-import prompt |
-| `IMPORT_PENDING -> PRESENTING` | Exact reservation remains current/unexpired and the player selects target `Allow once` | Send only that prepared presentation and burn the vault entry on transport handoff |
+| `TARGET_LOCAL_VERIFIED -> IMPORT_PENDING` | Current target session ID and fresh server challenge available | Sign and reserve one complete presentation under the accepted connection enablement |
+| `IMPORT_PENDING -> PRESENTING` | Exact reservation remains current/unexpired and connection enablement remains accepted | Send only that prepared presentation and burn the vault entry on transport handoff |
 | `PRESENTING -> OBSERVED` | All validation succeeds and replay accept wins atomically | Install bounded remote-observation summary only |
 | Any error/absence | Bounds, capacity, direction, pin, signature, time, session, challenge, player, or replay failure | Install nothing; do not alter local player state |
 
@@ -309,7 +312,7 @@ counters so operators can distinguish a configured feature from a healthy one.
 | --- | --- | --- |
 | `FED-PROTO-01` | Four distinct packet types and exact directions | Wrong-direction and partial messages rejected |
 | `FED-BIND-01` | Source/target IDs and key IDs, player, client key, source session, assertion ID/nonce, policy, disclosure, issue/expiry | Every one-field mismatch rejected |
-| `FED-CONSENT-01` | Real Fabric source-export and target-import `Allow once`, decline, close, timeout | Both distinct prompts render exact fingerprints/fields/expiry; only each explicit allow advances its step; all other outcomes have no player effect |
+| `FED-CONSENT-01` | One real Fabric connection-level `Enable MCAce` decision, decline, close, timeout | One prompt renders exact fingerprints/fields/expiry; later source-export and target-import operations inherit it; all other outcomes have no player effect |
 | `FED-GRANT-01` | Valid grant and mixed-consent/assertion, wrong source key, stale, oversized, unknown enum/field | Only exact pinned grant enters Fabric vault |
 | `FED-LOCAL-01` | Target local unknown/failed/missing vs local `VERIFIED` | Presentation accepted only after independent local `VERIFIED`; remote state never changes result |
 | `FED-POP-01` | Wrong target/player/session/challenge/key, tampered proof, stale proof | Rejected; valid presentation still succeeds afterward |
@@ -344,20 +347,20 @@ contract for exactly `1.21.11`, `26.1.2`, or `26.2`. It reuses the platform
 wrapper's exact target/cache/artifact authority, launches current Velocity or
 Bungee source and target proxies plus source/target Paper, loads only the selected
 final Fabric artifact, and publishes a target-bound report/binding/commit triplet.
-Its PowerShell 7 and Windows PowerShell 5 static contract tests pass. The six
-required runtime markers are requested/rendered/allowed-once for source export
-and requested/rendered/allowed-once for target import. Static validation is not a
+Its PowerShell 7 and Windows PowerShell 5 static contract tests pass. The
+required runtime markers are one connection-level enablement request/render/accept
+triplet plus source/target inheritance markers. Static validation is not a
 human-executed PASS, and no such V2 PASS is retained yet.
 
-A passing execution still requires two separately rendered,
-human-selected decisions: source export `Allow once`, then target import/handoff
-`Allow once`; independent target-local `VERIFIED`; target observation; Paper
-admission; unchanged local trust/risk/admission; privacy cleanup; and zero
+A passing execution requires one rendered, human-selected connection-level
+`Enable MCAce` decision; independent target-local `VERIFIED`; target observation;
+Paper admission; unchanged local trust/risk/admission; privacy cleanup; and zero
 run-owned process residue. The operator must disconnect from source, use Direct
 Connection to join the exact target, and keep that target connection alive
 through the signed TTL so pre-expiry observation and post-expiry cleanup are both
-observed. Raw-peer matrix/restart/static evidence cannot satisfy these fields and
-must retain `fabric_gui_coverage=false`.
+observed. Target import inherits the accepted decision and has no second prompt.
+Raw-peer matrix/restart/static evidence cannot satisfy these fields and must
+retain `fabric_gui_coverage=false`.
 
 ### Opt-in target-restart residual gate
 
@@ -410,8 +413,8 @@ it does not claim Fabric GUI consent coverage.
 1. Keep the versioned, bounded four-message protocol and attack corpus green.
 2. Add source operator issue state, offline peer pins, bounded content-free audit,
    and no target-triggered source path.
-3. Add Fabric `Allow once`, grant verification, in-memory grant/key vault, target
-   key reuse, PoP creation, and terminal cleanup.
+3. Add one Fabric connection-level `Enable MCAce` decision, grant verification,
+   in-memory grant/key vault, target key reuse, PoP creation, and terminal cleanup.
 4. Add target local-`VERIFIED` prerequisite, exact pin/session/challenge verifier,
    bounded replay guard, and a remote-observation-only store isolated from every
    enforcement path.

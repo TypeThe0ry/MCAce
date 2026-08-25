@@ -17,9 +17,7 @@ param(
     [ValidateSet('VELOCITY', 'BUNGEE')]
     [string]$TargetProxy,
     [Parameter(ParameterSetName = 'Execute', Mandatory)]
-    [switch]$SourceExportHumanAttested,
-    [Parameter(ParameterSetName = 'Execute', Mandatory)]
-    [switch]$TargetImportHumanAttested,
+    [switch]$EnablementHumanAttested,
     [Parameter(ParameterSetName = 'Report', Mandatory)]
     [ValidatePattern('^[0-9a-fA-F]{64}$')]
     [string]$ExpectedFabricArtifactSha256,
@@ -95,12 +93,11 @@ $bindingSchema = 'MCACE_FABRIC_FEDERATION_GUI_HANDOFF_BINDING_V2'
 $commitSchema = 'MCACE_FABRIC_FEDERATION_GUI_HANDOFF_COMMIT_V2'
 $artifactClass = 'sanitized-final-fabric-federation-gui-handoff'
 $requiredHumanGuiMarkers = @(
-    'MCAce federation source export consent requested',
-    'MCAce federation source export consent screen rendered',
-    'MCAce federation source export consent allowed once',
-    'MCAce federation target import consent requested',
-    'MCAce federation target import consent screen rendered',
-    'MCAce federation target import consent allowed once'
+    'MCAce enablement consent requested for signed policy',
+    'MCAce enablement consent screen rendered',
+    'MCAce enablement accepted for the current connection; no additional consent screens will be shown',
+    'MCAce federation source export consent inherited from connection enablement',
+    'MCAce federation target import consent inherited from connection enablement'
 )
 
 # The platform gate is the single target/JDK/cache/artifact authority. Import its exact
@@ -393,11 +390,11 @@ $reportPropertyNames = @(
     'human_visible_federation_consent_count', 'no_gui_automation',
     'raw_peer_evidence_used', 'raw_content_retained', 'fabric_artifact_mode_verified',
     'source_local_auth_verified', 'source_paper_admission_verified',
-    'source_export_consent_requested', 'source_export_consent_rendered',
-    'source_export_consent_allowed_once', 'source_grant_stored_memory_only',
-    'source_grant_ready_observed', 'source_disconnected_before_target_auth',
-    'target_local_auth_verified', 'target_import_consent_requested',
-    'target_import_consent_rendered', 'target_import_consent_allowed_once',
+    'enablement_consent_requested', 'enablement_consent_rendered',
+    'enablement_consent_accepted', 'source_export_consent_inherited',
+    'source_grant_stored_memory_only', 'source_grant_ready_observed',
+    'source_disconnected_before_target_auth', 'target_local_auth_verified',
+    'target_import_consent_inherited',
     'presentation_sent', 'target_observation_recorded', 'target_subject_bound',
     'target_observation_status_count_one', 'target_observation_status_one_before_expiry',
     'target_paper_admission_verified', 'local_trust_risk_admission_unchanged',
@@ -428,12 +425,12 @@ function Assert-PassingReportRaw(
     foreach ($name in @(
             'no_gui_automation', 'raw_peer_evidence_used', 'raw_content_retained',
             'fabric_artifact_mode_verified', 'source_local_auth_verified',
-            'source_paper_admission_verified', 'source_export_consent_requested',
-            'source_export_consent_rendered', 'source_export_consent_allowed_once',
-            'source_grant_stored_memory_only', 'source_grant_ready_observed',
-            'source_disconnected_before_target_auth', 'target_local_auth_verified',
-            'target_import_consent_requested', 'target_import_consent_rendered',
-            'target_import_consent_allowed_once', 'presentation_sent',
+            'source_paper_admission_verified', 'enablement_consent_requested',
+            'enablement_consent_rendered', 'enablement_consent_accepted',
+            'source_export_consent_inherited', 'source_grant_stored_memory_only',
+            'source_grant_ready_observed', 'source_disconnected_before_target_auth',
+            'target_local_auth_verified', 'target_import_consent_inherited',
+            'presentation_sent',
             'target_observation_recorded', 'target_subject_bound',
             'target_observation_status_count_one', 'target_observation_status_one_before_expiry',
             'target_paper_admission_verified', 'local_trust_risk_admission_unchanged',
@@ -465,12 +462,12 @@ function Assert-PassingReportRaw(
     }
     $requiredTrue = @(
         'no_gui_automation', 'fabric_artifact_mode_verified', 'source_local_auth_verified',
-        'source_paper_admission_verified', 'source_export_consent_requested',
-        'source_export_consent_rendered', 'source_export_consent_allowed_once',
-        'source_grant_stored_memory_only', 'source_grant_ready_observed',
-        'source_disconnected_before_target_auth', 'target_local_auth_verified',
-        'target_import_consent_requested', 'target_import_consent_rendered',
-        'target_import_consent_allowed_once', 'presentation_sent',
+        'source_paper_admission_verified', 'enablement_consent_requested',
+        'enablement_consent_rendered', 'enablement_consent_accepted',
+        'source_export_consent_inherited', 'source_grant_stored_memory_only',
+        'source_grant_ready_observed', 'source_disconnected_before_target_auth',
+        'target_local_auth_verified', 'target_import_consent_inherited',
+        'presentation_sent',
         'target_observation_recorded', 'target_subject_bound',
         'target_observation_status_count_one', 'target_observation_status_one_before_expiry',
         'target_paper_admission_verified', 'local_trust_risk_admission_unchanged',
@@ -497,8 +494,8 @@ function Assert-PassingReportRaw(
             $report.source_proxy -cne $ExpectedSource -or $report.target_proxy -cne $ExpectedTarget -or
             [int]$report.federation_assertion_ttl_seconds -lt 60 -or
             [int]$report.federation_assertion_ttl_seconds -gt 300 -or
-            [int]$report.operator_human_attestation_count -ne 2 -or
-            [int]$report.human_visible_federation_consent_count -ne 2 -or
+            [int]$report.operator_human_attestation_count -ne 1 -or
+            [int]$report.human_visible_federation_consent_count -ne 1 -or
             [bool]$report.raw_peer_evidence_used -or [bool]$report.raw_content_retained -or
             [int]$report.remaining_owned_process_count -ne 0) {
         throw 'FABRIC_FEDERATION_GUI_REPORT_INVALID'
@@ -1350,11 +1347,11 @@ if ($ReportOnly) {
     exit 0
 }
 
-if (-not $SourceExportHumanAttested -or -not $TargetImportHumanAttested) {
-    throw 'FABRIC_FEDERATION_GUI_TWO_EXPLICIT_HUMAN_ATTESTATIONS_REQUIRED'
+if (-not $EnablementHumanAttested) {
+    throw 'FABRIC_FEDERATION_GUI_ONE_EXPLICIT_HUMAN_ATTESTATION_REQUIRED'
 }
-if ($requiredHumanGuiMarkers.Count -ne 6) {
-    throw 'FABRIC_FEDERATION_GUI_SIX_HUMAN_MARKER_CONTRACT_REQUIRED'
+if ($requiredHumanGuiMarkers.Count -ne 5) {
+    throw 'FABRIC_FEDERATION_GUI_ENABLEMENT_MARKER_CONTRACT_REQUIRED'
 }
 
 Assert-ProductFederationGuiContract
@@ -1562,7 +1559,7 @@ try {
     Write-Utf8 (Join-Path $fabricRoot 'options.txt') "fov:0.5`nrenderDistance:8`n"
 
     Write-Host ''
-    Write-Host "SOURCE HUMAN PHASE ($sourceAddress): approve the visible explicit-file prompt, then approve the visible MCAce federation source export exactly once."
+    Write-Host "SOURCE HUMAN PHASE ($sourceAddress): approve the single visible connection-level Enable MCAce prompt exactly once."
     Write-Host 'This runner does not click, focus, type into, or automate the Fabric window.'
     $fabricClient = Start-FabricClient `
         $fabricRoot $sourceAddress $true ([string]$currentBinding.fabric_artifact_sha256)
@@ -1598,6 +1595,7 @@ try {
     Wait-FileLiteralCount $fabricClient $fabricLog $requiredHumanGuiMarkers[1] 1 30
     Wait-FileLiteralCount $fabricClient $fabricLog `
         $requiredHumanGuiMarkers[2] 1 $HumanTransitionTimeoutSeconds
+    Wait-FileLiteralCount $fabricClient $fabricLog $requiredHumanGuiMarkers[3] 1 30
     $grantReadyPattern = 'MCAce federation consent response status=GRANT_READY player=' +
         [regex]::Escape($sourceSubjectId)
     $null = Wait-FileRegexMatch $sourceService $sourceService.StdoutPath $grantReadyPattern 30
@@ -1606,7 +1604,7 @@ try {
         'MCAce stored a one-time federation grant in memory only' 1 30
 
     Write-Host ''
-    Write-Host "TARGET HUMAN PHASE: disconnect from source, use Minecraft Direct Connection to join $targetAddress, approve the visible explicit-file prompt, then approve the visible MCAce federation target import exactly once."
+    Write-Host "TARGET HUMAN PHASE: disconnect from source and use Minecraft Direct Connection to join $targetAddress. The accepted connection enablement is inherited; no second prompt is expected."
     Write-Host "Complete this phase with at least 15 seconds remaining in the conservative $FederationAssertionTtlSeconds-second assertion window."
     $transitionTimeout = Get-SecondsUntilDeadline `
         $targetEvidenceDeadline $HumanTransitionTimeoutSeconds `
@@ -1636,16 +1634,9 @@ try {
     Assert-NewPaperVerifiedSnapshot $targetPaperService $targetPaperService.StdoutPath $playerName `
         (Get-SecondsUntilDeadline $targetEvidenceDeadline 10 `
             'FABRIC_FEDERATION_GUI_TARGET_LOCAL_STATE_WINDOW_EXPIRED')
-    Wait-FileLiteralCount $fabricClient $fabricLog $requiredHumanGuiMarkers[3] 1 `
-        (Get-SecondsUntilDeadline $targetEvidenceDeadline 30 `
-            'FABRIC_FEDERATION_GUI_TARGET_IMPORT_REQUEST_WINDOW_EXPIRED')
     Wait-FileLiteralCount $fabricClient $fabricLog $requiredHumanGuiMarkers[4] 1 `
-        (Get-SecondsUntilDeadline $targetEvidenceDeadline 30 `
-            'FABRIC_FEDERATION_GUI_TARGET_IMPORT_RENDER_WINDOW_EXPIRED')
-    Wait-FileLiteralCount $fabricClient $fabricLog `
-        $requiredHumanGuiMarkers[5] 1 `
         (Get-SecondsUntilDeadline $targetEvidenceDeadline $HumanTransitionTimeoutSeconds `
-            'FABRIC_FEDERATION_GUI_TARGET_IMPORT_ALLOW_WINDOW_EXPIRED')
+            'FABRIC_FEDERATION_GUI_TARGET_ENABLEMENT_INHERITANCE_WINDOW_EXPIRED')
     $targetObservationPattern = 'MCAce federation presentation status=OBSERVED player=' +
         [regex]::Escape($targetSubjectId) + ' \(observation-only\)'
     $null = Wait-FileRegexMatch $targetService $targetService.StdoutPath $targetObservationPattern `
@@ -1810,24 +1801,23 @@ $report = [ordered]@{
     source_proxy = $SourceProxy
     target_proxy = $TargetProxy
     federation_assertion_ttl_seconds = $FederationAssertionTtlSeconds
-    operator_human_attestation_count = 2
-    human_visible_federation_consent_count = 2
+    operator_human_attestation_count = 1
+    human_visible_federation_consent_count = 1
     no_gui_automation = $true
     raw_peer_evidence_used = $false
     raw_content_retained = $false
     fabric_artifact_mode_verified = $true
     source_local_auth_verified = $sourceLocalAuthVerified
     source_paper_admission_verified = $sourcePaperAdmissionVerified
-    source_export_consent_requested = $true
-    source_export_consent_rendered = $true
-    source_export_consent_allowed_once = $true
+    enablement_consent_requested = $true
+    enablement_consent_rendered = $true
+    enablement_consent_accepted = $true
+    source_export_consent_inherited = $true
     source_grant_stored_memory_only = $true
     source_grant_ready_observed = $sourceGrantReadyObserved
     source_disconnected_before_target_auth = $sourceDisconnectedBeforeTargetAuth
     target_local_auth_verified = $targetLocalAuthVerified
-    target_import_consent_requested = $true
-    target_import_consent_rendered = $true
-    target_import_consent_allowed_once = $true
+    target_import_consent_inherited = $true
     presentation_sent = $presentationSent
     target_observation_recorded = $targetObservationRecorded
     target_subject_bound = $targetSubjectBound

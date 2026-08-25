@@ -101,8 +101,9 @@ classes, and final snapshots; it does not dump protocol payloads or private keys
 This verifies the protocol across real process and TCP boundaries, including
 concurrent connection isolation. It does not load Velocity, Fabric, Paper, or a
 Minecraft server. The 12-case server matrix covers real proxies/backends with a
-bounded raw peer; the separate per-target Fabric GUI route still requires its
-six human consent decisions.
+bounded raw peer; the separate Fabric GUI route now requires one visible,
+connection-bound MCAce enablement decision. Explicit-file, render-frame, and
+federation operations inherit that decision and never synthesize a second one.
 
 ## Proxy-to-Paper/Folia admission bridge
 

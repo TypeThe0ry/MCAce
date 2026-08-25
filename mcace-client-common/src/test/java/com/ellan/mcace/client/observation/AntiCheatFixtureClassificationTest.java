@@ -14,6 +14,9 @@ import com.ellan.mcace.core.disposition.DispositionEngine;
 import com.ellan.mcace.core.disposition.DispositionPolicy;
 import com.ellan.mcace.core.disposition.EvaluationContext;
 import com.ellan.mcace.core.disposition.ObservationOrigin;
+import com.ellan.mcace.core.proxy.ServerBehaviorObservation;
+import com.ellan.mcace.core.proxy.ServerBehaviorCorrelator;
+import java.time.Duration;
 import com.ellan.mcace.protocol.generated.IntegrityScopeRule;
 import com.ellan.mcace.protocol.generated.SecurityPolicy;
 import java.io.IOException;
@@ -110,6 +113,56 @@ final class AntiCheatFixtureClassificationTest {
                 new EvaluationContext(PLAYER, "proxy", "backend", "world", "survival",
                         Set.of("member"), Instant.EPOCH),
                 xrayObservation).action());
+    }
+
+    @Test
+    void correlatesClientFixtureWithIndependentServerSignalForBothArtifactTypes() throws Exception {
+        String meteorProperty = fixtureValue("mcace.test.meteor.jar", "MCACE_TEST_METEOR_JAR");
+        String xrayProperty = fixtureValue("mcace.test.xray.pack", "MCACE_TEST_XRAY_PACK");
+        assumeTrue(!meteorProperty.isBlank() && !xrayProperty.isBlank(),
+                "fixture paths were not supplied; this test is opt-in");
+
+        Path meteorSource = Path.of(meteorProperty).toAbsolutePath().normalize();
+        Path xraySource = Path.of(xrayProperty).toAbsolutePath().normalize();
+        assumeTrue(Files.isRegularFile(meteorSource), "Meteor fixture is missing");
+        assumeTrue(Files.isRegularFile(xraySource), "Xray resource-pack fixture is missing");
+
+        Path mods = Files.createDirectories(root.resolve("mods"));
+        Path resourcePacks = Files.createDirectories(root.resolve("resourcepacks"));
+        Files.copy(meteorSource, mods.resolve("meteor-client-1.21.11-86.jar"));
+        Files.copy(xraySource, resourcePacks.resolve("xray-fixture.zip"));
+
+        SecurityPolicy policy = SecurityPolicy.newBuilder()
+                .addIntegrityScopes(directory("mods", "mods", ".jar"))
+                .addIntegrityScopes(directory("resourcepacks", "resourcepacks", ".zip"))
+                .build();
+        ClientIntegrityBundle bundle = new PolicyDrivenIntegrityCollector(Clock.systemUTC())
+                .collect(root, policy);
+        List<ArtifactObservation> observations = new ArtifactObservationCollector()
+                .collect(root, policy, bundle);
+        String session = "fixture-session-20260825";
+        Instant now = Instant.parse("2026-08-25T00:00:00Z");
+        ServerBehaviorCorrelator correlator = new ServerBehaviorCorrelator();
+
+        for (ArtifactObservation clientObservation : observations) {
+            String signal = clientObservation.type().name().toLowerCase(java.util.Locale.ROOT)
+                    + "-fixture-signal";
+            ArtifactObservation confirmed = correlator.correlate(
+                    PLAYER,
+                    session,
+                    now.minusSeconds(2),
+                    clientObservation,
+                    new ServerBehaviorObservation(PLAYER, session, "mcace-fixture-server", signal,
+                            now.minusSeconds(1)),
+                    Duration.ofSeconds(30),
+                    now).orElseThrow(() -> new AssertionError(
+                            "server signal did not correlate with " + clientObservation.type()));
+            assertEquals(ObservationOrigin.SERVER_CONFIRMED, confirmed.origin());
+            assertEquals(Confidence.CONFIRMED, confirmed.confidence());
+            assertEquals("mcace-fixture-server", confirmed.metadata().get("correlated_provider"));
+            assertEquals(signal, confirmed.metadata().get("correlated_signal"));
+        }
+        assertEquals(2, observations.size(), "fixture must produce mod and resource-pack observations");
     }
 
     private static IntegrityScopeRule directory(String scope, String root, String extension) {

@@ -204,9 +204,9 @@ The former Paper 1.21.1, BungeeCord 2028, and Folia 1.21.4-6 wrapper records are
 historical. They must not be cited as current 1.21.11/26.x release evidence.
 
 The separate per-target Fabric wrapper has passed server-only startup and asset
-prewarm for all three targets. Visible explicit-file and frame consent remains
-pending: two human decisions per target, six total. A passing report must use
-schema 6 and binding `MCACE_FABRIC_GUI_EVIDENCE_BINDING_V4` and load the exact
+prewarm for all three targets. The single connection-level enablement consent
+remains pending: one human decision per target, three total. A passing report must
+use schema 8 and binding `MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6` and load the exact
 final remapped/named artifact by CodeSource SHA-256. It must also bind the exact
 `velocity_policy_minecraft_versions` and `velocity_policy_client_build_ids`
 values written for that target.
@@ -229,8 +229,9 @@ AWT Robot/screen capture, JNA/User32, process enumeration, keyboard hooks, and
 Windows module enumeration. This does not replace code review, but makes an
 accidental desktop/process inspection dependency a test failure.
 
-Screenshot permission is request- and scope-specific. Fabric supports only one
-`GAME_RENDER_FRAME` after the player selects `Allow once` on a visible prompt.
+Screenshot permission is request- and scope-specific. Fabric supports one
+`GAME_RENDER_FRAME` after the player selects `Enable MCAce` on the connection-level
+visible prompt; no second evidence prompt is rendered.
 The capture path uses Minecraft's framebuffer and in-memory PNG encoding; it
 does not call a desktop/window API or write a client-side screenshot file.
   `GAME_WINDOW` and `DESKTOP` are disabled and return zero-content outcomes.
@@ -545,8 +546,8 @@ are in `docs/FEDERATION.md`.
 Federation is client-carried. It has no source-target control channel, HTTP or
 socket service, callback, token broker, Cloud dependency, target-initiated source
 request, or live redemption. An authorized source operator explicitly issues a
-target-specific consent request. Fabric shows `Allow once`, the source signs a
-grant, and Fabric retains that grant plus its short-lived source-session key only
+target-specific consent request. Fabric inherits the accepted connection-level
+`Enable MCAce` decision, the source signs a grant, and Fabric retains that grant plus its short-lived source-session key only
 in bounded memory. Source and target identity keys are independently pinned in
 the two operators' offline configurations and are bound into consent/assertion.
 
@@ -555,10 +556,9 @@ or source proxy restart until its signed expiry of at most five minutes. The
 target must first independently authenticate the player locally as `VERIFIED`
 using the same short-lived client key. Fabric then signs a current target
 session/challenge/player proof of possession, reserves that exact presentation,
-and shows a second target-import screen with source/target identities, key
-fingerprints, disclosure, and expiry. Only a distinct visible `Allow once` sends
-that prepared presentation; decline, close, or expiry sends nothing and changes
-no local result. The target verifies both signatures, both network keys, all
+and sends it under the accepted connection-level enablement. No second target-import
+screen is rendered; decline, close, connection change, or expiry sends nothing and
+changes no local result. The target verifies both signatures, both network keys, all
 bindings, audience, time, current local session key and PoP before atomically
 consuming bounded replay state.
 

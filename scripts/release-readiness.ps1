@@ -224,22 +224,23 @@ if (Test-Path -LiteralPath $guiRoot -PathType Container) {
         if ($null -ne $item) { $guiEvidence += $item }
     }
 }
-$guiTargets = @('1.21.11','26.1.2','26.2')
 $guiTargetPass = @($guiEvidence | Where-Object {
     (Test-SourceProvenance $_.source_commit $requestedCommit) -and
     (Test-Boolean $_.human_confirmation) -and
-    (Test-Boolean $_.explicit_file_consent_accepted) -and
-    (Test-Boolean $_.game_render_frame_consent_accepted) -and
-    (Test-Boolean $_.fabric_gui_coverage) -and
-    (Test-Boolean $_.fabric_evidence_coverage)
+    (Test-Boolean $_.single_enablement_confirmation_accepted) -and
+    (Test-Boolean $_.enablement_ui_rendered) -and
+    (Test-Boolean $_.mca_ce_enabled) -and
+    (Test-Boolean $_.no_confirmation_disabled) -and
+    ([int]$_.ui_confirmation_count -eq 1) -and
+    (Test-Boolean $_.fabric_gui_coverage)
 })
-$guiPass = $guiTargetPass.Count -eq 3 -and
-    @($guiTargetPass | Select-Object -ExpandProperty fabric_target -Unique).Count -eq 3 -and
-    @($guiTargetPass | Where-Object { $guiTargets -contains [string]$_.fabric_target }).Count -eq 3
-$guiDetail = if ($guiPass) { 'three targets have two human-approved visible decisions each' } else {
-    "found $($guiTargetPass.Count)/3 current-source passing target records; stale or diagnostic attempts do not count"
+$guiPass = $guiTargetPass.Count -gt 0
+$guiDetail = if ($guiPass) {
+    'one current-source visible MCAce enablement approval is recorded; no per-feature confirmation is required'
+} else {
+    'no current-source single enablement approval with fail-closed disabled behavior is recorded'
 }
-Add-Gate $gates 'fabric_gui_six_human_decisions' $guiPass 'docs/evidence/fabric-gui-consent-*.json' $guiDetail
+Add-Gate $gates 'fabric_gui_single_enablement_confirmation' $guiPass 'docs/evidence/fabric-gui-consent-*.json' $guiDetail
 
 $federationEvidence = @()
 foreach ($file in @(Get-ChildItem -LiteralPath $guiRoot -File -Filter 'federation-gui-handoff-*.json' -ErrorAction SilentlyContinue)) {

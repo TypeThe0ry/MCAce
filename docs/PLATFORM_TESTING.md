@@ -9,7 +9,7 @@ MCAce has two independent platform gates:
    all supported server tuples.
 2. `platform-load-smoke.ps1 -FabricTarget ... -WithFabricEvidence` proves that
    the exact final Fabric artifact starts in a real graphical client and that a
-   human sees and approves the two distinct consent prompts.
+   human sees and approves one connection-level enablement prompt.
 
 Neither gate replaces the other. The raw peer is bounded test tooling, not an
 independent client product. A server-only platform run does not prove GUI consent.
@@ -120,18 +120,15 @@ The last command must be repeated for `26.1.2` and `26.2`. All three targets'
 Mojang version metadata, asset indexes, and asset objects are already present in
 the validated cache. There is no remaining asset-download blocker.
 
-The human operator must approve two distinct UI decisions in each run:
-
-1. the signed-policy explicit-file prompt; and
-2. the later signed, one-shot `GAME_RENDER_FRAME` prompt.
-
-That is six visible human clicks across three targets. A request marker emitted
-before first render is not GUI evidence. The harness does not automate input,
+The human operator must approve one UI decision in each run: the signed-policy
+connection-level `Enable MCAce` prompt. That is three visible human clicks across
+three targets; evidence and federation operations inherit the accepted state. A
+request marker emitted before first render is not GUI evidence. The harness does not automate input,
 does not control an existing Minecraft process, and cannot convert a decline,
 close, expiry, or unsupported result into risk or enforcement.
 
-A passing record uses report schema `6` and binding
-`MCACE_FABRIC_GUI_EVIDENCE_BINDING_V4`. It must bind:
+A passing record uses report schema `8` and binding
+`MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6`. It must bind:
 
 - the target-specific final artifact and unique run build ID;
 - the loaded entrypoint's exact `CodeSource` SHA-256;

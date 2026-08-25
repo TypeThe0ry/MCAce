@@ -6,10 +6,11 @@ Fabric client Mods, Velocity/BungeeCord proxy plugins, and one Paper/Folia
 backend plugin.
 
 > **v0.0.1 status: release gates still open.** The code and server matrix are
-> active, but the tag is not claimed until all six visible GUI decisions (two per
-> target), a genuine licensed Vulcan event, and a real Fabric federation handoff
-> are recorded on the
-> reviewed commit.
+> active, but the tag is not claimed until one visible, connection-bound MCAce
+> enablement decision (with fail-closed decline behavior), a genuine licensed
+> Vulcan event, and a real Fabric federation handoff are recorded on the reviewed
+> commit. Explicit-file, render-frame, and federation operations no longer open
+> additional client prompts after that single decision.
 
 [中文 README](README_CN.md) · [release gates](docs/RELEASE_GATES.md) ·
 [security model](docs/SECURITY.md) · [anti-cheat evidence](docs/evidence/anti-cheat-real-server-2026-08-23.json) · [current Helio recheck](docs/evidence/real-server-2026-08-23/rerun-2026-08-23.json) · [current-candidate Helio run](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json)
@@ -36,7 +37,11 @@ backend plugin.
 - Paper/Folia backend plugin.
 - Default mode is `MONITOR`; client-origin facts are advisory and cannot punish
   a player alone.
-- Screenshots/file evidence require an explicit, visible consent decision.
+- MCAce is disabled until one explicit, visible `Enable MCAce` decision is made
+  for the current connection. The decision is not persisted and closing the
+  screen is a decline.
+- Signed file manifests, signed render-frame evidence, and one-time federation
+  handoffs inherit that connection decision; they do not open a second prompt.
 - `DENY` is connection-scoped, reviewable, and reversible; there is no automatic
   permanent BAN.
 - No launcher, agent, kernel driver, hidden capture, keylogging,
@@ -71,14 +76,14 @@ Run the contract against a current bundle:
 | Root + modern strict offline tests | Historical exact bundle: `171 suites / 755 tests / 0 failures / 0 errors`; [Helio targeted build evidence](docs/evidence/cluster-targeted-build-2026-08-22.json) ran Fabric, Velocity, BungeeCord, Paper, and runtime integration tests successfully | PASS within recorded source boundary |
 | Current-head regression suite | [473ef5b evidence](docs/evidence/static-regression-2026-08-24-473ef5b.json) and the Helio wrapper records remain retained as historical witnesses; the feature branch now has documentation-only commits after the tested code commit `65731aa…`, while the resumable server-matrix static test and Helio execution remain bound to that code commit | PASS for the recorded checks; fresh protected-main release CI is still pending |
 | Paper/Folia × Velocity/Bungee process matrix | [Helio evidence index](docs/evidence/server-version-process-matrix-2026-08-25-65731aa.json) plus the immutable [report](docs/evidence/server-version-process-matrix/2026-08-25T00-54-47-3783015Z/report.json), [binding](docs/evidence/server-version-process-matrix/2026-08-25T00-54-47-3783015Z/binding.json), and [commit marker](docs/evidence/server-version-process-matrix/2026-08-25T00-54-47-3783015Z/commit.json): exact feature commit `65731aa…`, `12/12`, `10` STABLE + `2` BETA, cleanup zero, source manifest `a97a9a83…` / 688 files; Paper 26.2 build `116`, Folia 26.2 build `6` | PASS on Helio; protected-main release CI still pending |
-| Fabric GUI consent | 1.21.11 reached the visible explicit-file screen; no click was recorded, so no release evidence was minted | PENDING 6 human decisions |
+| Fabric GUI consent | The client now exposes one visible `Enable MCAce` screen per connection. Decline/close leaves the client disabled and sends no MCAce frame; accepted sessions inherit the decision for file manifests, render-frame evidence, and federation | PENDING 1 enablement confirmation |
 | Anti-cheat detection | [`current-candidate-fe5f2d1.json`](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json) binds the exact Paper artifact SHA used by the historical e7f6f74 bundle to a Helio run on real Leaf 1.21.11 + GrimAC `2.3.74-155abaf`: 40 movement probes, three `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK` events (`AimDuplicateLook`, `Simulation`, `TickTimer`), and three loopback risk uploads; the runtime record is source-bound to `fe5f2d1…`, while the Paper JAR bytes are identical in the historical manifest | PASS for real observational detection/correlation/upload; `MONITOR`/`NONE` intentionally leaves punitive action unexercised |
 | Vulcan | Static contracts pass; licensed JAR and genuine external trigger are absent from this workspace | PENDING |
 | Fabric federation | V2 static contract passes; source-export/target-import GUI handoff has not been executed | PENDING |
 | Exact-commit CI/release | [Push run `32803002956`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803002956) and [PR run `32803006026`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803006026) passed for exact source `5a7e423b5b7bc6c79ea5e1fd3182b82923312169`: build/test, local verification bundle, and exact-eight upload passed; protected branch/tag releaseBundle and readiness gates are intentionally reserved for `main`/`v0.0.1` refs. See [sanitized evidence](docs/evidence/github-feature-ci-2026-08-25-5a7e423.json). | PASS for the current feature witness; protected branch/tag exact-commit release remains pending |
 | Helio exact-source release bundle | [current evidence](docs/evidence/release-bundle-2026-08-25-63ae400.json) records a successful Helio `clean build releaseBundle` for exact source `63ae400adc8d09d8349ca599c9d6a4866a189d04`, `product_version=0.0.1`, six deployables/eight entries, exact SHA256SUMS, and 3/3 compatibility contract; Gradle daemon was constrained without contaminating runtime child stdout | PASS for feature-source artifact candidate; protected-main publication still requires the external gates and main exact-commit CI |
 | Historical Helio release candidate | [`release-bundle-e7f6f74.json`](docs/evidence/release-bundle-e7f6f74.json) records Helio `releaseBundle` for `e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834`: six deployables, exact-eight manifest, `product_version=0.0.1`, bundle ZIP SHA-256 `4799733be6a178a7ed119d69f4945453dec1d73fbab7a22e95e51e259e035ded`, and all eight entry hashes verified locally; compatibility contract is 3/3 PASS | Historical feature-branch candidate only; protected `main` CI, external GUI/Vulcan/federation gates, current-source releaseBundle, and final tag remain pending |
-| Current release readiness | [`release-readiness-2026-08-25-5a7e423.json`](docs/evidence/release-readiness-2026-08-25-5a7e423.json) is generated by the fail-closed gate against current source `5a7e423…`; server-matrix and clean-worktree pass, while the feature Helio bundle remains explicitly `protected_main_exact_commit_ci=false` and the protected branch/tag bundle gate stays closed | BLOCKED: GUI six decisions, federation handoff, Vulcan genuine event, production authority freeze, and protected branch/tag exact-commit bundle remain open; no tag or release is claimed |
+| Current release readiness | [`release-readiness-2026-08-25-5a7e423.json`](docs/evidence/release-readiness-2026-08-25-5a7e423.json) is generated by the fail-closed gate against current source `5a7e423…`; server-matrix and clean-worktree pass, while the feature Helio bundle remains explicitly `protected_main_exact_commit_ci=false` and the protected branch/tag bundle gate stays closed | BLOCKED: one visible enablement confirmation, federation handoff, Vulcan genuine event, production authority freeze, and protected branch/tag exact-commit bundle remain open; no tag or release is claimed |
 | GitHub branch/tag protection | [protection evidence](docs/evidence/github-protection-2026-08-25.json) records strict `main` protection with required `build`, operator-only `v0.0.1` tag creation, and no-bypass tag deletion/update rules | PASS for repository policy; this does not substitute for the release CI run or the external runtime gates |
 
 The latest retained feature exact-commit CI evidence is bound to
@@ -90,8 +95,10 @@ remains a historical feature-branch candidate, not evidence for the current HEAD
 Verify the source commit used for each artifact with `git rev-parse HEAD`; later documentation-only commits do not change the tested plugin artifact. Do not copy an
 artifact to a tag unless its `release-manifest.properties` has
 `release_identity=true` and the `source_commit` matches that checkout exactly.
-The current v0.0.1 release decision is still controlled by the six human GUI
-approvals plus the real anti-cheat, Vulcan, and federation gates below.
+The current v0.0.1 release decision is still controlled by the single visible
+MCAce enablement approval plus the real anti-cheat, Vulcan, federation, and
+protected exact-commit gates below. A declined or closed enablement screen must
+leave the client completely disabled; no automation may synthesize the approval.
 
 ![Anti-cheat evidence boundary](docs/assets/anti-cheat-evidence-flow.svg)
 
@@ -152,6 +159,14 @@ code:
   -XrayPack 'C:\fixtures\Spectator_Xray_1.2.1.zip' -XraySha256 '<sha256>'
 ```
 
+The fixture smoke now runs two checks: the client reports the controlled mod and
+resource-pack observations, then the server-side correlation runtime receives an
+independent same-session signal for each and upgrades both to
+`SERVER_CONFIRMED/CONFIRMED`. The resulting action remains
+`OBSERVE_ONLY_UNTIL_SIGNED_POLICY`; a client report by itself cannot kick, deny,
+or ban. This is a server-correlation lab result, not a real public-server
+precision/recall measurement.
+
 The retained real-client record proves client discovery/resource loading only.
 It explicitly records `real_server_connection=false`,
 `real_server_detection_event=false`, and
@@ -190,10 +205,10 @@ commit. Credentials and worker paths are never copied into the repository.
 
 ## Manual GUI gates
 
-Each target requires two visible decisions: explicit-file consent and a separate
-`GAME_RENDER_FRAME` evidence consent. The runner waits for a human click and
-records the screen stage, decision, artifact hash, cleanup, and binding. It does
-not synthesize input:
+Each target requires one visible connection-bound `Enable MCAce` decision. The
+runner waits for that single human click and records the enablement stage,
+decision, artifact hash, cleanup, and binding. Evidence and federation operations
+inherit the accepted connection state; the runner does not synthesize input:
 
 ```powershell
 $env:JAVA_HOME = '<JDK 21 or JDK 25 home for the target>'
@@ -213,9 +228,10 @@ preflight, isolated Paper enablement, and one externally triggered genuine event
 MCAce never downloads or redistributes that artifact. The genuine-event wrapper
 rejects synthetic event injection and records only sanitized evidence.
 
-Federation requires source export consent, source disconnect, direct target
-connection, target import consent, subject binding, expiry observation, and
-zero residual owned processes/ports. Static tests are not a handoff result.
+Federation requires the single connection-level enablement consent, source
+disconnect, direct target connection, inherited target handoff, subject binding,
+expiry observation, and zero residual owned processes/ports. Static tests are not
+a handoff result.
 
 ## Release artifacts
 

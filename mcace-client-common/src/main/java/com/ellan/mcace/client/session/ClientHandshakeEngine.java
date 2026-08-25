@@ -430,7 +430,8 @@ public final class ClientHandshakeEngine {
 
     /**
      * Verifies a source-server-signed consent request. This does not imply consent: only the
-     * caller's subsequent, visible Allow once action may call {@link #createFederationConsentFrame}.
+     * caller's connection-level MCAce enablement decision may call
+     * {@link #createFederationConsentFrame}.
      */
     public synchronized VerifiedFederationConsentRequest receiveFederationConsentRequest(byte[] encodedFrame)
             throws EnvelopeException {
@@ -893,7 +894,7 @@ public final class ClientHandshakeEngine {
         }
     }
 
-    /** Issues a one-shot in-memory grant only after the platform's visible consent UI accepted. */
+    /** Issues a one-shot in-memory grant only after the connection-level enablement was accepted. */
     public synchronized EvidenceConsentGrant grantEvidenceConsent(VerifiedEvidenceRequest request)
             throws EnvelopeException {
         requirePendingEvidenceRequest(Objects.requireNonNull(request, "request"));
@@ -1230,7 +1231,7 @@ public final class ClientHandshakeEngine {
                 || value.codePoints().anyMatch(Character::isISOControl);
     }
 
-    /** A verified server request; UI must still receive an explicit Allow once action. */
+    /** A verified server request; the connection-level enablement must already be accepted. */
     public record VerifiedFederationConsentRequest(
             com.ellan.mcace.protocol.generated.FederationConsentRequest request) {
         public VerifiedFederationConsentRequest {

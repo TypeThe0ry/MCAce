@@ -94,9 +94,10 @@ Operators need `mcace.admin.evidence`. On either supported proxy, use:
 ```
 
 `frame` sends a signed request with a maximum two-minute lifetime. The Fabric
-Mod displays a visible `Allow once` / `Decline` screen containing the case and
-expiry and, when configured, the exact signed retention duration, policy ID, and
-purpose. Old requests explicitly display that raw content is not retained. Only
+Mod reuses the accepted connection-level `Enable MCAce` / `Decline` decision; no
+second frame prompt is rendered. The original enablement disclosure contains the
+case and expiry and, when configured, the exact signed retention duration, policy
+ID, and purpose. Old requests explicitly display that raw content is not retained. Only
 an explicit one-time approval captures one Minecraft-rendered frame. Closing or
 ignoring the prompt declines or expires it. `window` and `desktop` currently
 return a zero-content unavailable/declined outcome; they do not invoke an
@@ -548,8 +549,8 @@ BungeeCord 2028, and Folia 1.21.4-6 ALPHA assets cannot satisfy the current
 ```
 
 All target version manifests, asset indexes, and asset objects are already in the
-validated cache. The remaining gate is human input: one visible explicit-file
-approval and one separate visible frame approval per target, six clicks total.
+validated cache. The remaining gate is human input: one visible connection-level
+`Enable MCAce` approval per target, three clicks total.
 The wrapper does not automate those decisions or control an existing Minecraft
 process.
 

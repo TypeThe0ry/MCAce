@@ -326,7 +326,8 @@ reason.
 
 The current transport is Begin/Chunk/Commit. Images must not use the old
 single-field `EvidenceResponse.content` path. The Fabric Mod supports one
-`GAME_RENDER_FRAME` only after a visible, signed, per-request `Allow once`.
+`GAME_RENDER_FRAME` only after the connection-level visible `Enable MCAce`
+decision; the render request does not open a second prompt.
 `GAME_WINDOW` and `DESKTOP` remain unsupported zero-content results; they do not
 call an operating-system capture API.
 
@@ -402,8 +403,10 @@ depends on that flow:
 .\scripts\platform-load-smoke.ps1 -FabricTarget 26.2 -WithFabricEvidence
 ```
 
-Each target requires a graphical local Fabric run and two distinct human clicks: one explicit-file decision and one frame decision. Across three targets that is six clicks. The script does not
-automate consent, mouse input, window capture, desktop capture, or account login.
+Each target requires a graphical local Fabric run and one human click for the
+connection-level `Enable MCAce` decision. Across three targets that is three
+clicks. The script does not automate consent, mouse input, window capture,
+desktop capture, or account login.
 
 ## Phase 5: enable federation only after both operators pin each other
 
@@ -459,9 +462,10 @@ states are returned only after the audit worker confirms the durable file
 append; an accepted queue item is never treated as durable evidence.
 
 `issue` is an explicit source-operator action for a player that is currently
-locally `VERIFIED`. Fabric displays exact source/target information, short key
-fingerprints, expiry, and the observation-only disclosure with `Allow once` and
-`Decline`. Only a one-time visible allow can produce the signed consent. The
+locally `VERIFIED`. Fabric includes exact source/target information, short key fingerprints, expiry,
+and the observation-only disclosure in the already accepted connection-level
+`Enable MCAce` / `Decline` decision. Only that one visible enablement can produce
+the signed consent. The
 client carries the grant and short-lived source session key in memory only; it
 may survive a completed source disconnect until expiry, but is cleared on use,
 expiry, discard, or client shutdown.
@@ -469,10 +473,9 @@ expiry, discard, or client shutdown.
 At the target, the player must independently complete local `VERIFIED`
 authentication with that same short-lived client key before the target accepts a
 session/challenge-bound proof of possession. Fabric reserves that exact prepared
-presentation and shows a separate target-import prompt containing the exact
-source/target identities, fingerprints, disclosure, and expiry. The source
-decision is not reused: only a second visible target `Allow once` sends the
-presentation. Decline, close, connection change, or expiry sends nothing and
+presentation using the accepted connection-level enablement; no separate
+target-import prompt is rendered. The source decision is reused for this exact
+connection and only the prepared presentation is sent. Decline, close, connection change, or expiry sends nothing and
 cannot alter local admission. An accepted remote statement is
 only `FEDERATION_SOURCE_LOCALLY_VERIFIED` / remote corroboration. It cannot
 change local trust, risk, disposition, route, message, disconnect, ban, evidence

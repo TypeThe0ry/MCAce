@@ -18,7 +18,7 @@ silently treated as compatible.
 | Real client load | Passed with boundary | Meteor initialized and Xray pack reloaded; no server connection |
 | Real server detection/interception | Passed with boundary | Leaf 1.21.11 + GrimAC real-process runs emitted three `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK` events and three loopback uploads; `MONITOR/NONE` remained intentional |
 | Production SERVER_CONFIRMED authority | Pending | requires provider/profile/key/topology/action-ceiling freeze; Grim loopback is not production signed authority |
-| Visible GUI consent | Pending | six human decisions, two per target |
+| Visible GUI consent | Pending | one connection-bound MCAce enablement decision; feature requests inherit it |
 | Vulcan genuine event | Pending | licensed/current-source event delivery |
 | Federation human handoff | Pending | source export → target import → live-through-TTL |
 | Current HEAD Helio verification | Passed | Paper module 37 tests (0 failures, 0 errors, 1 skip) plus 14/14 static wrappers on `cc91c63…` |
@@ -57,7 +57,9 @@ silently treated as compatible.
 
 ## Next acceptance gates
 
-1. Run each target’s visible explicit-file and frame consent prompts.
+1. Run the single visible `Enable MCAce` decision once and verify that decline/close
+   leaves all MCAce traffic disabled; run the three target compatibility checks without
+   opening per-feature prompts.
 2. Freeze the production `SERVER_CONFIRMED` provider/profile/key/topology and
    action ceiling; keep the real Grim loopback record separate from that claim.
 3. Supply the licensed Vulcan 2.9.0 JAR, rerun current-source structural

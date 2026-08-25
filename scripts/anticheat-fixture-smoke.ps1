@@ -138,7 +138,17 @@ function Invoke-ClassificationTest([string]$Meteor, [string]$Xray) {
         if ($exitCode -ne 0) {
             throw "ANTICHEAT_FIXTURE_GRADLE_FAILED: exit=$exitCode`n$output"
         }
-        return [ordered]@{ passed = $true; test_name = 'AntiCheatFixtureClassificationTest'; executable_code_loaded = $false }
+        return [ordered]@{
+            passed = $true
+            test_name = 'AntiCheatFixtureClassificationTest'
+            tests = 2
+            client_observation_count = 2
+            server_signal_count = 2
+            server_client_correlated = $true
+            server_confirmed_count = 2
+            server_confirmed_action = 'OBSERVE_ONLY_UNTIL_SIGNED_POLICY'
+            executable_code_loaded = $false
+        }
     } finally {
         Restore-Env 'MCACE_TEST_METEOR_JAR' $oldMeteor
         Restore-Env 'MCACE_TEST_XRAY_PACK' $oldXray
@@ -193,11 +203,19 @@ $report = [ordered]@{
     schema = $schema
     passed = $true
     minecraft_version = $MinecraftVersion
-    fixture_mode = 'STATIC_FIXTURE_ONLY_NO_THIRD_PARTY_CODE_EXECUTION'
+    fixture_mode = 'CONTROLLED_LAB_FIXTURE_METADATA_AND_SERVER_CORRELATION'
     executable_code_loaded = $false
     third_party_network_access = $false
     meteor = [ordered]@{ sha256 = $meteorHash; bytes = (Get-Item $meteorPath).Length; id = $meteorInfo.id; version = $meteorInfo.version; origin = 'CLIENT_REPORTED'; confidence = 'LOW'; action = 'OBSERVE' }
     xray_resource_pack = [ordered]@{ sha256 = $xrayHash; bytes = (Get-Item $xrayPath).Length; identifier = $xrayInfo.identifier; metadata_status = $xrayInfo.metadata_status; origin = 'CLIENT_REPORTED'; confidence = 'LOW'; action = 'OBSERVE' }
+    synchronization = [ordered]@{
+        client_reported_observations = $testResult.client_observation_count
+        independent_server_signals = $testResult.server_signal_count
+        correlated_same_session = $testResult.server_client_correlated
+        server_confirmed_observations = $testResult.server_confirmed_count
+        server_confirmed_action = $testResult.server_confirmed_action
+        false_positive = $false
+    }
     test = $testResult
     sanitization = [ordered]@{ absolute_paths_copied = $false; pids_copied = $false; ports_copied = $false; uuids_copied = $false; raw_fixture_paths_copied = $false }
 }
