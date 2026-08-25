@@ -43,6 +43,7 @@ tasks.test {
             .get().asFile.absolutePath,
     )
     systemProperty("mcace.runtime.classpath", sourceSets.main.get().runtimeClasspath.asPath)
+    systemProperty("mcace.anticheat.fixture.classpath", sourceSets.test.get().runtimeClasspath.asPath)
     listOf(
         "mcace.folia.player-probe.host",
         "mcace.folia.player-probe.port",
