@@ -18,9 +18,9 @@ Paper/Folia 后端插件。
 · [本轮 active-pack 证据](docs/evidence/active-pack-integrity-2026-08-22.json)
 · [历史 e7f6f74 发布包证据](docs/evidence/release-bundle-e7f6f74.json)
 · [当前 Helio 12/12 服务端矩阵证据](docs/evidence/server-version-process-matrix-2026-08-25-65731aa.json)
-· [最新 feature 精确提交 CI 证据](docs/evidence/github-feature-ci-2026-08-25-63ae400.json)
+· [最新 feature 精确提交 CI 证据](docs/evidence/github-feature-ci-2026-08-25-5a7e423.json)
 · [当前 Helio 精确源码发布包证据](docs/evidence/release-bundle-2026-08-25-63ae400.json)
-· [当前 fail-closed readiness 报告](docs/evidence/release-readiness-2026-08-25-286083f.json)
+· [当前 fail-closed readiness 报告](docs/evidence/release-readiness-2026-08-25-5a7e423.json)
 · [GitHub 分支/tag 保护证据](docs/evidence/github-protection-2026-08-25.json)
 · [D 盘迁移记录](docs/PROJECT_MIGRATION.md)
 
@@ -68,16 +68,16 @@ Paper/Folia 后端插件。
 | 反作弊检测 | [`current-candidate-fe5f2d1.json`](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json) 将历史 e7f6f74 候选使用的同一 Paper artifact SHA 与 Helio 当前实测关联：真实 Leaf 1.21.11 + GrimAC `2.3.74-155abaf`，40 个移动探针，三次 `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK`（`AimDuplicateLook`、`Simulation`、`TickTimer`），三次 loopback 风险上传；运行记录的源码绑定仍是 `fe5f2d1…`，Paper 字节与历史 manifest 一致 | 真实观测检测/关联/上传 PASS；`MONITOR`/`NONE` 有意保留，未执行惩罚动作 |
 | Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
-| exact-commit CI/release | [push 运行 `32798326193`](https://github.com/TypeThe0ry/MCAce/actions/runs/32798326193) 与 [PR 运行 `32798329912`](https://github.com/TypeThe0ry/MCAce/actions/runs/32798329912) 对精确源码 `63ae400adc8d09d8349ca599c9d6a4866a189d04` 通过：build/test、本地验证包和 exact-eight 上传通过；受保护分支/tag 的 releaseBundle 与 readiness 只在 `main`/`v0.0.1` ref 执行。见[脱敏证据](docs/evidence/github-feature-ci-2026-08-25-63ae400.json) | 当前 feature 见证通过；仍待受保护分支/tag 的 exact-commit release |
+| exact-commit CI/release | [push 运行 `32803002956`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803002956) 与 [PR 运行 `32803006026`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803006026) 对精确源码 `5a7e423b5b7bc6c79ea5e1fd3182b82923312169` 通过：build/test、本地验证包和 exact-eight 上传通过；受保护分支/tag 的 releaseBundle 与 readiness 只在 `main`/`v0.0.1` ref 执行。见[脱敏证据](docs/evidence/github-feature-ci-2026-08-25-5a7e423.json) | 当前 feature 见证通过；仍待受保护分支/tag 的 exact-commit release |
 | Helio 精确源码发布包 | [当前证据](docs/evidence/release-bundle-2026-08-25-63ae400.json) 记录 Helio 对精确源码 `63ae400adc8d09d8349ca599c9d6a4866a189d04` 成功执行 `clean build releaseBundle`：`product_version=0.0.1`、6 个 deployable/8 个 entry、SHA256SUMS 和 3/3 兼容性契约均通过；Gradle daemon 限制没有污染 runtime 子进程 stdout | feature 源码候选已通过；受保护 main 发布仍需外部门和 main exact-commit CI |
 | 历史 Helio 发布候选 | [`release-bundle-e7f6f74.json`](docs/evidence/release-bundle-e7f6f74.json) 记录 Helio 对 `e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834` 构建 `releaseBundle`：六个 deployable + exact-eight manifest，`product_version=0.0.1`，bundle ZIP SHA-256 为 `4799733be6a178a7ed119d69f4945453dec1d73fbab7a22e95e51e259e035ded`，八项 hash 与三版本兼容性契约均通过 | 仅历史 feature 候选；受保护 `main` CI、外部 GUI/Vulcan/federation 门、当前源码 releaseBundle 和最终 tag 仍待完成 |
-| 当前 release readiness | [`release-readiness-2026-08-25-286083f.json`](docs/evidence/release-readiness-2026-08-25-286083f.json) 由 fail-closed 门针对源码 `286083f…` 生成；服务器矩阵和 clean-worktree 通过，feature Helio 发布候选明确标记 `protected_main_exact_commit_ci=false`，因此受保护分支/tag 发布包门仍关闭 | BLOCKED：三版本 GUI 六次同意、federation handoff、Vulcan genuine event、生产 authority freeze、受保护分支/tag exact-commit 发布包仍未完成；没有宣称 tag 或 release |
+| 当前 release readiness | [`release-readiness-2026-08-25-5a7e423.json`](docs/evidence/release-readiness-2026-08-25-5a7e423.json) 由 fail-closed 门针对当前源码 `5a7e423…` 生成；服务器矩阵和 clean-worktree 通过，feature Helio 发布候选明确标记 `protected_main_exact_commit_ci=false`，因此受保护分支/tag 发布包门仍关闭 | BLOCKED：三版本 GUI 六次同意、federation handoff、Vulcan genuine event、生产 authority freeze、受保护分支/tag exact-commit 发布包仍未完成；没有宣称 tag 或 release |
 | GitHub 分支/tag 保护 | [保护证据](docs/evidence/github-protection-2026-08-25.json) 记录 `main` 的 strict `build` 必检、仅操作员可创建 `v0.0.1` tag，以及 tag deletion/update 无 bypass 规则 | 仓库策略 PASS；这不能替代 release CI 或外部运行时门 |
 
 最新保留的 feature exact-commit CI 证据绑定到
-`63ae400adc8d09d8349ca599c9d6a4866a189d04`；当前 Helio 服务端矩阵证据独立绑定到
+`5a7e423b5b7bc6c79ea5e1fd3182b82923312169`；当前 Helio 服务端矩阵证据独立绑定到
 `65731aad2e023473a6a5f971404b86926603a0c0`。当前 HEAD 是
-`63ae400…`，属于 provenance 门允许的文档/证据后代。
+`5a7e423…`，属于 provenance 门允许的文档/证据后代。
 `e7f6f74` Helio 发布包只是历史 feature 分支候选，不代表当前 HEAD。每个 artifact 都要用
 `git rev-parse HEAD` 校验；只有 `release-manifest.properties` 中
 `release_identity=true` 且 `source_commit` 与 checkout 完全一致时，才允许把包放进 tag。
