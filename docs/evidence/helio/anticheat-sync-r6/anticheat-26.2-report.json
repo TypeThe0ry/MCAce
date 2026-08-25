@@ -1,0 +1,53 @@
+{
+    "schema":  "MCACE_ANTICHEAT_FIXTURE_CLASSIFICATION_V1",
+    "meteor":  {
+                   "sha256":  "bb2426a6f8216a92702824f3481317c284f103f0be827e15636a3ff42bc61f24",
+                   "bytes":  280,
+                   "id":  "meteor-client",
+                   "version":  "26.2-86",
+                   "origin":  "CLIENT_REPORTED",
+                   "confidence":  "LOW",
+                   "action":  "OBSERVE"
+               },
+    "synchronization":  {
+                            "client_reported_observations":  2,
+                            "independent_server_signals":  2,
+                            "correlated_same_session":  true,
+                            "server_confirmed_observations":  2,
+                            "server_confirmed_action":  "OBSERVE_ONLY_UNTIL_SIGNED_POLICY",
+                            "false_positive":  false
+                        },
+    "fixture_mode":  "CONTROLLED_LAB_FIXTURE_METADATA_AND_SERVER_CORRELATION",
+    "executable_code_loaded":  false,
+    "sanitization":  {
+                         "absolute_paths_copied":  false,
+                         "pids_copied":  false,
+                         "ports_copied":  false,
+                         "uuids_copied":  false,
+                         "raw_fixture_paths_copied":  false
+                     },
+    "passed":  true,
+    "xray_resource_pack":  {
+                               "sha256":  "423f7b4375b0be7a929da767ca9fff8c27e0eac47a7e905ab3dfb5e21eef450b",
+                               "bytes":  241,
+                               "identifier":  "unknown",
+                               "metadata_status":  "not-applicable",
+                               "origin":  "CLIENT_REPORTED",
+                               "confidence":  "LOW",
+                               "action":  "OBSERVE"
+                           },
+    "third_party_network_access":  false,
+    "test":  {
+                 "passed":  true,
+                 "test_name":  "AntiCheatFixtureClassificationTest",
+                 "tests":  3,
+                 "client_observation_count":  2,
+                 "server_signal_count":  2,
+                 "server_client_correlated":  true,
+                 "server_confirmed_count":  2,
+                 "server_confirmed_action":  "OBSERVE_ONLY_UNTIL_SIGNED_POLICY",
+                 "executable_code_loaded":  false
+             },
+    "generated_at":  "2026-08-25T08:53:28.5730899+00:00",
+    "minecraft_version":  "26.2"
+}

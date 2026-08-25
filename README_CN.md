@@ -23,7 +23,7 @@ Paper/Folia 后端插件。
 · [当前 Helio 精确源码发布包证据](docs/evidence/release-bundle-2026-08-25-63ae400.json)
 · [当前 fail-closed readiness 报告](docs/evidence/release-readiness-2026-08-25-5a7e423.json)
 · [GitHub 分支/tag 保护证据](docs/evidence/github-protection-2026-08-25.json)
-· [Helio 反作弊同步证据](docs/evidence/helio-2026-08-25-anticheat-sync.json)
+· [Helio 反作弊同步证据（当前 d835f42）](docs/evidence/helio-2026-08-25-anticheat-sync-current.json)
 · [Helio modern 26.x 构建证据](docs/evidence/helio-2026-08-25-modern-build.json)
 · [D 盘迁移记录](docs/PROJECT_MIGRATION.md)
 
@@ -71,7 +71,7 @@ Paper/Folia 后端插件。
 | 当前提交回归套件 | [473ef5b 回归证据](docs/evidence/static-regression-2026-08-24-473ef5b.json) 与 Helio wrapper 记录保留为历史见证；feature 分支在已测试代码提交 `65731aa…` 之后只增加了文档提交，可恢复服务端矩阵静态测试和 Helio 执行仍绑定在该代码提交 | 已记录检查通过；受保护 main 发布 CI 仍待完成 |
 | Paper/Folia × Velocity/Bungee 进程矩阵 | [Helio 证据索引](docs/evidence/server-version-process-matrix-2026-08-25-65731aa.json) 及不可变的 [report](docs/evidence/server-version-process-matrix/2026-08-25T00-54-47-3783015Z/report.json)、[binding](docs/evidence/server-version-process-matrix/2026-08-25T00-54-47-3783015Z/binding.json)、[commit marker](docs/evidence/server-version-process-matrix/2026-08-25T00-54-47-3783015Z/commit.json)：精确 feature 提交 `65731aa…`，`12/12`，`10` 个 STABLE + `2` 个 BETA，清理为零，source manifest `a97a9a83…` / 688 文件；Paper 26.2 build `116`、Folia 26.2 build `6` | Helio 已通过；受保护 main 发布 CI 仍待完成 |
 | Fabric GUI consent | 客户端现为每条连接只显示一次 `Enable MCAce` 总开关；拒绝/关闭不发任何 MCAce 帧，确认后文件清单、渲染帧和 federation 继承该决定 | 待 1 次总开关确认 |
-| 反作弊检测 | [`helio-2026-08-25-anticheat-sync.json`](docs/evidence/helio-2026-08-25-anticheat-sync.json) 将当前源码 `57b1424…` 绑定到 Helio 的 1.21.11、26.1.2、26.2 实测：6 个客户端观察与 6 个独立同 session 服务端信号全部关联为 `SERVER_CONFIRMED/CONFIRMED`，无误报。受控 mod/材质包 fixture 只有 metadata，没有执行第三方作弊代码；动作仍为 `OBSERVE_ONLY_UNTIL_SIGNED_POLICY`。历史真实客户端/GrimAC 记录仍作为单独的公网服务见证 | 服务端关联逻辑与三版本 fixture 回归 PASS；公网服务执行、内核/注入检测、precision/recall、kick/deny、ban 效果仍未宣称 |
+| 反作弊检测 | [`helio-2026-08-25-anticheat-sync-current.json`](docs/evidence/helio-2026-08-25-anticheat-sync-current.json) 将精确当前源码 `d835f42…` 绑定到 Helio 的 1.21.11、26.1.2、26.2 实测：6 个客户端观察与 6 个独立同 session 服务端信号全部关联为 `SERVER_CONFIRMED/CONFIRMED`；错误 session 与过期窗口的负边界也通过，无误报。受控 mod/材质包 fixture 只有 metadata，没有执行第三方作弊代码；动作仍为 `OBSERVE_ONLY_UNTIL_SIGNED_POLICY`。历史真实客户端/GrimAC 记录仍作为单独的公网服务见证 | 服务端关联逻辑与三版本 fixture 回归 PASS；公网服务执行、内核/注入检测、precision/recall、kick/deny、ban 效果仍未宣称 |
 | Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
 | exact-commit CI/release | [push 运行 `32803002956`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803002956) 与 [PR 运行 `32803006026`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803006026) 对精确源码 `5a7e423b5b7bc6c79ea5e1fd3182b82923312169` 通过：build/test、本地验证包和 exact-eight 上传通过；受保护分支/tag 的 releaseBundle 与 readiness 只在 `main`/`v0.0.1` ref 执行。见[脱敏证据](docs/evidence/github-feature-ci-2026-08-25-5a7e423.json) | 当前 feature 见证通过；仍待受保护分支/tag 的 exact-commit release |
@@ -137,7 +137,7 @@ Node.js v24.18.0 在生成结果前崩溃，仅作为诊断限制保留。当前
 fixture smoke 现在包含两项同步检验：客户端先上报受控 mod 与材质包观察，随后
 服务端关联运行时对同一 session 接收独立信号，并将两项升级为
 `SERVER_CONFIRMED/CONFIRMED`。Helio 已对 1.21.11、26.1.2、26.2 运行同一测试，
-脱敏结果见 [`helio-2026-08-25-anticheat-sync.json`](docs/evidence/helio-2026-08-25-anticheat-sync.json)。
+当前脱敏结果见 [`helio-2026-08-25-anticheat-sync-current.json`](docs/evidence/helio-2026-08-25-anticheat-sync-current.json)，绑定精确源码 `d835f42…`。
 动作仍是 `OBSERVE_ONLY_UNTIL_SIGNED_POLICY`；单独的客户端上报不能 kick、deny 或
 ban。这是服务端关联实验室结果，不是公网真实服务器的 precision/recall 结果。
 
