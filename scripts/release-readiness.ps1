@@ -57,12 +57,13 @@ function Read-PropertiesFile([string]$Path) {
     return [pscustomobject]$properties
 }
 
-function Test-ProtectedMainCiContext {
+function Test-ProtectedReleaseCiContext {
     return [string]$env:GITHUB_ACTIONS -ceq 'true' -and
         [string]$env:GITHUB_REPOSITORY -ceq 'TypeThe0ry/MCAce' -and
         [string]$env:GITHUB_EVENT_NAME -ceq 'push' -and
-        [string]$env:GITHUB_REF -ceq 'refs/heads/main' -and
-        [string]$env:MCACE_PROTECTED_MAIN_CI -ceq 'true'
+        ([string]$env:GITHUB_REF -ceq 'refs/heads/main' -or
+            [string]$env:GITHUB_REF -ceq 'refs/tags/v0.0.1') -and
+        [string]$env:MCACE_PROTECTED_RELEASE_CI -ceq 'true'
 }
 
 function Test-BuildReleaseBundle([string]$BundleRoot, [string]$ExpectedCommit) {
@@ -307,16 +308,16 @@ $releaseEvidencePass = @($releaseEvidence | Where-Object {
     (Test-Boolean $_.sha256sums_verified) -and
     (Test-Boolean $_.compatibility_passed)
 }).Count -gt 0
-$releaseBuildPass = (Test-ProtectedMainCiContext) -and
+$releaseBuildPass = (Test-ProtectedReleaseCiContext) -and
     (Test-StringEqual $head $requestedCommit) -and
     (Test-BuildReleaseBundle 'build/release-bundle' $requestedCommit)
 $releasePass = $releaseEvidencePass -or $releaseBuildPass
 $releaseDetail = if ($releaseBuildPass) {
-    'protected-main push CI verified the current exact-commit build/release-bundle on disk, including SHA256SUMS and 3/3 compatibility'
+    'protected main/tag release CI verified the current exact-commit build/release-bundle on disk, including SHA256SUMS and 3/3 compatibility'
 } elseif ($releaseEvidencePass) {
     'current-source protected-main exact-eight release evidence is independently verified'
 } else {
-    'no current-source protected-main exact-eight release bundle evidence or protected-main CI build bundle'
+    'no current-source protected-main/tag exact-eight release bundle evidence or protected release CI build bundle'
 }
 Add-Gate $gates 'protected_exact_release_bundle' $releasePass 'build/release-bundle or docs/evidence/release-bundle-*.json' $releaseDetail
 

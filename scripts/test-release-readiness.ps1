@@ -16,7 +16,7 @@ foreach ($required in @(
     'current-source',
     'synthetic_event',
     'Test-SourceProvenance',
-    'Test-ProtectedMainCiContext',
+    'Test-ProtectedReleaseCiContext',
     'Test-BuildReleaseBundle',
     'protected_main_exact_commit_ci',
     'build/release-bundle',
@@ -24,6 +24,8 @@ foreach ($required in @(
     'GITHUB_REPOSITORY',
     'GITHUB_EVENT_NAME',
     'GITHUB_REF',
+    'refs/tags/v0.0.1',
+    'MCACE_PROTECTED_RELEASE_CI',
     'github/workflows/build',
     'scripts/version-compatibility-contract-smoke',
     'scripts/test-version-compatibility-contract',
@@ -33,6 +35,17 @@ foreach ($required in @(
     if ($source.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
         throw "RELEASE_READINESS_STATIC_ASSERTION_FAILED|$required"
     }
+}
+
+$workflowPath = Join-Path $repoRoot '.github/workflows/build.yml'
+$workflow = Get-Content -LiteralPath $workflowPath -Raw
+foreach ($required in @('refs/tags/v0.0.1', 'MCACE_PROTECTED_RELEASE_CI', 'Verify the release bundle compatibility contract')) {
+    if ($workflow.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
+        throw "RELEASE_WORKFLOW_STATIC_ASSERTION_FAILED|$required"
+    }
+}
+if (@([regex]::Matches($workflow, 'refs/tags/v0\.0\.1')).Count -lt 4) {
+    throw 'RELEASE_WORKFLOW_TAG_RELEASE_PATH_INCOMPLETE'
 }
 
 $testRoot = Join-Path $repoRoot 'build/release-readiness-test'

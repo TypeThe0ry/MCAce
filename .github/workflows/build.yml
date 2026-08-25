@@ -73,7 +73,7 @@ jobs:
           --max-workers=1
           --console=plain
       - name: Build the local verification bundle fully offline
-        if: ${{ github.repository != 'TypeThe0ry/MCAce' || github.event_name != 'push' || github.ref != 'refs/heads/main' }}
+        if: ${{ github.repository != 'TypeThe0ry/MCAce' || github.event_name != 'push' || (github.ref != 'refs/heads/main' && github.ref != 'refs/tags/v0.0.1') }}
         shell: bash
         env:
           MCACE_SOURCE_COMMIT: ${{ github.sha }}
@@ -92,14 +92,14 @@ jobs:
             --max-workers=1 \
             --console=plain
       - name: Upload the exact eight-file local verification bundle
-        if: ${{ github.repository != 'TypeThe0ry/MCAce' || github.event_name != 'push' || github.ref != 'refs/heads/main' }}
+        if: ${{ github.repository != 'TypeThe0ry/MCAce' || github.event_name != 'push' || (github.ref != 'refs/heads/main' && github.ref != 'refs/tags/v0.0.1') }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: mcace-local-verification-bundle-${{ github.sha }}
           path: build/local-verification-bundle/
           if-no-files-found: error
       - name: Build the exact release candidate fully offline
-        if: ${{ github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/tags/v0.0.1') }}
         shell: bash
         env:
           MCACE_SOURCE_COMMIT: ${{ github.sha }}
@@ -120,14 +120,14 @@ jobs:
             --max-workers=1 \
             --console=plain
       - name: Upload the exact eight-file release bundle
-        if: ${{ github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/tags/v0.0.1') }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: mcace-release-bundle-${{ github.sha }}
           path: build/release-bundle/
           if-no-files-found: error
       - name: Verify the release bundle compatibility contract
-        if: ${{ github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/tags/v0.0.1') }}
         shell: pwsh
         env:
           MCACE_SOURCE_COMMIT: ${{ github.sha }}
@@ -138,11 +138,11 @@ jobs:
           -ReportPath build/compatibility-contract/report.json
           -ExpectedSourceCommit $env:MCACE_SOURCE_COMMIT
       - name: Run fail-closed release readiness gate
-        if: ${{ github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/tags/v0.0.1') }}
         shell: pwsh
         env:
           MCACE_SOURCE_COMMIT: ${{ github.sha }}
-          MCACE_PROTECTED_MAIN_CI: 'true'
+          MCACE_PROTECTED_RELEASE_CI: 'true'
         run: |
           $ErrorActionPreference = 'Stop'
           ./scripts/release-readiness.ps1 -SourceCommit $env:MCACE_SOURCE_COMMIT
