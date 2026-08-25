@@ -330,7 +330,8 @@ has no executable entrypoint and no third-party code is launched. The current
 Helio witness runs the same client-observation plus independent same-session
 server-signal correlation for 1.21.11, 26.1.2, and 26.2, with six
 `SERVER_CONFIRMED/CONFIRMED` upgrades and explicit wrong-session/expired-window
-negative boundaries, on exact source `d835f42…`. See the current sanitized
+negative boundaries, on tested source `d835f42…` (the later `56ecad8…` commit only
+adds docs/evidence). See the current sanitized
 [`helio-2026-08-25-anticheat-sync-current.json`](evidence/helio-2026-08-25-anticheat-sync-current.json)
 and its raw reports under `docs/evidence/helio/anticheat-sync-r6/`. Revalidate a
 saved record with `-ReportOnly -ReportPath <report.json> -ExpectedReportSha256 <sha256>`.
