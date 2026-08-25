@@ -72,7 +72,7 @@ Paper/Folia 后端插件。
 | Helio 精确源码发布包 | [当前证据](docs/evidence/release-bundle-2026-08-25-63ae400.json) 记录 Helio 对精确源码 `63ae400adc8d09d8349ca599c9d6a4866a189d04` 成功执行 `clean build releaseBundle`：`product_version=0.0.1`、6 个 deployable/8 个 entry、SHA256SUMS 和 3/3 兼容性契约均通过；Gradle daemon 限制没有污染 runtime 子进程 stdout | feature 源码候选已通过；受保护 main 发布仍需外部门和 main exact-commit CI |
 | 历史 Helio 发布候选 | [`release-bundle-e7f6f74.json`](docs/evidence/release-bundle-e7f6f74.json) 记录 Helio 对 `e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834` 构建 `releaseBundle`：六个 deployable + exact-eight manifest，`product_version=0.0.1`，bundle ZIP SHA-256 为 `4799733be6a178a7ed119d69f4945453dec1d73fbab7a22e95e51e259e035ded`，八项 hash 与三版本兼容性契约均通过 | 仅历史 feature 候选；受保护 `main` CI、外部 GUI/Vulcan/federation 门、当前源码 releaseBundle 和最终 tag 仍待完成 |
 | 当前 release readiness | [`release-readiness-2026-08-25-286083f.json`](docs/evidence/release-readiness-2026-08-25-286083f.json) 由 fail-closed 门针对源码 `286083f…` 生成；服务器矩阵和 clean-worktree 通过，feature Helio 发布候选明确标记 `protected_main_exact_commit_ci=false`，因此受保护分支/tag 发布包门仍关闭 | BLOCKED：三版本 GUI 六次同意、federation handoff、Vulcan genuine event、生产 authority freeze、受保护分支/tag exact-commit 发布包仍未完成；没有宣称 tag 或 release |
-| GitHub 分支/tag 保护 | [保护证据](docs/evidence/github-protection-2026-08-25.json) 记录 `main` 的 strict `build` 必检，以及 `v0.0.1` tag 的 active deletion/update ruleset（无 bypass） | 仓库策略 PASS；这不能替代 release CI 或外部运行时门 |
+| GitHub 分支/tag 保护 | [保护证据](docs/evidence/github-protection-2026-08-25.json) 记录 `main` 的 strict `build` 必检、仅操作员可创建 `v0.0.1` tag，以及 tag deletion/update 无 bypass 规则 | 仓库策略 PASS；这不能替代 release CI 或外部运行时门 |
 
 最新保留的 feature exact-commit CI 证据绑定到
 `63ae400adc8d09d8349ca599c9d6a4866a189d04`；当前 Helio 服务端矩阵证据独立绑定到

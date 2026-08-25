@@ -1,6 +1,6 @@
 {
-  "schema": "MCACE_GITHUB_PROTECTION_EVIDENCE_V1",
-  "generated_at": "2026-08-25T10:48:19.4089267+08:00",
+  "schema": "MCACE_GITHUB_PROTECTION_EVIDENCE_V2",
+  "generated_at": "2026-08-25T10:51:36.1423138+08:00",
   "repository": "TypeThe0ry/MCAce",
   "branch_protection": {
     "branch": "main",
@@ -15,19 +15,36 @@
     "required_linear_history": true,
     "required_conversation_resolution": true
   },
-  "tag_ruleset": {
-    "id": 21365122,
-    "name": "Protect MCAce v0.0.1 release tag",
-    "target": "tag",
-    "enforcement": "active",
-    "ref_include": [
-      "refs/tags/v0.0.1"
-    ],
-    "rules": [
-      "deletion",
-      "update"
-    ],
-    "current_user_can_bypass": "never"
-  },
-  "interpretation": "main requires the build check and strict history; v0.0.1 tag deletion/update is actively protected with no bypass actor."
+  "tag_rulesets": [
+    {
+      "id": 21365122,
+      "name": "Protect MCAce v0.0.1 release tag",
+      "target": "tag",
+      "enforcement": "active",
+      "ref_include": [
+        "refs/tags/v0.0.1"
+      ],
+      "rules": [
+        "deletion",
+        "update"
+      ],
+      "bypass_policy": "no bypass",
+      "current_user_can_bypass": "never"
+    },
+    {
+      "id": 21365600,
+      "name": "Restrict MCAce v0.0.1 tag creation",
+      "target": "tag",
+      "enforcement": "active",
+      "ref_include": [
+        "refs/tags/v0.0.1"
+      ],
+      "rules": [
+        "creation"
+      ],
+      "bypass_policy": "operator-only creation bypass",
+      "current_user_can_bypass": "always"
+    }
+  ],
+  "interpretation": "main requires the build check and strict history; v0.0.1 tag creation is operator-only while deletion/update have no bypass."
 }
