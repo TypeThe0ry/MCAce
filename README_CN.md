@@ -18,7 +18,7 @@ Paper/Folia 后端插件。
 · [当前 HEAD Helio 静态 wrapper](docs/evidence/cluster-helio-cd3921c-static-2026-08-23.json)
 · [本轮 active-pack 证据](docs/evidence/active-pack-integrity-2026-08-22.json)
 · [历史 e7f6f74 发布包证据](docs/evidence/release-bundle-e7f6f74.json)
-· [当前 Helio 12/12 服务端矩阵证据](docs/evidence/server-version-process-matrix-2026-08-25-65c85c2.json)
+· [当前 Helio 12/12 服务端矩阵证据](docs/evidence/server-version-process-matrix-2026-08-25-bef44e3.json)
 · [最新 feature 精确提交 CI 证据](docs/evidence/github-feature-ci-2026-08-25-5a7e423.json)
 · [当前 Helio 精确源码发布包证据](docs/evidence/release-bundle-2026-08-25-63ae400.json)
 · [当前 fail-closed readiness 报告](docs/evidence/release-readiness-2026-08-25-dda766b.json)
@@ -70,7 +70,7 @@ Paper/Folia 后端插件。
 | --- | --- | --- |
 | 根 + modern 严格离线测试 | 历史 exact 包 `171 suites / 755 tests / 0 failures / 0 errors`；[Helio 定向构建证据](docs/evidence/cluster-targeted-build-2026-08-22.json) 已成功运行 Fabric、Velocity、BungeeCord、Paper 与 runtime integration 测试 | 在已记录源码边界内通过 |
 | 当前提交回归套件 | [473ef5b 回归证据](docs/evidence/static-regression-2026-08-24-473ef5b.json) 与 Helio wrapper 记录保留为历史见证；feature 分支在已测试代码提交 `65c85c2…` 之后只增加了文档提交，可恢复服务端矩阵静态测试和 Helio 执行仍绑定在该代码提交 | 已记录检查通过；受保护 main 发布 CI 仍待完成 |
-| Paper/Folia × Velocity/Bungee 进程矩阵 | [Helio 证据索引](docs/evidence/server-version-process-matrix-2026-08-25-65c85c2.json) 及不可变的 [report](docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/report.json)、[binding](docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/binding.json)、[commit marker](docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/commit.json)：精确 feature 提交 `65c85c2…`，`12/12`，`10` 个 STABLE + `2` 个 BETA，清理为零，source manifest `d7aa0925…` / 692 文件；Paper 26.2 build `116`、Folia 26.2 build `6` | Helio 已通过；受保护 main 发布 CI 仍待完成 |
+| Paper/Folia × Velocity/Bungee 进程矩阵 | [当前 Helio 证据索引](docs/evidence/server-version-process-matrix-2026-08-25-bef44e3.json) 及不可变 [report](docs/evidence/server-version-process-matrix/2026-08-25T13-28-42-6795528Z/report.json)、[binding](docs/evidence/server-version-process-matrix/2026-08-25T13-28-42-6795528Z/binding.json)、[commit marker](docs/evidence/server-version-process-matrix/2026-08-25T13-28-42-6795528Z/commit.json)：精确源码 `bef44e3…`，`12/12`，`10` 个 STABLE + `2` 个 BETA，`1.21.11`、`26.1.2`、`26.2` 清理为零 | Helio PASS；受保护 main 发布 CI 仍待完成 |
 | Fabric GUI consent | 客户端现为每条连接只显示一次 `Enable MCAce` 总开关；拒绝/关闭不发任何 MCAce 帧，确认后文件清单、渲染帧和 federation 继承该决定 | 待 1 次总开关确认 |
 | 反作弊检测 | [`helio-2026-08-25-anticheat-sync-current.json`](docs/evidence/helio-2026-08-25-anticheat-sync-current.json) 将已测试源码 `d835f42…`（当前 `65c85c2…` 仅是文档/证据后代）绑定到 Helio 的 1.21.11、26.1.2、26.2 实测：6 个客户端观察与 6 个独立同 session 服务端信号全部关联为 `SERVER_CONFIRMED/CONFIRMED`；错误 session 与过期窗口的负边界也通过，无误报。受控 mod/材质包 fixture 只有 metadata，没有执行第三方作弊代码；动作仍为 `OBSERVE_ONLY_UNTIL_SIGNED_POLICY`。历史真实客户端/GrimAC 记录仍作为单独的公网服务见证 | 服务端关联逻辑与三版本 fixture 回归 PASS；公网服务执行、内核/注入检测、precision/recall、kick/deny、ban 效果仍未宣称 |
 | 可执行受控作弊 fixture 同步 | [`helio-2026-08-25-anticheat-live-fixture.json`](docs/evidence/helio-2026-08-25-anticheat-live-fixture.json) 将精确源码 `1e84cd5…` 绑定到 Helio/JDK21：MCAce 自己生成的测试 JAR 在隔离客户端 JVM 中真实加载，三版本都上报 modlist；服务端独立从同 session 的移动增量推导 `Simulation`，签名实验室 policy 最终得到 `3/3 SERVER_CONFIRMED` `QUARANTINE`。clean 客户端误报为 0，子 Java/cmd/Gradle 进程清理为 0 | 可执行 loopback 关联 harness PASS；这不是公网 Fabric 客户端/服务端、第三方作弊、内核/注入或生产 kick/deny/ban 结果 |

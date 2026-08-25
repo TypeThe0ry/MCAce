@@ -181,12 +181,50 @@ if ($requestedCommit -notmatch '^[0-9a-f]{40}$') {
 }
 
 $gates = [System.Collections.Generic.List[object]]::new()
-$matrixIndexPath = 'docs/evidence/server-version-process-matrix-2026-08-25-65c85c2.json'
-$matrixIndex = Read-JsonFile $matrixIndexPath
-$matrixTripletRoot = 'docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z'
-$matrixReport = Read-JsonFile (Join-Path $matrixTripletRoot 'report.json')
-$matrixBinding = Read-JsonFile (Join-Path $matrixTripletRoot 'binding.json')
-$matrixCommit = Read-JsonFile (Join-Path $matrixTripletRoot 'commit.json')
+$matrixEvidenceRoot = Join-Path $repoRoot 'docs/evidence'
+$matrixIndexCandidates = [System.Collections.Generic.List[object]]::new()
+if (Test-Path -LiteralPath $matrixEvidenceRoot -PathType Container) {
+    foreach ($candidateFile in @(Get-ChildItem -LiteralPath $matrixEvidenceRoot -File -Filter 'server-version-process-matrix-2026-08-25-*.json')) {
+        $candidate = Read-JsonFile $candidateFile.FullName
+        if ($null -eq $candidate -or
+                [string]$candidate.schema -cne 'MCACE_SERVER_VERSION_PROCESS_MATRIX_EVIDENCE_INDEX_V1' -or
+                [string]$candidate.source_commit -notmatch '^[0-9a-f]{40}$' -or
+                [string]$candidate.canonical_run -notmatch '^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{7}Z$') {
+            continue
+        }
+        try {
+            $generatedAt = [DateTimeOffset]::Parse(
+                [string]$candidate.generated_at,
+                [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::RoundtripKind)
+        } catch {
+            continue
+        }
+        [void]$matrixIndexCandidates.Add([pscustomobject]@{
+            path = $candidateFile.FullName
+            value = $candidate
+            generated_at = $generatedAt
+        })
+    }
+}
+$selectedMatrix = @($matrixIndexCandidates | Where-Object { [string]$_.value.source_commit -ceq $requestedCommit } |
+    Sort-Object generated_at -Descending | Select-Object -First 1)
+if ($selectedMatrix.Count -eq 0) {
+    $selectedMatrix = @($matrixIndexCandidates | Sort-Object generated_at -Descending | Select-Object -First 1)
+}
+$matrixIndexPath = if ($selectedMatrix.Count -gt 0) {
+    ([string]$selectedMatrix[0].path).Substring($repoRoot.Length + 1).Replace('\','/')
+} else {
+    'docs/evidence/server-version-process-matrix-2026-08-25-*.json'
+}
+$matrixIndex = if ($selectedMatrix.Count -gt 0) { $selectedMatrix[0].value } else { $null }
+$matrixTripletRoot = if ($null -ne $matrixIndex -and
+        [string]$matrixIndex.canonical_run -match '^\d{4}-\d{2}-\d{2}T\d{2}-\d{2}-\d{2}-\d{7}Z$') {
+    Join-Path 'docs/evidence/server-version-process-matrix' ([string]$matrixIndex.canonical_run)
+} else { $null }
+$matrixReport = if ($null -ne $matrixTripletRoot) { Read-JsonFile (Join-Path $matrixTripletRoot 'report.json') } else { $null }
+$matrixBinding = if ($null -ne $matrixTripletRoot) { Read-JsonFile (Join-Path $matrixTripletRoot 'binding.json') } else { $null }
+$matrixCommit = if ($null -ne $matrixTripletRoot) { Read-JsonFile (Join-Path $matrixTripletRoot 'commit.json') } else { $null }
 $matrixPass = (
     ($null -ne $matrixIndex) -and
     ($null -ne $matrixReport) -and
