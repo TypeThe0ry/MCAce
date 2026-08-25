@@ -96,10 +96,12 @@ function Restore-Env([string]$Name, [string]$Value) {
 function Invoke-ClassificationTest([string]$Meteor, [string]$Xray) {
     $oldMeteor = Get-EnvValue 'MCACE_TEST_METEOR_JAR'
     $oldXray = Get-EnvValue 'MCACE_TEST_XRAY_PACK'
+    $oldMinecraftVersion = Get-EnvValue 'MCACE_TEST_MINECRAFT_VERSION'
     $oldJavaHome = Get-EnvValue 'JAVA_HOME'
     try {
         [Environment]::SetEnvironmentVariable('MCACE_TEST_METEOR_JAR', $Meteor, 'Process')
         [Environment]::SetEnvironmentVariable('MCACE_TEST_XRAY_PACK', $Xray, 'Process')
+        [Environment]::SetEnvironmentVariable('MCACE_TEST_MINECRAFT_VERSION', $MinecraftVersion, 'Process')
         $javaHome = Get-EnvValue 'JAVA_HOME'
         if ([string]::IsNullOrWhiteSpace($javaHome)) {
             throw 'ANTICHEAT_FIXTURE_JAVA_HOME_REQUIRED'
@@ -152,6 +154,7 @@ function Invoke-ClassificationTest([string]$Meteor, [string]$Xray) {
     } finally {
         Restore-Env 'MCACE_TEST_METEOR_JAR' $oldMeteor
         Restore-Env 'MCACE_TEST_XRAY_PACK' $oldXray
+        Restore-Env 'MCACE_TEST_MINECRAFT_VERSION' $oldMinecraftVersion
         Restore-Env 'JAVA_HOME' $oldJavaHome
     }
 }

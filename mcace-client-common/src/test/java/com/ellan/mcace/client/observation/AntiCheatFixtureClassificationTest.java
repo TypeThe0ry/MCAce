@@ -48,6 +48,10 @@ final class AntiCheatFixtureClassificationTest {
     void classifiesMeteorAndXrayFixturesWithoutCallingEitherCheat() throws Exception {
         String meteorProperty = fixtureValue("mcace.test.meteor.jar", "MCACE_TEST_METEOR_JAR");
         String xrayProperty = fixtureValue("mcace.test.xray.pack", "MCACE_TEST_XRAY_PACK");
+        String targetVersion = fixtureValue("mcace.test.minecraft.version", "MCACE_TEST_MINECRAFT_VERSION");
+        if (targetVersion.isBlank()) {
+            targetVersion = "1.21.11";
+        }
         assumeTrue(!meteorProperty.isBlank() && !xrayProperty.isBlank(),
                 "fixture paths were not supplied; this test is opt-in");
 
@@ -58,7 +62,7 @@ final class AntiCheatFixtureClassificationTest {
 
         Path mods = Files.createDirectories(root.resolve("mods"));
         Path resourcePacks = Files.createDirectories(root.resolve("resourcepacks"));
-        Path meteor = Files.copy(meteorSource, mods.resolve("meteor-client-1.21.11-86.jar"));
+        Path meteor = Files.copy(meteorSource, mods.resolve("meteor-client-" + targetVersion + "-86.jar"));
         Path xray = Files.copy(xraySource, resourcePacks.resolve("xray-fixture.zip"));
 
         String metadata;
@@ -68,7 +72,7 @@ final class AntiCheatFixtureClassificationTest {
             metadata = new String(archive.getInputStream(entry).readAllBytes(), StandardCharsets.UTF_8);
         }
         assertTrue(metadata.contains("\"id\": \"meteor-client\""));
-        assertTrue(metadata.contains("\"version\": \"1.21.11-86\""));
+        assertTrue(metadata.contains("\"version\": \"" + targetVersion + "-86\""));
 
         try (ZipFile archive = new ZipFile(xray.toFile())) {
             var entry = archive.getEntry("pack.mcmeta");
@@ -119,6 +123,10 @@ final class AntiCheatFixtureClassificationTest {
     void correlatesClientFixtureWithIndependentServerSignalForBothArtifactTypes() throws Exception {
         String meteorProperty = fixtureValue("mcace.test.meteor.jar", "MCACE_TEST_METEOR_JAR");
         String xrayProperty = fixtureValue("mcace.test.xray.pack", "MCACE_TEST_XRAY_PACK");
+        String targetVersion = fixtureValue("mcace.test.minecraft.version", "MCACE_TEST_MINECRAFT_VERSION");
+        if (targetVersion.isBlank()) {
+            targetVersion = "1.21.11";
+        }
         assumeTrue(!meteorProperty.isBlank() && !xrayProperty.isBlank(),
                 "fixture paths were not supplied; this test is opt-in");
 
@@ -129,7 +137,7 @@ final class AntiCheatFixtureClassificationTest {
 
         Path mods = Files.createDirectories(root.resolve("mods"));
         Path resourcePacks = Files.createDirectories(root.resolve("resourcepacks"));
-        Files.copy(meteorSource, mods.resolve("meteor-client-1.21.11-86.jar"));
+        Files.copy(meteorSource, mods.resolve("meteor-client-" + targetVersion + "-86.jar"));
         Files.copy(xraySource, resourcePacks.resolve("xray-fixture.zip"));
 
         SecurityPolicy policy = SecurityPolicy.newBuilder()
