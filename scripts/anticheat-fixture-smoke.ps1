@@ -152,7 +152,7 @@ function Invoke-ClassificationTest([string]$Meteor, [string]$Xray) {
         return [ordered]@{
             passed = $true
             test_name = 'AntiCheatFixtureClassificationTest'
-            tests = 2
+            tests = 3
             client_observation_count = 2
             server_signal_count = 2
             server_client_correlated = $true

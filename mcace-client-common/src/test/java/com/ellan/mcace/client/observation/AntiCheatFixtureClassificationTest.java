@@ -171,6 +171,21 @@ final class AntiCheatFixtureClassificationTest {
             assertEquals(signal, confirmed.metadata().get("correlated_signal"));
         }
         assertEquals(2, observations.size(), "fixture must produce mod and resource-pack observations");
+
+        ArtifactObservation first = observations.get(0);
+        ServerBehaviorObservation matchingSignal = new ServerBehaviorObservation(
+                PLAYER, session, "mcace-fixture-server", "negative-boundary-signal",
+                now.minusSeconds(1));
+        assertTrue(correlator.correlate(
+                PLAYER, "different-session", now.minusSeconds(2), first, matchingSignal,
+                Duration.ofSeconds(30), now).isEmpty(),
+                "a server signal from another session must not upgrade a client observation");
+        assertTrue(correlator.correlate(
+                PLAYER, session, now.minusSeconds(60), first,
+                new ServerBehaviorObservation(PLAYER, session, "mcace-fixture-server",
+                        "expired-signal", now.minusSeconds(61)),
+                Duration.ofSeconds(30), now).isEmpty(),
+                "a server signal outside the bounded window must not upgrade a client observation");
     }
 
     private static IntegrityScopeRule directory(String scope, String root, String extension) {
