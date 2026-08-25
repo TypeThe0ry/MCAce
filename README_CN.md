@@ -19,7 +19,7 @@ Paper/Folia 后端插件。
 · [历史 e7f6f74 发布包证据](docs/evidence/release-bundle-e7f6f74.json)
 · [当前 Helio 12/12 服务端矩阵证据](docs/evidence/server-version-process-matrix-2026-08-25-65731aa.json)
 · [最新 feature 精确提交 CI 证据](docs/evidence/github-feature-ci-2026-08-25-8db8634.json)
-· [当前 fail-closed readiness 报告](docs/evidence/release-readiness-2026-08-25-1beccc7.json)
+· [当前 fail-closed readiness 报告](docs/evidence/release-readiness-2026-08-25-52fe1c0.json)
 · [D 盘迁移记录](docs/PROJECT_MIGRATION.md)
 
 ![验证总览](docs/assets/verification-dashboard.svg)
@@ -68,7 +68,7 @@ Paper/Folia 后端插件。
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
 | exact-commit CI/release | [push 运行 `32781778301`](https://github.com/TypeThe0ry/MCAce/actions/runs/32781778301) 与 [PR 运行 `32781782319`](https://github.com/TypeThe0ry/MCAce/actions/runs/32781782319) 对精确源码 `8db8634e62a4c6f208ba07c284be399b2ae76464` 通过：build/test、本地验证包和 exact-eight 上传通过；feature 分支按设计跳过 releaseBundle 与仅 main 执行的 readiness gate。见[脱敏证据](docs/evidence/github-feature-ci-2026-08-25-8db8634.json) | 当前 feature 见证通过；仍待受保护 main 的 exact-commit releaseBundle |
 | 历史 Helio 发布候选 | [`release-bundle-e7f6f74.json`](docs/evidence/release-bundle-e7f6f74.json) 记录 Helio 对 `e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834` 构建 `releaseBundle`：六个 deployable + exact-eight manifest，`product_version=0.0.1`，bundle ZIP SHA-256 为 `4799733be6a178a7ed119d69f4945453dec1d73fbab7a22e95e51e259e035ded`，八项 hash 与三版本兼容性契约均通过 | 仅历史 feature 候选；受保护 `main` CI、外部 GUI/Vulcan/federation 门、当前源码 releaseBundle 和最终 tag 仍待完成 |
-| 当前 release readiness | [`release-readiness-2026-08-25-1beccc7.json`](docs/evidence/release-readiness-2026-08-25-1beccc7.json) 由 fail-closed 门针对当前 HEAD `65731aa…` 生成 | BLOCKED：5 个外部/受保护发布门仍未关闭；没有宣称 tag 或 release |
+| 当前 release readiness | [`release-readiness-2026-08-25-52fe1c0.json`](docs/evidence/release-readiness-2026-08-25-52fe1c0.json) 由 fail-closed 门针对源码 `52fe1c0…` 生成 | BLOCKED：5 个外部/受保护发布门仍未关闭；没有宣称 tag 或 release |
 
 最新保留的 feature exact-commit CI 证据绑定到
 `8db8634e62a4c6f208ba07c284be399b2ae76464`；当前 Helio 服务端矩阵证据独立绑定到
