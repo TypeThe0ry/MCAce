@@ -18,7 +18,7 @@ Paper/Folia 后端插件。
 · [当前 HEAD Helio 静态 wrapper](docs/evidence/cluster-helio-cd3921c-static-2026-08-23.json)
 · [本轮 active-pack 证据](docs/evidence/active-pack-integrity-2026-08-22.json)
 · [历史 e7f6f74 发布包证据](docs/evidence/release-bundle-e7f6f74.json)
-· [当前 Helio 12/12 服务端矩阵证据](docs/evidence/server-version-process-matrix-2026-08-25-65731aa.json)
+· [当前 Helio 12/12 服务端矩阵证据](docs/evidence/server-version-process-matrix-2026-08-25-65c85c2.json)
 · [最新 feature 精确提交 CI 证据](docs/evidence/github-feature-ci-2026-08-25-5a7e423.json)
 · [当前 Helio 精确源码发布包证据](docs/evidence/release-bundle-2026-08-25-63ae400.json)
 · [当前 fail-closed readiness 报告](docs/evidence/release-readiness-2026-08-25-5a7e423.json)
@@ -68,10 +68,10 @@ Paper/Folia 后端插件。
 | 门 | 当前证据 | 状态 |
 | --- | --- | --- |
 | 根 + modern 严格离线测试 | 历史 exact 包 `171 suites / 755 tests / 0 failures / 0 errors`；[Helio 定向构建证据](docs/evidence/cluster-targeted-build-2026-08-22.json) 已成功运行 Fabric、Velocity、BungeeCord、Paper 与 runtime integration 测试 | 在已记录源码边界内通过 |
-| 当前提交回归套件 | [473ef5b 回归证据](docs/evidence/static-regression-2026-08-24-473ef5b.json) 与 Helio wrapper 记录保留为历史见证；feature 分支在已测试代码提交 `65731aa…` 之后只增加了文档提交，可恢复服务端矩阵静态测试和 Helio 执行仍绑定在该代码提交 | 已记录检查通过；受保护 main 发布 CI 仍待完成 |
-| Paper/Folia × Velocity/Bungee 进程矩阵 | [Helio 证据索引](docs/evidence/server-version-process-matrix-2026-08-25-65731aa.json) 及不可变的 [report](docs/evidence/server-version-process-matrix/2026-08-25T00-54-47-3783015Z/report.json)、[binding](docs/evidence/server-version-process-matrix/2026-08-25T00-54-47-3783015Z/binding.json)、[commit marker](docs/evidence/server-version-process-matrix/2026-08-25T00-54-47-3783015Z/commit.json)：精确 feature 提交 `65731aa…`，`12/12`，`10` 个 STABLE + `2` 个 BETA，清理为零，source manifest `a97a9a83…` / 688 文件；Paper 26.2 build `116`、Folia 26.2 build `6` | Helio 已通过；受保护 main 发布 CI 仍待完成 |
+| 当前提交回归套件 | [473ef5b 回归证据](docs/evidence/static-regression-2026-08-24-473ef5b.json) 与 Helio wrapper 记录保留为历史见证；feature 分支在已测试代码提交 `65c85c2…` 之后只增加了文档提交，可恢复服务端矩阵静态测试和 Helio 执行仍绑定在该代码提交 | 已记录检查通过；受保护 main 发布 CI 仍待完成 |
+| Paper/Folia × Velocity/Bungee 进程矩阵 | [Helio 证据索引](docs/evidence/server-version-process-matrix-2026-08-25-65c85c2.json) 及不可变的 [report](docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/report.json)、[binding](docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/binding.json)、[commit marker](docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/commit.json)：精确 feature 提交 `65c85c2…`，`12/12`，`10` 个 STABLE + `2` 个 BETA，清理为零，source manifest `d7aa0925…` / 688 文件；Paper 26.2 build `116`、Folia 26.2 build `6` | Helio 已通过；受保护 main 发布 CI 仍待完成 |
 | Fabric GUI consent | 客户端现为每条连接只显示一次 `Enable MCAce` 总开关；拒绝/关闭不发任何 MCAce 帧，确认后文件清单、渲染帧和 federation 继承该决定 | 待 1 次总开关确认 |
-| 反作弊检测 | [`helio-2026-08-25-anticheat-sync-current.json`](docs/evidence/helio-2026-08-25-anticheat-sync-current.json) 将已测试源码 `d835f42…`（当前 `56ecad8…` 仅是文档/证据后代）绑定到 Helio 的 1.21.11、26.1.2、26.2 实测：6 个客户端观察与 6 个独立同 session 服务端信号全部关联为 `SERVER_CONFIRMED/CONFIRMED`；错误 session 与过期窗口的负边界也通过，无误报。受控 mod/材质包 fixture 只有 metadata，没有执行第三方作弊代码；动作仍为 `OBSERVE_ONLY_UNTIL_SIGNED_POLICY`。历史真实客户端/GrimAC 记录仍作为单独的公网服务见证 | 服务端关联逻辑与三版本 fixture 回归 PASS；公网服务执行、内核/注入检测、precision/recall、kick/deny、ban 效果仍未宣称 |
+| 反作弊检测 | [`helio-2026-08-25-anticheat-sync-current.json`](docs/evidence/helio-2026-08-25-anticheat-sync-current.json) 将已测试源码 `d835f42…`（当前 `65c85c2…` 仅是文档/证据后代）绑定到 Helio 的 1.21.11、26.1.2、26.2 实测：6 个客户端观察与 6 个独立同 session 服务端信号全部关联为 `SERVER_CONFIRMED/CONFIRMED`；错误 session 与过期窗口的负边界也通过，无误报。受控 mod/材质包 fixture 只有 metadata，没有执行第三方作弊代码；动作仍为 `OBSERVE_ONLY_UNTIL_SIGNED_POLICY`。历史真实客户端/GrimAC 记录仍作为单独的公网服务见证 | 服务端关联逻辑与三版本 fixture 回归 PASS；公网服务执行、内核/注入检测、precision/recall、kick/deny、ban 效果仍未宣称 |
 | Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
 | exact-commit CI/release | [push 运行 `32803002956`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803002956) 与 [PR 运行 `32803006026`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803006026) 对精确源码 `5a7e423b5b7bc6c79ea5e1fd3182b82923312169` 通过：build/test、本地验证包和 exact-eight 上传通过；受保护分支/tag 的 releaseBundle 与 readiness 只在 `main`/`v0.0.1` ref 执行。见[脱敏证据](docs/evidence/github-feature-ci-2026-08-25-5a7e423.json) | 当前 feature 见证通过；仍待受保护分支/tag 的 exact-commit release |
@@ -82,8 +82,8 @@ Paper/Folia 后端插件。
 
 最新保留的 feature exact-commit CI 证据绑定到
 `5a7e423b5b7bc6c79ea5e1fd3182b82923312169`；当前 Helio 服务端矩阵证据独立绑定到
-`65731aad2e023473a6a5f971404b86926603a0c0`。当前 HEAD 是
-`5a7e423…`，属于 provenance 门允许的文档/证据后代。
+`65c85c2b6b3492eec4bf74e6cfe9315935c67670`。当前 HEAD 是
+`65c85c2…`，属于 provenance 门允许的文档/证据后代。
 `e7f6f74` Helio 发布包只是历史 feature 分支候选，不代表当前 HEAD。每个 artifact 都要用
 `git rev-parse HEAD` 校验；只有 `release-manifest.properties` 中
 `release_identity=true` 且 `source_commit` 与 checkout 完全一致时，才允许把包放进 tag。
@@ -120,7 +120,7 @@ provider 通过 `ServerBehaviorCorrelationRuntime` 进入授权边界：必须�
 [`scripts/new-exact-artifact-policy.ps1`](scripts/new-exact-artifact-policy.ps1)。
 
 保留的真实 Leaf/GrimAC 运行记录是独立历史见证，源码绑定仍是 `fe5f2d1…`，使用的 Paper artifact SHA 与历史 `e7f6f74` 候选一致；当前 Helio
-服务端矩阵绑定 `65731aad2e023473a6a5f971404b86926603a0c0`，不继承该反作弊运行的来源。Node.js v22.23.2 完成探针；Helio
+服务端矩阵绑定 `65c85c2b6b3492eec4bf74e6cfe9315935c67670`，不继承该反作弊运行的来源。Node.js v22.23.2 完成探针；Helio
 Node.js v24.18.0 在生成结果前崩溃，仅作为诊断限制保留。当前没有创建 tag，也没有发布 GitHub release。源码工作区已迁移到
 `D:\Projects\MCAce`；原 `C:\Users\admin\MCAce` 仅在精确文件/字节与 RoboCopy dry-run 校验后删除，详见
 [`docs/PROJECT_MIGRATION.md`](docs/PROJECT_MIGRATION.md)。

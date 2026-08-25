@@ -21,7 +21,7 @@ backend plugin.
 · [current HEAD Helio static wrappers](docs/evidence/cluster-helio-cd3921c-static-2026-08-23.json)
 · [active-pack iteration evidence](docs/evidence/active-pack-integrity-2026-08-22.json)
 · [historical e7f6f74 release-bundle evidence](docs/evidence/release-bundle-e7f6f74.json)
-· [current Helio 12/12 server matrix evidence](docs/evidence/server-version-process-matrix-2026-08-25-65731aa.json)
+· [current Helio 12/12 server matrix evidence](docs/evidence/server-version-process-matrix-2026-08-25-65c85c2.json)
 · [latest feature exact-commit CI evidence](docs/evidence/github-feature-ci-2026-08-25-5a7e423.json)
 · [current Helio exact-source release-bundle evidence](docs/evidence/release-bundle-2026-08-25-63ae400.json)
 · [current fail-closed readiness report](docs/evidence/release-readiness-2026-08-25-5a7e423.json)
@@ -76,10 +76,10 @@ Run the contract against a current bundle:
 | Gate | Current evidence | State |
 | --- | --- | --- |
 | Root + modern strict offline tests | Historical exact bundle: `171 suites / 755 tests / 0 failures / 0 errors`; [Helio targeted build evidence](docs/evidence/cluster-targeted-build-2026-08-22.json) ran Fabric, Velocity, BungeeCord, Paper, and runtime integration tests successfully | PASS within recorded source boundary |
-| Current-head regression suite | [473ef5b evidence](docs/evidence/static-regression-2026-08-24-473ef5b.json) and the Helio wrapper records remain retained as historical witnesses; the feature branch now has documentation-only commits after the tested code commit `65731aa…`, while the resumable server-matrix static test and Helio execution remain bound to that code commit | PASS for the recorded checks; fresh protected-main release CI is still pending |
-| Paper/Folia × Velocity/Bungee process matrix | [Helio evidence index](docs/evidence/server-version-process-matrix-2026-08-25-65731aa.json) plus the immutable [report](docs/evidence/server-version-process-matrix/2026-08-25T00-54-47-3783015Z/report.json), [binding](docs/evidence/server-version-process-matrix/2026-08-25T00-54-47-3783015Z/binding.json), and [commit marker](docs/evidence/server-version-process-matrix/2026-08-25T00-54-47-3783015Z/commit.json): exact feature commit `65731aa…`, `12/12`, `10` STABLE + `2` BETA, cleanup zero, source manifest `a97a9a83…` / 688 files; Paper 26.2 build `116`, Folia 26.2 build `6` | PASS on Helio; protected-main release CI still pending |
+| Current-head regression suite | [473ef5b evidence](docs/evidence/static-regression-2026-08-24-473ef5b.json) and the Helio wrapper records remain retained as historical witnesses; the feature branch now has documentation-only commits after the tested code commit `65c85c2…`, while the resumable server-matrix static test and Helio execution remain bound to that code commit | PASS for the recorded checks; fresh protected-main release CI is still pending |
+| Paper/Folia × Velocity/Bungee process matrix | [Helio evidence index](docs/evidence/server-version-process-matrix-2026-08-25-65c85c2.json) plus the immutable [report](docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/report.json), [binding](docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/binding.json), and [commit marker](docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/commit.json): exact feature commit `65c85c2…`, `12/12`, `10` STABLE + `2` BETA, cleanup zero, source manifest `d7aa0925…` / 692 files; Paper 26.2 build `116`, Folia 26.2 build `6` | PASS on Helio; protected-main release CI still pending |
 | Fabric GUI consent | The client now exposes one visible `Enable MCAce` screen per connection. Decline/close leaves the client disabled and sends no MCAce frame; accepted sessions inherit the decision for file manifests, render-frame evidence, and federation | PENDING 1 enablement confirmation |
-| Anti-cheat detection | [`helio-2026-08-25-anticheat-sync-current.json`](docs/evidence/helio-2026-08-25-anticheat-sync-current.json) binds the tested source `d835f42…` (the current `56ecad8…` commit is a docs/evidence-only descendant) to Helio execution across 1.21.11, 26.1.2, and 26.2: six client observations and six independent same-session server signals correlated to six `SERVER_CONFIRMED/CONFIRMED` observations. Wrong-session and expired-window negative boundaries also passed; no false positive was recorded. The controlled mod/resource-pack fixture is metadata-only, so no third-party cheat code was executed; action remains `OBSERVE_ONLY_UNTIL_SIGNED_POLICY`. The retained real-client/GrimAC record remains the separate historical public-server witness. | PASS for the server-correlation logic and three-version fixture regression; public-server enforcement, kernel/injection detection, precision/recall, kick/deny, and ban efficacy remain unclaimed |
+| Anti-cheat detection | [`helio-2026-08-25-anticheat-sync-current.json`](docs/evidence/helio-2026-08-25-anticheat-sync-current.json) binds the tested source `d835f42…` (the current `65c85c2…` commit is a docs/evidence-only descendant) to Helio execution across 1.21.11, 26.1.2, and 26.2: six client observations and six independent same-session server signals correlated to six `SERVER_CONFIRMED/CONFIRMED` observations. Wrong-session and expired-window negative boundaries also passed; no false positive was recorded. The controlled mod/resource-pack fixture is metadata-only, so no third-party cheat code was executed; action remains `OBSERVE_ONLY_UNTIL_SIGNED_POLICY`. The retained real-client/GrimAC record remains the separate historical public-server witness. | PASS for the server-correlation logic and three-version fixture regression; public-server enforcement, kernel/injection detection, precision/recall, kick/deny, and ban efficacy remain unclaimed |
 | Vulcan | Static contracts pass; licensed JAR and genuine external trigger are absent from this workspace | PENDING |
 | Fabric federation | V2 static contract passes; source-export/target-import GUI handoff has not been executed | PENDING |
 | Exact-commit CI/release | [Push run `32803002956`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803002956) and [PR run `32803006026`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803006026) passed for exact source `5a7e423b5b7bc6c79ea5e1fd3182b82923312169`: build/test, local verification bundle, and exact-eight upload passed; protected branch/tag releaseBundle and readiness gates are intentionally reserved for `main`/`v0.0.1` refs. See [sanitized evidence](docs/evidence/github-feature-ci-2026-08-25-5a7e423.json). | PASS for the current feature witness; protected branch/tag exact-commit release remains pending |
@@ -90,7 +90,7 @@ Run the contract against a current bundle:
 
 The latest retained feature exact-commit CI evidence is bound to
 `5a7e423b5b7bc6c79ea5e1fd3182b82923312169`; the current Helio server-matrix
-evidence is independently bound to `65731aad2e023473a6a5f971404b86926603a0c0`.
+evidence is independently bound to `65c85c2b6b3492eec4bf74e6cfe9315935c67670`.
 The current HEAD is a documentation/evidence-only
 descendant accepted by the provenance gate. The `e7f6f74` Helio release bundle
 remains a historical feature-branch candidate, not evidence for the current HEAD.
@@ -142,7 +142,7 @@ for the exact-hash/content-root workflow and trust-state table.
 The retained real Leaf/GrimAC probe is a separate historical witness and is
 source-bound to `fe5f2d1…`; it used the same Paper artifact SHA as the older
 `e7f6f74` candidate. The current Helio server matrix is source-bound to
-`65731aad2e023473a6a5f971404b86926603a0c0` and does not silently inherit that
+`65c85c2b6b3492eec4bf74e6cfe9315935c67670` and does not silently inherit that
 anti-cheat run's provenance.
 Node.js v22.23.2 completed the probe; the Helio Node.js v24.18.0 image crashed
 before producing a result and is retained only as a diagnostic limitation. No
