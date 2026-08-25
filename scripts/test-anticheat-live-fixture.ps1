@@ -23,6 +23,7 @@ foreach ($required in @(
         'clean_false_positive_count',
         'QUARANTINE',
         'third_party_code_loaded',
+        'ConvertTo-ReportTimestamp',
         'ReportOnly',
         ':mcace-runtime-integration:test')) {
     if (-not $source.Contains($required)) {
@@ -53,6 +54,34 @@ foreach ($requiredJava in @(
     if (-not ($javaSource.Contains($requiredJava) -or $entrypointSource.Contains($requiredJava))) {
         throw "ANTICHEAT_LIVE_FIXTURE_JAVA_CONTRACT_MISSING: $requiredJava"
     }
+}
+
+$fixtureRoot = Join-Path ([IO.Path]::GetTempPath()) ("mcace-anticheat-live-report-{0}" -f [guid]::NewGuid().ToString('N'))
+$null = New-Item -ItemType Directory -Path $fixtureRoot -Force
+try {
+    $reportPath = Join-Path $fixtureRoot 'report.json'
+    $report = [ordered]@{
+        schema = 'MCACE_ANTICHEAT_LIVE_FIXTURE_V1'
+        passed = $true
+        generated_at = [DateTimeOffset]::UtcNow.ToString('o')
+        client_executable_code_loaded = $true
+        third_party_code_loaded = $false
+        server_confirmed_count = 3
+        clean_false_positive_count = 0
+    }
+    [IO.File]::WriteAllText(
+        $reportPath,
+        (($report | ConvertTo-Json -Depth 4) + [Environment]::NewLine),
+        [Text.UTF8Encoding]::new($false))
+    $reportHash = (Get-FileHash -LiteralPath $reportPath -Algorithm SHA256).Hash.ToLowerInvariant()
+    $reportOnlyOutput = (& $scriptPath -ReportOnly -ReportPath $reportPath `
+        -ExpectedReportSha256 $reportHash -MaximumReportAgeMinutes 5 | Out-String).Trim()
+    if ($reportOnlyOutput -cne "ANTICHEAT_LIVE_FIXTURE_REPORT_ONLY_PASS|$reportHash") {
+        throw 'ANTICHEAT_LIVE_FIXTURE_REPORT_ONLY_RUNTIME_FAILED'
+    }
+}
+finally {
+    Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 Write-Output 'ANTICHEAT_LIVE_FIXTURE_WRAPPER_STATIC_PASS'

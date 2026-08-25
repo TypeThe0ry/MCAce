@@ -42,6 +42,26 @@ function Assert-ExactHash([string]$Path, [string]$Expected, [string]$Field) {
     return $actual
 }
 
+function ConvertTo-ReportTimestamp([object]$Value) {
+    if ($Value -is [DateTimeOffset]) {
+        return [DateTimeOffset]$Value
+    }
+    if ($Value -is [DateTime]) {
+        return [DateTimeOffset]([DateTime]$Value)
+    }
+
+    $parsed = [DateTimeOffset]::MinValue
+    if (-not [DateTimeOffset]::TryParseExact(
+            [string]$Value,
+            'o',
+            [Globalization.CultureInfo]::InvariantCulture,
+            [Globalization.DateTimeStyles]::RoundtripKind,
+            [ref]$parsed)) {
+        throw 'ANTICHEAT_LIVE_FIXTURE_REPORT_TIMESTAMP_INVALID'
+    }
+    return $parsed
+}
+
 function Write-SanitizedReport([hashtable]$Report) {
     $null = New-Item -ItemType Directory -Path $reportRoot -Force
     $runId = [DateTimeOffset]::UtcNow.ToString('yyyyMMddTHHmmssfffZ')
@@ -69,7 +89,11 @@ if ($PSCmdlet.ParameterSetName -eq 'Report') {
             $report.clean_false_positive_count -ne 0) {
         throw 'ANTICHEAT_LIVE_FIXTURE_REPORT_INVALID'
     }
-    $age = ([DateTimeOffset]::UtcNow - [DateTimeOffset]::Parse($report.generated_at)).TotalMinutes
+    # PowerShell 7.5+ may materialize ISO-8601 JSON strings as DateTime values.
+    # Handle both that representation and the string representation used by
+    # Windows PowerShell without an implicit culture-sensitive ToString/Parse.
+    $generatedAt = ConvertTo-ReportTimestamp $report.generated_at
+    $age = ([DateTimeOffset]::UtcNow - $generatedAt.ToUniversalTime()).TotalMinutes
     if ($age -lt -1 -or $age -gt $MaximumReportAgeMinutes) {
         throw 'ANTICHEAT_LIVE_FIXTURE_REPORT_STALE'
     }
