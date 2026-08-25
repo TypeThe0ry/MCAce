@@ -1,0 +1,33 @@
+{
+  "schema": "MCACE_GITHUB_PROTECTION_EVIDENCE_V1",
+  "generated_at": "2026-08-25T10:48:19.4089267+08:00",
+  "repository": "TypeThe0ry/MCAce",
+  "branch_protection": {
+    "branch": "main",
+    "enforce_admins": true,
+    "required_status_checks": [
+      {
+        "context": "build",
+        "app_id": 15368
+      }
+    ],
+    "strict": true,
+    "required_linear_history": true,
+    "required_conversation_resolution": true
+  },
+  "tag_ruleset": {
+    "id": 21365122,
+    "name": "Protect MCAce v0.0.1 release tag",
+    "target": "tag",
+    "enforcement": "active",
+    "ref_include": [
+      "refs/tags/v0.0.1"
+    ],
+    "rules": [
+      "deletion",
+      "update"
+    ],
+    "current_user_can_bypass": "never"
+  },
+  "interpretation": "main requires the build check and strict history; v0.0.1 tag deletion/update is actively protected with no bypass actor."
+}
