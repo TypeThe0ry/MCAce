@@ -321,13 +321,18 @@ The defensive detection regression record is
 artifact-feature neutrality, replay/tamper/expiry rejection, and multi-provider
 behavior correlation. It does not claim a production cheat precision/recall rate;
 the licensed Vulcan runtime event remains an explicit pending gate.
-For reproducible public-fixture checks, use
+For reproducible controlled-fixture checks, use
 `scripts/anticheat-fixture-smoke.ps1 -Execute` with explicit, locally reviewed
-Meteor and Xray-pack paths plus SHA-256 values. The wrapper runs only the
+Meteor and Xray-pack paths plus SHA-256 values. The wrapper runs the bounded
 metadata/classification JUnit fixture in a temporary directory, requires JDK 21,
-and records `STATIC_FIXTURE_ONLY_NO_THIRD_PARTY_CODE_EXECUTION`; it never launches
-Meteor, a resource-pack client, or arbitrary third-party code. Revalidate a saved
-record with `-ReportOnly -ReportPath <report.json> -ExpectedReportSha256 <sha256>`.
+and records `CONTROLLED_LAB_FIXTURE_METADATA_AND_SERVER_CORRELATION`; the fixture
+has no executable entrypoint and no third-party code is launched. The current
+Helio witness runs the same client-observation plus independent same-session
+server-signal correlation for 1.21.11, 26.1.2, and 26.2, with six
+`SERVER_CONFIRMED/CONFIRMED` upgrades. See the sanitized
+[`helio-2026-08-25-anticheat-sync.json`](evidence/helio-2026-08-25-anticheat-sync.json)
+and its raw reports under `docs/evidence/helio/anticheat-sync/`. Revalidate a
+saved record with `-ReportOnly -ReportPath <report.json> -ExpectedReportSha256 <sha256>`.
 A separate bounded real-client smoke has now loaded the supplied Meteor JAR in a
 disposable 1.21.11 Fabric client and activated the selected Spectator Xray pack;
 the client reached resource reload and Meteor initialization, but never connected
