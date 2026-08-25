@@ -27,6 +27,7 @@ backend plugin.
 · [current fail-closed readiness report](docs/evidence/release-readiness-2026-08-25-dda766b.json)
 · [GitHub branch/tag protection evidence](docs/evidence/github-protection-2026-08-25.json)
 · [Helio anti-cheat sync evidence (current d835f42)](docs/evidence/helio-2026-08-25-anticheat-sync-current.json)
+· [Helio executed-cheat fixture sync evidence (1e84cd5)](docs/evidence/helio-2026-08-25-anticheat-live-fixture.json)
 · [Helio modern 26.x build evidence](docs/evidence/helio-2026-08-25-modern-build.json)
 · [D-drive migration record](docs/PROJECT_MIGRATION.md)
 
@@ -80,6 +81,7 @@ Run the contract against a current bundle:
 | Paper/Folia × Velocity/Bungee process matrix | [Helio evidence index](docs/evidence/server-version-process-matrix-2026-08-25-65c85c2.json) plus the immutable [report](docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/report.json), [binding](docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/binding.json), and [commit marker](docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/commit.json): exact feature commit `65c85c2…`, `12/12`, `10` STABLE + `2` BETA, cleanup zero, source manifest `d7aa0925…` / 692 files; Paper 26.2 build `116`, Folia 26.2 build `6` | PASS on Helio; protected-main release CI still pending |
 | Fabric GUI consent | The client now exposes one visible `Enable MCAce` screen per connection. Decline/close leaves the client disabled and sends no MCAce frame; accepted sessions inherit the decision for file manifests, render-frame evidence, and federation | PENDING 1 enablement confirmation |
 | Anti-cheat detection | [`helio-2026-08-25-anticheat-sync-current.json`](docs/evidence/helio-2026-08-25-anticheat-sync-current.json) binds the tested source `d835f42…` (the current `65c85c2…` commit is a docs/evidence-only descendant) to Helio execution across 1.21.11, 26.1.2, and 26.2: six client observations and six independent same-session server signals correlated to six `SERVER_CONFIRMED/CONFIRMED` observations. Wrong-session and expired-window negative boundaries also passed; no false positive was recorded. The controlled mod/resource-pack fixture is metadata-only, so no third-party cheat code was executed; action remains `OBSERVE_ONLY_UNTIL_SIGNED_POLICY`. The retained real-client/GrimAC record remains the separate historical public-server witness. | PASS for the server-correlation logic and three-version fixture regression; public-server enforcement, kernel/injection detection, precision/recall, kick/deny, and ban efficacy remain unclaimed |
+| Executed controlled cheat fixture sync | [`helio-2026-08-25-anticheat-live-fixture.json`](docs/evidence/helio-2026-08-25-anticheat-live-fixture.json) binds exact source `1e84cd5…` to Helio/JDK21: an MCAce-owned test JAR was actually loaded in an isolated client JVM for all three versions; its mod-list observation was correlated with an independently derived same-session server `Simulation` signal, producing `3/3 SERVER_CONFIRMED` `QUARANTINE` results. A clean client produced zero false positives and all child Java/cmd/Gradle processes were cleaned up. | PASS for the executable loopback correlation harness; not a public Fabric client/server, third-party cheat, kernel/injection test, or production kick/deny/ban result |
 | Vulcan | Static contracts pass; licensed JAR and genuine external trigger are absent from this workspace | PENDING |
 | Fabric federation | V2 static contract passes; source-export/target-import GUI handoff has not been executed | PENDING |
 | Exact-commit CI/release | [Push run `32803002956`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803002956) and [PR run `32803006026`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803006026) passed for exact source `5a7e423b5b7bc6c79ea5e1fd3182b82923312169`: build/test, local verification bundle, and exact-eight upload passed; protected branch/tag releaseBundle and readiness gates are intentionally reserved for `main`/`v0.0.1` refs. See [sanitized evidence](docs/evidence/github-feature-ci-2026-08-25-5a7e423.json). | PASS for the current feature witness; protected branch/tag exact-commit release remains pending |
@@ -169,6 +171,22 @@ independent same-session signal for each and upgrades both to
 The resulting action remains `OBSERVE_ONLY_UNTIL_SIGNED_POLICY`; a client report
 by itself cannot kick, deny, or ban. This is a server-correlation lab result,
 not a real public-server precision/recall measurement.
+
+The executable-fixture command is a separate controlled test. It loads an
+MCAce-owned test JAR in an isolated child JVM, reports the loaded mod entry, and
+then sends ordinary movement frames. The server derives its own `Simulation`
+signal and only the signed lab policy upgrades the same-session observation to
+`SERVER_CONFIRMED`/`QUARANTINE`:
+
+```powershell
+.\scripts\anticheat-live-fixture-smoke.ps1 -Execute
+```
+
+Helio evidence is [`helio-2026-08-25-anticheat-live-fixture.json`](docs/evidence/helio-2026-08-25-anticheat-live-fixture.json).
+This proves executable fixture loading plus client/server synchronization for
+`1.21.11`, `26.1.2`, and `26.2`; it intentionally does not claim a real public
+Fabric GUI session, third-party cheat execution, kernel/injection/DMA coverage,
+or production kick/deny/ban authority.
 
 The retained real-client record proves client discovery/resource loading only.
 It explicitly records `real_server_connection=false`,

@@ -24,6 +24,7 @@ Paper/Folia 后端插件。
 · [当前 fail-closed readiness 报告](docs/evidence/release-readiness-2026-08-25-dda766b.json)
 · [GitHub 分支/tag 保护证据](docs/evidence/github-protection-2026-08-25.json)
 · [Helio 反作弊同步证据（当前 d835f42）](docs/evidence/helio-2026-08-25-anticheat-sync-current.json)
+· [Helio 可执行作弊 fixture 同步证据（1e84cd5）](docs/evidence/helio-2026-08-25-anticheat-live-fixture.json)
 · [Helio modern 26.x 构建证据](docs/evidence/helio-2026-08-25-modern-build.json)
 · [D 盘迁移记录](docs/PROJECT_MIGRATION.md)
 
@@ -72,6 +73,7 @@ Paper/Folia 后端插件。
 | Paper/Folia × Velocity/Bungee 进程矩阵 | [Helio 证据索引](docs/evidence/server-version-process-matrix-2026-08-25-65c85c2.json) 及不可变的 [report](docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/report.json)、[binding](docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/binding.json)、[commit marker](docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/commit.json)：精确 feature 提交 `65c85c2…`，`12/12`，`10` 个 STABLE + `2` 个 BETA，清理为零，source manifest `d7aa0925…` / 692 文件；Paper 26.2 build `116`、Folia 26.2 build `6` | Helio 已通过；受保护 main 发布 CI 仍待完成 |
 | Fabric GUI consent | 客户端现为每条连接只显示一次 `Enable MCAce` 总开关；拒绝/关闭不发任何 MCAce 帧，确认后文件清单、渲染帧和 federation 继承该决定 | 待 1 次总开关确认 |
 | 反作弊检测 | [`helio-2026-08-25-anticheat-sync-current.json`](docs/evidence/helio-2026-08-25-anticheat-sync-current.json) 将已测试源码 `d835f42…`（当前 `65c85c2…` 仅是文档/证据后代）绑定到 Helio 的 1.21.11、26.1.2、26.2 实测：6 个客户端观察与 6 个独立同 session 服务端信号全部关联为 `SERVER_CONFIRMED/CONFIRMED`；错误 session 与过期窗口的负边界也通过，无误报。受控 mod/材质包 fixture 只有 metadata，没有执行第三方作弊代码；动作仍为 `OBSERVE_ONLY_UNTIL_SIGNED_POLICY`。历史真实客户端/GrimAC 记录仍作为单独的公网服务见证 | 服务端关联逻辑与三版本 fixture 回归 PASS；公网服务执行、内核/注入检测、precision/recall、kick/deny、ban 效果仍未宣称 |
+| 可执行受控作弊 fixture 同步 | [`helio-2026-08-25-anticheat-live-fixture.json`](docs/evidence/helio-2026-08-25-anticheat-live-fixture.json) 将精确源码 `1e84cd5…` 绑定到 Helio/JDK21：MCAce 自己生成的测试 JAR 在隔离客户端 JVM 中真实加载，三版本都上报 modlist；服务端独立从同 session 的移动增量推导 `Simulation`，签名实验室 policy 最终得到 `3/3 SERVER_CONFIRMED` `QUARANTINE`。clean 客户端误报为 0，子 Java/cmd/Gradle 进程清理为 0 | 可执行 loopback 关联 harness PASS；这不是公网 Fabric 客户端/服务端、第三方作弊、内核/注入或生产 kick/deny/ban 结果 |
 | Vulcan | 静态契约通过；当前工作区没有 licensed JAR 和 genuine 外部触发 | 待做 |
 | Fabric federation | V2 静态契约通过；真实 source export/target import GUI handoff 尚未执行 | 待做 |
 | exact-commit CI/release | [push 运行 `32803002956`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803002956) 与 [PR 运行 `32803006026`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803006026) 对精确源码 `5a7e423b5b7bc6c79ea5e1fd3182b82923312169` 通过：build/test、本地验证包和 exact-eight 上传通过；受保护分支/tag 的 releaseBundle 与 readiness 只在 `main`/`v0.0.1` ref 执行。见[脱敏证据](docs/evidence/github-feature-ci-2026-08-25-5a7e423.json) | 当前 feature 见证通过；仍待受保护分支/tag 的 exact-commit release |
@@ -140,6 +142,18 @@ fixture smoke 现在包含两项同步检验：客户端先上报受控 mod 与�
 当前脱敏结果见 [`helio-2026-08-25-anticheat-sync-current.json`](docs/evidence/helio-2026-08-25-anticheat-sync-current.json)，绑定已测试源码 `d835f42…`。
 动作仍是 `OBSERVE_ONLY_UNTIL_SIGNED_POLICY`；单独的客户端上报不能 kick、deny 或
 ban。这是服务端关联实验室结果，不是公网真实服务器的 precision/recall 结果。
+
+可执行 fixture 是单独的一条受控检验：隔离的子 JVM 真实加载 MCAce 自己生成的测试
+JAR，客户端上报已加载 mod，服务端再从普通移动帧独立推导 `Simulation`；只有签名的实验室
+policy 才会把同一 session 升级为 `SERVER_CONFIRMED`/`QUARANTINE`：
+
+```powershell
+.\scripts\anticheat-live-fixture-smoke.ps1 -Execute
+```
+
+Helio 证据见 [`helio-2026-08-25-anticheat-live-fixture.json`](docs/evidence/helio-2026-08-25-anticheat-live-fixture.json)。
+它证明 `1.21.11`、`26.1.2`、`26.2` 的可执行 fixture 加载与客户端/服务端同步；不把结果冒充成真实公网
+Fabric GUI、第三方作弊代码、内核/注入/DMA 或生产 kick/deny/ban 权威。
 
 耐久真实客户端记录只证明客户端发现/资源加载，并明确写出
 `real_server_connection=false`、`real_server_detection_event=false`、
