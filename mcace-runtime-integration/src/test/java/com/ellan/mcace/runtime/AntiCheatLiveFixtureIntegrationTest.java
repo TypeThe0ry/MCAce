@@ -43,7 +43,10 @@ final class AntiCheatLiveFixtureIntegrationTest {
             try {
                 BufferedReader serverOutput = new BufferedReader(new InputStreamReader(
                         server.getInputStream(), StandardCharsets.UTF_8));
-                String ready = serverOutput.readLine();
+                String ready;
+                do {
+                    ready = serverOutput.readLine();
+                } while (ready != null && !ready.startsWith("READY|"));
                 if (ready == null || !ready.startsWith("READY|")) {
                     throw new AssertionError("server did not become ready; first=" + ready
                             + ", remainder=" + serverOutput.lines().toList());
