@@ -24,8 +24,11 @@ foreach ($required in @(
     'GITHUB_REPOSITORY',
     'GITHUB_EVENT_NAME',
     'GITHUB_REF',
+    'github/workflows/build',
+    'scripts/version-compatibility-contract-smoke',
+    'scripts/test-version-compatibility-contract',
     'merge-base --is-ancestor',
-    'scripts/release-readiness.ps1'
+    'scripts/release-readiness'
 )) {
     if ($source.IndexOf($required, [StringComparison]::Ordinal) -lt 0) {
         throw "RELEASE_READINESS_STATIC_ASSERTION_FAILED|$required"

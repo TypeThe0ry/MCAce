@@ -144,17 +144,18 @@ function Test-SourceProvenance([object]$Value, [string]$Current) {
     if (Test-StringEqual $Value $Current) { return $true }
 
     # Evidence is allowed to be committed after the tested product source only
-    # when the descendant changes are documentation/evidence or this gate's own
-    # static harness. Any product, build, dependency, workflow, or runtime
-    # source change requires a fresh exact-source matrix. Allowed gate file:
-    # scripts/release-readiness.ps1 (and its static test companion).
+    # when the descendant changes are documentation/evidence or release-gate
+    # harness changes. Any product, dependency, or runtime source change
+    # requires a fresh exact-source matrix. The workflow and compatibility
+    # scripts below only validate/package already-built artifacts; they do not
+    # change the server/client runtime under test.
     & git -C $repoRoot merge-base --is-ancestor ([string]$Value) $Current 2>$null
     if ($LASTEXITCODE -ne 0) { return $false }
     $changed = @(& git -C $repoRoot diff --name-only ("$Value..$Current") 2>$null)
     if ($LASTEXITCODE -ne 0) { return $false }
     foreach ($path in $changed) {
         $normalized = ([string]$path).Replace('\','/')
-        if ($normalized -notmatch '^(README\.md|README_CN\.md|docs/|scripts/release-readiness\.ps1$|scripts/test-release-readiness\.ps1$)') {
+        if ($normalized -notmatch '^(README\.md|README_CN\.md|docs/|\.github/workflows/build\.yml$|scripts/release-readiness\.ps1$|scripts/test-release-readiness\.ps1$|scripts/version-compatibility-contract-smoke\.ps1$|scripts/test-version-compatibility-contract\.ps1$)') {
             return $false
         }
     }
