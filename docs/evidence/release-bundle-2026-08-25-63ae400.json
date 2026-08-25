@@ -7,6 +7,7 @@
   "job_id": "20260825-helio-63ae400-release-bundle",
   "source_commit": "63ae400adc8d09d8349ca599c9d6a4866a189d04",
   "conclusion": "success",
+  "protected_main_exact_commit_ci": false,
   "release_identity": true,
   "bundle_profile": "RELEASE",
   "product_version": "0.0.1",

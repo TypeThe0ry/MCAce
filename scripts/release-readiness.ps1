@@ -40,6 +40,86 @@ function Test-Boolean([object]$Value) {
     return $Value -is [bool] -and [bool]$Value
 }
 
+function Read-PropertiesFile([string]$Path) {
+    $resolved = ConvertTo-AbsoluteRepoPath $Path
+    if (-not (Test-Path -LiteralPath $resolved -PathType Leaf)) { return $null }
+    $properties = [ordered]@{}
+    foreach ($line in @(Get-Content -LiteralPath $resolved)) {
+        $text = ([string]$line).Trim()
+        if ($text.Length -eq 0 -or $text.StartsWith('#') -or $text.StartsWith('!')) { continue }
+        $separator = $text.IndexOf('=')
+        if ($separator -lt 1) { return $null }
+        $key = $text.Substring(0, $separator).Trim()
+        $value = $text.Substring($separator + 1).Trim()
+        if ($key.Length -eq 0 -or $properties.Contains($key)) { return $null }
+        $properties[$key] = $value
+    }
+    return [pscustomobject]$properties
+}
+
+function Test-ProtectedMainCiContext {
+    return [string]$env:GITHUB_ACTIONS -ceq 'true' -and
+        [string]$env:GITHUB_REPOSITORY -ceq 'TypeThe0ry/MCAce' -and
+        [string]$env:GITHUB_EVENT_NAME -ceq 'push' -and
+        [string]$env:GITHUB_REF -ceq 'refs/heads/main' -and
+        [string]$env:MCACE_PROTECTED_MAIN_CI -ceq 'true'
+}
+
+function Test-BuildReleaseBundle([string]$BundleRoot, [string]$ExpectedCommit) {
+    $root = ConvertTo-AbsoluteRepoPath $BundleRoot
+    $manifestPath = Join-Path $root 'release-manifest.properties'
+    $sumsPath = Join-Path $root 'SHA256SUMS'
+    if (-not (Test-Path -LiteralPath $root -PathType Container) -or
+            -not (Test-Path -LiteralPath $manifestPath -PathType Leaf) -or
+            -not (Test-Path -LiteralPath $sumsPath -PathType Leaf)) {
+        return $false
+    }
+    $manifest = Read-PropertiesFile $manifestPath
+    if ($null -eq $manifest -or
+            [string]$manifest.schema -cne 'MCACE_RELEASE_BUNDLE_V3' -or
+            [string]$manifest.bundle_profile -cne 'RELEASE' -or
+            [string]$manifest.release_identity -cne 'true' -or
+            [string]$manifest.product_version -cne '0.0.1' -or
+            [int]$manifest.deployable_count -ne 6 -or
+            [int]$manifest.bundle_entry_count -ne 8 -or
+            [string]$manifest.source_commit -cne $ExpectedCommit) {
+        return $false
+    }
+    $jarNames = @(
+        'mcace-client-fabric-1.21.11.jar',
+        'mcace-client-fabric-26.1.2.jar',
+        'mcace-client-fabric-26.2.jar',
+        'mcace-server-velocity.jar',
+        'mcace-server-bungeecord.jar',
+        'mcace-server-paper.jar'
+    )
+    $expectedNames = @($jarNames + 'release-manifest.properties' + 'SHA256SUMS' | Sort-Object)
+    $actualNames = @(Get-ChildItem -LiteralPath $root -File | Select-Object -ExpandProperty Name | Sort-Object)
+    if ((@($actualNames) -join '|') -cne (@($expectedNames) -join '|')) { return $false }
+    $sumLines = @(Get-Content -LiteralPath $sumsPath)
+    if (@($sumLines).Count -ne 6) { return $false }
+    $seen = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    foreach ($line in $sumLines) {
+        $parts = ([string]$line) -split '\s+', 2
+        if ($parts.Count -ne 2 -or $parts[0] -notmatch '^[0-9a-fA-F]{64}$' -or
+                $parts[1] -notin $jarNames -or -not $seen.Add($parts[1])) { return $false }
+        $path = Join-Path $root $parts[1]
+        if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { return $false }
+        $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+        if ($actual -cne $parts[0].ToLowerInvariant()) { return $false }
+    }
+    if ($seen.Count -ne 6) { return $false }
+    $compatibilityReport = Read-JsonFile 'build/compatibility-contract/report.json'
+    return $null -ne $compatibilityReport -and
+        (Test-StringEqual $compatibilityReport.source_commit $ExpectedCommit) -and
+        (Test-Boolean $compatibilityReport.passed) -and
+        [int]$compatibilityReport.target_count -eq 3 -and
+        [int]$compatibilityReport.exact_bundle_entry_count -eq 8 -and
+        (Test-Boolean $compatibilityReport.unsupported_versions_are_fail_closed) -and
+        @($compatibilityReport.targets).Count -eq 3 -and
+        @($compatibilityReport.targets | Where-Object { -not (Test-Boolean $_.passed) }).Count -eq 0
+}
+
 function Add-Gate {
     param(
         [Parameter(Mandatory)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$List,
@@ -216,8 +296,9 @@ foreach ($file in @(Get-ChildItem -LiteralPath $guiRoot -File -Filter 'release-b
     $item = Read-JsonFile $file.FullName
     if ($null -ne $item) { $releaseEvidence += $item }
 }
-$releasePass = @($releaseEvidence | Where-Object {
+$releaseEvidencePass = @($releaseEvidence | Where-Object {
     (Test-SourceProvenance $_.source_commit $requestedCommit) -and
+    (Test-Boolean $_.protected_main_exact_commit_ci) -and
     (Test-Boolean $_.release_identity) -and
     [string]$_.product_version -ceq '0.0.1' -and
     [int]$_.deployable_count -eq 6 -and
@@ -225,10 +306,18 @@ $releasePass = @($releaseEvidence | Where-Object {
     (Test-Boolean $_.sha256sums_verified) -and
     (Test-Boolean $_.compatibility_passed)
 }).Count -gt 0
-$releaseDetail = if ($releasePass) { 'current-source exact-eight release bundle is independently verified' } else {
-    'no current-source protected-main exact-eight release bundle evidence'
+$releaseBuildPass = (Test-ProtectedMainCiContext) -and
+    (Test-StringEqual $head $requestedCommit) -and
+    (Test-BuildReleaseBundle 'build/release-bundle' $requestedCommit)
+$releasePass = $releaseEvidencePass -or $releaseBuildPass
+$releaseDetail = if ($releaseBuildPass) {
+    'protected-main push CI verified the current exact-commit build/release-bundle on disk, including SHA256SUMS and 3/3 compatibility'
+} elseif ($releaseEvidencePass) {
+    'current-source protected-main exact-eight release evidence is independently verified'
+} else {
+    'no current-source protected-main exact-eight release bundle evidence or protected-main CI build bundle'
 }
-Add-Gate $gates 'protected_exact_release_bundle' $releasePass 'docs/evidence/release-bundle-*.json' $releaseDetail
+Add-Gate $gates 'protected_exact_release_bundle' $releasePass 'build/release-bundle or docs/evidence/release-bundle-*.json' $releaseDetail
 
 $clean = (Get-RepoStatus).Count -eq 0
 Add-Gate $gates 'clean_worktree' $clean 'git status --porcelain' $(if ($clean) { 'worktree is clean' } else { 'uncommitted changes are present' })

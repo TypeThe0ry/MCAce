@@ -16,6 +16,14 @@ foreach ($required in @(
     'current-source',
     'synthetic_event',
     'Test-SourceProvenance',
+    'Test-ProtectedMainCiContext',
+    'Test-BuildReleaseBundle',
+    'protected_main_exact_commit_ci',
+    'build/release-bundle',
+    'GITHUB_ACTIONS',
+    'GITHUB_REPOSITORY',
+    'GITHUB_EVENT_NAME',
+    'GITHUB_REF',
     'merge-base --is-ancestor',
     'scripts/release-readiness.ps1'
 )) {
@@ -45,6 +53,9 @@ if (-not (Test-Path -LiteralPath $reportPath -PathType Leaf)) {
 $report = Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
 if ($report.release_ready -ne $false -or @($report.blockers).Count -lt 3) {
     throw 'RELEASE_READINESS_FAIL_CLOSED_REPORT_INVALID'
+}
+if (@($report.blockers | Where-Object { $_ -ceq 'protected_exact_release_bundle' }).Count -ne 1) {
+    throw 'RELEASE_READINESS_PROTECTED_MAIN_BUNDLE_MUST_FAIL_OUTSIDE_CI'
 }
 Remove-Item -LiteralPath $testRoot -Recurse -Force -ErrorAction SilentlyContinue
 Write-Output 'RELEASE_READINESS_STATIC_TEST_PASS'

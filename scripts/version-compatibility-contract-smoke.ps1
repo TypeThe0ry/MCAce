@@ -4,6 +4,7 @@ param(
     [switch]$ReportOnly,
     [string]$BundleRoot = (Join-Path $PSScriptRoot '..\build\release-bundle'),
     [string]$ReportPath = (Join-Path $PSScriptRoot '..\build\compatibility-contract\report.json'),
+    [string]$ExpectedSourceCommit,
     [string]$ExpectedReportSha256,
     [ValidateRange(1, 10080)]
     [int]$MaximumReportAgeMinutes = 1440
@@ -159,6 +160,10 @@ function Invoke-Execute {
     }
     if ([string]$manifest.source_commit -notmatch '^[0-9a-f]{40}$') {
         throw 'MCACE_COMPATIBILITY_SOURCE_COMMIT_INVALID'
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedSourceCommit) -and
+            [string]$manifest.source_commit -cne $ExpectedSourceCommit.Trim().ToLowerInvariant()) {
+        throw "MCACE_COMPATIBILITY_SOURCE_COMMIT_MISMATCH|expected=$($ExpectedSourceCommit.Trim().ToLowerInvariant())|actual=$($manifest.source_commit)"
     }
     $jarNames = @($targets | ForEach-Object { $_.artifact }) + @('mcace-server-velocity.jar', 'mcace-server-bungeecord.jar', 'mcace-server-paper.jar')
     $sumLines = @(Get-Content -LiteralPath $sumsPath)

@@ -11,6 +11,8 @@ foreach ($token in @(
         "MCACE_VERSION_COMPATIBILITY_REPORTONLY_PASS",
         "MCACE_COMPATIBILITY_CONTRACT_MODE_REQUIRED",
         "MCACE_COMPATIBILITY_NESTED_JAR_CONTRACT_MISMATCH",
+        "ExpectedSourceCommit",
+        "MCACE_COMPATIBILITY_SOURCE_COMMIT_MISMATCH",
         "'1.21.11'",
         "'26.1.2'",
         "'26.2'",
