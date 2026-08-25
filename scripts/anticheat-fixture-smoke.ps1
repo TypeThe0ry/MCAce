@@ -137,7 +137,13 @@ function Invoke-ClassificationTest([string]$Meteor, [string]$Xray) {
         )
         $previousErrorActionPreference = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
-        $output = (& $gradle @arguments 2>&1 | Out-String)
+        Push-Location -LiteralPath $repoRoot
+        try {
+            $output = (& $gradle @arguments 2>&1 | Out-String)
+        }
+        finally {
+            Pop-Location
+        }
         $exitCode = $LASTEXITCODE
         $ErrorActionPreference = $previousErrorActionPreference
         if ($exitCode -ne 0) {
