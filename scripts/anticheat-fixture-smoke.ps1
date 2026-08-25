@@ -135,8 +135,11 @@ function Invoke-ClassificationTest([string]$Meteor, [string]$Xray) {
             '--no-build-cache', '--no-configuration-cache', '--no-parallel',
             '--max-workers=1', '--console=plain'
         )
+        $previousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
         $output = (& $gradle @arguments 2>&1 | Out-String)
         $exitCode = $LASTEXITCODE
+        $ErrorActionPreference = $previousErrorActionPreference
         if ($exitCode -ne 0) {
             throw "ANTICHEAT_FIXTURE_GRADLE_FAILED: exit=$exitCode`n$output"
         }
