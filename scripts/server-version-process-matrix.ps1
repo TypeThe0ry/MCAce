@@ -2537,7 +2537,11 @@ function New-EvidenceTriplet {
                 -not(Test-RsaPkcs1Sha256Signature (Get-MatrixReceiptSigningPayload $receipt) $signature $trustRoot.modulus $trustRoot.exponent)){
             throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_SIGNATURE_INVALID'
         }
-        if((Get-BytesSha256 (ConvertTo-CompactJsonBytes $receipt)) -cne [string]$receiptEvidence.digest.sha256){
+        # The external signer writes the detached receipt as compact JSON
+        # without a trailing newline.  File/evidence documents remain newline
+        # terminated, so use the no-newline commitment encoder for this exact
+        # byte-for-byte canonicality check.
+        if((Get-BytesSha256 (ConvertTo-CommitmentJsonBytes $receipt)) -cne [string]$receiptEvidence.digest.sha256){
             throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_NONCANONICAL'
         }
         $bundleAfter=Read-ReleaseBundleSnapshot
