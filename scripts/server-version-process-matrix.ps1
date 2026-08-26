@@ -251,7 +251,18 @@ function Read-StableJson([string]$Path) {
     }
     $hash = Get-BytesSha256 $bytes
     $raw = [Text.UTF8Encoding]::new($false, $true).GetString($bytes)
-    try { $value = $raw | ConvertFrom-Json -ErrorAction Stop }
+    try {
+        # PowerShell 7 otherwise materializes ISO-8601 strings as localized
+        # DateTime values.  The supervisor receipt contract signs the exact
+        # timestamp text, so preserve JSON strings whenever DateKind is
+        # available instead of comparing a locale-rendered representation.
+        $convertFromJson = Get-Command ConvertFrom-Json -CommandType Cmdlet
+        if ($convertFromJson.Parameters.ContainsKey('DateKind')) {
+            $value = $raw | ConvertFrom-Json -DateKind String -ErrorAction Stop
+        } else {
+            $value = $raw | ConvertFrom-Json -ErrorAction Stop
+        }
+    }
     catch { throw "SERVER_VERSION_MATRIX_JSON_INVALID|$Path" }
     $digest = [pscustomobject]@{
         path = $resolved
