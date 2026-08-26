@@ -11,6 +11,7 @@ import com.ellan.mcace.client.integrity.ScopeIntegrityManifest;
 import com.ellan.mcace.client.policy.VerifiedPolicy;
 import com.ellan.mcace.client.policy.VerifiedPolicyCache;
 import com.ellan.mcace.client.session.ClientHandshakeEngine;
+import com.ellan.mcace.core.authority.AuthorityFilePreflight;
 import com.ellan.mcace.protocol.crypto.Ed25519Keys;
 import com.ellan.mcace.protocol.generated.LoaderType;
 import com.ellan.mcace.protocol.generated.AuthResult;
@@ -1829,7 +1830,7 @@ final class MinecraftProxyPlayerProbeTest {
             preparedSnapshotRoot = runRoot.resolve("prepared-snapshot");
             copyPreparedRuntime(prepared, preparedSnapshotRoot);
             copyPreparedRuntime(prepared, paperRoot);
-            Files.createDirectories(paperRoot.resolve("plugins/MCAce"));
+            createPrivatePaperPluginDirectory(paperRoot);
             Files.copy(backendJar, paperRoot.resolve(backendJarFileName()));
             Files.copy(paperPlugin, paperRoot.resolve("plugins/mcace.jar"));
             Files.writeString(paperRoot.resolve("eula.txt"), "eula=true\n", StandardCharsets.UTF_8);
@@ -1934,7 +1935,7 @@ final class MinecraftProxyPlayerProbeTest {
             Path paperJar = runtimeAssets.backendJar();
             Path paperPlugin = repositoryArtifact(repository, "mcace-server-paper");
             copyPreparedRuntime(prepared, root);
-            Files.createDirectories(root.resolve("plugins/MCAce"));
+            createPrivatePaperPluginDirectory(root);
             Files.copy(paperJar, root.resolve("paper.jar"));
             Files.copy(paperPlugin, root.resolve("plugins/mcace.jar"));
             Files.writeString(root.resolve("eula.txt"), "eula=true\n", StandardCharsets.UTF_8);
@@ -1943,6 +1944,18 @@ final class MinecraftProxyPlayerProbeTest {
                             + "\nenable-query=false\nmotd=MCAce test-only disposition backend\n",
                     StandardCharsets.UTF_8);
             configurePaperForwarding(root);
+        }
+
+        /**
+         * The production Paper plugin reads the proxy public-key pin through an integrity-
+         * protected authority path.  A plain createDirectories call inherits the workspace
+         * ACL on Windows, which grants write access to Users and is correctly rejected by the
+         * fail-closed preflight.  Create this test-only data directory with the same owner+
+         * SYSTEM private ACL contract used by the runtime.
+         */
+        private void createPrivatePaperPluginDirectory(Path paperRoot) throws IOException {
+            AuthorityFilePreflight.createPrivateDirectoriesWithoutLinks(
+                    paperRoot.resolve("plugins/MCAce"), "test Paper MCAce data directory");
         }
 
         private void installVelocityDisconnectObserver() throws IOException {
