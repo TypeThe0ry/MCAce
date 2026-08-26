@@ -77,6 +77,19 @@ final class MinecraftProxyPlayerProbeTest {
     private static final String PLAYER_NAME = "MCAceProbe";
     private static final String BUILD_ID = "fabric-phase2-dev";
     private static final String PLAYER_ID = "mcace:probe";
+    /**
+     * The integration probe is also used by the exact release/matrix runner.  Resolve the
+     * plugin artifact name from the Gradle-provided test property instead of pinning the
+     * snapshot filename, otherwise a release-versioned build (for example 0.0.1) compiles
+     * successfully but the probe cannot launch its own freshly-built plugin.
+     */
+    private static String productVersion() {
+        return System.getProperty("mcace.test.product-version", "0.1.0-SNAPSHOT");
+    }
+
+    private static Path repositoryArtifact(Path repository, String module) {
+        return repository.resolve(module + "/build/libs/" + module + "-" + productVersion() + ".jar");
+    }
     private static final String VELOCITY_OBSERVER_JAR_PROPERTY =
             "mcace.runtime.velocity-observer.jar";
     private static final String VELOCITY_OBSERVER_READY_MARKER =
@@ -1770,10 +1783,10 @@ final class MinecraftProxyPlayerProbeTest {
             Files.createDirectories(proxyRoot.resolve("plugins"));
             Path proxyJar = runtimeAssets.proxyJar();
             Path proxyPlugin = kind == ProxyKind.VELOCITY
-                    ? repository.resolve("mcace-server-velocity/build/libs/mcace-server-velocity-0.1.0-SNAPSHOT.jar")
-                    : repository.resolve("mcace-server-bungeecord/build/libs/mcace-server-bungeecord-0.1.0-SNAPSHOT.jar");
+                    ? repositoryArtifact(repository, "mcace-server-velocity")
+                    : repositoryArtifact(repository, "mcace-server-bungeecord");
             Path backendJar = runtimeAssets.backendJar();
-            Path paperPlugin = repository.resolve("mcace-server-paper/build/libs/mcace-server-paper-0.1.0-SNAPSHOT.jar");
+            Path paperPlugin = repositoryArtifact(repository, "mcace-server-paper");
             Path prepared = runtimeAssets.preparedRoot();
             requireArtifact(proxyJar, "proxy artifact");
             requireArtifact(proxyPlugin, "proxy MCAce plugin");
@@ -1919,8 +1932,7 @@ final class MinecraftProxyPlayerProbeTest {
         private void prepareAdditionalPaper(Path root, int port) throws Exception {
             Path prepared = runtimeAssets.preparedRoot();
             Path paperJar = runtimeAssets.backendJar();
-            Path paperPlugin = repository.resolve(
-                    "mcace-server-paper/build/libs/mcace-server-paper-0.1.0-SNAPSHOT.jar");
+            Path paperPlugin = repositoryArtifact(repository, "mcace-server-paper");
             copyPreparedRuntime(prepared, root);
             Files.createDirectories(root.resolve("plugins/MCAce"));
             Files.copy(paperJar, root.resolve("paper.jar"));
