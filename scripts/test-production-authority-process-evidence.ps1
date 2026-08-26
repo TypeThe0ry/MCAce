@@ -120,7 +120,7 @@ $ErrorActionPreference='Stop';$utf8=New-Object Text.UTF8Encoding($false)
 $c=Get-Content -LiteralPath $ConfigPath -Raw|ConvertFrom-Json
 $deadline=[DateTimeOffset]::UtcNow.AddSeconds(600)
 $requestBytes=$null
-while($null-eq$requestBytes){if([DateTimeOffset]::UtcNow-ge$deadline){exit 42};if([IO.File]::Exists([string]$c.request)){try{$memory=$null;$stream=New-Object IO.FileStream([string]$c.request,[IO.FileMode]::Open,[IO.FileAccess]::Read,([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete));try{$memory=New-Object IO.MemoryStream;$stream.CopyTo($memory);$requestBytes=$memory.ToArray()}finally{if($null-ne$memory){$memory.Dispose()};$stream.Dispose()}}catch [IO.IOException]{$requestBytes=$null}};if($null-eq$requestBytes){Start-Sleep -Milliseconds 50}}
+while($null-eq$requestBytes){if([DateTimeOffset]::UtcNow-ge$deadline){exit 42};if([IO.File]::Exists([string]$c.request)){try{$memory=$null;$stream=[IO.FileStream]::new([string]$c.request,[IO.FileMode]::Open,[IO.FileAccess]::Read,([IO.FileShare]::ReadWrite -bor [IO.FileShare]::Delete));try{$memory=[IO.MemoryStream]::new();$stream.CopyTo($memory);$requestBytes=$memory.ToArray()}finally{if($null-ne$memory){$memory.Dispose()};$stream.Dispose()}}catch [IO.IOException]{$requestBytes=$null}};if($null-eq$requestBytes){Start-Sleep -Milliseconds 50}}
 if([string]$c.mode-ceq'replay_receipt'){$temporary=([string]$c.receipt)+'.'+[guid]::NewGuid().ToString('N')+'.tmp';[IO.File]::Copy([string]$c.replay_receipt,$temporary);[IO.File]::Move($temporary,[string]$c.receipt);exit 0}
 $request=$utf8.GetString($requestBytes)|ConvertFrom-Json
 [byte[]]$payload=[Convert]::FromBase64String([string]$request.signed_payload_base64)
