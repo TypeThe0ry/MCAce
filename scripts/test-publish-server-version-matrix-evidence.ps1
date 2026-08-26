@@ -1235,7 +1235,14 @@ try {
             # contract-specific rejection. Keep that host capability gap explicit while
             # retaining every other dynamic negative and the static no-reparse contract.
             if ($_.Exception -is [UnauthorizedAccessException] -or
-                    $_.Exception.Message -match '(?i)access to the path|access is denied|unauthorized') {
+                    $_.Exception.Message -match '(?i)access to the path|access is denied|unauthorized' -or
+                    # Invoke-ExpectedFailure wraps the original exception with
+                    # WRONG_FAILURE when PowerShell 7 surfaces a .NET Move
+                    # failure as a MethodInvocationException. Preserve the
+                    # explicit host-capability exception instead of treating
+                    # that wrapper as a publisher-contract failure.
+                    ($_.Exception.Message -like '*WRONG_FAILURE*' -and
+                        $_.Exception.Message -match '(?i)access to the path|access is denied|unauthorized')) {
                 Write-Output 'MCACE_SERVER_VERSION_MATRIX_REPARSE_COVERAGE_UNAVAILABLE|host privilege or policy denied junction/no-follow operation'
             } else {
                 throw
