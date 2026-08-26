@@ -5,6 +5,7 @@ param(
     [string]$BundleRoot = (Join-Path $PSScriptRoot '..\build\release-bundle'),
     [string]$ReportPath = (Join-Path $PSScriptRoot '..\build\compatibility-contract\report.json'),
     [string]$ExpectedSourceCommit,
+    [string]$ExpectedArtifactSourceCommit,
     [string]$ExpectedReportSha256,
     [ValidateRange(1, 10080)]
     [int]$MaximumReportAgeMinutes = 1440
@@ -17,7 +18,7 @@ if ($Execute -eq $ReportOnly) {
     throw 'MCACE_COMPATIBILITY_CONTRACT_MODE_REQUIRED|select exactly one of -Execute or -ReportOnly'
 }
 
-$schema = 'MCACE_VERSION_COMPATIBILITY_CONTRACT_V1'
+$schema = 'MCACE_VERSION_COMPATIBILITY_CONTRACT_V2'
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 
 $targets = @(
@@ -64,8 +65,11 @@ function Get-Sha256([string]$Path) {
 }
 
 function Assert-Sha256([string]$Path, [string]$Expected, [string]$Label) {
+    if ($Expected -cnotmatch '^[0-9a-f]{64}$') {
+        throw "MCACE_COMPATIBILITY_SHA256_INVALID|$Label|value=$Expected"
+    }
     $actual = Get-Sha256 $Path
-    if ($actual -cne $Expected.ToLowerInvariant()) {
+    if ($actual -cne $Expected) {
         throw "MCACE_COMPATIBILITY_SHA256_MISMATCH|$Label|expected=$Expected|actual=$actual"
     }
     return $actual
@@ -73,21 +77,63 @@ function Assert-Sha256([string]$Path, [string]$Expected, [string]$Label) {
 
 function Read-Manifest([string]$Path) {
     $values = [ordered]@{}
+    $lineNumber = 0
     foreach ($line in Get-Content -LiteralPath $Path) {
+        $lineNumber++
         if ([string]::IsNullOrWhiteSpace($line) -or $line.StartsWith('#')) { continue }
         $separator = $line.IndexOf('=')
-        if ($separator -lt 1) { throw "MCACE_COMPATIBILITY_MANIFEST_LINE_INVALID|$line" }
-        $values[$line.Substring(0, $separator)] = $line.Substring($separator + 1)
+        if ($separator -lt 1) {
+            throw "MCACE_COMPATIBILITY_MANIFEST_LINE_INVALID|line=$lineNumber"
+        }
+        $key = $line.Substring(0, $separator)
+        if ($key -cnotmatch '^[a-z0-9_.]+$') {
+            throw "MCACE_COMPATIBILITY_MANIFEST_KEY_INVALID|line=$lineNumber|key=$key"
+        }
+        if ($values.Contains($key)) {
+            throw "MCACE_COMPATIBILITY_MANIFEST_DUPLICATE_KEY|line=$lineNumber|key=$key"
+        }
+        $values[$key] = $line.Substring($separator + 1)
     }
     return [pscustomobject]$values
+}
+
+function Assert-ExactPropertySet([object]$Value, [string[]]$Expected, [string]$Label) {
+    $actual = @($Value.PSObject.Properties.Name | Sort-Object)
+    $wanted = @($Expected | Sort-Object)
+    if (($actual -join '|') -cne ($wanted -join '|')) {
+        throw "MCACE_COMPATIBILITY_PROPERTY_SET_INVALID|$Label|expected=$($wanted -join ',')|actual=$($actual -join ',')"
+    }
+}
+
+function Get-ArtifactManifestKey([string]$FileName) {
+    if (-not $FileName.EndsWith('.jar', [StringComparison]::Ordinal)) {
+        throw "MCACE_COMPATIBILITY_ARTIFACT_NAME_INVALID|$FileName"
+    }
+    return $FileName.Substring(0, $FileName.Length - 4).Replace('-', '_').Replace('.', '_')
+}
+
+function Assert-RegularFileNoLinks([string]$Path, [string]$Label) {
+    if (-not (Test-Path -LiteralPath $Path -PathType Leaf)) {
+        throw "MCACE_COMPATIBILITY_FILE_REQUIRED|$Label"
+    }
+    $item = Get-Item -LiteralPath $Path -Force
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw "MCACE_COMPATIBILITY_REPARSE_POINT_REJECTED|$Label"
+    }
 }
 
 function Read-ZipJson([string]$ZipPath, [string]$EntryName) {
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     $archive = [IO.Compression.ZipFile]::OpenRead($ZipPath)
     try {
-        $entry = $archive.GetEntry($EntryName)
-        if ($null -eq $entry) { throw "MCACE_COMPATIBILITY_ZIP_ENTRY_MISSING|$EntryName" }
+        $matches = @($archive.Entries | Where-Object { $_.FullName -ceq $EntryName })
+        if ($matches.Count -ne 1) {
+            throw "MCACE_COMPATIBILITY_ZIP_ENTRY_COUNT_INVALID|$EntryName|count=$($matches.Count)"
+        }
+        $entry = $matches[0]
+        if ($entry.Length -le 0 -or $entry.Length -gt 1048576) {
+            throw "MCACE_COMPATIBILITY_ZIP_ENTRY_SIZE_INVALID|$EntryName|size=$($entry.Length)"
+        }
         $reader = [IO.StreamReader]::new($entry.Open())
         try { return ($reader.ReadToEnd() | ConvertFrom-Json) }
         finally { $reader.Dispose() }
@@ -95,23 +141,59 @@ function Read-ZipJson([string]$ZipPath, [string]$EntryName) {
     finally { $archive.Dispose() }
 }
 
+function Assert-NestedZipEntries([string]$ZipPath, [string[]]$ExpectedNested) {
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    $archive = [IO.Compression.ZipFile]::OpenRead($ZipPath)
+    try {
+        $counts = @{}
+        foreach ($entry in $archive.Entries) {
+            $name = [string]$entry.FullName
+            if ([string]::IsNullOrWhiteSpace($name) -or $name.Contains('\') -or
+                    $name.StartsWith('/', [StringComparison]::Ordinal) -or
+                    $name -match '(^|/)\.\.(/|$)') {
+                throw "MCACE_COMPATIBILITY_ZIP_ENTRY_NAME_INVALID|$name"
+            }
+            if ($counts.ContainsKey($name)) {
+                throw "MCACE_COMPATIBILITY_ZIP_DUPLICATE_ENTRY|$name"
+            }
+            $counts[$name] = 1
+        }
+        $actualNested = @($counts.Keys | Where-Object {
+            $_.StartsWith('META-INF/jars/', [StringComparison]::Ordinal)
+        } | Sort-Object)
+        if (($actualNested -join '|') -cne (@($ExpectedNested | Sort-Object) -join '|')) {
+            throw 'MCACE_COMPATIBILITY_NESTED_JAR_ENTRY_SET_INVALID'
+        }
+    }
+    finally { $archive.Dispose() }
+}
+
 function Assert-TargetArtifact([object]$Target, [object]$Manifest, [string]$Root) {
     $artifactPath = Join-Path $Root $Target.artifact
-    if (-not (Test-Path -LiteralPath $artifactPath -PathType Leaf)) {
-        throw "MCACE_COMPATIBILITY_ARTIFACT_MISSING|$($Target.artifact)"
-    }
+    Assert-RegularFileNoLinks $artifactPath $Target.artifact
     $propertyPrefix = 'artifact.mcace_client_fabric_' + ($Target.minecraft_version -replace '\.', '_')
     $manifestFile = [string]$Manifest."$propertyPrefix.file"
     $manifestSha = [string]$Manifest."$propertyPrefix.sha256"
-    if ($manifestFile -cne $Target.artifact) {
+    $manifestMinecraftVersion = [string]$Manifest."$propertyPrefix.minecraft_version"
+    $manifestBuildId = [string]$Manifest."$propertyPrefix.client_build_id"
+    $expectedBuildId = "fabric-$($Target.minecraft_version)-$($Manifest.artifact_source_commit)"
+    if ($manifestFile -cne $Target.artifact -or
+            $manifestMinecraftVersion -cne $Target.minecraft_version -or
+            $manifestBuildId -cne $expectedBuildId) {
         throw "MCACE_COMPATIBILITY_MANIFEST_ARTIFACT_MISMATCH|$($Target.minecraft_version)"
     }
     $artifactSha = Assert-Sha256 $artifactPath $manifestSha $Target.artifact
     $metadata = Read-ZipJson $artifactPath 'fabric.mod.json'
-    if ([string]$metadata.depends.minecraft -cne $Target.minecraft_version -or
+    if ([int]$metadata.schemaVersion -ne 1 -or
+            [string]$metadata.id -cne 'mcace' -or
+            [string]$metadata.version -cne [string]$Manifest.product_version -or
+            [string]$metadata.environment -cne 'client' -or
+            @($metadata.entrypoints.client).Count -ne 1 -or
+            [string]$metadata.entrypoints.client[0] -cne 'com.ellan.mcace.fabric.MCAceFabricClient' -or
+            [string]$metadata.depends.minecraft -cne $Target.minecraft_version -or
             [string]$metadata.depends.'fabric-api' -cne $Target.fabric_api -or
             [string]$metadata.depends.fabricloader -cne ">=$($Target.loader)" -or
-            [string]$metadata.custom.'mcace:client_build_id' -cne "fabric-$($Target.minecraft_version)-$($Manifest.source_commit)") {
+            [string]$metadata.custom.'mcace:client_build_id' -cne $expectedBuildId) {
         throw "MCACE_COMPATIBILITY_METADATA_MISMATCH|$($Target.minecraft_version)"
     }
     $javaRequirement = [string]$metadata.depends.java
@@ -129,6 +211,7 @@ function Assert-TargetArtifact([object]$Target, [object]$Manifest, [string]$Root
     if ((@($nested) -join '|') -cne (@($expectedNested) -join '|')) {
         throw "MCACE_COMPATIBILITY_NESTED_JAR_CONTRACT_MISMATCH|$($Target.minecraft_version)"
     }
+    Assert-NestedZipEntries $artifactPath $expectedNested
     [ordered]@{
         minecraft_version = $Target.minecraft_version
         protocol = [int]$Target.protocol
@@ -143,38 +226,102 @@ function Assert-TargetArtifact([object]$Target, [object]$Manifest, [string]$Root
 
 function Invoke-Execute {
     $root = [IO.Path]::GetFullPath($BundleRoot)
+    if (-not (Test-Path -LiteralPath $root -PathType Container)) {
+        throw 'MCACE_COMPATIBILITY_RELEASE_BUNDLE_REQUIRED|bundle root is missing'
+    }
+    $rootItem = Get-Item -LiteralPath $root -Force
+    if (($rootItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+        throw 'MCACE_COMPATIBILITY_REPARSE_POINT_REJECTED|bundle-root'
+    }
     $manifestPath = Join-Path $root 'release-manifest.properties'
     $sumsPath = Join-Path $root 'SHA256SUMS'
-    if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf) -or
-            -not (Test-Path -LiteralPath $sumsPath -PathType Leaf)) {
-        throw 'MCACE_COMPATIBILITY_RELEASE_BUNDLE_REQUIRED|release-manifest.properties and SHA256SUMS are required'
-    }
+    Assert-RegularFileNoLinks $manifestPath 'release-manifest.properties'
+    Assert-RegularFileNoLinks $sumsPath 'SHA256SUMS'
     $manifest = Read-Manifest $manifestPath
-    if ([string]$manifest.schema -cne 'MCACE_RELEASE_BUNDLE_V3' -or
+    $jarNames = @($targets | ForEach-Object { $_.artifact }) + @(
+        'mcace-server-velocity.jar',
+        'mcace-server-bungeecord.jar',
+        'mcace-server-paper.jar'
+    )
+    $manifestProperties = @(
+        'schema', 'bundle_profile', 'release_identity', 'deployable_count',
+        'bundle_entry_count', 'product_version', 'source_commit',
+        'artifact_source_commit', 'root_java_version',
+        'root_java_specification_version', 'root_gradle_version',
+        'modern_java_version', 'modern_java_specification_version',
+        'modern_gradle_version'
+    )
+    foreach ($jarName in $jarNames) {
+        $key = Get-ArtifactManifestKey $jarName
+        $manifestProperties += "artifact.$key.file"
+        $manifestProperties += "artifact.$key.sha256"
+        if ($jarName.StartsWith('mcace-client-fabric-', [StringComparison]::Ordinal)) {
+            $manifestProperties += "artifact.$key.minecraft_version"
+            $manifestProperties += "artifact.$key.client_build_id"
+        }
+    }
+    Assert-ExactPropertySet $manifest $manifestProperties 'release-manifest'
+    if ([string]$manifest.schema -cne 'MCACE_RELEASE_BUNDLE_V4' -or
             [string]$manifest.bundle_profile -cne 'RELEASE' -or
             [string]$manifest.release_identity -cne 'true' -or
             [string]$manifest.product_version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$' -or
             [int]$manifest.deployable_count -ne 6 -or
-            [int]$manifest.bundle_entry_count -ne 8) {
+            [int]$manifest.bundle_entry_count -ne 8 -or
+            [string]$manifest.root_java_version -cnotmatch '^21(?:\.|$)' -or
+            [string]$manifest.root_java_specification_version -cne '21' -or
+            [string]$manifest.root_gradle_version -cne '9.6.1' -or
+            [string]$manifest.modern_java_version -cnotmatch '^25(?:\.|$)' -or
+            [string]$manifest.modern_java_specification_version -cne '25' -or
+            [string]$manifest.modern_gradle_version -cne '9.6.1') {
         throw 'MCACE_COMPATIBILITY_RELEASE_MANIFEST_CONTRACT_INVALID'
     }
     if ([string]$manifest.source_commit -notmatch '^[0-9a-f]{40}$') {
         throw 'MCACE_COMPATIBILITY_SOURCE_COMMIT_INVALID'
     }
+    if ([string]$manifest.artifact_source_commit -notmatch '^[0-9a-f]{40}$') {
+        throw 'MCACE_COMPATIBILITY_ARTIFACT_SOURCE_COMMIT_INVALID'
+    }
     if (-not [string]::IsNullOrWhiteSpace($ExpectedSourceCommit) -and
             [string]$manifest.source_commit -cne $ExpectedSourceCommit.Trim().ToLowerInvariant()) {
         throw "MCACE_COMPATIBILITY_SOURCE_COMMIT_MISMATCH|expected=$($ExpectedSourceCommit.Trim().ToLowerInvariant())|actual=$($manifest.source_commit)"
     }
-    $jarNames = @($targets | ForEach-Object { $_.artifact }) + @('mcace-server-velocity.jar', 'mcace-server-bungeecord.jar', 'mcace-server-paper.jar')
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedArtifactSourceCommit) -and
+            [string]$manifest.artifact_source_commit -cne
+                $ExpectedArtifactSourceCommit.Trim().ToLowerInvariant()) {
+        throw "MCACE_COMPATIBILITY_ARTIFACT_SOURCE_COMMIT_MISMATCH|expected=$($ExpectedArtifactSourceCommit.Trim().ToLowerInvariant())|actual=$($manifest.artifact_source_commit)"
+    }
     $sumLines = @(Get-Content -LiteralPath $sumsPath)
     if (@($sumLines).Count -ne 6) { throw 'MCACE_COMPATIBILITY_SHA256SUMS_COUNT_INVALID' }
+    $seenSumNames = @{}
     foreach ($line in $sumLines) {
-        $parts = $line -split '\s+', 2
-        if ($parts.Count -ne 2 -or $parts[1] -notin $jarNames) { throw "MCACE_COMPATIBILITY_SHA256SUMS_ENTRY_INVALID|$line" }
-        Assert-Sha256 (Join-Path $root $parts[1]) $parts[0] $parts[1] | Out-Null
+        if ($line -cnotmatch '^([0-9a-f]{64})  ([A-Za-z0-9][A-Za-z0-9._-]*\.jar)$') {
+            throw "MCACE_COMPATIBILITY_SHA256SUMS_ENTRY_INVALID|$line"
+        }
+        $hash = $Matches[1]
+        $name = $Matches[2]
+        if ($name -notin $jarNames) {
+            throw "MCACE_COMPATIBILITY_SHA256SUMS_ENTRY_INVALID|$line"
+        }
+        if ($seenSumNames.ContainsKey($name)) {
+            throw "MCACE_COMPATIBILITY_SHA256SUMS_DUPLICATE_FILE|$name"
+        }
+        $seenSumNames[$name] = $true
+        Assert-RegularFileNoLinks (Join-Path $root $name) $name
+        Assert-Sha256 (Join-Path $root $name) $hash $name | Out-Null
+
+        $key = Get-ArtifactManifestKey $name
+        if ([string]$manifest."artifact.$key.file" -cne $name -or
+                [string]$manifest."artifact.$key.sha256" -cne $hash) {
+            throw "MCACE_COMPATIBILITY_MANIFEST_CHECKSUM_MISMATCH|$name"
+        }
+    }
+    if ((@($seenSumNames.Keys | Sort-Object) -join '|') -cne (@($jarNames | Sort-Object) -join '|')) {
+        throw 'MCACE_COMPATIBILITY_SHA256SUMS_FILE_SET_INVALID'
     }
     $results = @($targets | ForEach-Object { Assert-TargetArtifact $_ $manifest $root })
-    $topLevel = @(Get-ChildItem -LiteralPath $root -File | Select-Object -ExpandProperty Name | Sort-Object)
+    $topLevel = @([IO.Directory]::EnumerateFileSystemEntries($root) | ForEach-Object {
+        [IO.Path]::GetFileName($_)
+    } | Sort-Object)
     $expectedTopLevel = @($jarNames + 'release-manifest.properties' + 'SHA256SUMS' | Sort-Object)
     if ((@($topLevel) -join '|') -cne (@($expectedTopLevel) -join '|')) {
         throw 'MCACE_COMPATIBILITY_TOP_LEVEL_ENTRY_SET_INVALID'
@@ -183,6 +330,7 @@ function Invoke-Execute {
         schema = $schema
         generated_at = (Get-Date).ToUniversalTime().ToString('o')
         source_commit = [string]$manifest.source_commit
+        artifact_source_commit = [string]$manifest.artifact_source_commit
         target_count = @($results).Count
         exact_bundle_entry_count = [int]$manifest.bundle_entry_count
         unsupported_versions_are_fail_closed = $true
@@ -205,17 +353,49 @@ function Invoke-Execute {
 }
 
 function Invoke-ReportOnly {
-    if (-not (Test-Path -LiteralPath $ReportPath -PathType Leaf)) { throw 'MCACE_COMPATIBILITY_REPORT_MISSING' }
+    Assert-RegularFileNoLinks ([IO.Path]::GetFullPath($ReportPath)) 'report'
     if ($ExpectedReportSha256) { Assert-Sha256 $ReportPath $ExpectedReportSha256 'report' | Out-Null }
     $report = Get-Content -LiteralPath $ReportPath -Raw | ConvertFrom-Json
+    Assert-ExactPropertySet $report @(
+        'schema', 'generated_at', 'source_commit', 'artifact_source_commit',
+        'target_count', 'exact_bundle_entry_count',
+        'unsupported_versions_are_fail_closed', 'unsupported_examples', 'targets', 'passed'
+    ) 'report'
     if ([string]$report.schema -cne $schema -or
             $report.passed -ne $true -or
+            [string]$report.source_commit -cnotmatch '^[0-9a-f]{40}$' -or
+            [string]$report.artifact_source_commit -cnotmatch '^[0-9a-f]{40}$' -or
             [int]$report.target_count -ne 3 -or
             [int]$report.exact_bundle_entry_count -ne 8 -or
             $report.unsupported_versions_are_fail_closed -ne $true -or
             @($report.targets).Count -ne 3 -or
             @($report.targets | Where-Object { $_.passed -ne $true }).Count -ne 0) {
         throw 'MCACE_COMPATIBILITY_REPORT_CONTRACT_INVALID'
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedSourceCommit) -and
+            [string]$report.source_commit -cne $ExpectedSourceCommit.Trim().ToLowerInvariant()) {
+        throw 'MCACE_COMPATIBILITY_REPORT_SOURCE_COMMIT_MISMATCH'
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ExpectedArtifactSourceCommit) -and
+            [string]$report.artifact_source_commit -cne
+                $ExpectedArtifactSourceCommit.Trim().ToLowerInvariant()) {
+        throw 'MCACE_COMPATIBILITY_REPORT_ARTIFACT_SOURCE_COMMIT_MISMATCH'
+    }
+    if ((@($report.unsupported_examples | ForEach-Object { [string]$_ }) -join '|') -cne
+            '1.21.1|1.21.10|26.1|26.3') {
+        throw 'MCACE_COMPATIBILITY_REPORT_UNSUPPORTED_EXAMPLES_INVALID'
+    }
+    $expectedVersions = @('1.21.11', '26.1.2', '26.2')
+    for ($i = 0; $i -lt 3; $i++) {
+        $target = $report.targets[$i]
+        Assert-ExactPropertySet $target @(
+            'minecraft_version', 'protocol', 'java_major', 'artifact_mode',
+            'artifact', 'sha256', 'nested_jar_count', 'passed'
+        ) "report-target-$i"
+        if ([string]$target.minecraft_version -cne $expectedVersions[$i] -or
+                [string]$target.sha256 -cnotmatch '^[0-9a-f]{64}$') {
+            throw "MCACE_COMPATIBILITY_REPORT_TARGET_INVALID|index=$i"
+        }
     }
     $generated = [DateTimeOffset]::Parse([string]$report.generated_at)
     if ($generated -lt [DateTimeOffset]::UtcNow.AddMinutes(-$MaximumReportAgeMinutes) -or $generated -gt [DateTimeOffset]::UtcNow.AddMinutes(1)) {

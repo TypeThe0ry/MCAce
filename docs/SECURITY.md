@@ -23,6 +23,19 @@ does not claim that a user-mode client can prove the absence of all cheats.
 - Missing telemetry is distinct from confirmed malicious telemetry.
 - Policies must be replay-tested against known-good and controlled anomalous sessions.
 
+### `v0.0.1` release-security status
+
+Evidence inventory audited August 26, 2026. These are terminal release gates,
+not predictions derived from caller-supplied booleans:
+
+| Gate | Status | Required release proof |
+| --- | --- | --- |
+| Matrix | **PENDING — Matrix V4** | Exactly twelve raw process reports, raw manifest, exact protected V4 bundle/server-JAR bindings, and an unexpired detached receipt from an externally controlled supervisor under an out-of-band approved pin. Historical Matrix V1 12/12 and every V2/V3 document are diagnostic only. |
+| Visible GUI / Federation | **PENDING — Federation V5** | Exactly one visible, connection-bound `Enable MCAce` human approval for the entire release acceptance, followed by the real V5 source-to-target handoff and independently signed post-run receipt. The other two Fabric targets receive UI compatibility smoke, not additional approvals. |
+| Vulcan | **PENDING — Vulcan V3** | A genuine, non-synthetic licensed-provider event bound to the exact release artifacts and an externally pinned supervisor receipt. Vulcan V2 remains diagnostic only. |
+| Production authority | **PENDING — Authority V4** | Actual signed grant/observation frame bytes, raw provider/Paper/proxy/process/journal ledgers, recomputed commitments, exact release JARs, and an external-supervisor receipt/index. |
+| Protected release CI | **PENDING — protected V4 `main`/tag CI** | The canonical artifact-source marker, exact `MCACE_RELEASE_BUNDLE_V4`, every native evidence gate above, and fail-closed readiness must agree at the protected commit and tag. |
+
 ### Signed disposition execution boundary
 
 Velocity and BungeeCord now have separate bounded, session-bound, idempotent
@@ -50,11 +63,11 @@ Evidence refusal, unsupported scope, decline, expiry, transfer failure, or missi
 content is not a disposition trigger. Client evidence remains `CLIENT_REPORTED` and
 cannot independently justify punishment.
 
-The current three-target real Velocity/Bungee advisory-origin aggregate passed 24/24
-and confirms that all exact-policy client matches, including DENY on both proxies,
-remained on lobby with no route lifecycle or connection close. The current trusted V3
-aggregate passed 18/18 `ADMIN_REVIEWED` exact-hash actions across 1.21.11, 26.1.2,
-and 26.2. The sanitized committed chains are in
+The retained August 21 three-target Velocity/Bungee advisory-origin aggregate
+passed 24/24 and recorded that all exact-policy client matches, including DENY on
+both proxies, remained on lobby with no route lifecycle or connection close. Its
+trusted V3 aggregate passed 18/18 `ADMIN_REVIEWED` exact-hash actions across
+1.21.11, 26.1.2, and 26.2. The sanitized committed chains are in
 `docs/evidence/disposition-current-2026-08-21.json`; the August 13 files remain
 retained history.
 The command carries no action; the active signed policy selects it, and the
@@ -69,16 +82,20 @@ GUI coverage.
 
 ### Server-confirmed issuance journal boundary
 
-The default-disabled `SERVER_CONFIRMED` library has a durable-before-return
-issuance primitive but no production producer, configuration, provider, sender,
-channel registration, or trusted-authorization caller. Its journal abstraction
-and file implementation are package-private, and every implementation must define
-`lastSequence`; there is no default-zero recovery. An operator must precreate its
-directory and regular file, write the exact fixed versioned header, and restrict
-ownership and ACLs before startup. Runtime has no create or initialize path. A
-public read-only preflight returns the exact required header bytes and validates
-the supplied path without creating or modifying the directory, file, header, or
-records.
+The default-disabled, MONITOR-only `SERVER_CONFIRMED` authority path now has
+configuration, provider correlation, proxy grant issuance, Paper/Folia signing and
+journaling, platform channel registration, and proxy-side observation verification
+on Paper/Folia, Velocity, and BungeeCord. It remains disconnected from disposition
+authorization and every automatic action executor. No verified authority frame can
+select or execute LIMIT, QUARANTINE, DENY, kick, or ban.
+
+The journal abstraction and file implementation enforce durable-before-return
+issuance. Every implementation defines `lastSequence`; there is no default-zero
+recovery. An operator must precreate its directory and regular file, write the exact
+fixed versioned header, and restrict ownership and ACLs before startup. Runtime has
+no create or initialize path. A public read-only preflight returns the exact required
+header bytes and validates the supplied path without creating or modifying the
+directory, file, header, or records.
 
 The journal keeps one read/write handle and an exclusive file lock for its full
 lifetime. On the supported Windows/OpenJDK 21 path it also requests
@@ -104,23 +121,24 @@ unique lease capability, commit requires its matching durable token, and abort
 releases the pending issuance so a fresh prepare can retry. The disabled lifecycle
 retains nothing.
 
-The Phase 2.6 package-private Paper coordinator makes the complete inert ordering
-explicit: exact request/lease/grant precheck, journal-derived next sequence and
-`force(true)`, then exact lifecycle commit. It returns no capability until commit;
-the raw frame accessor remains package-private to the core authority package and is
-not available to Paper. Durable-sequence drift removes the lifecycle and requires a
-fresh typed recovery. Uncertain I/O, runtime uncertainty, abort failure, or failure
-after the durable append poisons the coordinator and prevents retry of an already
-advanced sequence.
+The package-private Paper coordinator preserves the exact ordering: request/lease/
+grant precheck, journal-derived next sequence and `force(true)`, then exact lifecycle
+commit. It returns no capability until commit; the raw frame accessor remains
+package-private to the core authority package and is not available to Paper.
+Durable-sequence drift removes the lifecycle and requires fresh typed recovery.
+Uncertain I/O, runtime uncertainty, abort failure, or failure after the durable
+append poisons the coordinator and prevents retry of an already advanced sequence.
 
-The JDK 21 offline authority selections cover 8 suites and 51 tests with zero
-failures/errors and one host-capability symlink skip. They are library tests, not
-production producer or process evidence. The current root build covers Phase 2.6 at 147 suites and 681 tests with zero
-failures or errors; the isolated modern Fabric build adds 24 suites and 74 tests,
-for 171 suites and 755 tests combined. It still does not create production
-producer or process evidence. `MCAcePaperPlugin` does not
-instantiate the coordinator, and there is no production channel, configuration,
-provider, sender, trusted authorization, or executor wiring.
+The retained August 20 JDK 21 offline authority selections covered 8 suites and 51
+tests with zero failures/errors and one host-capability symlink skip; the retained
+root/modern aggregate recorded 171 suites and 755 tests. These are historical
+development witnesses, not genuine production-process evidence. The runtime wiring
+does not promote unit or fixture results: the Authority release gate remains
+**PENDING — Authority V4** until actual signed frame bytes and raw ledgers are
+externally supervised, revalidated, cross-bound to the exact protected V4 bundle,
+and published as a non-replayed V4 index. See
+[`SERVER_CONFIRMED_AUTHORITY.md`](SERVER_CONFIRMED_AUTHORITY.md) and
+[`PRODUCTION_AUTHORITY_PROVISIONING.md`](PRODUCTION_AUTHORITY_PROVISIONING.md).
 
 This narrows replacement and uncertain-write failures during runtime; it is not
 a Java SE storage-immutability claim. The Windows no-share flags are OpenJDK
@@ -133,7 +151,7 @@ immutable storage when post-return tamper evidence is required.
 
 ## Build supply-chain boundary
 
-The current Windows A/D strict offline runs each completed 118/118 tasks with
+The retained August 20 Windows A/D strict-offline runs each completed 118/118 tasks with
 JDK 21.0.7+6 for the root, isolated JDK 25.0.3+9 for modern Fabric, and Gradle
 9.6.1. Root results were 147 suites / 681 tests / 0 failures / 0 errors / 28
 skipped; modern results were 24 / 74 / 0 / 0 / 0; combined results were
@@ -147,7 +165,7 @@ group trust; POMs, mappings, upstream modules, Fabric dependencies, and native
 `protoc` artifacts remain SHA-256 verified. The local manifest records
 `source_commit=LOCAL_UNSPECIFIED` and `release_identity=false`.
 
-Current Linux run `cb6dc44ddad744b5a20dc2986c0a6d70` passed strict
+The retained August 20 Linux run `cb6dc44ddad744b5a20dc2986c0a6d70` passed strict
 offline network-none verification with exact JDK 21.0.7+6/JDK 25.0.3+9, 171
 suites / 755 tests / 0 failures / 0 errors / 33 environment-conditioned skips,
 an unchanged 735-file source manifest, exact-eight stream-byte parity with
@@ -156,7 +174,8 @@ seconds. The external witness SHA-256 is
 `de6d82fedace1c7b961ba9879b6e924df1bc8a1d085b851134194bac91d44b48`.
 The old JDK-21,
 52-rule, four-deployable exact-six run and the superseded pre-fix exact-eight run
-remain historical. Exact-commit CI remains pending.
+remain historical. Protected `MCACE_RELEASE_BUNDLE_V4` exact-commit `main`/tag CI
+remains **PENDING**.
 
 ## Audit provenance and availability
 
@@ -185,31 +204,50 @@ remain historical. Exact-commit CI remains pending.
   rollback or deletion after publication. Backups, retention policy, ledger
   monitoring, and object-storage immutability remain operational requirements.
 
-### Recorded three-version process security gate
+### Three-version process security gate
 
-The authoritative current process gate is
-`scripts/server-version-process-matrix.ps1 -Execute`, followed by
-`-ReportOnly`. Its current Helio sanitized aggregate at
-`docs/evidence/server-version-process-matrix-2026-08-25-f404971.json` passed 12/12:
-Paper 6/6, Folia 6/6, Velocity 6/6, Bungee 6/6, ten STABLE and two Folia 26.2
-build-6 BETA cases. `-ReportOnly` accepted the final committed triplet and
-cleanup was zero.
+The retained Helio aggregate at
+`docs/evidence/server-version-process-matrix-2026-08-25-f404971.json` and its
+adjacent report/binding/commit use Matrix V1. They record 12/12 for exact source
+`f404971e6e9a9ac1d30e5cf4e2692750aa83f1b1`: Paper 6/6, Folia 6/6, Velocity
+6/6, Bungee 6/6, ten STABLE cases, two Folia 26.2 build-6 BETA cases, and zero
+cleanup residue. This is historical loopback diagnostic evidence only. It has no
+twelve-file immutable raw set, protected V4 bundle cross-binding, or externally
+signed supervisor receipt. Matrix V2 and V3 are likewise terminally ineligible for
+release.
+
+[Matrix V4](SERVER_VERSION_MATRIX_EVIDENCE_V4.md) is the first release-capable
+schema. `scripts/server-version-process-matrix.ps1 -Execute` must run from the
+exact clean artifact source with an exact protected `MCACE_RELEASE_BUNDLE_V4`, an
+out-of-repository RSA public root, a separately controlled supervisor exchange,
+and the protected process pin
+`MCACE_RELEASE_APPROVED_MATRIX_SUPERVISOR_TRUST_ROOT_SHA256`. The producer freezes
+exactly twelve raw reports and their manifest, prints a randomized signing request,
+and waits for the independent supervisor to verify the run and atomically return an
+unexpired detached receipt. Then run `-ReportOnly` and publish the complete package
+with `scripts/publish-server-version-matrix-evidence.ps1`; publisher and readiness
+repeat bounded no-follow byte/schema/hash, process-incarnation/exit/cleanup, replay,
+source/artifact-commit, protected-bundle, and server-JAR validation. The complete
+minimal command sequence is in
+[`RELEASE_GATES.md`](RELEASE_GATES.md#authoritative-matrix-v4-process-commands).
+No release-eligible Matrix V4 index is retained, so this gate is **PENDING**.
 
 The raw peer is bounded, offline, loopback-only test tooling. It is not a Fabric
 client and cannot provide GUI consent, online-mode identity, or public-network
 proof. Shadow context cannot invoke admission, routing, disconnect, punishment,
-evidence, or disposition.
-
-The former Paper 1.21.1, BungeeCord 2028, and Folia 1.21.4-6 wrapper records are
-historical. They must not be cited as current 1.21.11/26.x release evidence.
+evidence, or disposition. The former Paper 1.21.1, BungeeCord 2028, and Folia
+1.21.4-6 wrapper records are also historical and must not be cited as `v0.0.1`
+1.21.11/26.x release evidence.
 
 The separate per-target Fabric wrapper has passed server-only startup and asset
-prewarm for all three targets. The single connection-level enablement consent
-remains pending: one human decision per target, three total. A passing report must
-use schema 8 and binding `MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6` and load the exact
-final remapped/named artifact by CodeSource SHA-256. It must also bind the exact
-`velocity_policy_minecraft_versions` and `velocity_policy_client_build_ids`
-values written for that target.
+prewarm for all three targets. Release acceptance still requires **exactly one**
+visible, connection-bound `Enable MCAce` human approval on one selected real
+connection. That single decision is consumed by the Federation V5 source-to-target
+handoff. The other two Fabric versions receive UI compatibility/visual smoke only;
+they are not second or third approvals and cannot promote consent evidence. Close,
+decline, timeout, or missing/invalid signed evidence leaves MCAce disabled. This
+one-witness release rule does not create reusable consent for future connections:
+runtime authorization remains connection-bound and is cleared as described below.
 
 ## Privacy boundary
 Allowed roots are the active Minecraft instance's `mods`, `resourcepacks`, and
@@ -507,10 +545,10 @@ The retained [Vulcan 2.9.0 preflight evidence](evidence/vulcan-licensed-api-pref
 records a successful exact-hash structural API inspection and ReportOnly binding
 revalidation that were contemporaneous with its bound historical source snapshot.
 It deliberately retains no artifact path, artifact bytes, or run identifier.
-Current-source ReportOnly reuse now fails closed on source-manifest drift, so a new
-current-source structural preflight and binding revalidation remain pending. Its
-false Paper-enable/event coverage is normative: this historical evidence is not
-current-source compatibility, Paper runtime, or release-ready proof.
+Reuse against any later source fails closed on source-manifest drift, so every
+candidate needs a fresh structural preflight and binding revalidation. The retained
+record's false Paper-enable/event coverage is normative: it is not compatibility
+evidence for the eventual artifact source, Paper runtime proof, or release proof.
 
 The repository also contains an unexecuted, default-deny
 `scripts/vulcan-paper-enablement-smoke.ps1` harness. It cannot start without the
@@ -525,16 +563,28 @@ process coverage, licensed-plugin enablement, and MCAce listener registration,
 but its schema fixes real behavior-event delivery false. A genuine bounded Vulcan
 trigger through the registered listener remains a separate authorized gate and
 must not be replaced by an MCAce-constructed event or test observer.
-The unexecuted `scripts/vulcan-genuine-event-smoke.ps1` implements that separate
-gate: it rejects synthetic/fixture dispatch, requires explicit external-trigger and
-no-synthetic-injection attestations, and accepts only one expected-player
-`SERVER_CONFIRMED` `vulcan-adapter` delivery with non-empty check identifiers and a
-positive flag count. Its retained report is content-free; trigger provenance and
-OS/network isolation are still operator-attested rather than script-verified.
-The source prepared tree, its isolated copy, and the post-run source must all
-match that reviewed manifest. The wrapper also fails if `.paper-remapped` is
-created or changed under any original artifact parent. Its zero-residue field is
-explicitly marker-scoped rather than a claim of OS job-object ownership.
+`scripts/vulcan-genuine-event-smoke.ps1` has two deliberately separate contracts.
+Its V2 path remains a content-free diagnostic: it rejects synthetic dispatch and
+requires an externally triggered expected-player `SERVER_CONFIRMED`
+`vulcan-adapter` delivery, but operator attestations cannot promote the resulting
+V2 triplet. Its `-ReleaseGradeV3` path is the implemented release-grade producer.
+That path loads the reviewed licensed Vulcan JAR with the exact upstream Paper and
+MCAce Paper JARs, accepts only the real registered Bukkit callback, and writes an
+append-only provenance ledger binding plugin/listener/event/accessor code sources,
+callback thread and sequence, provider/check/violation commitments, and Paper
+process incarnation. It freezes the raw risk event, report, binding and ledger,
+emits a canonical repository-external signing request, and accepts only an
+independently signed RSA supervisor receipt under an out-of-band approved root.
+The exact V3 package contains seven files: report, binding, commit, signing request,
+supervisor receipt, raw risk event, and callback provenance ledger. Producer and
+publisher accept the receipt inside its exchange window; later readiness verifies
+the immutable signature and historical ordering without wall-clock expiry.
+
+Release status is **PENDING — Vulcan V3 evidence, not implementation**. No reviewed
+licensed Vulcan JAR, non-fixture callback capture, external-supervisor receipt, or
+release-eligible V3 index is retained by the repository. Structural preflight,
+enablement, every V2 triplet, and every fixture remain diagnostic and cannot close
+the gate. MCAce neither downloads nor redistributes the licensed Vulcan artifact.
 
 ## Cross-network federation boundary
 
@@ -545,22 +595,42 @@ are in `docs/FEDERATION.md`.
 
 Federation is client-carried. It has no source-target control channel, HTTP or
 socket service, callback, token broker, Cloud dependency, target-initiated source
-request, or live redemption. An authorized source operator explicitly issues a
-target-specific consent request. Fabric inherits the accepted connection-level
-`Enable MCAce` decision, the source signs a grant, and Fabric retains that grant plus its short-lived source-session key only
+request, or live redemption. The one visible connection-level `Enable MCAce`
+screen states that the future target is not yet known and permits the source to
+select at most one operator-pinned target without a second prompt. A human-origin
+authorization atomically reserves one exact source assertion; a second distinct
+assertion and every inherited target export are rejected. The source signs a grant,
+and Fabric retains that grant plus its short-lived source-session key only
 in bounded memory. Source and target identity keys are independently pinned in
 the two operators' offline configurations and are bound into consent/assertion.
+Equal source/target fingerprints are rejected by the protocol, and runtime
+startup/reload rejects a peer pin equal to the local identity.
 
 After receiving a complete grant, Fabric may carry it across source disconnect
-or source proxy restart until its signed expiry of at most five minutes. The
-target must first independently authenticate the player locally as `VERIFIED`
-using the same short-lived client key. Fabric then signs a current target
-session/challenge/player proof of possession, reserves that exact presentation,
-and sends it under the accepted connection-level enablement. No second target-import
-screen is rendered; decline, close, connection change, or expiry sends nothing and
-changes no local result. The target verifies both signatures, both network keys, all
-bindings, audience, time, current local session key and PoP before atomically
-consuming bounded replay state.
+or source proxy restart until its signed expiry of at most five minutes. Fabric
+computes `H_A = SHA-256(SignedFederationAssertion.toByteArray())`; the target must
+then independently authenticate the player locally as `VERIFIED` using the same
+short-lived client key **and** the exact assertion identity. The client-signed
+`ClientHello` and `AuthRequest` each carry the same 32-byte `H_A`, the
+target-signed successful `AuthResult` echoes it, and the target freezes it in the
+authenticated session. Ordinary non-federated AUTH requires all three fields to
+remain empty. Missing, partial, oversized, mixed-empty, or mismatched bindings
+fail closed before federation presentation or replay-state mutation. Fabric then
+signs a current target session/challenge/player proof of possession that commits
+the same complete signed assertion and reserves that exact presentation.
+The inherited target authorization remains provisional: heartbeat, evidence,
+observation refresh, and further federation export stay disabled until local
+transport accepts the presentation and the exact vault grant is burned. No second
+target-import screen is rendered; close, connection change, transport failure, or
+pre-commit expiry sends nothing and changes no local result. Promotion also
+requires the vault's non-constructible, one-shot commit receipt for the exact
+target claim. The initial `Enable MCAce` decision expires at signed-policy expiry
+or after 30 monotonic seconds, whichever occurs first. The target verifies both
+signatures, both network keys, all bindings, audience, time, current local
+session key, the immutable `H_A`, and PoP before atomically consuming bounded
+replay state. Cross-network causality comes from the signed AUTH transcript, not
+from comparing independent source and target wall clocks;
+`source_authorized_at_epoch_ms` remains signed freshness/audit data.
 
 The only remote claim is `FEDERATION_SOURCE_LOCALLY_VERIFIED`; it is not a
 `TrustLevel`. It cannot establish/preserve local `VERIFIED`, change risk or policy
@@ -585,8 +655,10 @@ and private key could create a new proof after reauthentication. This residual
 window ends at signed expiry and cannot affect enforcement.
 
 The retained federation record is
-`docs/evidence/federation-durable-audit-2026-08-13.json`. The historical schema-2 matrix passed 4/4 and
-`-ReportOnly`; it binds older proxy artifacts/source and does not promote the current release. All four tested Velocity/Bungee source-target combinations retained local target
+`docs/evidence/federation-durable-audit-2026-08-13.json`. The historical schema-2
+matrix passed 4/4 and `-ReportOnly`; it binds older proxy artifacts/source and
+does not promote the `v0.0.1` release. All four tested Velocity/Bungee
+source-target combinations retained local target
 `VERIFIED`/risk `0`/Paper admission, rejected same-process assertion replay,
 produced content-free durable audit with healthy source/target state, and left
 zero owned processes. The former P2 cold-listener readiness race is fixed by an
@@ -596,9 +668,37 @@ test passed, and the retained historical restart gate passed on the first execut
 `durable_replay_protection=false`. Both sections keep
 `fabric_gui_coverage=false`.
 
-The current three-target `fabric-federation-gui-handoff-smoke.ps1` contract is V2.
-Both source-export and target-import screens exist in the root and modern Fabric
-clients, and the wrapper's PowerShell 7 and Windows PowerShell 5 static tests
-pass, including all six exact human-marker requirements. No real human-executed
-V2 PASS exists yet; static code and the historical raw peer cannot establish GUI
-consent, a client-carried transition, live-through-expiry behavior, or cleanup.
+The normative `fabric-federation-gui-handoff-smoke.ps1` release contract is V5.
+Its native evidence set is exactly seven regular files: `report.json`,
+`binding.json`, `commit.json`, `visible-gui-attestation.json`, `visible-gui.png`,
+append-only `runtime-events.jsonl`, and `post-run-receipt.json`. The visible
+receipt and post-run receipt must be signed by two different independently
+provisioned RSA keys. Their root files stay outside the repository, their SHA-256
+pins must differ, and protected CI/external release policy must approve them via
+`MCACE_RELEASE_APPROVED_FEDERATION_GUI_TRUST_ROOT_SHA256` and
+`MCACE_RELEASE_APPROVED_FEDERATION_POSTRUN_TRUST_ROOT_SHA256`; a caller cannot
+self-authorize a root by supplying a matching path and expected hash.
+
+The GUI receipt binds a random challenge, exact attempt/session/window/process
+incarnation, artifact source, Fabric target/JAR, and fully decoded PNG identity.
+The ledger binds the source issue, disconnect, exact target AUTH/handoff,
+promotion, live-through-expiry state, all critical process incarnations, and the
+required negative attempts. After cleanup, immutable report and binding bytes are
+written. A distinct external supervisor then signs a detached receipt covering
+their raw hashes, the raw ledger hash/head/seal/count, GUI/PNG/pixel hashes, both
+source commits, product/target/route, the V4 release-manifest hash, and exact
+Fabric/Paper/source-proxy/target-proxy JAR hashes. Commit is written last and binds
+the receipt hash; the receipt is not embedded in report/binding, avoiding a cycle.
+Legacy source-export and target-import screens remain unreachable. Release
+acceptance uses exactly one visible, connection-bound `Enable MCAce` decision on
+the selected handoff run; the other two Fabric-version UI smokes add no human
+approval and cannot stand in for the selected signed run.
+
+Production validation rejects V4 documents/indexes, missing or mutated native
+files, replayed GUI receipts paired with a different ledger, equal signer keys,
+unapproved or repository-contained roots, and any `test_fixture=true` root or
+receipt. The V5 parser and dual-PowerShell fixture suites can pass without external
+private keys, but such fixture PASSes cannot close readiness. Release status is
+**PENDING — Federation V5**: no production externally signed handoff evidence is
+retained. Static code, self-authored receipts, report booleans, historical raw
+peers, and platform-only GUI self-reports cannot establish release coverage.

@@ -7,12 +7,15 @@ import com.ellan.mcace.core.disposition.ObservationOrigin;
 import com.ellan.mcace.core.session.AuthenticatedManifest;
 import com.ellan.mcace.protocol.generated.FileEntry;
 import com.ellan.mcace.protocol.generated.IntegrityScopeManifest;
+import com.ellan.mcace.protocol.generated.LoadedModEntry;
+import com.ellan.mcace.protocol.generated.LoadedModOriginKind;
 import com.ellan.mcace.protocol.generated.ModEntry;
 import com.ellan.mcace.protocol.integrity.IntegrityDigests;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -38,6 +41,8 @@ public final class AuthenticatedManifestObservationDeriver {
         Map<ModFingerprint, List<ModEntry>> mods = indexMods(manifest.request().getModsList());
         List<ArtifactObservation> observations = new ArrayList<>();
         List<String> issues = new ArrayList<>();
+        LoadedModIndex loadedMods = indexLoadedMods(manifest.request().getLoadedModsList(), issues);
+        if (manifest.request().getLoadedModsCount() == 0) issues.add("loaded-mod-list-empty");
         Map<DirectoryGroupKey, List<FileEntry>> directoryGroups = new HashMap<>();
         Set<DirectoryGroupKey> invalidDirectoryGroups = new HashSet<>();
         int directoryEntries = 0;
@@ -69,7 +74,7 @@ public final class AuthenticatedManifestObservationDeriver {
                     continue;
                 }
                 if (type == ArtifactType.MOD) {
-                    observations.add(modObservation(entry, mods, issues));
+                    observations.add(modObservation(entry, mods, loadedMods, issues));
                 } else {
                     observations.add(scopeObservation(
                             type,
@@ -112,6 +117,7 @@ public final class AuthenticatedManifestObservationDeriver {
         for (List<ModEntry> unmatched : mods.values()) {
             for (int index = 0; index < unmatched.size(); index++) issues.add("mod-list-without-scope-entry");
         }
+        appendRuntimeLoadedModObservations(loadedMods, observations, issues);
         appendDirectoryPackageObservations(
                 directoryGroups,
                 manifest.request().getSelectedResourcePacksList(),
@@ -186,7 +192,10 @@ public final class AuthenticatedManifestObservationDeriver {
     }
 
     private static ArtifactObservation modObservation(
-            FileEntry entry, Map<ModFingerprint, List<ModEntry>> mods, List<String> issues) {
+            FileEntry entry,
+            Map<ModFingerprint, List<ModEntry>> mods,
+            LoadedModIndex loadedMods,
+            List<String> issues) {
         ModFingerprint fingerprint = new ModFingerprint(entry.getRelativePath(), entry.getFileSize(), hex(entry.getSha256().toByteArray()));
         List<ModEntry> matches = mods.remove(fingerprint);
         if (matches == null || matches.size() != 1 || matches.getFirst().getId().isBlank()
@@ -194,12 +203,80 @@ public final class AuthenticatedManifestObservationDeriver {
                 || matches.getFirst().getVersion().length() > MAX_IDENTIFIER_CHARS) {
             if (matches != null && matches.size() > 1) issues.add("ambiguous-mod-list-entry");
             else issues.add("mods-scope-entry-without-matching-mod-list-entry");
-            return observation(ArtifactType.MOD, "unknown:" + fingerprint.sha256(), "unknown", fingerprint.sha256(), Map.of("scope", "mods", "artifact_path", entry.getRelativePath()));
+            return observation(ArtifactType.MOD, "unknown:" + fingerprint.sha256(), "unknown",
+                    fingerprint.sha256(), Map.of("scope", "mods", "artifact_path",
+                            entry.getRelativePath(), "loaded", "false",
+                            "origin_manifest_matched", "false"));
         }
         ModEntry mod = matches.getFirst();
         // signer and metadata are self-reported client strings; never feed them into selectors.
-        Map<String, String> metadata = Map.of("scope", "mods", "artifact_path", entry.getRelativePath());
+        LoadedModKey loadedKey = new LoadedModKey(mod.getId(), mod.getVersion());
+        LoadedModEntry loaded = loadedMods.byIdentity().get(loadedKey);
+        boolean runtimeMatched = loaded != null && loaded.getOriginManifestMatched()
+                && loaded.getOriginKind() == LoadedModOriginKind.LOADED_MOD_ORIGIN_MODS_FILE
+                && loaded.getOriginFilename().equals(entry.getRelativePath())
+                && loaded.getOriginFileSize() == entry.getFileSize()
+                && java.security.MessageDigest.isEqual(
+                        loaded.getOriginSha256().toByteArray(), entry.getSha256().toByteArray());
+        if (runtimeMatched) loadedMods.consumed().add(loadedKey);
+        Map<String, String> metadata = Map.of(
+                "scope", "mods",
+                "artifact_path", entry.getRelativePath(),
+                "loaded", Boolean.toString(runtimeMatched),
+                "loaded_origin", runtimeMatched ? "mods_file" : "not_reported_loaded",
+                "origin_manifest_matched", Boolean.toString(runtimeMatched));
         return observation(ArtifactType.MOD, mod.getId(), mod.getVersion(), fingerprint.sha256(), metadata);
+    }
+
+    private static LoadedModIndex indexLoadedMods(List<LoadedModEntry> entries, List<String> issues) {
+        Map<LoadedModKey, LoadedModEntry> byIdentity = new LinkedHashMap<>();
+        for (LoadedModEntry entry : entries) {
+            LoadedModKey key = new LoadedModKey(entry.getId(), entry.getVersion());
+            if (byIdentity.putIfAbsent(key, entry) != null) issues.add("duplicate-loaded-mod-identity");
+        }
+        return new LoadedModIndex(Map.copyOf(byIdentity), new HashSet<>());
+    }
+
+    private static void appendRuntimeLoadedModObservations(
+            LoadedModIndex loadedMods, List<ArtifactObservation> observations, List<String> issues) {
+        for (Map.Entry<LoadedModKey, LoadedModEntry> indexed : loadedMods.byIdentity().entrySet().stream()
+                .sorted(Map.Entry.comparingByKey()).toList()) {
+            if (loadedMods.consumed().contains(indexed.getKey())) continue;
+            if (observations.size() == MAX_DERIVED_OBSERVATIONS) {
+                issues.add("derived-observation-limit");
+                return;
+            }
+            LoadedModEntry loaded = indexed.getValue();
+            if (loaded.getOriginManifestMatched()) {
+                issues.add("loaded-mod-manifest-binding-not-consumed");
+            } else if (loaded.getOriginKind() == LoadedModOriginKind.LOADED_MOD_ORIGIN_MODS_FILE) {
+                issues.add("loaded-mod-origin-without-manifest-match");
+            }
+            Map<String, String> metadata = new LinkedHashMap<>();
+            metadata.put("scope", "fabric-runtime");
+            metadata.put("loaded", "true");
+            metadata.put("loaded_origin", loadedOrigin(loaded.getOriginKind()));
+            metadata.put("origin_manifest_matched", Boolean.toString(loaded.getOriginManifestMatched()));
+            if (!loaded.getOriginFilename().isEmpty()) {
+                metadata.put("origin_filename", loaded.getOriginFilename());
+            }
+            if (!loaded.getParentModId().isEmpty()) {
+                metadata.put("parent_mod_id", loaded.getParentModId());
+            }
+            observations.add(observation(ArtifactType.MOD, loaded.getId(), loaded.getVersion(),
+                    loaded.getOriginManifestMatched() && loaded.getOriginSha256().size() == 32
+                            ? hex(loaded.getOriginSha256().toByteArray()) : null,
+                    Map.copyOf(metadata)));
+        }
+    }
+
+    private static String loadedOrigin(LoadedModOriginKind origin) {
+        return switch (origin) {
+            case LOADED_MOD_ORIGIN_MODS_FILE -> "mods_file";
+            case LOADED_MOD_ORIGIN_NESTED -> "nested";
+            case LOADED_MOD_ORIGIN_BUILTIN_OR_CLASSPATH -> "builtin_or_classpath";
+            case LOADED_MOD_ORIGIN_UNKNOWN, LOADED_MOD_ORIGIN_UNSPECIFIED, UNRECOGNIZED -> "unknown";
+        };
     }
 
     private static ArtifactObservation scopeObservation(
@@ -293,6 +370,17 @@ public final class AuthenticatedManifestObservationDeriver {
     }
 
     private record ModFingerprint(String filename, long fileSize, String sha256) { }
+
+    private record LoadedModKey(String id, String version) implements Comparable<LoadedModKey> {
+        @Override
+        public int compareTo(LoadedModKey other) {
+            int idOrder = id.compareTo(other.id);
+            return idOrder != 0 ? idOrder : version.compareTo(other.version);
+        }
+    }
+
+    private record LoadedModIndex(
+            Map<LoadedModKey, LoadedModEntry> byIdentity, Set<LoadedModKey> consumed) { }
 
     private record DirectoryGroupKey(ArtifactType type, String scope, String topLevel)
             implements Comparable<DirectoryGroupKey> {

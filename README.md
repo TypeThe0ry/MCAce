@@ -1,70 +1,98 @@
 # MCAce
 
-MCAce is a privacy-first trust, admission, evidence, and reversible-disposition
-stack for modern Minecraft networks. The release surface is intentionally small:
-Fabric client Mods, Velocity/BungeeCord proxy plugins, and one Paper/Folia
-backend plugin.
+MCAce is a privacy-first client visibility, admission, evidence, and reversible-
+disposition stack for modern Minecraft networks. Its deployable surface is a
+Fabric client Mod, Velocity/BungeeCord proxy plugins, and one Paper/Folia backend
+plugin.
 
-> **v0.0.1 status: release gates still open.** The code and server matrix are
-> active, but the tag is not claimed until one visible, connection-bound MCAce
-> enablement decision (with fail-closed decline behavior), a genuine licensed
-> Vulcan event, and a real Fabric federation handoff are recorded on the reviewed
-> commit. Explicit-file, render-frame, and federation operations no longer open
-> additional client prompts after that single decision.
+> ## v0.0.1 — RELEASE LOCKED
+>
+> **No tag or GitHub Release is claimed.** Release remains locked until all seven
+> fail-closed gates below validate for one reviewed exact source. In particular,
+> MCAce still needs a Matrix V4 externally supervised package, one visible
+> connection-bound `Enable MCAce` decision captured inside a real Federation V5
+> handoff, a supervisor-signed licensed Vulcan V3 genuine event, an externally
+> captured Production Authority V4 MONITOR package, and protected-main/tag V4
+> exact-commit CI. Decline, close, timeout, or missing consent leaves MCAce
+> disabled.
 
-[中文 README](README_CN.md) · [release gates](docs/RELEASE_GATES.md) ·
-[security model](docs/SECURITY.md) · [anti-cheat evidence](docs/evidence/anti-cheat-real-server-2026-08-23.json) · [current Helio recheck](docs/evidence/real-server-2026-08-23/rerun-2026-08-23.json) · [current-candidate Helio run](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json)
-· [Helio static-suite evidence](docs/evidence/cluster-helio-static-suite-2026-08-22.json)
-· [latest Helio static-suite evidence](docs/evidence/cluster-helio-static-suite-2026-08-22-33878f2.json)
-· [current-head regression evidence](docs/evidence/static-regression-2026-08-23.json)
-· [current HEAD Helio Paper test](docs/evidence/cluster-helio-cc91c63-paper-test-2026-08-23.json)
-· [current HEAD Helio static wrappers](docs/evidence/cluster-helio-cd3921c-static-2026-08-23.json)
-· [active-pack iteration evidence](docs/evidence/active-pack-integrity-2026-08-22.json)
-· [historical e7f6f74 release-bundle evidence](docs/evidence/release-bundle-e7f6f74.json)
-· [current Helio 12/12 server matrix evidence](docs/evidence/server-version-process-matrix-2026-08-25-bef44e3.json)
-· [latest feature exact-commit CI evidence](docs/evidence/github-feature-ci-2026-08-25-5a7e423.json)
-· [current Helio exact-source release-bundle evidence](docs/evidence/release-bundle-2026-08-25-63ae400.json)
-· [current fail-closed readiness report](docs/evidence/release-readiness-2026-08-25-dda766b.json)
-· [GitHub branch/tag protection evidence](docs/evidence/github-protection-2026-08-25.json)
-· [Helio anti-cheat sync evidence (current d835f42)](docs/evidence/helio-2026-08-25-anticheat-sync-current.json)
-· [Helio executed-cheat fixture sync evidence (1e84cd5)](docs/evidence/helio-2026-08-25-anticheat-live-fixture.json)
-· [Helio modern 26.x build evidence](docs/evidence/helio-2026-08-25-modern-build.json)
-· [D-drive migration record](docs/PROJECT_MIGRATION.md)
+[中文 README](README_CN.md) · [architecture](docs/ARCHITECTURE.md) ·
+[security model](docs/SECURITY.md) · [release gates](docs/RELEASE_GATES.md) ·
+[operations](docs/OPERATIONS.md)
 
-![Verification dashboard](docs/assets/verification-dashboard.svg)
+![Release verification dashboard](docs/assets/verification-dashboard.svg)
 
-## Scope and privacy contract
+## Release status: exact seven gates
 
-- Fabric client Mods: `1.21.11`, `26.1.2`, and `26.2`.
-- Velocity and BungeeCord proxy plugins.
-- Paper/Folia backend plugin.
-- Default mode is `MONITOR`; client-origin facts are advisory and cannot punish
-  a player alone.
-- MCAce is disabled until one explicit, visible `Enable MCAce` decision is made
-  for the current connection. The decision is not persisted and closing the
-  screen is a decline.
-- Signed file manifests, signed render-frame evidence, and one-time federation
-  handoffs inherit that connection decision; they do not open a second prompt.
-- `DENY` is connection-scoped, reviewable, and reversible; there is no automatic
-  permanent BAN.
-- No launcher, agent, kernel driver, hidden capture, keylogging,
-  camera/microphone access, arbitrary packet exploit, or mandatory cloud service
-  is in the release boundary.
+These names match `scripts/release-readiness.ps1`. A controlled fixture, a
+historical PASS, a caller Boolean, or an unsigned report cannot promote any gate.
 
-## Compatibility allowlist
+| Readiness gate | Required release evidence | State |
+| --- | --- | --- |
+| `server_matrix_exact_source` | Matrix V4 seven-root native package; exactly 12 raw process cases; process-incarnation and cleanup commitments; protected V4 release bundle and three server-JAR cross-bindings; out-of-repository RSA supervisor root, protected pin, fresh detached receipt, replay and TOCTOU validation | **PENDING** |
+| `fabric_gui_single_enablement_confirmation` | One human-origin, visible, connection-bound `Enable MCAce` decision for the entire v0.0.1 release acceptance; signed GUI attestation and decoded PNG inside the Federation V5 evidence set | **PENDING** |
+| `fabric_federation_real_handoff` | Federation V5 source-to-target handoff, inherited consent with no second prompt, subject/route/session binding, expiry and correlated negatives, runtime ledger, zero owned residue, and a distinct post-run supervisor receipt | **PENDING** |
+| `vulcan_genuine_event` | Licensed reviewed Vulcan JAR, genuine non-synthetic external provider event, exact release-artifact binding, and an externally pinned supervisor-signed Vulcan V3 receipt/index | **PENDING** |
+| `production_server_confirmed_authority` | Authority V4 raw package with genuine Grim/Vulcan provider events, actual signed grant/observation frames, process and journal ledgers, exact V4 server JARs, approved external Ed25519 supervisor receipt, and native release index | **PENDING** |
+| `protected_exact_release_bundle` | Protected `main` or `v0.0.1` tag-push CI validates the exact `MCACE_RELEASE_BUNDLE_V4`, compatibility report, canonical artifact-source marker, final HEAD, and all eight release entries | **PENDING** |
+| `clean_worktree` | `git status --porcelain` is empty for the final exact release checkout | **BLOCKED while the current integration worktree is dirty** |
 
-Compatibility is an exact tuple contract, not a protocol-number guess.
+Matrix V4, Federation V5, Vulcan V3, and Authority V4 validators/contracts are
+under active integration, but no corresponding release-grade index is retained
+under `docs/evidence/`. They therefore remain PENDING regardless of local test
+success.
 
-![Exact version matrix](docs/assets/version-compatibility.svg)
+## What MCAce is — and is not
 
-| Minecraft | Protocol | Java | Fabric Loader | Fabric API | Client artifact |
+MCAce gives a server a narrow, reviewable view of a consenting Fabric client and
+combines it with independently produced server evidence. It is intended to make
+admission and current-connection actions explicit, signed, bounded, auditable,
+and reversible.
+
+MCAce v0.0.1 is **not** a Tencent ACE-equivalent kernel anti-cheat. It has no
+launcher, persistent agent, kernel driver, cross-process memory scanner, debugger
+blocker, DMA detector, hidden capture, keylogger, camera/microphone access, or
+automatic permanent-ban path. It does not claim kernel/injection/DMA coverage,
+public-server precision or recall, or production kick/deny/ban efficacy.
+
+### Scope and privacy contract
+
+- Exact Fabric targets: `1.21.11`, `26.1.2`, and `26.2`.
+- Velocity and BungeeCord proxy adapters; Paper and Folia backend paths.
+- MCAce starts disabled. Runtime consent is connection-scoped and is not
+  persisted across disconnects.
+- Client-origin facts remain `CLIENT_REPORTED / LOW`; they cannot independently
+  authorize a high-impact action.
+- Absolute local paths and arbitrary classpath values are not sent in the
+  Loaded ModList.
+- `DENY`, where a separately authorized policy permits it, is current-connection
+  only, reviewable, and reversible. Automatic permanent BAN is outside the
+  product contract.
+- Production Authority defaults to `authority.enabled=false` and accepts only
+  `MONITOR`; the currently verified authority frame is not wired to a platform
+  action executor.
+
+![Deployable client privacy boundary](docs/assets/client-privacy-boundary.svg)
+
+## Exact compatibility allowlist
+
+The release allowlist is exact for the Minecraft patch, protocol, Fabric API,
+and client build ID; it is not a protocol-number threshold. The deployable JAR
+declares minimum runtime constraints: Fabric Loader `>=0.19.3`, Java `>=21` for
+`1.21.11`, and Java `>=25` for `26.x`. Loader and Java are therefore not
+equality gates. An unlisted Minecraft patch fails closed, and newer Loader/Java
+combinations remain outside the recorded release test matrix until separately
+exercised. `1.21.11` is the only verified `1.21.x` patch.
+
+![Exact version compatibility](docs/assets/version-compatibility.svg)
+
+| Minecraft | Protocol | Minimum Java | Minimum Fabric Loader | Fabric API | Client artifact |
 | --- | ---: | ---: | --- | --- | --- |
-| `1.21.11` | `774` | `21` | `0.19.3` | `0.141.6+1.21.11` | final remapped JAR |
-| `26.1.2` | `775` | `25` | `0.19.3` | `0.155.2+26.1.2` | final named JAR |
-| `26.2` | `776` | `25` | `0.19.3` | `0.157.0+26.2` | final named JAR |
+| `1.21.11` | `774` | `>=21` | `>=0.19.3` | `0.141.6+1.21.11` | final remapped JAR |
+| `26.1.2` | `775` | `>=25` | `>=0.19.3` | `0.155.2+26.1.2` | final named JAR |
+| `26.2` | `776` | `>=25` | `>=0.19.3` | `0.157.0+26.2` | final named JAR; Folia 26.2 remains the BETA lane |
 
-`1.21.11` is the only verified `1.21.x` tuple. Unlisted patches fail closed.
-Run the contract against a current bundle:
+Run the bundle compatibility contract with:
 
 ```powershell
 .\scripts\version-compatibility-contract-smoke.ps1 -Execute
@@ -72,136 +100,301 @@ Run the contract against a current bundle:
   -ReportPath .\build\compatibility-contract\report.json
 ```
 
-## Evidence dashboard
+## One visible connection enablement
 
-| Gate | Current evidence | State |
-| --- | --- | --- |
-| Root + modern strict offline tests | Historical exact bundle: `171 suites / 755 tests / 0 failures / 0 errors`; [Helio targeted build evidence](docs/evidence/cluster-targeted-build-2026-08-22.json) ran Fabric, Velocity, BungeeCord, Paper, and runtime integration tests successfully | PASS within recorded source boundary |
-| Current-head regression suite | [473ef5b evidence](docs/evidence/static-regression-2026-08-24-473ef5b.json) and the Helio wrapper records remain retained as historical witnesses; the feature branch now has documentation-only commits after the tested code commit `65c85c2…`, while the resumable server-matrix static test and Helio execution remain bound to that code commit | PASS for the recorded checks; fresh protected-main release CI is still pending |
-| Paper/Folia × Velocity/Bungee process matrix | [Current Helio evidence index](docs/evidence/server-version-process-matrix-2026-08-25-bef44e3.json) plus immutable [report](docs/evidence/server-version-process-matrix/2026-08-25T13-28-42-6795528Z/report.json), [binding](docs/evidence/server-version-process-matrix/2026-08-25T13-28-42-6795528Z/binding.json), [commit marker](docs/evidence/server-version-process-matrix/2026-08-25T13-28-42-6795528Z/commit.json): exact source `bef44e3…`, `12/12`, `10` STABLE + `2` BETA, cleanup zero across `1.21.11`, `26.1.2`, and `26.2` | PASS on Helio; protected-main release CI still pending |
-| Fabric GUI consent | The client now exposes one visible `Enable MCAce` screen per connection. Decline/close leaves the client disabled and sends no MCAce frame; accepted sessions inherit the decision for file manifests, render-frame evidence, and federation | PENDING 1 enablement confirmation |
-| Anti-cheat detection | [`helio-2026-08-25-anticheat-sync-current.json`](docs/evidence/helio-2026-08-25-anticheat-sync-current.json) binds the tested source `d835f42…` (the current `65c85c2…` commit is a docs/evidence-only descendant) to Helio execution across 1.21.11, 26.1.2, and 26.2: six client observations and six independent same-session server signals correlated to six `SERVER_CONFIRMED/CONFIRMED` observations. Wrong-session and expired-window negative boundaries also passed; no false positive was recorded. The controlled mod/resource-pack fixture is metadata-only, so no third-party cheat code was executed; action remains `OBSERVE_ONLY_UNTIL_SIGNED_POLICY`. The retained real-client/GrimAC record remains the separate historical public-server witness. | PASS for the server-correlation logic and three-version fixture regression; public-server enforcement, kernel/injection detection, precision/recall, kick/deny, and ban efficacy remain unclaimed |
-| Executed controlled cheat fixture sync | [`helio-2026-08-25-anticheat-live-fixture.json`](docs/evidence/helio-2026-08-25-anticheat-live-fixture.json) binds exact source `1e84cd5…` to Helio/JDK21: an MCAce-owned test JAR was actually loaded in an isolated client JVM for all three versions; its mod-list observation was correlated with an independently derived same-session server `Simulation` signal, producing `3/3 SERVER_CONFIRMED` `QUARANTINE` results. A clean client produced zero false positives and all child Java/cmd/Gradle processes were cleaned up. | PASS for the executable loopback correlation harness; not a public Fabric client/server, third-party cheat, kernel/injection test, or production kick/deny/ban result |
-| Vulcan | Static contracts pass; licensed JAR and genuine external trigger are absent from this workspace | PENDING |
-| Fabric federation | V2 static contract passes; source-export/target-import GUI handoff has not been executed | PENDING |
-| Exact-commit CI/release | [Push run `32803002956`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803002956) and [PR run `32803006026`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803006026) passed for exact source `5a7e423b5b7bc6c79ea5e1fd3182b82923312169`: build/test, local verification bundle, and exact-eight upload passed; protected branch/tag releaseBundle and readiness gates are intentionally reserved for `main`/`v0.0.1` refs. See [sanitized evidence](docs/evidence/github-feature-ci-2026-08-25-5a7e423.json). | PASS for the current feature witness; protected branch/tag exact-commit release remains pending |
-| Helio exact-source release bundle | [current evidence](docs/evidence/release-bundle-2026-08-25-63ae400.json) records a successful Helio `clean build releaseBundle` for exact source `63ae400adc8d09d8349ca599c9d6a4866a189d04`, `product_version=0.0.1`, six deployables/eight entries, exact SHA256SUMS, and 3/3 compatibility contract; Gradle daemon was constrained without contaminating runtime child stdout | PASS for feature-source artifact candidate; protected-main publication still requires the external gates and main exact-commit CI |
-| Historical Helio release candidate | [`release-bundle-e7f6f74.json`](docs/evidence/release-bundle-e7f6f74.json) records Helio `releaseBundle` for `e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834`: six deployables, exact-eight manifest, `product_version=0.0.1`, bundle ZIP SHA-256 `4799733be6a178a7ed119d69f4945453dec1d73fbab7a22e95e51e259e035ded`, and all eight entry hashes verified locally; compatibility contract is 3/3 PASS | Historical feature-branch candidate only; protected `main` CI, external GUI/Vulcan/federation gates, current-source releaseBundle, and final tag remain pending |
-| Current release readiness | [`release-readiness-2026-08-25-dda766b.json`](docs/evidence/release-readiness-2026-08-25-dda766b.json) is generated by the fail-closed gate against current source `dda766b…`; server-matrix and clean-worktree pass, while the feature Helio bundle remains explicitly `protected_main_exact_commit_ci=false` and the protected branch/tag bundle gate stays closed | BLOCKED: one visible enablement confirmation, federation handoff, Vulcan genuine event, production authority freeze, and protected branch/tag exact-commit bundle remain open; no tag or release is claimed |
-| GitHub branch/tag protection | [protection evidence](docs/evidence/github-protection-2026-08-25.json) records strict `main` protection with required `build`, operator-only `v0.0.1` tag creation, and no-bypass tag deletion/update rules | PASS for repository policy; this does not substitute for the release CI run or the external runtime gates |
+The client renders a clear `Enable MCAce` / `Decline` screen before any MCAce
+frame is sent. Decline, close, timeout, or loss of the current connection leaves
+the client disabled. After acceptance, signed file observations, render evidence,
+and one source-selected federation handoff inherit that same connection decision;
+they do not open a second prompt.
 
-The latest retained feature exact-commit CI evidence is bound to
-`5a7e423b5b7bc6c79ea5e1fd3182b82923312169`; the current Helio server-matrix
-evidence is independently bound to `65c85c2b6b3492eec4bf74e6cfe9315935c67670`.
-The current HEAD is a documentation/evidence-only
-descendant accepted by the provenance gate. The `e7f6f74` Helio release bundle
-remains a historical feature-branch candidate, not evidence for the current HEAD.
-Verify the source commit used for each artifact with `git rev-parse HEAD`; later documentation-only commits do not change the tested plugin artifact. Do not copy an
-artifact to a tag unless its `release-manifest.properties` has
-`release_identity=true` and the `source_commit` matches that checkout exactly.
-The current v0.0.1 release decision is still controlled by the single visible
-MCAce enablement approval plus the real anti-cheat, Vulcan, federation, and
-protected exact-commit gates below. A declined or closed enablement screen must
-leave the client completely disabled; no automation may synthesize the approval.
+For **v0.0.1 release acceptance**, only one representative connection produces
+the human GUI approval evidence. This is one confirmation for the entire release
+gate, not one confirmation per Minecraft target and not six approvals. Navigation
+inside the disclosure screen does not create another decision. UI smoke on the other two
+versions is optional compatibility coverage and does not create additional
+release approvals.
 
-![Anti-cheat evidence boundary](docs/assets/anti-cheat-evidence-flow.svg)
+The release-grade GUI record is part of Federation V5: an independently approved
+GUI signer binds the visible prompt, decision window, process/session/attempt,
+random challenge, and fully decoded PNG. A different approved supervisor signs
+the immutable post-run report, binding, and runtime ledger. Neither signature
+adds another UI prompt.
+
+![Federation authentication binding](docs/assets/federation-auth-binding.svg)
+
+## Actual Loaded ModList
+
+The current development implementation reads Fabric Loader's actual runtime graph
+through `FabricLoader.getAllMods()` instead of treating every JAR in `mods/` as
+loaded.
+
+![Loaded ModList and installed-artifact binding](docs/assets/loaded-modlist-binding.svg)
+
+The signed snapshot carries at most 256 canonically ordered Mod IDs and versions:
+
+- a direct child of `<gameDir>/mods` contributes only its basename; MCAce matches
+  that identity to the installed manifest's Mod ID, version, file size, and
+  SHA-256;
+- a nested JAR contributes only its parent Mod ID;
+- an external, classpath, built-in, or otherwise unverifiable origin contributes
+  no absolute path and is conservatively represented without a local path value;
+- installed files and loaded Mods remain separate claims: a file can be dormant,
+  while a nested Mod can be active without its own direct `mods/` file;
+- the first detected runtime graph change before any dynamic update has been
+  accepted may pull the first attempt forward immediately; after the first
+  acceptance, later changes coalesce behind the next full five-minute interval,
+  and the path remains single-flight and ACK-driven.
+
+`CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1` is negotiated in the signed policy and
+authentication request. Default Velocity and BungeeCord policies require it, so
+an empty legacy request cannot silently receive verified admission. The server
+validates order, uniqueness, origin shape, and direct-file reconciliation, then
+derives `loaded`, `loaded_origin`, and `origin_manifest_matched` metadata for
+signed policy matching.
+
+The capability is implemented in the current working tree and its focused local
+collector, protocol, handshake, server-validation, budget, and refresh tests have
+been run during this development iteration. Those tests are development evidence:
+the working tree is not the final release commit and no exact-commit Loaded
+ModList release evidence has been published yet.
+
+Most importantly, a loaded identity is still `CLIENT_REPORTED / LOW`. A direct
+file hash binds the scan-time disk entry to the identity claim; it does not prove
+that the same bytes are already executing inside the JVM. Independent server
+evidence is still required for high-impact authority.
+
+See [Client integrity policy](docs/CLIENT_INTEGRITY_POLICY.md).
+
+## Active resource and shader packs
+
+The same bounded signed snapshot includes runtime-selected resource-pack IDs and
+order, plus the active shader-pack ID when an optional loader exposes one.
+A selection change marks the ACK-driven scheduler dirty. The first such change
+before any dynamic update has been accepted may trigger an immediate attempt;
+after the first acceptance, later changes coalesce until the next five-minute
+slot. The Iris adapter is reflection-only: a missing, disabled, or failed loader
+produces an empty selection instead of a guessed directory entry.
+
+For every complete parseable dynamic snapshot, the proxy returns a signed
+`ArtifactObservationResult` bound to the session, sequence, aggregate root, and
+SHA-256 of the complete update. The client commits its sequence/root state only
+after verifying an exact accepted result. A lost result retries the exact pending
+payload with fresh transfer identity and nonces; a valid rejection schedules a
+fresh scan, and a signed rate-limit result supplies a bounded retry hint. The
+full-update digest prevents a same-sequence/same-root retry from changing selected
+packs, loaded Mods, capabilities, or another non-root field.
+
+Transport or ACK-timeout failures use 1–30 second bounded exponential backoff.
+They re-fragment the identical serialized update with fresh transfer IDs,
+nonces, and signatures; they are not a newer observation and do not reset the
+five-minute semantic cadence.
+
+Dynamic reporting is optional telemetry, not continuous attestation or a
+freshness lease. A client that stops sending updates remains `VERIFIED`; the
+server's remembered dynamic view can become stale until a later accepted update
+or session cleanup.
+
+The server derives `selected=true|false` and may match a reviewed exact SHA-256 or
+directory content root. This remains client-origin evidence and cannot self-
+promote to punitive authority.
 
 ![Active pack correlation](docs/assets/active-pack-correlation.svg)
 
-![Verification result map](docs/assets/verification-dashboard.svg)
+## Anti-cheat evidence and trust model
 
-## Anti-cheat and feature detection
+![Anti-cheat evidence flow](docs/assets/anti-cheat-evidence-flow.svg)
 
-The pipeline separates origin and confidence:
+1. Client Mod/resource/shader observations begin as `CLIENT_REPORTED / LOW`.
+2. Signature, nonce, sequence, expiry, replay, scope, budget, and canonical-form
+   checks reject malformed or stale evidence.
+3. Reviewed client facts may drive `OBSERVE`, `NOTICE`, `WARN`, or `CHALLENGE`
+   under a signed policy.
+4. An independent same-session server provider or durable administrator authority
+   is required before a high-impact reversible disposition is even eligible.
+5. Production Authority V4 is a separate signed Paper/Folia-to-proxy channel. It
+   currently terminates at a content-free MONITOR log and is deliberately
+   disconnected from `LIMIT`, `QUARANTINE`, `DENY`, kick, and ban execution.
 
-1. `CLIENT_REPORTED` mod/resource-pack facts are low-confidence observations.
-2. Signature, nonce, sequence, expiry, replay, and scope checks reject malformed
-   or stale evidence.
-3. Correlation can create a review signal only when configured providers and
-   windows corroborate it.
-4. High-impact actions require a `SERVER_CONFIRMED` producer or durable operator
-   authorization. A client load is not a detection or enforcement result.
+When admitted by their bounded audit queues, Velocity and BungeeCord apply the
+same signed-policy evaluator and offer the resulting low-impact event to the
+same session-bound executor. A signed `ACCEPTED` `ArtifactObservationResult`
+acknowledges the protocol/session sequence, root, and full-update digest only;
+it is not an audit-queue or execution receipt. Queue saturation or scheduler-
+submission failure is logged and drops the downstream event without changing
+admission or rolling back the protocol ACK. After current-session and policy
+revalidation, only lower-impact `NOTICE`, `WARN`, and content-free `CHALLENGE`
+messages may execute from client-origin evidence. High-impact actions remain
+blocked without independent durable authority, and dynamic input never changes
+admission.
 
-The active-client telemetry path now includes the runtime-selected resource and
-shader pack IDs. Resource-pack changes and active shader-pack changes trigger an
-immediate bounded observation update; the server marks each affected entry with
-`selected=true|false` and evaluates it through the signed disposition policy.
-Shader-loader integration is optional and reflection-only (Iris is supported
-without a hard compile dependency); disabled, failed, or unavailable loaders
-report an empty shader selection instead of a guessed directory entry.
-`NOTICE`/`WARN`/`CHALLENGE` can therefore be automated for a reviewed client
-observation, while `LIMIT`/`QUARANTINE`/`DENY` still require an independent
-server provider or durable administrator authorization. A configured
-Grim/Vulcan adapter enters through `ServerBehaviorCorrelationRuntime`: its
-signal must match the same session inside the correlation window before a
-durable `SERVER_CONFIRMED` event is returned. See
-[`docs/CLIENT_INTEGRITY_POLICY.md`](docs/CLIENT_INTEGRITY_POLICY.md),
-[`docs/CLIENT_SELF_PROTECTION.md`](docs/CLIENT_SELF_PROTECTION.md), and the
-fail-closed generator at
-[`scripts/new-exact-artifact-policy.ps1`](scripts/new-exact-artifact-policy.ps1)
-for the exact-hash/content-root workflow and trust-state table.
+Grim and Vulcan adapters use exact provider IDs, versions, stable check families,
+thresholds, independent trust domains, and bounded correlation windows. A client
+claim re-signed by Paper is not server-confirmed evidence; the authority path must
+consume genuine Paper-local provider callbacks.
 
-The retained real Leaf/GrimAC probe is a separate historical witness and is
-source-bound to `fe5f2d1…`; it used the same Paper artifact SHA as the older
-`e7f6f74` candidate. The current Helio server matrix is source-bound to
-`65c85c2b6b3492eec4bf74e6cfe9315935c67670` and does not silently inherit that
-anti-cheat run's provenance.
-Node.js v22.23.2 completed the probe; the Helio Node.js v24.18.0 image crashed
-before producing a result and is retained only as a diagnostic limitation. No
-tag or GitHub release has been created. The source workspace was migrated to
-`D:\Projects\MCAce`; the original `C:\Users\admin\MCAce` directory was removed
-only after exact file/byte and RoboCopy dry-run verification, as recorded in
-[`docs/PROJECT_MIGRATION.md`](docs/PROJECT_MIGRATION.md).
+## Controlled executable fixture: verified development evidence
 
-The controlled fixture command is metadata-only and does not execute third-party
-code:
+![Controlled executable fixture results](docs/assets/controlled-anticheat-results.svg)
 
-```powershell
-.\scripts\anticheat-fixture-smoke.ps1 -Execute `
-  -MinecraftVersion 1.21.11 `
-  -MeteorJar 'C:\fixtures\meteor-client.jar' -MeteorSha256 '<sha256>' `
-  -XrayPack 'C:\fixtures\Spectator_Xray_1.2.1.zip' -XraySha256 '<sha256>'
-```
+The latest retained exact-commit controlled fixture index is
+[`helio-2026-08-25-anticheat-live-fixture-2c89876.json`](docs/evidence/helio-2026-08-25-anticheat-live-fixture-2c89876.json),
+bound to source `2c898762dd770723957ea0a8279f68c6c5e5abb3` and a Helio Windows/JDK 21 run.
 
-The fixture smoke now runs two checks: the client reports the controlled mod and
-resource-pack observations, then the server-side correlation runtime receives an
-independent same-session signal for each and upgrades both to
-`SERVER_CONFIRMED/CONFIRMED`. Helio ran that same test for 1.21.11, 26.1.2, and
-26.2; the current sanitized result is [`helio-2026-08-25-anticheat-sync-current.json`](docs/evidence/helio-2026-08-25-anticheat-sync-current.json), bound to tested source `d835f42…`.
-The resulting action remains `OBSERVE_ONLY_UNTIL_SIGNED_POLICY`; a client report
-by itself cannot kick, deny, or ban. This is a server-correlation lab result,
-not a real public-server precision/recall measurement.
+| Result | Observed |
+| --- | ---: |
+| Supported versions exercised | `1.21.11`, `26.1.2`, `26.2` |
+| MCAce-owned executable fixture loaded | `3 / 3` |
+| Independent same-session server signal | `3 / 3` |
+| `SERVER_CONFIRMED / QUARANTINE` under signed lab policy | `3 / 3` |
+| Clean-control false positives | `0` |
+| Owned child-process residue | `0` |
 
-The executable-fixture command is a separate controlled test. It loads an
-MCAce-owned test JAR in an isolated child JVM, reports the loaded mod entry, and
-then sends ordinary movement frames. The server derives its own `Simulation`
-signal and only the signed lab policy upgrades the same-session observation to
-`SERVER_CONFIRMED`/`QUARANTINE`:
+Canonical retained files:
 
-```powershell
-.\scripts\anticheat-live-fixture-smoke.ps1 -Execute
-```
+- [report](docs/evidence/anticheat-live-fixture/20260825T145002572Z/report.json)
+- [JUnit XML](docs/evidence/anticheat-live-fixture/20260825T145002572Z/test-results.xml)
+- [run log](docs/evidence/anticheat-live-fixture/20260825T145002572Z/run.log)
 
-Helio evidence is [`helio-2026-08-25-anticheat-live-fixture.json`](docs/evidence/helio-2026-08-25-anticheat-live-fixture.json).
-This proves executable fixture loading plus client/server synchronization for
-`1.21.11`, `26.1.2`, and `26.2`; it intentionally does not claim a real public
-Fabric GUI session, third-party cheat execution, kernel/injection/DMA coverage,
-or production kick/deny/ban authority.
+### Fixture boundary
 
-The retained real-client record proves client discovery/resource loading only.
-It explicitly records `real_server_connection=false`,
+- The executable JAR is MCAce-owned test code, not a third-party cheat.
+- It is loaded in an isolated child JVM/loopback integration harness, not an
+  actual Fabric GUI client and not a public server.
+- No third-party code or third-party network access occurs.
+- The server derives its `Simulation` signal independently from movement deltas
+  in the same fixture session.
+- `QUARANTINE` is selected by a signed laboratory policy, not by Production
+  Authority V4 and not by a live platform kick/deny/ban executor.
+- The result does not prove kernel, injection, debugger, DMA, public-server
+  precision/recall, or Tencent ACE-level coverage.
+- The evidence is exact for commit `2c89876…`; it does not cover the later dirty
+  working-tree Loaded ModList, Authority, Federation, or release-gate changes.
+
+The metadata-only fixture remains separately documented in
+[`helio-2026-08-25-anticheat-sync-current.json`](docs/evidence/helio-2026-08-25-anticheat-sync-current.json).
+It executes no third-party JAR or pack and remains historical correlation
+evidence, not current release evidence.
+
+## Historical real-server witness
+
+The repository retains a real Leaf `1.21.11` loopback server/GrimAC witness:
+
+- [initial real-server record](docs/evidence/anti-cheat-real-server-2026-08-23.json)
+- [Helio rerun](docs/evidence/real-server-2026-08-23/rerun-2026-08-23.json)
+- [historical feature-candidate rerun](docs/evidence/real-server-2026-08-23/current-candidate-fe5f2d1.json)
+
+Those dated records contain genuine Grim callbacks, three `SERVER_CONFIRMED`
+behavior events, and successful interception/upload responses. They are bound to
+older source/artifact identities, run in `MONITOR/NONE`, and assert no automatic
+kick or ban. They are valuable historical server evidence but do not satisfy the
+current Matrix V4, Vulcan V3, Authority V4, Federation V5, or protected-release
+gates.
+
+The still older [client detection record](docs/evidence/anti-cheat-detection-2026-08-21.json)
+explicitly records `real_server_connection=false`,
 `real_server_detection_event=false`, and
-`real_server_enforcement_exercised=false`; therefore this repository currently
-does not claim detection precision, kick/DENY efficacy, or BAN efficacy.
+`real_server_enforcement_exercised=false`; it proves client discovery/resource
+loading only.
 
-## Build and test
+## Matrix V4
 
-Root modules use JDK 21; the isolated modern clients use JDK 25. Keep the build
-offline and dependency verification strict:
+Matrix V4 is the first Matrix schema structurally capable of satisfying
+`server_matrix_exact_source`. It covers exactly:
+
+- three Minecraft versions;
+- Paper and Folia;
+- Velocity and BungeeCord;
+- `3 × 2 × 2 = 12` real process cases.
+
+The producer freezes all raw reports, report/binding/raw-manifest bytes, ordered
+raw root, case and process-incarnation identities, invocation and cleanup facts,
+the exact V4 bundle, all six release JARs, and the three Matrix server JARs. An
+independent out-of-repository RSA supervisor must return a fresh detached receipt
+under a protected trust-root pin before `commit.json` is written last. Publisher
+and readiness then revalidate signature, expiry, replay, no-follow identity,
+stable rereads, bundle hashes, and JAR cross-bindings.
+
+The retained `bef44e3…` [12/12 Helio V1 index](docs/evidence/server-version-process-matrix-2026-08-25-bef44e3.json)
+and its [report](docs/evidence/server-version-process-matrix/2026-08-25T13-28-42-6795528Z/report.json),
+[binding](docs/evidence/server-version-process-matrix/2026-08-25T13-28-42-6795528Z/binding.json),
+and [commit marker](docs/evidence/server-version-process-matrix/2026-08-25T13-28-42-6795528Z/commit.json)
+remain credible historical execution diagnostics: 12/12, 10 STABLE + 2 BETA,
+cleanup zero. They are legacy V1 and **cannot close the Matrix V4 release gate**.
+V2/V3 are likewise non-release.
+
+Full external-supervisor workflow:
+[Server Version Matrix Evidence V4](docs/SERVER_VERSION_MATRIX_EVIDENCE_V4.md).
+
+## Federation V5
+
+Federation V5 reuses the single connection-level enablement decision for one
+source-selected, pinned target. A handoff adds no authority and no second prompt.
+Release evidence must bind the source disconnect, direct target connect, signed
+assertion and AUTH hash, exact subject/route/session, expiry, two correlated
+negative cases, all critical process incarnations, zero residue, decoded GUI PNG,
+runtime-ledger raw hash/head/seal/count, immutable report/binding bytes, and the
+exact Fabric/Paper/source-proxy/target-proxy V4 JARs.
+
+The GUI signer and post-run supervisor must be independently approved and use
+different out-of-repository roots/private keys. Fixture, equal-key, self-approved,
+missing-receipt, stale, replayed, or tampered packages fail closed. No production
+Federation V5 index/receipt is retained, so both the GUI and federation gates are
+PENDING.
+
+See [Federation](docs/FEDERATION.md).
+
+## Vulcan V3
+
+The repository does not download or redistribute licensed Vulcan. Historical
+structural/V2 diagnostics may verify API shape and artifact identity, but they do
+not prove a genuine non-synthetic event and cannot satisfy release readiness.
+
+The v0.0.1 gate requires a reviewed licensed Vulcan JAR, isolated current-source
+Paper enablement, one genuine externally triggered provider event, exact release
+artifact binding, and an externally pinned supervisor-signed Vulcan V3 receipt
+and index. None is retained yet; this gate is PENDING.
+
+## Production Authority V4
+
+![Production SERVER_CONFIRMED evidence chain](docs/assets/authority-evidence-chain.svg)
+
+The Paper/Folia-to-proxy signed authority path is implemented in the current
+development working tree and remains opt-in, fail-closed, and MONITOR-only:
+
+1. Velocity/Bungee issues a short-lived Ed25519 grant for an exact authenticated
+   physical login/backend.
+2. Paper/Folia verifies that grant, correlates exact-profile independent provider
+   callbacks, and journals a durable issuance record before exposing one signed
+   observation frame.
+3. The selected proxy verifies carrier, session, backend, key, grant, profile,
+   sequence, and expiry, then records a content-free MONITOR event.
+
+The verified observation is deliberately not wired into the disposition queue or
+platform action executor. It cannot currently kick, limit, quarantine, deny, or
+ban a player.
+
+Release-grade Authority V4 additionally requires the actual signed protobuf
+grant/observation frames, genuine Grim/Vulcan events, provider/Paper/proxy/process
+and journal ledgers, exact artifact bytes, a 14-document canonical raw package,
+ten packaged artifacts, approved external Ed25519 supervisor descriptor/pin and
+fresh detached receipt, plus exact protected V4 server JARs. The producer emits
+`release_eligible=false`; only the native publisher may create a release-eligible
+V4 index after complete raw revalidation. No genuine external capture/index is
+retained, so this gate is PENDING.
+
+See [Server-confirmed authority](docs/SERVER_CONFIRMED_AUTHORITY.md) and
+[Production authority provisioning](docs/PRODUCTION_AUTHORITY_PROVISIONING.md).
+
+## Build and developer verification
+
+Root modules use JDK 21; isolated modern clients use JDK 25. Keep dependency
+verification strict:
 
 ```powershell
 $env:JAVA_HOME = '<JDK 21 home>'
 .\gradlew.bat clean build localVerificationBundle `
+  "-PmcaceProductVersion=0.0.1" `
   "-PmcaceSourceCommit=$(git rev-parse HEAD)" `
   "-PmcaceModernJavaHome=<JDK 25 home>" `
   --offline --dependency-verification=strict --rerun-tasks `
@@ -209,60 +402,40 @@ $env:JAVA_HOME = '<JDK 21 home>'
   --no-parallel --max-workers=1 --console=plain
 ```
 
-Server process verification:
+Focused Matrix V4 regressions, which do not replace an external receipt:
 
 ```powershell
-.\scripts\server-version-process-matrix.ps1 -Execute
-.\scripts\server-version-process-matrix.ps1 -ReportOnly
+pwsh -NoProfile -File .\scripts\test-server-version-process-matrix.ps1
+pwsh -NoProfile -File .\scripts\test-publish-server-version-matrix-evidence.ps1
+pwsh -NoProfile -File .\scripts\test-release-readiness.ps1
 ```
 
-To reduce controller load, meaningful compile/test jobs are dispatched to the
-configured cluster. The latest verified remote job ran on **Helio** (Windows,
-JDK 21, RTX 4070 host) with explicit Gradle JVM settings
-`-Xmx2G -XX:TieredStopAtLevel=1`; it completed in about 3m50s with exit code 0. The
-sanitized record is [`cluster-targeted-build-2026-08-22.json`](docs/evidence/cluster-targeted-build-2026-08-22.json).
-The remote checkout was a sanitized tree-equivalent snapshot of the reviewed
-commit. Credentials and worker paths are never copied into the repository.
+Do not use a bare Matrix `-Execute` command as release evidence. A real Matrix V4
+run requires an exact artifact source, existing V4 bundle, external trust root,
+protected pin, supervisor exchange directory, detached receipt, publication, and
+readiness revalidation. Follow
+[SERVER_VERSION_MATRIX_EVIDENCE_V4.md](docs/SERVER_VERSION_MATRIX_EVIDENCE_V4.md).
 
-## Manual GUI gates
+### UI smoke versus the one release approval
 
-Each target requires one visible connection-bound `Enable MCAce` decision. The
-runner waits for that single human click and records the enablement stage,
-decision, artifact hash, cleanup, and binding. Evidence and federation operations
-inherit the accepted connection state; the runner does not synthesize input:
+One selected target can be used for a developer-visible platform smoke:
 
 ```powershell
-$env:JAVA_HOME = '<JDK 21 or JDK 25 home for the target>'
-.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence -ManualConsentTimeoutSeconds 120
-.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2 -WithFabricEvidence -ManualConsentTimeoutSeconds 120
-.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2 -WithFabricEvidence -ManualConsentTimeoutSeconds 120
+$env:JAVA_HOME = '<JDK 21 or JDK 25 home for the selected target>'
+.\scripts\platform-load-smoke.ps1 `
+  -FabricTarget 1.21.11 -WithFabricEvidence `
+  -ManualConsentTimeoutSeconds 120
 ```
 
-Use `-ReportOnly` with the emitted report/binding hashes after each successful
-run. A timeout report is diagnostic-only and cannot be promoted to release
-evidence.
-
-## Vulcan and federation gates
-
-Vulcan requires an operator-supplied licensed JAR, current-source structural
-preflight, isolated Paper enablement, and one externally triggered genuine event.
-MCAce never downloads or redistributes that artifact. The genuine-event wrapper
-rejects synthetic event injection and records only sanitized evidence.
-
-Federation requires the single connection-level enablement consent, source
-disconnect, direct target connection, inherited target handoff, subject binding,
-expiry observation, and zero residual owned processes/ports. Static tests are not
-a handoff result.
+The same smoke may optionally be repeated with `26.1.2` and `26.2` to inspect
+version-specific UI compatibility. Those optional runs are **not additional
+release approvals** and platform-only evidence cannot replace the single
+externally signed GUI/Federation V5 package. A timeout remains diagnostic-only.
 
 ## Release artifacts
 
-The exact distribution is eight entries: six deployable JARs,
-`release-manifest.properties`, and `SHA256SUMS`. Hashes must come from the clean
-exact-commit `releaseBundle`; do not paste hashes from an older build into a
-release note.
-The current Helio candidate carries Gradle `product_version=0.0.1` and
-`release_identity=true`, but the `v0.0.1` label is not promoted to a tag while
-the external release gates remain open.
+The exact distribution has eight entries: six deployable JARs,
+`release-manifest.properties`, and `SHA256SUMS`.
 
 | Entry | Role |
 | --- | --- |
@@ -272,35 +445,81 @@ the external release gates remain open.
 | `mcace-server-velocity.jar` | Velocity proxy plugin |
 | `mcace-server-bungeecord.jar` | BungeeCord proxy plugin |
 | `mcace-server-paper.jar` | Paper/Folia backend plugin |
-| `release-manifest.properties` | exact source/runtime identity |
-| `SHA256SUMS` | authoritative JAR hashes |
+| `release-manifest.properties` | V4 final-source, artifact-source, runtime, toolchain, and bundle identity |
+| `SHA256SUMS` | authoritative six-JAR hashes |
+
+Only a clean protected-main/tag `MCACE_RELEASE_BUNDLE_V4` may be published. The
+manifest's final `source_commit`, `artifact_source_commit`, canonical tracked
+artifact-source marker, and all hashes must agree with the protected CI context.
+Older feature bundles remain historical candidates and must not supply release
+notes or tag artifacts.
+
+## Historical evidence archive
+
+These files remain useful for provenance and regression history, but none is
+current release evidence:
+
+| Historical witness | Exact boundary |
+| --- | --- |
+| [Feature CI `5a7e423`](docs/evidence/github-feature-ci-2026-08-25-5a7e423.json) | Historical feature build/test/upload witness; not protected final-source CI |
+| [Helio bundle `63ae400`](docs/evidence/release-bundle-2026-08-25-63ae400.json) | Historical feature exact-source candidate; not a protected V4 release bundle |
+| [Readiness `dda766b`](docs/evidence/release-readiness-2026-08-25-dda766b.json) | Historical `MCACE_RELEASE_READINESS_V1`; current validator is V2 |
+| [Matrix `bef44e3`](docs/evidence/server-version-process-matrix-2026-08-25-bef44e3.json) | Historical V1 12/12 process diagnostic; not Matrix V4 release evidence |
+| [Metadata fixture `d835f42`](docs/evidence/helio-2026-08-25-anticheat-sync-current.json) | Historical metadata-only correlation run; no third-party execution or enforcement |
+| [Older bundle `e7f6f74`](docs/evidence/release-bundle-e7f6f74.json) | Historical feature candidate only |
+| [Repository protection snapshot](docs/evidence/github-protection-2026-08-25.json) | Dated branch/tag policy witness; does not replace protected release CI |
+| [Project migration record](docs/PROJECT_MIGRATION.md) | D-drive source migration history; unrelated to release-gate completion |
 
 ## Architecture
 
 ```mermaid
 flowchart LR
-  c[Fabric client\n1.21.11 / 26.1.2 / 26.2] -->|signed envelope| p[Velocity / Bungee]
-  p -->|admission + policy| s[Paper / Folia]
-  c -->|CLIENT_REPORTED| o[low-confidence observation]
-  s --> x[bounded server context]
-  o --> r[correlation + review]
-  x --> r
-  r --> a[current-connection reversible action]
+  C[Fabric client\n1.21.11 / 26.1.2 / 26.2]
+  P[Velocity / BungeeCord]
+  B[Paper / Folia]
+  O[CLIENT_REPORTED / LOW\nloaded Mods + selected packs]
+  S[Independent server providers]
+  A[Signed MONITOR authority]
+  R[Reviewable current-connection policy]
+
+  C -->|signed handshake + bounded observations| P
+  P -->|admission + backend grant| B
+  C --> O
+  B --> S
+  S --> A
+  O --> R
+  A --> R
 ```
+
+The arrows do not imply automatic punishment. Client observations stay advisory;
+the Production Authority V4 output currently terminates at MONITOR logging.
 
 ## Repository map
 
 | Module | Responsibility |
 | --- | --- |
-| `mcace-protocol` | wire contract, signing, replay defense |
-| `mcace-core` | sessions, policy, risk, disposition, federation |
-| `mcace-client-common` | loader-neutral integrity/evidence primitives |
-| `mcace-client-fabric` | 1.21.11 client and consent UI |
-| `fabric-modern` | JDK25 official-namespace clients |
-| `mcace-server-velocity` / `mcace-server-bungeecord` | proxy adapters |
-| `mcace-server-paper` | Paper/Folia adapter |
-| `scripts/` | fail-closed build, asset, compatibility, and evidence gates |
+| `mcace-protocol` | wire schemas, capability negotiation, signing, canonical encoding, replay defense |
+| `mcace-core` | session, admission, policy, risk, disposition, federation, server authority primitives |
+| `mcace-client-common` | loader-neutral integrity, Loaded ModList model, evidence and connection-enable primitives |
+| `mcace-client-fabric` | Fabric 1.21.11 client, loaded-graph collector, consent UI |
+| `fabric-modern` | JDK 25 official-namespace clients for 26.1.2 and 26.2 |
+| `mcace-server-velocity` | Velocity admission, policy, federation, and optional authority adapter |
+| `mcace-server-bungeecord` | BungeeCord admission, policy, federation, and optional authority adapter |
+| `mcace-server-paper` | Paper/Folia context, provider adapters, durable MONITOR authority path |
+| `mcace-runtime-integration` | process, protocol, controlled fixture, and integration harnesses |
+| `scripts` | fail-closed build, compatibility, GUI, federation, Matrix, Vulcan, Authority, publisher, and readiness gates |
 
-More detail: [architecture](docs/ARCHITECTURE.md), [operations](docs/OPERATIONS.md),
-[platform testing](docs/PLATFORM_TESTING.md), [release gates](docs/RELEASE_GATES.md),
-[security](docs/SECURITY.md), and [federation](docs/FEDERATION.md).
+## Documentation index
+
+- [Architecture](docs/ARCHITECTURE.md)
+- [Client integrity and Loaded ModList policy](docs/CLIENT_INTEGRITY_POLICY.md)
+- [Detection and evidence boundaries](docs/DETECTION_AND_EVIDENCE.md)
+- [Server Version Matrix Evidence V4](docs/SERVER_VERSION_MATRIX_EVIDENCE_V4.md)
+- [Federation V5 design and acceptance](docs/FEDERATION.md)
+- [Server-confirmed authority](docs/SERVER_CONFIRMED_AUTHORITY.md)
+- [Production authority provisioning](docs/PRODUCTION_AUTHORITY_PROVISIONING.md)
+- [Native release evidence publishing](docs/NATIVE_RELEASE_EVIDENCE.md)
+- [Platform testing](docs/PLATFORM_TESTING.md)
+- [Operations](docs/OPERATIONS.md)
+- [Security model](docs/SECURITY.md)
+- [Release gates](docs/RELEASE_GATES.md)

@@ -1,549 +1,532 @@
-# Server-confirmed backend authority contract
+# Server-confirmed backend authority
 
-Status: Phase 1 protocol/verifier, Phase 2.5 hardened durable issuance, and the
-Phase 2.6 inert Paper coordinator are implemented and default-disabled. A real
-GrimAC 2.3.74 loopback run now proves the observational behavior-correlation
-path can emit `SERVER_CONFIRMED` CloudRiskEvents; the signed Phase 1 authority
-channel, production topology, and release coverage remain open.
+## Current release boundary
 
-This document defines the minimum security boundary for a future production
-`SERVER_CONFIRMED` behavior observation that may enter MCAce's high-impact
-disposition path. The repository contains the inert protocol/verifier foundation
-and a durable-before-return issuance primitive. The current Grim adapter is a
-separate CloudRiskEvent producer for observational correlation only: it is
-bound to a real Paper/Leaf loopback process in
-[`anti-cheat-real-server-2026-08-23.json`](evidence/anti-cheat-real-server-2026-08-23.json),
-but it is not the signed backend-authority producer described by this contract.
-Vulcan, Fabric evidence, backend context, Cloud production topology, and any
-punitive release behavior remain separate gates.
+The signed Paper/Folia to proxy authority path is now implemented and wired on
+all three server platforms, but it is deliberately **opt-in and MONITOR-only**.
+The current code can:
 
-The current repository has a hardened `ADMIN_REVIEWED` authorization and
-execution *downstream*:
+1. issue a short-lived, proxy-signed `BackendAuthorityGrant` for an exact
+   authenticated physical login and ready backend;
+2. receive and verify that grant on Paper/Folia;
+3. correlate exact-profile alerts from independent Paper anti-cheat providers;
+4. append and force a durable Paper issuance record before exposing a sendable
+   signed `ServerAuthorityObservation`;
+5. send the observation back over `mcace:authority`; and
+6. verify it on Velocity or BungeeCord while holding the platform lifecycle
+   lock, then record a content-free MONITOR log entry.
 
-- `TrustedDispositionAuthorizationRuntime.authorizeAdministratorReview()`
-  evaluates the operator-reviewed observation against the current signed policy;
-- the V3 journal is forced to durable storage before an executable event is
-  returned;
-- Velocity and Bungee revalidate the exact policy, winning rule, action, physical
-  login, authenticated session, verified admission, backend readiness, and
-  execution context at action time;
-- `CLIENT_REPORTED` and inferred observations cannot independently select
-  `LIMIT`, `QUARANTINE`, or `DENY`;
-- `DENY` ends only the current physical connection and never creates a permanent
-  ban.
+It does **not** feed the verified observation into
+`TrustedDispositionAuthorizationRuntime`, a disposition queue, or a platform
+action executor. A verified authority frame therefore cannot currently select
+or execute `LIMIT`, `QUARANTINE`, `DENY`, kick, or ban. Automatic permanent
+banning remains outside the product contract.
 
-The signed `SERVER_CONFIRMED` authorization entry point and production source
-feeding that downstream are still intentionally absent. The observed Grim
-`SERVER_CONFIRMED` value is an origin on the observational CloudRiskEvent and
-does not by itself authorize a disposition. Adding a signed producer and
-production wiring is a separate release gate.
+The implementation has unit and integration-fixture coverage. It does not yet
+have release-grade real-process evidence for a complete Paper/Folia plus
+Velocity/Bungee topology, a licensed genuine Vulcan event, restart/replay
+acceptance, or a production action-ceiling freeze. Until those gates are
+captured from an exact immutable commit, this path must not be presented as
+production enforcement or as equivalent to a kernel anti-cheat.
 
-## Current Phase 1 through Phase 2.6 implementation boundary
+| Surface | Current state |
+| --- | --- |
+| Default configuration | `authority.enabled=false` |
+| Allowed mode | exactly `MONITOR` |
+| Paper/Folia receiver/correlator/signer/sender | implemented and conditionally registered |
+| Velocity grant/receiver | implemented and conditionally registered |
+| BungeeCord grant/receiver | implemented and conditionally registered |
+| Paper durability before frame exposure | implemented |
+| Proxy verification and prior-observation replay state | implemented in memory |
+| Authority to disposition authorization | deliberately disconnected |
+| Automatic kick/deny/quarantine/ban from authority | absent |
+| Genuine production process evidence | pending |
 
-The safe, default-disabled protocol foundation is implemented:
-
-- packet types 21 and 22, bounded protobuf messages for
-  `BackendAuthorityGrant` and `ServerAuthorityObservation`, and a reserved
-  `mcace:authority` channel constant;
-- strict grant and observation codecs that apply bounded signed envelopes,
-  replay checks, byte-for-byte canonical outer-envelope and payload encoding,
-  unknown-field rejection, short expiry, and exact lifecycle bindings;
-- an immutable registry that pins the carrying registered backend to one exact
-  backend instance, canonical Ed25519 public key/fingerprint, and canonical
-  authority profiles. Each profile digest is checked against its exact provider
-  contracts, quorum, shared maximum window, and cooldown; an empty registry is
-  the disabled state;
-- a narrow `VerifiedServerAuthorityObservation` that callers outside the
-  authority package cannot construct, with no origin, confidence, policy,
-  action, rule, route, kick, or ban selector. It retains the SHA-256 of the exact
-  signed frame that passed verification.
-- the package-private abstract issuance-journal contract, which requires every
-  implementation to define `lastSequence` and provides no default-zero recovery;
-  the package-private file implementation opens only an operator-preprovisioned
-  regular file with the exact versioned header. Runtime has no create or initialize
-  path. A public read-only preflight returns the exact required header bytes and
-  validates provisioning without creating or changing the directory, file,
-  header, or records. The file implementation holds one handle and an exclusive
-  lock for its full lifetime, rejects unsafe identity, corrupt, partial,
-  over-quota, duplicate, and non-increasing records, and poisons that instance
-  after any I/O, identity, or post-force verification failure;
-- `DurableServerAuthorityIssuer`, the only public production issuance primitive.
-  The raw codec signer and its undurable result are package-private, and the
-  issuer's `recover(VerifiedGrant)` returns a non-externally-constructible
-  `RecoveredServerAuthoritySequence`, so callers cannot supply an untyped restart
-  value. Issuance allocates `last + 1` and creates a non-externally-constructible
-  sendable token only after the matching record has been appended, forced, and
-  re-read. The token binds the exact grant, lifecycle, backend key, and
-  observation/issuance/expiry window. Any journal I/O, identity, force, or
-  post-force verification failure latches the issuer poisoned until close/reopen;
-  pre-journal semantic rejection, including a grant/key mismatch, does not poison
-  it;
-- a `PaperServerAuthorityLifecycle` seam instantiated in the disabled state by
-  `MCAcePaperPlugin`. Its enabled test seam prepares at most one issuance and
-  returns a unique lease capability. Commit requires both that lease and the
-  matching durable token; abort releases the pending issuance so a fresh prepare
-  can retry. Restart recovery accepts only the typed sequence returned from the
-  issuer for the verified grant. It retains no grant while disabled, has no
-  configuration, provider, or sender dependency, and is not connected to a plugin
-  channel, trusted authorization, or executor.
-- the package-private `PaperServerAuthorityIssueCoordinator`, which is not
-  instantiated by `MCAcePaperPlugin`. It applies an exact request/lease/grant
-  precheck, requires the journal-backed issuer to allocate and force the exact next
-  sequence, and commits the matching durable token before returning an opaque
-  capability. Its durable result exposes no raw frame to Paper because the frame
-  accessor remains package-private to the core authority package. Typed sequence
-  drift removes the lifecycle and requires fresh `recover(VerifiedGrant)` state;
-  uncertain I/O, runtime uncertainty, abort failure, or a post-durability commit
-  failure poisons the coordinator and never retries the advanced sequence.
-
-The JDK 21 offline authority selections passed 8 suites and 51 tests with zero
-failures/errors and one host-capability symlink skip. These are library tests. The
-current root build covers Phase 2.6 at 147 suites and 681 tests with zero failures
-or errors; isolated modern Fabric adds 24 suites and 74 tests, for 171 suites and
-755 tests combined. The current real-server evidence is separate from these
-library tests and is recorded in the anti-cheat evidence file linked above.
-
-This foundation has no Phase 1 production authority runtime path. In
-particular, no Velocity, BungeeCord, Paper, or Folia plugin registers the
-reserved authority channel or sends an authority frame, and the signed
-grant/observation lifecycle is not wired to trusted authorization/execution.
-The separate Paper behavior pipeline does have a real Grim loopback producer,
-but it emits only observational CloudRiskEvents and the release contract keeps
-`MONITOR`/`NONE`; it must not be described as a live signed authority producer
-or as production punitive coverage.
-
-## Non-negotiable boundary
-
-The first acceptable producer is a Paper/Folia-local behavior authority, carried
-to the current proxy over an independently signed backend channel:
+## Trust and data flow
 
 ```text
-real server behavior providers
-  -> same-session, same-backend independent correlation
-  -> durable Paper issuance record
-  -> Paper Ed25519 attestation
-  -> proxy backend-key/session/lifecycle verification
-  -> durable trusted authorization
-  -> existing atomic Velocity/Bungee action gate
+verified client admission + exact physical login + backend-ready state
+  -> Velocity/Bungee short-lived Ed25519 BackendAuthorityGrant
+  -> Paper/Folia verifies grant against the pinned proxy key
+  -> exact-profile independent provider correlation
+  -> Paper issuance journal append + force + re-read
+  -> Paper Ed25519 ServerAuthorityObservation
+  -> Velocity/Bungee exact carrier/session/backend/grant/profile verification
+  -> MONITOR log only
 ```
 
-This stays within the current product boundary. It requires no Cloud service,
-Agent, standalone client, additional Mod loader, or new process.
+The signed observation is evidence, not a punishment command. Its payload has
+no action, route, rule ID, kick command, ban flag, client path, IP address, raw
+coordinates, or verbose provider alert. Only the proxy verifier constructs the
+narrow `VerifiedServerAuthorityObservation`; its constructor is not public and
+the type carries the SHA-256 of the exact signed frame that passed validation.
 
-The attestation reports an observation, never a punishment. It must not contain a
-disposition action, rule ID, route target, kick command, or an origin/confidence
-chosen by Paper. Only the proxy verifier may construct the narrow internal
-`SERVER_CONFIRMED` + `CONFIRMED` observation, and only the current root-signed
-policy may choose an action.
+Client mod/resource-pack telemetry remains `CLIENT_REPORTED`. Paper re-signing
+a client claim does not turn it into server-confirmed evidence. The authority
+path consumes Paper-local provider callbacks and must not be confused with the
+separate Cloud behavior pipeline or the unsigned shadow backend-context path.
 
-## Sources that must not be promoted
+## Activation and configuration
 
-The following signals remain useful in their present audit or admission roles,
-but none may be converted into this authority type.
+### Safe defaults
 
-### Fabric observations
+Paper ships the following inert root in
+`mcace-server-paper/src/main/resources/config.yml`:
 
-`AuthenticatedManifestObservationDeriver` deliberately labels manifest and
-dynamic observations `CLIENT_REPORTED` with low confidence. A session signature
-proves who submitted bytes; it does not prove the client's filesystem claim.
-Having Paper re-sign the same client statement does not make it server-confirmed.
+```yaml
+behavior:
+  enabled: false
+authority:
+  enabled: false
+  mode: MONITOR
+```
 
-Relevant boundary:
+Velocity and BungeeCord use `authority.properties` in their MCAce data
+directory. If the file is absent, `ProxyServerAuthorityConfiguration` creates
+only this safe default:
 
-- `mcace-core/.../proxy/AuthenticatedManifestObservationDeriver.java`
-- `mcace-core/.../session/ServerHandshakeCoordinator.java`
-- `mcace-server-velocity/.../MCAceVelocityPlugin.java`
+```properties
+authority.enabled=false
+authority.mode=MONITOR
+```
 
-### Shadow backend context
+No authority runtime or `mcace:authority` channel is registered while disabled.
+If `authority.enabled=true`, every required key, backend pin, profile, TTL, and
+journal field must validate. Any other `authority.mode`, including an
+enforcement-looking value, fails closed and leaves the authority runtime
+disabled.
 
-`BackendContextCodec` is intentionally unsigned, while
-`ShadowBackendContextRuntime` and `ShadowBackendContextAuditRecord` explicitly
-have no disposition hook. World and game-mode context may constrain or explain an
-already-authorized action; it is not cheating evidence.
+Use [`PRODUCTION_AUTHORITY_PROVISIONING.md`](PRODUCTION_AUTHORITY_PROVISIONING.md)
+and `scripts/provision-production-authority.ps1` to create an offline staged
+bundle. The provisioner fixes `-ActionCeiling MONITOR`, generates distinct
+Ed25519 backend-observation and selected-proxy grant-signing identities,
+initializes the journal header, emits the selected proxy public-key pin for
+Paper, and records only sanitized public trust-root/topology/profile data in its
+V3 freeze manifest. The independent evidence supervisor is not generated here:
+the provisioner consumes only its external Ed25519 public descriptor and an
+out-of-band approved SHA-256 pin, and records `private_key_present=false`.
+The backend and proxy fingerprints must differ. The Paper snippet explicitly
+freezes `behavior.enabled=true` plus the Grim and Vulcan adapter switches, while
+the repository default remains false.
+Generated `behavior.enabled=true` / `authority.enabled=true` snippets are activation material;
+generating a bundle does not install or enable it.
 
-Relevant boundary:
+### Exact profile contract
 
-- `mcace-core/.../context/BackendContextCodec.java`
-- `mcace-core/.../proxy/ShadowBackendContextRuntime.java`
-- `mcace-core/.../proxy/ShadowBackendContextAuditRecord.java`
+`BackendAuthorityProfile` commits these values into a canonical SHA-256:
 
-### Existing behavior correlation and Cloud records
+- provider ID, independent trust-domain ID, exact provider version, stable
+  check-family ID, and threshold for each provider;
+- independent-domain quorum;
+- maximum provider window; and
+- cooldown.
 
-`BehaviorAlertCorrelator` is not bound to the proxy authenticated session,
-physical login, backend generation, or admission sequence. Its persistence-domain
-origin enum and `CloudRiskEvent` are not the disposition-domain authority type.
-The current pipeline is optional Cloud delivery and must remain disconnected from
-high-impact execution.
+Profiles contain 2-8 provider contracts and require at least two independent
+trust domains. Provider ID/version fields are bounded to 32 characters and the
+stable check-family field to 96 characters so the frozen profile cannot exceed
+the Paper adapter event contract. A threshold is bounded to `1..256`. Paper recalculates the
+profile digest from `config.yml`; the proxy independently recalculates it from
+`authority.properties`. A stale digest, duplicate provider, shared-domain
+quorum, unknown field, out-of-contract duration, or pin mismatch disables the
+runtime rather than weakening the profile.
 
-The current typed Grim adapter is already an input to the existing local
-behavior correlator and Cloud event; the real loopback evidence records that
-path. Raw Grim or licensed Vulcan events must not be reused as the verified
-signed authority output. A future local authority correlator must bind the
-same-session/backend grant, durable issuance, independent provider profile,
-and signed observation before any trusted disposition can consume it.
+## Paper/Folia runtime
 
-Relevant boundary:
+`MCAcePaperPlugin.enableServerAuthority()` now constructs the complete runtime
+when configuration validation succeeds. `PaperServerAuthorityChannelLease`
+registers the incoming and outgoing `mcace:authority` channels as one resource
+acquisition. Each compensating unregister is armed before entering its matching
+platform registration call, because a platform may mutate registry state and
+then throw. If either registration fails, it unregisters every attempted
+channels and closes the runtime/journal in reverse order. The runtime is
+published to the plugin only after both registrations succeed. Disable closes
+the channel lease and journal idempotently.
 
-- `mcace-server-paper/.../behavior/BehaviorAlertCorrelator.java`
-- `mcace-server-paper/.../behavior/BehaviorAlertPipeline.java`
-- `mcace-cloud-client/.../CloudRiskEvent.java`
+### Grant intake
 
-### Protocol risk and action feedback
+`PaperServerAuthorityRuntime` accepts a grant only when all of the following
+remain current:
 
-Handshake risk audit records are admission evidence, not behavior authority.
-Likewise, a backend observing an action already ordered by the proxy cannot feed
-that observation back as new authority; doing so would create a self-confirming
-loop.
+- the carrying Bukkit `Player` is the exact player object associated with the
+  verified admission;
+- the admission is `VERIFIED` and unexpired;
+- the grant is signed by the pinned proxy key;
+- proxy instance, backend instance, player UUID, authenticated session,
+  physical-login binding, admission transport sequence, grant sequence, nonce,
+  and expiry all validate; and
+- the client has registered `mcace:authority` for the server-to-proxy response.
 
-## Protocol
+A malformed, tampered, or replayed untrusted candidate is logged and leaves the
+last valid grant intact. This prevents a bad packet from revoking a valid
+MONITOR session. A newly verified grant is installed only after durable journal
+recovery succeeds. Recovery failure removes the player's authority lifecycle
+and provider state. Recovery is serialized through the same bounded authority
+writer as issuance, so a Paper/Folia player scheduler never waits behind a
+concurrent journal `force(true)`.
 
-Phase 1 reserves a dedicated bidirectional `mcace:authority` channel and defines
-the messages below, but no platform registers that channel. A future production
-integration must not reuse `mcace:context` or change the meaning of signed
-admission snapshots.
+Routine signed-admission refresh does not rotate an unexpired authority grant
+for the same backend/session/physical binding. The proxy retains the original
+grant and Paper permits the newer verified admission sequence to extend the
+current physical session without discarding provider events. A new grant is
+created only after bounded expiry (or lifecycle/backend/session replacement),
+at which point events predating the new signed grant boundary remain ineligible.
 
-### Proxy to Paper: `BackendAuthorityGrant`
+### Provider correlation
 
-The proxy signs a short-lived grant containing at least:
+`BehaviorAlertPipeline` forwards typed Grim/Vulcan callbacks to the local
+authority sink independently of optional Cloud delivery.
+`PaperAuthorityProviderCorrelator` then requires exact matches for provider ID,
+provider version, and stable check family; rejects experimental, future, stale,
+already-consumed, and unknown-provider events; and keeps at most 256 event
+timestamps per provider.
 
-- schema and packet version;
-- unique grant ID and random challenge/commitment;
-- proxy instance ID and exact backend instance ID;
-- player UUID and exact proxy authenticated session ID;
-- an opaque binding ID regenerated for each physical login and backend
-  generation;
-- admission transport sequence and monotonic grant sequence;
-- issued-at and expires-at timestamps.
+Correlation selects at most one provider per independent trust domain, in
+canonical provider-ID order, and emits only after the configured threshold and
+independent-domain quorum are met inside the shared profile window. Provider
+callbacks may arrive out of chronological order: window start/end are computed
+as the minimum and maximum timestamps rather than deque insertion order.
 
-The TTL should initially match the current short admission window. A backend
-transition invalidates the previous grant before the transition begins; a new
-grant is issued only after the new backend is ready. Paper verifies the grant with
-the pinned proxy public key and binds it to the carrying Bukkit player. A client
-can never originate this packet.
+Cooldown is checked against both:
 
-### Paper to proxy: `ServerAuthorityObservation`
+- the last accepted provider `observedAt`; and
+- the last durably issued signed-frame `issuedAt`.
 
-Each Paper instance uses its own Ed25519 key. Proxy configuration maps the exact
-registered backend to a backend instance ID, one canonical key/fingerprint, and
-digest-keyed full canonical authority profiles; it does not accept an unbound
-allowlist of digest strings.
+The exact boundary is accepted; a time strictly before the boundary is
+rejected. Evidence is single-use: after a durable observation is committed and
+its one transport send is attempted, all events at or before the consumed
+timestamp are removed.
 
-The signed payload contains at least:
+### Durable issuance before send
 
-- schema, packet type, attestation ID, backend instance ID, and key ID;
-- player UUID, exact proxy session ID, grant ID/commitment, physical-login
-  binding ID, and admission sequence;
-- strictly increasing observation sequence for that binding;
-- observed-at, issued-at, and expires-at timestamps;
-- canonical authority-profile SHA-256;
-- the set/commitment of independent provider trust domains;
-- content-free provider versions, stable check families, thresholds, and window
-  results.
+`DurableServerAuthorityIssuer` is the only production signing entry point. For
+an exact verified grant it:
 
-The payload contains no raw coordinates, IP address, verbose alert text, client
-file path/hash, disposition action, policy rule, route, or ban instruction.
+1. recovers the last durable lifecycle sequence and timestamps;
+2. requires the request to match the backend key, grant, session, physical
+   binding, admission sequence, provider window, and expected next sequence;
+3. signs the canonical observation;
+4. appends the content-free record to the issuance journal;
+5. calls `force(true)` and re-reads the exact appended record through the same
+   handle;
+6. only then creates `DurablyIssuedServerAuthorityObservation`, whose frame can
+   be passed to the platform sender.
 
-Reuse the bounded Ed25519 envelope and replay primitives in:
+`PaperServerAuthorityIssueCoordinator` couples that durable token to one unique
+prepare/commit lease. Pre-durability semantic rejection may abort and retry. An
+uncertain I/O result, sequence drift, runtime uncertainty, or post-durability
+commit failure poisons/removes the affected state and must not reuse the
+advanced sequence.
 
-- `mcace-protocol/.../crypto/EnvelopeCodec.java`
-- `mcace-protocol/.../crypto/NonceReplayGuard.java`
+After commit, Paper updates its in-memory grant sequence and correlator
+consumed/accepted/issued times, and makes one call to
+`Player.sendPluginMessage` with the exact durable frame. There is no transport
+ACK and MCAce does not retry the durable sequence, so the log says **send
+attempted**, not published or delivered. This is an at-most-once transport
+attempt after durability; it is still MONITOR output and has no local route,
+disconnect, kick, or ban call.
 
-Do not treat `SignedAdmissionSnapshotCodec` as a complete reverse authority
-protocol; its present envelope binding is narrower than the session and physical
-login binding required here.
+Paper/Folia player schedulers enqueue immutable grant-recovery and issuance
+requests into one dedicated journal writer with a bounded 256-entry queue.
+Queue saturation is an immediate MONITOR rejection rather than a blocking wait
+or an unbounded allocation. Journal recovery, signing, append, `force(true)`,
+and exact-tail verification execute only on
+`mcace-authority-journal-writer`; completion is returned through
+`executeForPlayer` before the current Player/admission/grant capability is
+revalidated and one send is attempted. A newer recovered grant cancels an older
+durable frame whose player callback has not yet run; the recovered journal
+sequence remains authoritative and the retired frame is not retried. Shutdown
+stops admission, drains the writer with a bounded wait, and closes the lifetime
+journal handle afterward. Unit tests prove single-thread execution, bounded
+rejection, and adverse grant-recovery/send callback ordering. Production
+storage-latency measurement remains a live-server acceptance item and is not
+inferred from those code-level tests.
 
-## Provider independence and authority profiles
+## Velocity and BungeeCord runtime
 
-Automatic `LIMIT` or stronger action requires at least two operator-approved,
-independent trust domains by default. Both must:
+Both proxies load the same strict `ProxyServerAuthorityConfiguration`, bind
+each registered backend name to one backend instance ID, Ed25519 public key/key
+ID, and one or more complete canonical profiles, then register
+`mcace:authority` only if that configuration is enabled.
 
-- observe the same player, authenticated session, physical binding, and backend;
-- independently meet their configured threshold in the same bounded window;
-- use eligible stable checks from an operator-pinned version contract;
-- exclude cancelled, experimental, or unclassified checks;
-- be normalized through a fixed provider registry, not arbitrary frame strings.
+The grant is issued only while the proxy's platform lifecycle lock proves:
 
-Aliases or two adapters backed by the same underlying signal do not create two
-independent providers.
+- the exact physical-login ticket is current;
+- the authenticated session is current;
+- admission is verified;
+- the exact backend connection is current; and
+- the backend-ready barrier is satisfied.
 
-The canonical authority-profile digest commits, with provider contracts ordered
-by provider ID, to every exact provider ID, independent trust-domain ID, provider
-version, stable check family, and threshold, plus the independent-domain quorum,
-shared maximum provider window, and cooldown. The registry rejects a digest that
-does not match that canonical profile content. During verification, every signed
-provider summary must exactly match its pinned contract and meet its threshold;
-all accepted provider windows must lie within the one profile-bounded window
-ending at `observed_at`, begin no earlier than the live grant, and satisfy the
-pinned independent-domain quorum. Any profile change produces a different
-digest. A future policy selector must use the exact digest, never a broad string
-such as `grim`, `vulcan`, or a check name.
+Velocity checks whether `ServerConnection.sendPluginMessage` accepted the send
+attempt and invalidates the grant when that call reports unavailable. It is not
+a remote delivery ACK. BungeeCord's
+`Server.sendData` has no delivery acknowledgement, so its log deliberately says
+**send attempted** rather than delivered; a later valid observation is the
+cryptographic evidence that Paper possessed a matching grant.
 
-If only one approved provider exists, its output remains audit/WARN or enters the
-existing `ADMIN_REVIEWED` workflow. It is not single-source automatic
-`SERVER_CONFIRMED` enforcement.
+Inbound authority plugin messages are marked handled/cancelled before
+validation, so they are not transparently forwarded. Under the same lifecycle
+lock, the proxy verifies the carrier is the current backend for the exact
+player/session/grant and then applies the bounded canonical Ed25519 verifier,
+nonce replay guard, profile contract, observation sequence, cooldown, and
+grant-time bounds. Only a fully verified frame advances the in-memory prior
+observation snapshot.
 
-## Proxy validation order
+The only current consumer of the verified value in both plugins is a
+content-free MONITOR log containing player/backend, attestation ID, profile
+digest, observation sequence, and signed-frame digest. No call bridges it to
+the existing `ADMIN_REVIEWED` disposition authorization or executor.
 
-Future receiving Velocity or Bungee code must fail closed in this order:
+Backend transition, disconnect, same-UUID physical-login replacement, session
+replacement, and proxy shutdown invalidate/clear authority state. Velocity
+invalidates before `ServerPreConnect`; BungeeCord invalidates when its deferred
+routes enter backend-connecting state. A stale old-backend observation cannot
+be accepted after that boundary.
 
-1. enforce packet size, field-count, list-count, and unknown-field limits;
-2. require the carrying source to be the player's exact current backend;
-3. consume and reject client-originated packets without parsing them as authority;
-4. under the player's lifecycle lock, require the exact player object/login
-   ticket, authenticated session, `VERIFIED` admission, backend-ready state, and
-   current backend; load the live `BackendAuthorityGrantCodec.VerifiedGrant` and
-   the optional `PriorAcceptedObservation` for that physical binding;
-5. derive the backend identity from the proxy connection, select its exact pin,
-   and invoke observation verification without releasing that lifecycle lock;
-6. reject any outer `SignedEnvelope` or decoded observation payload whose bytes
-   differ from canonical protobuf reserialization, as well as unknown outer,
-   payload, or nested-provider fields; then verify packet/session binding,
-   Ed25519 signature, key ID, timestamp, nonce, and checksum;
-7. require the supplied live `VerifiedGrant` to match the current player,
-   authenticated session, physical binding, admission sequence, and pinned
-   backend instance and to remain unexpired; require the observation's exact
-   grant ID/commitment and time range to be bounded by that grant;
-8. resolve the signed profile digest to the exact canonical pinned profile, match
-   every provider ID/domain/version/family/threshold, enforce its quorum and
-   shared window, and enforce the prior snapshot's strictly increasing sequence
-   plus cooldown over both observed-at and issued-at;
-9. create the narrow `VerifiedServerAuthorityObservation`, including the SHA-256
-   of the exact accepted signed frame, and commit its new prior snapshot/sequence
-   before releasing the same lifecycle lock;
-10. outside the lifecycle lock, durably authorize it through a future trusted policy
-   runtime;
-11. queue only the event returned after a successful journal force;
-12. let the existing executor atomically revalidate lifecycle, context, policy,
-    rule, action, and expiry while initiating the action.
+## File and key hardening
 
-If the player reconnects between steps 9 and 12, the durable journal may record an
-authorization that was never executed; the existing exact-session/physical-login
-gate must reject the stale event.
+Security-sensitive configuration and key reads use
+`AuthorityFilePreflight`:
 
-This sequence remains the production target. Phase 1 implements the bounded,
-canonical frame and payload checks, cryptographic checks, exact registry/profile
-checks, live-grant comparisons, prior-snapshot sequence/cooldown checks, and
-narrow token. It cannot itself prove packet provenance or acquire a platform
-lifecycle lock: a future caller must supply the real current facts and hold the
-same lock across reading the prior snapshot, calling `verify`, and committing the
-returned sequence/times. No current caller registers a receiver, persists that
-snapshot or an authorization, or calls an action executor. Phase 2.5 adds hardened
-durable local issuance and a disabled Paper lifecycle seam; Phase 2.6 adds only the
-package-private inert coordinator that atomically orders exact precheck, durable
-next-sequence issuance, and exact commit. Neither satisfies platform provenance,
-receiver, sender, correlation, authorization, or execution requirements.
+- configured key/journal paths must be non-empty relative paths that remain
+  below the plugin data directory after normalization;
+- the complete existing ancestor chain and leaf are inspected with
+  `NOFOLLOW_LINKS` and must contain only directories plus one regular-file leaf;
+- symbolic links, junctions/reparse points exposed as special objects, lexical
+  escapes, and non-regular files are rejected;
+- the canonical root/file relationship and path identity are checked before and
+  after the read; and
+- reads are size-bounded before allocation and reject growth/replacement seen
+  during the read.
 
-Production wiring should accept only `VerifiedServerAuthorityObservation`.
-Raw `ArtifactObservation` construction of a `SERVER_CONFIRMED` source should be
-restricted to a package-private test seam so a future caller cannot gain authority
-by setting enum values.
+Limits are 64 KiB for proxy `authority.properties`, 256 KiB for Paper
+`config.yml`, and 4096 bytes for each authority key file. Text configuration is
+strict UTF-8. Proxy properties reject duplicate and unknown keys. Paper scans
+the raw `authority` YAML subtree before trusting Bukkit's parsed configuration,
+requires the authority root and its contents to use simple block-mapping
+entries, and rejects duplicate root/subtree keys, tabs, unsupported/complex
+mapping keys, inconsistent indentation, and unknown parsed fields.
 
-## Durable records
+The Paper private/public halves are decoded as Ed25519 keys, challenged with a
+sign/verify probe, and checked against the configured canonical public-key
+SHA-256. `ProxyIdentityStore`, Velocity `ServerIdentityStore`, and BungeeCord
+`BungeeIdentityStore` all use the same preflight contract for their trust-root
+or identity material: no-follow path-chain validation, a 4096-byte bound,
+native-owner/private-ACL validation before and after reads, exact Ed25519
+private/public pair validation, and private same-directory atomic creation when
+an identity must be initialized. Paper's pinned proxy public key must match the
+selected proxy's grant-signing identity; each proxy independently verifies all
+backend public-key pins.
 
-### Paper issuance journal
-
-The implemented journal/issuer contract appends and forces an issuance record
-before returning a token from which an adapter could send the attestation. It
-records only:
-
-- attestation ID and backend-key fingerprint;
-- observation sequence;
-- session/binding commitment;
-- provider-set/profile commitment;
-- observed/issued/expires timestamps;
-- exact emitted signed-frame SHA-256.
-
-The operator must create the journal directory and regular journal file, write
-the exact fixed versioned header, and apply the intended ownership and ACLs
-before MCAce starts. Runtime exposes no create or initialize operation and fails
-closed if either path is missing or unsafe. Its public provisioning preflight is
-read-only: it supplies the exact required header bytes and validates a supplied
-path without creating or modifying the directory, file, header, or records. This
-removes an ambiguous empty-file bootstrap from the authority path and makes
-provisioning a separate, reviewable operation.
-
-The initial file is exactly the following ASCII/UTF-8 line followed by one LF
-byte, with no BOM, CR, blank prefix, or extra record:
+The preprovisioned journal must begin with exactly:
 
 ```text
-MCACE_SERVER_AUTHORITY_ISSUANCE_JOURNAL_V1
+MCACE_SERVER_AUTHORITY_ISSUANCE_JOURNAL_V3
 ```
 
-One journal instance keeps a single read/write file handle and an exclusive file
-lock until close. On Windows with the supported OpenJDK 21 runtime it additionally
-opens that handle with `NOSHARE_DELETE` and `NOSHARE_WRITE`; startup fails closed
-if those OpenJDK options cannot be applied. On non-Windows hosts it requires a
-non-null filesystem `fileKey`. Both paths reject symbolic links and special files
-and recheck the no-follow identities of the journal and all existing ancestors.
+followed by one LF byte. Runtime never creates or initializes this file. The
+journal keeps one no-follow read/write handle and an exclusive lock for its
+entire lifetime, enforces a maximum 64 MiB quota, rejects malformed, duplicate,
+partial, non-increasing, or identity-changing records, and revalidates the
+exact appended record after every forced append. The complete bounded file is
+decoded once during startup into an in-memory recovery index; routine
+`lastSequence`/`recover` lookups and appends do not re-decode historical records.
+On supported Windows OpenJDK 21 it also requests `NOSHARE_DELETE` and
+`NOSHARE_WRITE`; on non-Windows it requires filesystem `fileKey` identity.
 
-For each issuance, the journal reads and decodes through that same long-lived
-handle, validates the next record, appends it, calls `force(true)`, and decodes
-the complete bytes again through the same handle. It then performs the required
-no-follow path/identity and canonical-path-resolution checks. Any I/O, identity,
-force, or post-force verification failure returns no token and poisons the
-journal and issuer instances until they are closed and reopened. Semantic
-rejection before journal I/O, including a grant/key mismatch, also returns no
-token but does not poison the issuer.
+On Linux/POSIX, enabled authority configuration, key, journal, identity, and pin
+paths fail closed unless every protected directory at/below the plugin data root
+is owned by the runtime's native effective UID with mode `0700`, and each
+protected file is owned by that UID with mode `0600`. This check does not trust
+the mutable Java `user.name` property. On Windows, the native NT runtime
+principal must own each protected path and every directory/file DACL must be
+protected, contain no inherited ACE, and contain exactly `FullControl` entries
+for that principal and `SYSTEM` (with the exact directory inheritance flags and
+no file inheritance flags). Broad or unverifiable DACLs fail closed. The
+provisioner protects the two generated runtime private-key files for the current
+user plus `SYSTEM` on Windows (or mode `0600` outside Windows), commits the
+output with one directory rename, and removes a partial staging tree if that
+private-key postcondition cannot be established. Operators must establish and
+preserve the runtime's stricter complete directory/file isolation contract when
+deploying the selected files into plugin data roots.
 
-The issuer treats the journal as the sequence authority. Its
-`recover(VerifiedGrant)` operation reads the last committed sequence for that exact
-grant/lifecycle and returns it only as non-externally-constructible
-`RecoveredServerAuthoritySequence`. Issuance signs `last + 1` and appends that
-record before returning a durable token that binds the exact verified grant,
-lifecycle, backend key, and observed/issued/expires window. There is no separate
-in-memory allocation that can advance before append. If a journal I/O outcome is
-uncertain, the poisoned issuer cannot retry; a later clean reopen derives the next
-value from what is actually durable.
+Formal process evidence has an additional, independent trust boundary. The V3
+freeze pins an external `ED25519` supervisor public descriptor and canonical key
+ID. The descriptor's exact file SHA-256 must also equal
+`MCACE_RELEASE_APPROVED_PRODUCTION_AUTHORITY_SUPERVISOR_DESCRIPTOR_SHA256`; a
+caller-provided value cannot approve itself. The supervisor private key remains
+outside the repository, provisioned runtime, capture package, logs, and standard
+output.
 
-The Paper lifecycle seam mirrors that ordering with capability-bound
-prepare/commit/abort. Prepare reserves at most one pending issuance and returns a
-unique lease; commit accepts only the matching lease and matching durable token.
-Abort releases a pre-durability rejection so a new prepare can retry. The Phase
-2.6 coordinator performs an exact request/lease/grant precheck, delegates sequence
-allocation to the journal-backed issuer, and commits before returning its opaque
-durable capability. Raw frame access remains package-private to core. A sequence
-drift exception removes lifecycle state and requires a fresh typed recovery; an
-uncertain I/O outcome or a commit failure after durability poisons the coordinator
-and must never take the abort/retry path. A future
-production startup must call issuer recovery for the verified grant and install
-that typed recovered sequence before accepting it. This seam remains disabled in
-`MCAcePaperPlugin`; the plugin does not instantiate the coordinator, and no current
-production adapter can obtain or send the raw frame.
+The V4 collector does not accept a narrative PASS or operator booleans. Formal
+collection is a two-phase external handoff: it first validates all raw bytes,
+then atomically emits an
+`MCACE_PRODUCTION_AUTHORITY_SUPERVISOR_SIGNING_REQUEST_V1` outside the
+repository/release/output roots and waits at 250 ms intervals for the requested
+receipt. The request binds the exact expected receipt payload bytes, reviewed
+descriptor pin and key ID, capture/operation IDs, fresh 32-byte challenge,
+source/artifact commits, release JARs, and every raw/frame/provider/profile/
+topology/process/journal commitment. The external signer signs those exact
+bytes with its separately held Ed25519 key and atomically publishes the V1
+receipt. The collector re-reads the unchanged request and validates the current
+receipt before any report, binding, commit document, or package directory can
+be committed. Immediate pre-existing receipts are fixture-only, not a Formal
+release path.
 
-These checks establish a fail-closed runtime append contract, not storage
-immutability against a local administrator. Pure JDK code cannot prove correct
-NTFS/POSIX ACLs, defeat a privileged administrator or hostile storage stack, or
-detect bytes changed after a token has already been returned and the runtime
-boundary has ended. Operators must isolate the directory to the MCAce service
-identity, monitor ownership/ACL changes, and use independently protected audit or
-immutable storage where post-return tamper evidence is required. The Windows
-no-share options are OpenJDK-specific rather than a Java SE portability guarantee;
-the non-Windows `fileKey` check likewise depends on a filesystem that exposes a
-stable key.
+The collector then reads
+the actual protobuf `BackendAuthorityGrant` and `ServerAuthorityObservation`
+frame bytes, rebuilds their signing inputs, validates Ed25519 signatures against
+the frozen proxy/backend roots, verifies CRC32C/header/session/key/profile/grant
+linkage, and recomputes both the grant commitment and canonical provider
+evidence commitment. It independently validates the raw provider/Paper/proxy
+event chain, durable journal, process incarnations/exit/cleanup, licensed Vulcan
+artifact, exact release-bundle JARs, and the detached supervisor receipt.
 
-### Proxy authorization journal
+The receipt signature covers the request's exact payload bytes, including the ordered raw evidence root, exact frame set,
+provider commitment, event/process ledgers, source and artifact commits, Paper
+and both proxy JAR hashes, profile/topology/key IDs, selected proxy, `MONITOR`
+ceiling, zero automatic actions, capture/attempt IDs, one-time challenge,
+issuance time, and expiry. Publisher replay checks reject reuse of either the
+operation attempt or challenge.
 
-Keep the existing durable-before-event rule. Prefer a new V4 record for this
-origin so it additionally binds source attestation ID, the verified token's exact
-`signedFrameSha256`, backend key fingerprint, authority-profile digest, and
-source expiry. V3 remains the stable `ADMIN_REVIEWED` contract.
+The receipt expiry is the live signer-exchange deadline. The producer must
+receive and validate the receipt before that deadline, and the durable package
+timestamp must remain inside the signed interval. Once committed, later
+publisher/readiness/tag validation checks that historical ordering and the
+immutable signature; it does not compare the old exchange deadline with the
+current wall clock. `-RequireCurrentlyValidReceipt` is reserved for the
+immediate collection/publication acceptance stage.
 
-The executable event must carry the authority expiry separately from the policy
-expiry. The action gate uses the earlier deadline and must not overload the
-current policy-expiry field.
+## Failure and restart semantics
 
-## Platform integration points
+| Event | Required/current behavior |
+| --- | --- |
+| Invalid untrusted grant candidate | log; preserve the current verified grant |
+| Verified new grant but journal recovery fails | remove that player's grant/lifecycle/correlation state |
+| Provider callback or scheduler runtime failure | contain and log; do not escape into the provider plugin |
+| Pre-journal semantic rejection | return no frame; issuer remains reusable |
+| Journal I/O/identity/force/post-force uncertainty | return no frame; poison issuer/journal until close/reopen |
+| Channel registration failure, including mutate-then-throw | compensate every attempted registration, then close journal/runtime |
+| Quit, physical-login replacement, backend switch | clear/invalidate exact player authority state |
+| Paper/Folia restart | reopen and validate the preprovisioned journal; after receiving an exact verified grant, recover sequence plus last observed/issued times for that lifecycle |
+| Proxy restart | in-memory grants/prior snapshots disappear; a new exact grant is required before any observation can validate |
 
-### Paper and Folia
+Journal recovery restores cooldown as well as the observation sequence. A
+restart therefore cannot reset the per-lifecycle cooldown or reuse already
+consumed provider evidence merely because the in-memory correlator was empty.
+Recovery is bound to backend instance, player UUID, authenticated session, and
+physical-login binding; unrelated or stale lifecycle records do not become a
+sequence oracle for a new login.
 
-- initialize the grant receiver, provider registry/correlator, signer, and
-  operator-preprovisioned issuance journal beside admission messaging in
-  `MCAcePaperPlugin`;
-- keep authority disabled if any key, registry, journal, or provider contract is
-  invalid;
-- recover the exact lifecycle's typed `RecoveredServerAuthoritySequence` from
-  `recover(VerifiedGrant)` before accepting that grant, then instantiate the inert
-  coordinator only inside the completed production adapter. Use its exact
-  precheck/durable-next-sequence/commit ordering; retry only pre-durability
-  rejection, never uncertain I/O or a post-durability commit failure;
-- run player-owned work through `MCAceRuntimeScheduler` and clear all binding
-  state on quit/replacement;
-- keep `PaperBackendContextPublisher` shadow-only;
-- allow local authority operation when Cloud is disabled.
+The code-level behavior above is not yet equivalent to a completed restart
+acceptance test across real Velocity/Bungee, Paper/Folia, and genuine provider
+processes. That remains a release gate.
 
-### Velocity
+## Protocol validation boundary
 
-- load the exact backend-key/profile registry with the trusted policy runtime;
-- register the dedicated channel and create grants when forwarding a current
-  signed admission snapshot;
-- invalidate grants on replacement, disconnect, or backend-connecting, then issue
-  a new grant only after backend-ready;
-- verify the observation using the same lifecycle facts later rechecked by
-  `VelocityDispositionExecutor`.
+`BackendAuthorityGrant` and `ServerAuthorityObservation` use packet types 21
+and 22, schema version 1, an 8 KiB maximum frame, and a maximum 30-second
+authority TTL/observation age. Core codecs enforce bounded/canonical protobuf
+and signed-envelope encoding, reject unknown fields and noncanonical byte
+representations, validate Ed25519 signatures, checksums, timestamps, key IDs,
+nonces, exact lifecycle bindings, provider profiles, independent-domain quorum,
+strictly increasing sequences, and cooldown.
 
-### BungeeCord
+The observation includes:
 
-- apply the equivalent backend-key registry, channel, grant lifecycle, and
-  verifier;
-- bind to `BungeeDeferredDispositionRoutes` login tickets, not only session text;
-- invalidate at `ServerConnectEvent` before a backend transition and restore
-  readiness only for the exact completed connection;
-- optional/third-party session bridges without the exact lifecycle facts remain
-  fail closed.
+- backend instance/key ID and attestation ID;
+- player, authenticated session, grant ID/commitment, physical-login binding,
+  and admission transport sequence;
+- strictly increasing observation sequence and bounded timestamps;
+- canonical authority-profile SHA-256; and
+- content-free independent provider summaries.
 
-## Required test gates
+The proxy platform adapter, not the codec alone, proves carrier provenance and
+holds the physical-login lock. Both layers are required.
 
-### Protocol and core
+## Verification commands
 
-Cover valid frames and every wrong key/backend/carrier/player/session/grant/
-binding/admission-sequence combination; missing/stale `VerifiedGrant`;
-duplicate/decreasing sequence; cooldown violations; replayed nonce;
-expired/future/oversized/unknown-field and noncanonical outer/payload frames;
-reconnect/backend-switch/Paper-restart/proxy-restart replay; provider contract
-drift, aliasing, shared-window violations, and cross-session quorum; canonical
-profile-digest drift; exact signed-frame SHA binding; journal
-I/O/quota/symlink failure; policy rollback, equivocation, expiry, and action
-mismatch; queue/idempotency capacity.
+Use JDK 21 and the repository's strict offline dependency verification:
 
-### Platform adapters
+```powershell
+$env:JAVA_HOME = "$env:USERPROFILE\.gradle\jdks\eclipse_adoptium-21-amd64-windows.2"
+.\gradlew.bat `
+  :mcace-core:test `
+  :mcace-server-paper:test `
+  :mcace-server-velocity:test `
+  :mcace-server-bungeecord:test `
+  --offline --dependency-verification=strict `
+  --no-daemon --no-parallel --max-workers=1 --console=plain
+```
 
-For both proxies prove client-source consume-only, stale backend rejection,
-transition invalidation, lifecycle capture before durable authorization, and exact
-execution-time recheck. Prove `MONITOR` creates only audit evidence, deferred
-events expire safely, and `DENY` affects only the current physical login.
+Authority-focused suites include:
 
-For Paper/Folia prove no signer without complete configuration, no provider input
-before a valid grant, correlation cleanup on every lifecycle transition, Folia
-player-owned scheduling, Cloud independence, and no direct route/disconnect call
-from a raw provider event.
+- core: `AuthorityFilePreflightTest`, `BackendAuthorityGrantCodecTest`,
+  `BackendAuthorityRegistryTest`, `ServerAuthorityObservationCodecTest`,
+  `DurableServerAuthorityIssuerTest`,
+  `FileServerAuthorityIssuanceJournalTest`,
+  `ProxyServerAuthorityRuntimeTest`, and
+  `VerifiedServerAuthorityObservationTest`;
+- Paper/Folia: `PaperServerAuthorityConfigurationTest`,
+  `PaperAuthorityProviderCorrelatorTest`,
+  `PaperServerAuthorityLifecycleTest`,
+  `PaperServerAuthorityIssueCoordinatorTest`,
+  `PaperServerAuthorityRuntimeTest`,
+  `PaperServerAuthorityJournalWriterTest`, and
+  `PaperServerAuthorityChannelLeaseTest`.
 
-### Real processes
+Run the real OpenSSL provisioning regression under both supported PowerShell
+engines:
 
-Test fixtures may validate the protocol but must be labelled
-`TEST_ATTESTATION_FIXTURE`; they are not release evidence for a genuine producer.
-The release gate uses the selected real providers across:
+```powershell
+pwsh -NoProfile -File .\scripts\test-provision-production-authority.ps1
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+  -File .\scripts\test-provision-production-authority.ps1
 
-- Velocity + Paper: LIMIT, QUARANTINE, DENY/reconnect;
-- Bungee + Paper: LIMIT, QUARANTINE, DENY/reconnect;
-- at least one Velocity/Folia and one Bungee/Folia lifecycle case.
+pwsh -NoProfile -File .\scripts\test-production-authority-process-evidence.ps1
+powershell.exe -NoProfile -NonInteractive -ExecutionPolicy Bypass `
+  -File .\scripts\test-production-authority-process-evidence.ps1
+```
 
-Each case proves two real independent sources, Paper durability before send,
-exact backend key/profile, proxy durability before execution, common attestation
-and authorization identity, exact physical/session/context binding, route result,
-current-connection-only DENY, clean independent reconnect, no ban/cross-session
-state, and zero owned process residue.
+Unit tests and controlled executable fixtures are development evidence. They
+must not be relabelled as genuine provider or production-process evidence.
 
-## Rollout and operator decisions
+## Remaining production release gate
 
-Production producer integration cannot begin until the operator freezes:
+Before promoting this path beyond staged MONITOR, capture an exact-commit,
+native evidence bundle that proves all of the following:
 
-1. provider trust domains (for example typed Grim, an operator-supplied licensed
-   Vulcan, or a future native deterministic detector);
-2. eligible versions/check families, exclusions, thresholds, window, cooldown,
-   quorum, and independence mapping;
-3. one Ed25519 key per Paper instance, key IDs, proxy pins, rotation overlap,
-   revocation, permissions, and backup policy;
-4. proxy/backend instance topology and key mapping during scaling/replacement;
-5. the rollout action ceiling.
+1. the exact V3 frozen provider/profile/key/topology/action-ceiling manifest
+   matches the deployed files, proves distinct backend/proxy identities, pins
+   one selected proxy platform per backend, and binds the independently reviewed
+   external supervisor public descriptor used to sign the receipt;
+2. licensed, reviewed Vulcan and the second independent provider emit genuine
+   eligible events in the same physical session (not a synthetic
+   `TEST_ATTESTATION_FIXTURE`);
+3. Paper/Folia appends and forces the expected journal record before the exact
+   observation frame is sent;
+4. Velocity and BungeeCord independently accept the exact backend key/profile,
+   grant, session, physical login, admission sequence, and observation sequence;
+5. malformed, replayed, stale-backend, wrong-session, wrong-key, wrong-profile,
+   cooldown, restart, and disconnect cases fail closed;
+6. Bungee evidence distinguishes a send attempt from confirmed receipt;
+7. process shutdown leaves zero MCAce-owned Java/server residue; and
+8. the verified observation remains MONITOR-only with no automatic kick,
+   quarantine, deny, or ban side effect;
+9. the external supervisor receives the post-prevalidation V1 signing request,
+   verifies its out-of-band descriptor pin and exact commitments, signs only
+   its exact payload bytes, and publishes the receipt atomically inside the
+   15-minute challenge/attempt validity window; and
+10. `publish-native-release-evidence.ps1` revalidates the exact staged raw bytes
+    and V4 release bundle and publishes an
+    `MCACE_SERVER_CONFIRMED_PRODUCTION_EVIDENCE_INDEX_V4` without receipt reuse.
 
-The required rollout is:
+The repository currently contains validator tests and fixtures, not a genuine
+external production capture. No licensed genuine Vulcan production event or
+external-supervisor Authority V4 receipt/index is retained, so the Authority
+release gate remains blocked.
 
-1. protocol, key registry, narrow verified type, and negative tests
-   (implemented as a default-disabled library, with no platform wiring);
-2. hardened Phase 2.5 durable issuer/journal and disabled Paper capability-bound
-   lifecycle seam, plus the Phase 2.6 package-private inert coordinator (library
-   slices implemented); production instantiation, grant receiver, authority
-   configuration, provider correlation, configured signer, sender, trusted
-   authorization/executor wiring, and process evidence remain open;
-3. Velocity/Bungee verification in `MONITOR` with no action wiring;
-4. real provider process evidence on Paper/Folia and both proxies;
-5. two-source `LIMIT` only;
-6. separately approved `QUARANTINE` after false-positive/fault-injection evidence;
-7. separately approved current-connection-only `DENY` last.
-
-Automatic permanent banning remains prohibited at every phase.
-
-Until the provider, profile, key, topology, and rollout choices are fixed, the
-correct repository state is the present inert protocol, durable-issuance libraries,
-disabled Paper lifecycle seam, package-private uninstantiated coordinator, and a
-pending production release gate—not a synthetic producer.
+Only after this MONITOR evidence exists should a separate design/review decide
+whether to connect `VerifiedServerAuthorityObservation` to durable trusted
+authorization. Any future `LIMIT`, `QUARANTINE`, or current-connection-only
+`DENY` rollout needs its own policy, false-positive, fault-injection, and
+real-process acceptance gate. Permanent automatic banning remains prohibited.

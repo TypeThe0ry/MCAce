@@ -6,6 +6,7 @@ import com.ellan.mcace.client.integrity.IntegrityScanCancellation;
 import com.ellan.mcace.client.integrity.IntegrityScanException;
 import com.ellan.mcace.client.integrity.PolicyDrivenIntegrityCollector;
 import com.ellan.mcace.client.observation.ArtifactObservationCollector;
+import com.ellan.mcace.client.observation.LoadedModObservation;
 import com.ellan.mcace.client.integrity.ScopeIntegrityManifest;
 import com.ellan.mcace.client.policy.VerifiedPolicy;
 import com.ellan.mcace.client.policy.VerifiedPolicyCache;
@@ -20,8 +21,11 @@ import com.ellan.mcace.protocol.crypto.EnvelopeException;
 import com.ellan.mcace.protocol.crypto.NonceReplayGuard;
 import com.ellan.mcace.protocol.generated.AuthRequest;
 import com.ellan.mcace.protocol.generated.AuthResult;
+import com.ellan.mcace.protocol.generated.ArtifactObservationResult;
+import com.ellan.mcace.protocol.generated.ArtifactObservationResultReason;
 import com.ellan.mcace.protocol.generated.ArtifactObservationUpdate;
 import com.ellan.mcace.protocol.generated.ClientHello;
+import com.ellan.mcace.protocol.generated.ClientCapability;
 import com.ellan.mcace.protocol.generated.EvidenceBegin;
 import com.ellan.mcace.protocol.generated.EvidenceAck;
 import com.ellan.mcace.protocol.generated.EvidenceAckStatus;
@@ -38,6 +42,8 @@ import com.ellan.mcace.protocol.generated.FileEntry;
 import com.ellan.mcace.protocol.generated.Heartbeat;
 import com.ellan.mcace.protocol.generated.IntegrityScopeManifest;
 import com.ellan.mcace.protocol.generated.LoaderType;
+import com.ellan.mcace.protocol.generated.LoadedModEntry;
+import com.ellan.mcace.protocol.generated.LoadedModOriginKind;
 import com.ellan.mcace.protocol.generated.ModEntry;
 import com.ellan.mcace.protocol.generated.PacketType;
 import com.ellan.mcace.protocol.generated.ServerHello;
@@ -84,6 +90,8 @@ public final class ClientHandshakeEngine {
     private final LoaderType loader;
     private final PublicKey serverPublicKey;
     private final KeyPair sessionKeyPair;
+    /** Empty for ordinary login; exact SHA-256(SignedFederationAssertion bytes) for federation. */
+    private final byte[] federationSignedAssertionSha256;
     private final Clock clock;
     private final EnvelopeCodec envelopeCodec;
     private final NonceReplayGuard replayGuard;
@@ -123,12 +131,13 @@ public final class ClientHandshakeEngine {
             Clock clock,
             SecureRandom secureRandom) throws EnvelopeException {
         this(playerId, clientVersion, minecraftVersion, buildId, loader, serverPublicKey, clock,
-                secureRandom, Ed25519Keys.generate(secureRandom));
+                secureRandom, Ed25519Keys.generate(secureRandom), new byte[0], false);
     }
 
     /**
-     * Uses a still-live in-memory Ed25519 key only for a federation target handshake. The
-     * bounded transfer vault owns the key and never serializes or exposes it to a caller.
+     * Uses a caller-owned in-memory Ed25519 key for an ordinary, non-federation handshake.
+     * Federation target handshakes must use the overload that also supplies the exact signed
+     * assertion SHA-256; an unbound session cannot later accept a federation presentation.
      */
     public ClientHandshakeEngine(
             UUID playerId,
@@ -140,6 +149,41 @@ public final class ClientHandshakeEngine {
             Clock clock,
             SecureRandom secureRandom,
             KeyPair sessionKeyPair) throws EnvelopeException {
+        this(playerId, clientVersion, minecraftVersion, buildId, loader, serverPublicKey, clock,
+                secureRandom, sessionKeyPair, new byte[0], false);
+    }
+
+    /**
+     * Uses the source-session key for a federation target handshake and cryptographically binds
+     * the target AUTH transcript to the exact source-signed assertion received in the grant.
+     */
+    public ClientHandshakeEngine(
+            UUID playerId,
+            String clientVersion,
+            String minecraftVersion,
+            String buildId,
+            LoaderType loader,
+            PublicKey serverPublicKey,
+            Clock clock,
+            SecureRandom secureRandom,
+            KeyPair sessionKeyPair,
+            byte[] federationSignedAssertionSha256) throws EnvelopeException {
+        this(playerId, clientVersion, minecraftVersion, buildId, loader, serverPublicKey, clock,
+                secureRandom, sessionKeyPair, federationSignedAssertionSha256, true);
+    }
+
+    private ClientHandshakeEngine(
+            UUID playerId,
+            String clientVersion,
+            String minecraftVersion,
+            String buildId,
+            LoaderType loader,
+            PublicKey serverPublicKey,
+            Clock clock,
+            SecureRandom secureRandom,
+            KeyPair sessionKeyPair,
+            byte[] federationSignedAssertionSha256,
+            boolean federationTargetHandshake) throws EnvelopeException {
         this.playerId = Objects.requireNonNull(playerId, "playerId");
         this.clientVersion = requireText(clientVersion, "clientVersion");
         this.minecraftVersion = requireText(minecraftVersion, "minecraftVersion");
@@ -154,6 +198,9 @@ public final class ClientHandshakeEngine {
         if (sessionKeyPair.getPrivate() == null || sessionKeyPair.getPublic() == null) {
             throw new EnvelopeException("federation session key pair is incomplete");
         }
+        this.federationSignedAssertionSha256 = federationTargetHandshake
+                ? requiredSha256(federationSignedAssertionSha256, "federation signed assertion hash")
+                : optionalSha256(federationSignedAssertionSha256, "federation signed assertion hash");
         this.envelopeCodec = new EnvelopeCodec(
                 this.clock,
                 secureRandom,
@@ -214,6 +261,12 @@ public final class ClientHandshakeEngine {
         }
     }
 
+    /** True only while this exact accepted signed policy is still current for this handshake. */
+    public synchronized boolean isVerifiedPolicyCurrent(VerifiedPolicy expected) {
+        return expected != null && verifiedPolicy == expected
+                && expected.policy().getExpiresAtEpochMs() > clock.millis();
+    }
+
     public synchronized List<byte[]> createAuthentication(ClientIntegrityBundle bundle) throws EnvelopeException {
         return createAuthentication(bundle, List.of());
     }
@@ -248,7 +301,7 @@ public final class ClientHandshakeEngine {
 
     public synchronized List<OutboundFrame> createAuthenticationFrames(
             ClientIntegrityBundle bundle, List<ArtifactObservation> observations) throws EnvelopeException {
-        return createAuthenticationFrames(bundle, observations, List.of(), List.of());
+        return createAuthenticationFrames(bundle, observations, List.of(), List.of(), List.of());
     }
 
     /**
@@ -261,12 +314,31 @@ public final class ClientHandshakeEngine {
             List<ArtifactObservation> observations,
             Collection<String> selectedResourcePacks,
             Collection<String> selectedShaderPacks) throws EnvelopeException {
+        return createAuthenticationFrames(bundle, observations, selectedResourcePacks,
+                selectedShaderPacks, List.of());
+    }
+
+    /**
+     * Creates authentication frames with both installed-file manifests and Fabric Loader's
+     * actual runtime mod graph.  Runtime entries remain signed client reports; direct
+     * {@code mods/} origins are bound to a manifest hash before they are marked matched.
+     */
+    public synchronized List<OutboundFrame> createAuthenticationFrames(
+            ClientIntegrityBundle bundle,
+            List<ArtifactObservation> observations,
+            Collection<String> selectedResourcePacks,
+            Collection<String> selectedShaderPacks,
+            Collection<LoadedModObservation> loadedMods) throws EnvelopeException {
         Objects.requireNonNull(bundle, "bundle");
         Objects.requireNonNull(observations, "observations");
         List<String> selectedResources = normalizeSelectedPacks(selectedResourcePacks, "resource");
         List<String> selectedShaders = normalizeSelectedPacks(selectedShaderPacks, "shader");
+        List<LoadedModObservation> normalizedLoadedMods = normalizeLoadedMods(loadedMods);
         if (sessionId == null || acceptedHello == null || verifiedPolicy == null) {
             throw new EnvelopeException("server hello has not been accepted");
+        }
+        if (!isVerifiedPolicyCurrent(verifiedPolicy)) {
+            throw new EnvelopeException("accepted server policy expired before authentication");
         }
         if (authenticationResultReceived) {
             throw new EnvelopeException("authentication was already completed for this session");
@@ -278,9 +350,12 @@ public final class ClientHandshakeEngine {
                 .setPublicKeyX509(ByteString.copyFrom(sessionKeyPair.getPublic().getEncoded()))
                 .setBuildId(buildId)
                 .setChallengeNonce(acceptedHello.getChallengeNonce())
+                .setFederationSignedAssertionSha256(
+                        ByteString.copyFrom(federationSignedAssertionSha256))
                 .build();
         AuthRequest authentication = buildAuthentication(
-                bundle, verifiedPolicy, observations, selectedResources, selectedShaders);
+                bundle, verifiedPolicy, observations, selectedResources, selectedShaders,
+                normalizedLoadedMods);
         byte[] helloFrame = signedFrame(PacketType.CLIENT_HELLO, clientHello.toByteArray());
         byte[] authenticationPayload = authentication.toByteArray();
         byte[] legacyAuthenticationFrame = signedFrame(PacketType.AUTH_REQUEST, authenticationPayload);
@@ -332,6 +407,10 @@ public final class ClientHandshakeEngine {
                 throw new EnvelopeException("authentication result was already received for this session");
             }
             AuthResult result = AuthResult.parseFrom(envelope.getPayload());
+            if (!MessageDigest.isEqual(federationSignedAssertionSha256,
+                    result.getFederationSignedAssertionSha256().toByteArray())) {
+                throw new EnvelopeException("authentication result federation binding mismatch");
+            }
             if (result.getAccepted()) {
                 if (pendingHeartbeatBinding == null) {
                     throw new EnvelopeException("accepted authentication result has no locally prepared binding");
@@ -412,6 +491,20 @@ public final class ClientHandshakeEngine {
         return acceptedHello.getServerId();
     }
 
+    /**
+     * Returns the session selected by the verified server hello before AUTH_RESULT is consumed.
+     *
+     * <p>Fabric adapters use this as an early generation guard. A delayed AUTH_RESULT for an old
+     * session is ignored before it is handed to the new engine, so its expected session mismatch
+     * cannot tear down the newer connection.</p>
+     */
+    public synchronized String verifiedSessionId() throws EnvelopeException {
+        if (sessionId == null || acceptedHello == null || verifiedPolicy == null) {
+            throw new EnvelopeException("session identity requires a verified server hello");
+        }
+        return sessionId;
+    }
+
     /** Federation-only bindings from the verified target hello; returned defensively. */
     public synchronized String authenticatedSessionId() throws EnvelopeException {
         requireFederationAuthenticated();
@@ -448,7 +541,8 @@ public final class ClientHandshakeEngine {
                     com.ellan.mcace.protocol.federation.FederationDocuments.parseConsentRequest(
                             envelope.getPayload().toByteArray(), clock, ProtocolConstants.DEFAULT_CLOCK_SKEW);
             validateFederationRequestBinding(request);
-            return new VerifiedFederationConsentRequest(request);
+            return new VerifiedFederationConsentRequest(
+                    request, digest(envelope.getPayload().toByteArray()));
         } catch (com.ellan.mcace.protocol.federation.FederationException exception) {
             throw new EnvelopeException("malformed federation consent request", exception);
         }
@@ -481,8 +575,47 @@ public final class ClientHandshakeEngine {
     public synchronized void receiveFederationGrant(
             byte[] encodedFrame, com.ellan.mcace.client.federation.FederationTokenVault vault)
             throws EnvelopeException {
+        receiveFederationGrant(encodedFrame, vault, java.util.Set.of());
+    }
+
+    /**
+     * Transfers a source-server-signed grant and the exact visible-enablement file scope into the
+     * same volatile vault entry. The scope is later returned only with the exact pinned target
+     * claim, so a process-global approval cannot authorize a different federation grant.
+     */
+    public synchronized void receiveFederationGrant(
+            byte[] encodedFrame,
+            com.ellan.mcace.client.federation.FederationTokenVault vault,
+            java.util.Set<String> approvedExplicitFiles)
+            throws EnvelopeException {
+        receiveFederationGrantInternal(encodedFrame, vault, approvedExplicitFiles, null);
+    }
+
+    /**
+     * Transfers a grant with the exact visible source authorization that committed its consent
+     * response. The authorization's process-local evidence budget is then carried by the vault
+     * into the single inherited target claim instead of being recreated at the target.
+     */
+    public synchronized void receiveFederationGrant(
+            byte[] encodedFrame,
+            com.ellan.mcace.client.federation.FederationTokenVault vault,
+            java.util.Set<String> approvedExplicitFiles,
+            com.ellan.mcace.client.federation.ConnectionEnablementAuthorization sourceAuthorization)
+            throws EnvelopeException {
+        Objects.requireNonNull(sourceAuthorization, "sourceAuthorization");
+        receiveFederationGrantInternal(
+                encodedFrame, vault, approvedExplicitFiles, sourceAuthorization);
+    }
+
+    private void receiveFederationGrantInternal(
+            byte[] encodedFrame,
+            com.ellan.mcace.client.federation.FederationTokenVault vault,
+            java.util.Set<String> approvedExplicitFiles,
+            com.ellan.mcace.client.federation.ConnectionEnablementAuthorization sourceAuthorization)
+            throws EnvelopeException {
         requireFederationAuthenticated();
         Objects.requireNonNull(vault, "vault");
+        Objects.requireNonNull(approvedExplicitFiles, "approvedExplicitFiles");
         SignedEnvelope envelope = envelopeCodec.parse(encodedFrame);
         envelopeCodec.verify(envelope, serverPublicKey, replayGuard);
         if (envelope.getHeader().getPacketType()
@@ -502,7 +635,19 @@ public final class ClientHandshakeEngine {
                     com.ellan.mcace.protocol.federation.FederationDocuments.verifyGrant(
                             envelope.getPayload().toByteArray(), pending, sessionKeyPair.getPublic(), serverPublicKey,
                             clock, ProtocolConstants.DEFAULT_CLOCK_SKEW);
-            vault.store(grant, sessionKeyPair, playerId, sessionId, clock);
+            if (sourceAuthorization == null) {
+                vault.store(grant, sessionKeyPair, playerId, sessionId, clock, approvedExplicitFiles);
+            } else {
+                vault.store(
+                        grant,
+                        sessionKeyPair,
+                        playerId,
+                        sessionId,
+                        clock,
+                        approvedExplicitFiles,
+                        this,
+                        sourceAuthorization);
+            }
         } catch (InvalidProtocolBufferException exception) {
             throw new EnvelopeException("malformed federation grant", exception);
         } catch (com.ellan.mcace.protocol.federation.FederationException exception) {
@@ -538,7 +683,7 @@ public final class ClientHandshakeEngine {
      */
     public synchronized PreparedArtifactObservationUpdate prepareArtifactObservationUpdate(
             ClientIntegrityBundle bundle, List<ArtifactObservation> observations) throws EnvelopeException {
-        return prepareArtifactObservationUpdate(bundle, observations, List.of(), List.of());
+        return prepareArtifactObservationUpdate(bundle, observations, List.of(), List.of(), List.of());
     }
 
     /** Creates a dynamic snapshot carrying the current enabled pack IDs. */
@@ -547,10 +692,22 @@ public final class ClientHandshakeEngine {
             List<ArtifactObservation> observations,
             Collection<String> selectedResourcePacks,
             Collection<String> selectedShaderPacks) throws EnvelopeException {
+        return prepareArtifactObservationUpdate(bundle, observations, selectedResourcePacks,
+                selectedShaderPacks, List.of());
+    }
+
+    /** Creates a dynamic snapshot carrying the current pack IDs and runtime-loaded mod graph. */
+    public synchronized PreparedArtifactObservationUpdate prepareArtifactObservationUpdate(
+            ClientIntegrityBundle bundle,
+            List<ArtifactObservation> observations,
+            Collection<String> selectedResourcePacks,
+            Collection<String> selectedShaderPacks,
+            Collection<LoadedModObservation> loadedMods) throws EnvelopeException {
         Objects.requireNonNull(bundle, "bundle");
         Objects.requireNonNull(observations, "observations");
         List<String> selectedResources = normalizeSelectedPacks(selectedResourcePacks, "resource");
         List<String> selectedShaders = normalizeSelectedPacks(selectedShaderPacks, "shader");
+        List<LoadedModObservation> normalizedLoadedMods = normalizeLoadedMods(loadedMods);
         if (sessionId == null || acceptedHeartbeatBinding == null || verifiedPolicy == null
                 || !authenticationResultReceived) {
             throw new EnvelopeException("artifact observations require accepted authentication");
@@ -564,7 +721,8 @@ public final class ClientHandshakeEngine {
             throw new EnvelopeException("artifact observation sequence is exhausted");
         }
         AuthRequest snapshot = buildAuthentication(
-                bundle, verifiedPolicy, observations, selectedResources, selectedShaders);
+                bundle, verifiedPolicy, observations, selectedResources, selectedShaders,
+                normalizedLoadedMods);
         if (snapshot.getModsCount() > ProtocolConstants.MAX_ARTIFACT_OBSERVATION_COUNT
                 || snapshot.getScopeManifestsList().stream().mapToInt(IntegrityScopeManifest::getEntriesCount).sum()
                 > ProtocolConstants.MAX_ARTIFACT_OBSERVATION_COUNT) {
@@ -582,24 +740,18 @@ public final class ClientHandshakeEngine {
                 .addAllScopeManifests(snapshot.getScopeManifestsList())
                 .addAllSelectedResourcePacks(snapshot.getSelectedResourcePacksList())
                 .addAllSelectedShaderPacks(snapshot.getSelectedShaderPacksList())
+                .addAllLoadedMods(snapshot.getLoadedModsList())
+                .addAllClientCapabilities(snapshot.getClientCapabilitiesList())
                 .setPolicySha256(ByteString.copyFrom(binding.policyHash()))
                 .setPolicySequence(binding.policySequence())
                 .build();
         byte[] payload = update.toByteArray();
-        try {
-            List<byte[]> fragments = new BoundedPayloadTransferSender().send(
-                    com.ellan.mcace.protocol.generated.BoundedPayloadKind.BOUNDED_PAYLOAD_ARTIFACT_OBSERVATION,
-                    sessionId, payload, update.getAggregateRootSha256().toByteArray(), 1L,
-                    envelopeCodec, sessionKeyPair.getPrivate());
-            List<OutboundFrame> result = fragments.stream()
-                    .map(frame -> new OutboundFrame(OutboundChannel.PAYLOAD, frame)).toList();
-            // startSequence is transfer-local: transfer_id, signature nonce, and update_sequence
-            // make successive transfers distinct. State advances only after the platform commits.
-            return new PreparedArtifactObservationUpdate(this, nextArtifactObservationSequence + 1L,
-                    now, bundle.aggregateRootSha256(), result);
-        } catch (BoundedPayloadException exception) {
-            throw new EnvelopeException("artifact observation cannot be transferred within protocol limits", exception);
-        }
+        List<OutboundFrame> result = createArtifactObservationTransferFrames(
+                payload, update.getAggregateRootSha256().toByteArray());
+        // The transfer sequence is local to a freshly randomized transfer. Client observation
+        // state advances only after the exact update receives a verified, accepted server result.
+        return new PreparedArtifactObservationUpdate(this, nextArtifactObservationSequence + 1L,
+                now, bundle.aggregateRootSha256(), payload, digest(payload), result);
     }
 
     /**
@@ -610,7 +762,8 @@ public final class ClientHandshakeEngine {
             Path minecraftRoot, Set<String> consentedExplicitFiles)
             throws EnvelopeException, IntegrityScanException {
         return prepareRescannedArtifactObservationUpdate(
-                minecraftRoot, consentedExplicitFiles, List.of(), List.of(), IntegrityScanCancellation.NONE);
+                minecraftRoot, consentedExplicitFiles, List.of(), List.of(), List.of(),
+                IntegrityScanCancellation.NONE);
     }
 
     public synchronized PreparedArtifactObservationUpdate prepareRescannedArtifactObservationUpdate(
@@ -618,7 +771,7 @@ public final class ClientHandshakeEngine {
             IntegrityScanCancellation cancellation)
             throws EnvelopeException, IntegrityScanException {
         return prepareRescannedArtifactObservationUpdate(
-                minecraftRoot, consentedExplicitFiles, List.of(), List.of(), cancellation);
+                minecraftRoot, consentedExplicitFiles, List.of(), List.of(), List.of(), cancellation);
     }
 
     public synchronized PreparedArtifactObservationUpdate prepareRescannedArtifactObservationUpdate(
@@ -626,6 +779,18 @@ public final class ClientHandshakeEngine {
             Set<String> consentedExplicitFiles,
             Collection<String> selectedResourcePacks,
             Collection<String> selectedShaderPacks,
+            IntegrityScanCancellation cancellation)
+            throws EnvelopeException, IntegrityScanException {
+        return prepareRescannedArtifactObservationUpdate(minecraftRoot, consentedExplicitFiles,
+                selectedResourcePacks, selectedShaderPacks, List.of(), cancellation);
+    }
+
+    public synchronized PreparedArtifactObservationUpdate prepareRescannedArtifactObservationUpdate(
+            Path minecraftRoot,
+            Set<String> consentedExplicitFiles,
+            Collection<String> selectedResourcePacks,
+            Collection<String> selectedShaderPacks,
+            Collection<LoadedModObservation> loadedMods,
             IntegrityScanCancellation cancellation)
             throws EnvelopeException, IntegrityScanException {
         if (verifiedPolicy == null) {
@@ -639,14 +804,93 @@ public final class ClientHandshakeEngine {
         return prepareArtifactObservationUpdate(bundle,
                 new ArtifactObservationCollector().collect(
                         minecraftRoot, verifiedPolicy.policy(), bundle, cancellation),
-                selectedResourcePacks, selectedShaderPacks);
+                selectedResourcePacks, selectedShaderPacks, loadedMods);
     }
 
-    /** Commits a prepared update exactly once after every fragment was accepted by the transport. */
+    /**
+     * Re-fragments one still-pending exact update with fresh transfer IDs, nonces, and signatures.
+     * This is used after a result timeout: the server can idempotently acknowledge an update that
+     * it accepted before its first signed result was lost.
+     */
+    public synchronized List<OutboundFrame> retryArtifactObservationUpdate(
+            PreparedArtifactObservationUpdate prepared) throws EnvelopeException {
+        Objects.requireNonNull(prepared, "prepared");
+        if (prepared.engine != this || prepared.committed || prepared.resultReceived
+                || prepared.sequence != nextArtifactObservationSequence + 1L
+                || prepared.observedAtEpochMs < lastArtifactObservationAtEpochMs) {
+            throw new EnvelopeException("artifact observation preparation cannot be retried");
+        }
+        return createArtifactObservationTransferFrames(prepared.payload, prepared.aggregateRoot);
+    }
+
+    /**
+     * Verifies a server-signed semantic result and binds it to exactly one pending update.
+     * Invalid signatures, stale/replayed envelopes, and wrong session/sequence/root bindings leave
+     * the prepared update pending so a later authentic result or timeout retry can recover.
+     */
+    public synchronized VerifiedArtifactObservationResult receiveArtifactObservationResult(
+            byte[] encodedFrame, PreparedArtifactObservationUpdate prepared) throws EnvelopeException {
+        Objects.requireNonNull(encodedFrame, "encodedFrame");
+        Objects.requireNonNull(prepared, "prepared");
+        if (!heartbeatReady() || sessionId == null || prepared.engine != this || prepared.committed
+                || prepared.resultReceived
+                || prepared.sequence != nextArtifactObservationSequence + 1L) {
+            throw new EnvelopeException("artifact observation result has no matching pending update");
+        }
+        try {
+            BoundedPayloadTransferLimits.validateFrameBytes(encodedFrame.length);
+        } catch (BoundedPayloadException exception) {
+            throw new EnvelopeException("artifact observation result exceeds raw frame budget", exception);
+        }
+        SignedEnvelope envelope = envelopeCodec.parse(encodedFrame);
+        envelopeCodec.verify(envelope, serverPublicKey, replayGuard);
+        if (envelope.getHeader().getPacketType() != PacketType.ARTIFACT_OBSERVATION_RESULT
+                || !sessionId.equals(envelope.getHeader().getSessionId())) {
+            throw new EnvelopeException("artifact observation result packet or session mismatch");
+        }
+        final ArtifactObservationResult result;
+        try {
+            result = ArtifactObservationResult.parseFrom(envelope.getPayload());
+        } catch (InvalidProtocolBufferException exception) {
+            throw new EnvelopeException("malformed artifact observation result", exception);
+        }
+        ArtifactObservationResultReason reason = result.getReason();
+        boolean acceptedShape = result.getAccepted()
+                && reason == ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_ACCEPTED
+                && result.getRetryAfterEpochMs() == 0L;
+        boolean rejectedShape = !result.getAccepted()
+                && (reason == ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_INVALID_UPDATE
+                    || reason == ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_SEQUENCE_MISMATCH)
+                && result.getRetryAfterEpochMs() == 0L;
+        boolean rateLimitedShape = !result.getAccepted()
+                && reason == ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_RATE_LIMITED
+                && result.getRetryAfterEpochMs() > 0L;
+        if (!result.getUnknownFields().asMap().isEmpty()
+                || !result.getSessionId().equals(sessionId)
+                || result.getUpdateSequence() != prepared.sequence
+                || result.getAggregateRootSha256().size() != 32
+                || !MessageDigest.isEqual(result.getAggregateRootSha256().toByteArray(), prepared.aggregateRoot)
+                || result.getUpdateSha256().size() != 32
+                || !MessageDigest.isEqual(result.getUpdateSha256().toByteArray(), prepared.updateSha256)
+                || (!acceptedShape && !rejectedShape && !rateLimitedShape)) {
+            throw new EnvelopeException("artifact observation result is not bound to the pending update");
+        }
+        prepared.resultReceived = true;
+        prepared.acknowledgedAccepted = acceptedShape;
+        if (!acceptedShape) prepared.clearPayload();
+        return new VerifiedArtifactObservationResult(
+                result.getSessionId(), result.getUpdateSequence(),
+                result.getAggregateRootSha256().toByteArray(), result.getUpdateSha256().toByteArray(),
+                acceptedShape, reason,
+                result.getRetryAfterEpochMs());
+    }
+
+    /** Commits a prepared update exactly once after a verified accepted semantic result. */
     public synchronized void commitArtifactObservationUpdate(PreparedArtifactObservationUpdate prepared)
             throws EnvelopeException {
         Objects.requireNonNull(prepared, "prepared");
         if (prepared.engine != this || prepared.committed
+                || !prepared.resultReceived || !prepared.acknowledgedAccepted
                 || prepared.sequence != nextArtifactObservationSequence + 1L
                 || prepared.observedAtEpochMs < lastArtifactObservationAtEpochMs) {
             throw new EnvelopeException("artifact observation preparation is stale or already committed");
@@ -655,6 +899,20 @@ public final class ClientHandshakeEngine {
         nextArtifactObservationSequence = prepared.sequence;
         lastArtifactObservationAtEpochMs = prepared.observedAtEpochMs;
         lastArtifactObservationAggregateRoot = prepared.aggregateRoot.clone();
+        prepared.clearPayload();
+    }
+
+    private List<OutboundFrame> createArtifactObservationTransferFrames(
+            byte[] payload, byte[] aggregateRoot) throws EnvelopeException {
+        try {
+            List<byte[]> fragments = new BoundedPayloadTransferSender().send(
+                    com.ellan.mcace.protocol.generated.BoundedPayloadKind.BOUNDED_PAYLOAD_ARTIFACT_OBSERVATION,
+                    sessionId, payload, aggregateRoot, 1L, envelopeCodec, sessionKeyPair.getPrivate());
+            return fragments.stream()
+                    .map(frame -> new OutboundFrame(OutboundChannel.PAYLOAD, frame)).toList();
+        } catch (BoundedPayloadException exception) {
+            throw new EnvelopeException("artifact observation cannot be transferred within protocol limits", exception);
+        }
     }
 
     /** Verifies a server-signed ACK and binds it to one still-pending request in this session. */
@@ -1049,7 +1307,8 @@ public final class ClientHandshakeEngine {
             VerifiedPolicy policy,
             List<ArtifactObservation> observations,
             Collection<String> selectedResourcePacks,
-            Collection<String> selectedShaderPacks)
+            Collection<String> selectedShaderPacks,
+            Collection<LoadedModObservation> loadedMods)
             throws EnvelopeException {
         ScopeIntegrityManifest modsScope = bundle.scope("mods").orElseThrow(
                 () -> new EnvelopeException("policy result does not contain mods scope"));
@@ -1068,6 +1327,37 @@ public final class ClientHandshakeEngine {
                     .setSha256(ByteString.copyFrom(entry.sha256()))
                     .build());
         }
+        Map<String, ModEntry> modsByFilename = new HashMap<>();
+        for (ModEntry mod : mods) {
+            if (modsByFilename.putIfAbsent(mod.getFilename(), mod) != null) {
+                throw new EnvelopeException("mods manifest contains a duplicate filename");
+            }
+        }
+        List<LoadedModEntry> loaded = new ArrayList<>(loadedMods.size());
+        for (LoadedModObservation observation : loadedMods) {
+            LoadedModEntry.Builder entry = LoadedModEntry.newBuilder()
+                    .setId(observation.id())
+                    .setVersion(observation.version())
+                    .setOriginKind(toProtoOrigin(observation.originKind()))
+                    .setOriginFilename(observation.originFilename())
+                    .setParentModId(observation.parentModId());
+            if (observation.originKind() == LoadedModObservation.OriginKind.MODS_FILE) {
+                ModEntry manifestEntry = modsByFilename.get(observation.originFilename());
+                if (manifestEntry != null && manifestEntry.getId().equals(observation.id())
+                        && manifestEntry.getVersion().equals(observation.version())) {
+                    entry.setOriginFileSize(manifestEntry.getFileSize())
+                            .setOriginSha256(manifestEntry.getSha256())
+                            .setOriginManifestMatched(true);
+                }
+            }
+            loaded.add(entry.build());
+        }
+        List<ClientCapability> capabilities = loaded.isEmpty()
+                ? List.of()
+                : List.of(ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1);
+        if (!capabilities.containsAll(policy.policy().getRequiredClientCapabilitiesList())) {
+            throw new EnvelopeException("client cannot satisfy the signed policy capability requirements");
+        }
         byte[] environmentHash = digest(
                 minecraftVersion.getBytes(StandardCharsets.UTF_8),
                 loader.name().getBytes(StandardCharsets.UTF_8),
@@ -1084,7 +1374,11 @@ public final class ClientHandshakeEngine {
                 .setPolicySha256(ByteString.copyFrom(policy.policySha256()))
                 .setPolicySequence(policy.policy().getSequence())
                 .addAllSelectedResourcePacks(selectedResourcePacks)
-                .addAllSelectedShaderPacks(selectedShaderPacks);
+                .addAllSelectedShaderPacks(selectedShaderPacks)
+                .addAllLoadedMods(loaded)
+                .addAllClientCapabilities(capabilities)
+                .setFederationSignedAssertionSha256(
+                        ByteString.copyFrom(federationSignedAssertionSha256));
         for (ScopeIntegrityManifest scope : bundle.scopes()) {
             IntegrityScopeManifest.Builder manifest = IntegrityScopeManifest.newBuilder()
                     .setScope(scope.scope())
@@ -1103,6 +1397,57 @@ public final class ClientHandshakeEngine {
         return request.build();
     }
 
+    private static List<LoadedModObservation> normalizeLoadedMods(
+            Collection<LoadedModObservation> values) throws EnvelopeException {
+        Objects.requireNonNull(values, "loaded mods");
+        if (values.size() > ProtocolConstants.MAX_LOADED_MODS) {
+            throw new EnvelopeException("loaded mod list exceeds its bound");
+        }
+        Set<String> ids = new HashSet<>();
+        List<LoadedModObservation> normalized = new ArrayList<>(values.size());
+        for (LoadedModObservation value : values) {
+            if (value == null || !canonicalText(value.id(), ProtocolConstants.MAX_LOADED_MOD_ID_CHARS)
+                    || !canonicalText(value.version(), ProtocolConstants.MAX_LOADED_MOD_VERSION_CHARS)
+                    || !ids.add(value.id())) {
+                throw new EnvelopeException("loaded mod identity is invalid or duplicated");
+            }
+            boolean validOrigin = switch (value.originKind()) {
+                case MODS_FILE -> safeFilename(value.originFilename()) && value.parentModId().isEmpty();
+                case NESTED -> value.originFilename().isEmpty()
+                        && canonicalText(value.parentModId(), ProtocolConstants.MAX_LOADED_MOD_PARENT_ID_CHARS);
+                case BUILTIN_OR_CLASSPATH, UNKNOWN -> value.originFilename().isEmpty()
+                        && value.parentModId().isEmpty();
+            };
+            if (!validOrigin) {
+                throw new EnvelopeException("loaded mod origin is invalid");
+            }
+            normalized.add(value);
+        }
+        normalized.sort(Comparator.comparing(LoadedModObservation::id));
+        return List.copyOf(normalized);
+    }
+
+    private static LoadedModOriginKind toProtoOrigin(LoadedModObservation.OriginKind kind) {
+        return switch (kind) {
+            case MODS_FILE -> LoadedModOriginKind.LOADED_MOD_ORIGIN_MODS_FILE;
+            case NESTED -> LoadedModOriginKind.LOADED_MOD_ORIGIN_NESTED;
+            case BUILTIN_OR_CLASSPATH -> LoadedModOriginKind.LOADED_MOD_ORIGIN_BUILTIN_OR_CLASSPATH;
+            case UNKNOWN -> LoadedModOriginKind.LOADED_MOD_ORIGIN_UNKNOWN;
+        };
+    }
+
+    private static boolean canonicalText(String value, int maximumChars) {
+        return value != null && !value.isBlank() && value.equals(value.trim())
+                && value.length() <= maximumChars
+                && value.chars().noneMatch(Character::isISOControl);
+    }
+
+    private static boolean safeFilename(String value) {
+        return canonicalText(value, ProtocolConstants.MAX_LOADED_MOD_FILENAME_CHARS)
+                && !value.equals(".") && !value.equals("..")
+                && !value.contains("/") && !value.contains("\\") && !value.contains(":");
+    }
+
     private static List<String> normalizeSelectedPacks(
             Collection<String> values, String kind) throws EnvelopeException {
         Objects.requireNonNull(values, "selected " + kind + " packs");
@@ -1110,19 +1455,21 @@ public final class ClientHandshakeEngine {
             throw new EnvelopeException("selected " + kind + " pack list exceeds its bound");
         }
         List<String> normalized = new ArrayList<>(values.size());
+        Set<String> seen = new HashSet<>();
         for (String value : values) {
-            if (value == null || value.isBlank() || !value.equals(value.trim())) {
-                throw new EnvelopeException("selected " + kind + " pack id is blank or not canonical");
+            if (value == null || value.isBlank() || !value.equals(value.trim())
+                    || value.length() > ProtocolConstants.MAX_SELECTED_PACK_ID_CHARS
+                    || value.chars().anyMatch(Character::isISOControl)) {
+                throw new EnvelopeException("selected " + kind + " pack id is outside its canonical bound");
+            }
+            if (!seen.add(value)) {
+                throw new EnvelopeException("selected " + kind + " pack id is duplicated");
             }
             normalized.add(value);
         }
-        normalized = normalized.stream().distinct().sorted(Comparator.naturalOrder()).toList();
-        if (normalized.size() > ProtocolConstants.MAX_SELECTED_PACKS
-                || normalized.stream().anyMatch(value -> value.length() > ProtocolConstants.MAX_SELECTED_PACK_ID_CHARS
-                        || value.chars().anyMatch(Character::isISOControl))) {
-            throw new EnvelopeException("selected " + kind + " pack id is outside its bound");
-        }
-        return normalized;
+        // Resource-pack precedence is semantically significant. Preserve the loader/repository's
+        // encounter order instead of canonicalizing it into a set-like sorted list.
+        return List.copyOf(normalized);
     }
 
     private static Map<ManifestEntryKey, ArtifactObservation> validateObservations(
@@ -1233,9 +1580,17 @@ public final class ClientHandshakeEngine {
 
     /** A verified server request; the connection-level enablement must already be accepted. */
     public record VerifiedFederationConsentRequest(
-            com.ellan.mcace.protocol.generated.FederationConsentRequest request) {
+            com.ellan.mcace.protocol.generated.FederationConsentRequest request,
+            byte[] requestPayloadSha256) {
         public VerifiedFederationConsentRequest {
             Objects.requireNonNull(request, "request");
+            requestPayloadSha256 = requiredSha256(
+                    requestPayloadSha256, "federation consent request payload SHA-256");
+        }
+
+        @Override
+        public byte[] requestPayloadSha256() {
+            return requestPayloadSha256.clone();
         }
     }
 
@@ -1266,25 +1621,67 @@ public final class ClientHandshakeEngine {
         }
     }
 
+    /** Verified server decision for one exact post-authentication observation update. */
+    public record VerifiedArtifactObservationResult(
+            String sessionId,
+            long updateSequence,
+            byte[] aggregateRootSha256,
+            byte[] updateSha256,
+            boolean accepted,
+            ArtifactObservationResultReason reason,
+            long retryAfterEpochMs) {
+        public VerifiedArtifactObservationResult {
+            sessionId = requireText(sessionId, "artifact observation result session");
+            if (updateSequence <= 0L) {
+                throw new IllegalArgumentException("artifact observation result sequence must be positive");
+            }
+            aggregateRootSha256 = requiredSha256(
+                    aggregateRootSha256, "artifact observation result aggregate root");
+            updateSha256 = requiredSha256(updateSha256, "artifact observation result update hash");
+            Objects.requireNonNull(reason, "reason");
+        }
+
+        @Override
+        public byte[] aggregateRootSha256() {
+            return aggregateRootSha256.clone();
+        }
+
+        @Override
+        public byte[] updateSha256() {
+            return updateSha256.clone();
+        }
+    }
+
     /** Opaque one-shot state transition for an optional complete post-auth snapshot. */
     public static final class PreparedArtifactObservationUpdate {
         private final ClientHandshakeEngine engine;
         private final long sequence;
         private final long observedAtEpochMs;
         private final byte[] aggregateRoot;
+        private final byte[] payload;
+        private final byte[] updateSha256;
         private final List<OutboundFrame> frames;
+        private boolean resultReceived;
+        private boolean acknowledgedAccepted;
         private boolean committed;
 
         private PreparedArtifactObservationUpdate(ClientHandshakeEngine engine, long sequence,
-                long observedAtEpochMs, byte[] aggregateRoot, List<OutboundFrame> frames) {
+                long observedAtEpochMs, byte[] aggregateRoot, byte[] payload, byte[] updateSha256,
+                List<OutboundFrame> frames) {
             this.engine = engine;
             this.sequence = sequence;
             this.observedAtEpochMs = observedAtEpochMs;
             this.aggregateRoot = aggregateRoot.clone();
+            this.payload = payload.clone();
+            this.updateSha256 = requiredSha256(updateSha256, "artifact observation update hash");
             this.frames = List.copyOf(frames);
         }
 
         public List<OutboundFrame> frames() { return frames; }
+
+        private void clearPayload() {
+            java.util.Arrays.fill(payload, (byte) 0);
+        }
     }
 
     /** Immutable hash/policy values captured from the signed authentication request. */
@@ -1328,6 +1725,14 @@ public final class ClientHandshakeEngine {
         Objects.requireNonNull(value, name);
         if (value.length != 32) {
             throw new IllegalArgumentException(name + " must be SHA-256");
+        }
+        return value.clone();
+    }
+
+    private static byte[] optionalSha256(byte[] value, String name) {
+        Objects.requireNonNull(value, name);
+        if (value.length != 0 && value.length != 32) {
+            throw new IllegalArgumentException(name + " must be empty or SHA-256");
         }
         return value.clone();
     }

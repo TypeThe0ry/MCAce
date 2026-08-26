@@ -326,6 +326,14 @@ foreach ($required in @(
         '(Get-Item -LiteralPath $explicitFileFixture).Length -gt 0',
         'MCAce explicit-file manifest prepared entries=1',
         'explicit_file_manifest_entries_observed',
+        'function Normalize-FabricConsentEvidence',
+        "throw 'PLATFORM_SMOKE_GAME_RENDER_FRAME_RENDERED_AND_INHERITED'",
+        "throw 'PLATFORM_SMOKE_REPORT_GAME_RENDER_FRAME_RENDERED_AND_INHERITED'",
+        "throw 'PLATFORM_SMOKE_REPORT_GAME_RENDER_FRAME_RENDERED_INVALID'",
+        "`$Evidence['explicit_file_requested'] = [bool]`$Evidence['enablement_requested']",
+        "`$Evidence['game_render_frame_rendered'] = `$false",
+        "`$Evidence['game_render_frame_allowed'] = `$true",
+        "-not [bool]`$Evidence['game_render_frame_rendered']",
         "`$fabricArtifactClass = 'sanitized-final-fabric-gui-evidence'",
         'artifact_class = $fabricArtifactClass',
         'release_evidence = $false',
@@ -496,6 +504,112 @@ function Get-TargetFunctionAst([string]$Name) {
         $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and
             $node.Name -ceq $Name
     }, $true)
+}
+
+# Exercise the schema-8 single-screen producer contract directly.  The one visible
+# connection enablement must back both the legacy explicit_file_* aliases and the
+# inherited GAME_RENDER_FRAME decision.  No separate frame prompt marker is accepted.
+foreach ($name in @('Test-TextContains', 'Normalize-FabricConsentEvidence',
+        'Update-FabricConsentEvidence', 'Test-FabricGuiCoverage',
+        'Test-FabricEvidenceCoverage')) {
+    $functionAst = Get-TargetFunctionAst $name
+    Assert-True ($null -ne $functionAst) "Fabric consent helper is missing: $name"
+    Invoke-Expression $functionAst.Extent.Text
+}
+
+function New-FabricConsentEvidenceFixture {
+    return [ordered]@{
+        explicit_file_manifest_entries = 0
+        enablement_requested = $false
+        enablement_rendered = $false
+        enablement_accepted = $false
+        explicit_file_requested = $false
+        explicit_file_rendered = $false
+        explicit_file_accepted = $false
+        authenticated = $false
+        game_render_frame_requested = $false
+        game_render_frame_rendered = $false
+        game_render_frame_allowed = $false
+        game_render_frame_inherited = $false
+        game_render_frame_completed = $false
+    }
+}
+
+$consentFixtureRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
+    'mcace-platform-consent-' + [Guid]::NewGuid().ToString('N'))
+try {
+    $null = New-Item -ItemType Directory -Path $consentFixtureRoot -ErrorAction Stop
+    $positiveLog = Join-Path $consentFixtureRoot 'positive.log'
+    $positiveMarkers = @(
+        'MCAce explicit-file manifest prepared entries=1',
+        'MCAce enablement consent requested for signed policy; explicit-file paths=1',
+        'MCAce enablement consent screen rendered',
+        'MCAce enablement accepted for the current connection',
+        'MCAce session verified at trust level VERIFIED',
+        'MCAce evidence request accepted under connection enablement; no second consent screen',
+        'MCAce evidence consent inherited from connection enablement',
+        'MCAce evidence transfer COMPLETE request=fixture'
+    ) -join "`n"
+    [System.IO.File]::WriteAllText(
+        $positiveLog, $positiveMarkers, [System.Text.UTF8Encoding]::new($false))
+    $positiveEvidence = New-FabricConsentEvidenceFixture
+    Update-FabricConsentEvidence $positiveEvidence $positiveLog
+    Assert-True ([bool]$positiveEvidence.enablement_requested -and
+            [bool]$positiveEvidence.enablement_rendered -and
+            [bool]$positiveEvidence.enablement_accepted) `
+        'single enablement marker chain was not observed'
+    Assert-True ([bool]$positiveEvidence.explicit_file_requested -and
+            [bool]$positiveEvidence.explicit_file_rendered -and
+            [bool]$positiveEvidence.explicit_file_accepted) `
+        'explicit_file compatibility fields did not map to the enablement screen'
+    Assert-True ([bool]$positiveEvidence.game_render_frame_requested -and
+            -not [bool]$positiveEvidence.game_render_frame_rendered -and
+            [bool]$positiveEvidence.game_render_frame_allowed -and
+            [bool]$positiveEvidence.game_render_frame_inherited -and
+            [bool]$positiveEvidence.game_render_frame_completed) `
+        'inherited GAME_RENDER_FRAME fields are not fixed to rendered=false/allowed=true/inherited=true'
+    Assert-True (Test-FabricGuiCoverage $positiveEvidence) `
+        'single enablement fixture did not satisfy GUI coverage'
+    Assert-True (Test-FabricEvidenceCoverage $positiveEvidence) `
+        'inherited frame fixture did not satisfy evidence coverage'
+
+    $legacyAliasLog = Join-Path $consentFixtureRoot 'legacy-alias-only.log'
+    [System.IO.File]::WriteAllText(
+        $legacyAliasLog,
+        (@(
+            'MCAce explicit-file consent requested for fixture',
+            'MCAce explicit-file consent screen rendered',
+            'MCAce explicit-file authorization accepted for the current connection'
+        ) -join "`n"),
+        [System.Text.UTF8Encoding]::new($false))
+    $legacyAliasEvidence = New-FabricConsentEvidenceFixture
+    Update-FabricConsentEvidence $legacyAliasEvidence $legacyAliasLog
+    Assert-True (-not [bool]$legacyAliasEvidence.explicit_file_requested -and
+            -not [bool]$legacyAliasEvidence.explicit_file_rendered -and
+            -not [bool]$legacyAliasEvidence.explicit_file_accepted) `
+        'legacy explicit-file markers were mistaken for a second visible screen'
+
+    $contradictoryLog = Join-Path $consentFixtureRoot 'contradictory.log'
+    [System.IO.File]::WriteAllText(
+        $contradictoryLog,
+        (@(
+            'MCAce evidence consent screen rendered for signed GAME_RENDER_FRAME request',
+            'MCAce evidence consent inherited from connection enablement'
+        ) -join "`n"),
+        [System.Text.UTF8Encoding]::new($false))
+    $contradictoryEvidence = New-FabricConsentEvidenceFixture
+    $contradictionRejected = $false
+    try { Update-FabricConsentEvidence $contradictoryEvidence $contradictoryLog }
+    catch {
+        $contradictionRejected = $_.Exception.Message -ceq
+            'PLATFORM_SMOKE_GAME_RENDER_FRAME_RENDERED_AND_INHERITED'
+    }
+    Assert-True $contradictionRejected `
+        'rendered=true/inherited=true GAME_RENDER_FRAME evidence was accepted'
+} finally {
+    if (Test-Path -LiteralPath $consentFixtureRoot) {
+        Remove-Item -LiteralPath $consentFixtureRoot -Recurse -Force
+    }
 }
 
 # Lock the three reviewed target identities.  These values are the immutable Mojang
@@ -1033,7 +1147,7 @@ foreach ($requiredModernArtifactModeClosure in @(
         'loomExtension.mods.configureEach',
         'modFiles.setFrom(emptyList<Any>())',
         'loomExtension.mods.maybeCreate("mcace")',
-        'modFiles.setFrom(deployableJar)',
+        'modFiles.setFrom(smokeRuntimeArtifact)',
         'modernMainOutputRoots.get() + stagedRootJarPaths.get()',
         'check(nonEmptyMods == listOf("mcace" to setOf(artifact)))',
         'check(leakedOrigins.isEmpty())',

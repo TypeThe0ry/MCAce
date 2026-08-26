@@ -48,6 +48,18 @@ abstract class MCAceReleaseBundleTask : DefaultTask() {
     @get:Input
     abstract val sourceCommit: Property<String>
 
+    /**
+     * Commit whose source bytes produced the six deployable JARs.
+     *
+     * External release evidence is necessarily captured after those immutable bytes exist.
+     * The final protected release commit may therefore be a descendant that adds only the
+     * captured evidence and final bilingual README. Keeping this identity separate from the
+     * exact release commit avoids an impossible self-reference where committing evidence changes
+     * the commit embedded in the very JAR whose hash the evidence binds.
+     */
+    @get:Input
+    abstract val artifactSourceCommit: Property<String>
+
     @get:Input
     abstract val productVersion: Property<String>
 
@@ -121,16 +133,46 @@ abstract class MCAceReleaseBundleTask : DefaultTask() {
         }
     }
 
-    private fun verifySourceIdentity(profile: String, commit: String) {
+    private fun verifyArtifactSourceIdentity(releaseCommit: String, artifactCommit: String) {
+        require(artifactCommit.matches(Regex("[0-9a-f]{40}|[0-9a-f]{64}"))) {
+            "releaseBundle requires -PmcaceArtifactSourceCommit=<lowercase Git object id>"
+        }
+        git("cat-file", "-e", "$artifactCommit^{commit}")
+        val mergeBase = git("merge-base", artifactCommit, releaseCommit)
+        require(mergeBase == artifactCommit) {
+            "artifact source commit $artifactCommit is not an ancestor of release commit " +
+                releaseCommit
+        }
+        if (artifactCommit == releaseCommit) return
+
+        val changedPaths = git("diff", "--name-only", "$artifactCommit..$releaseCommit", "--")
+            .lineSequence()
+            .map(String::trim)
+            .filter(String::isNotEmpty)
+            .toList()
+        require(changedPaths.isNotEmpty()) {
+            "release and artifact source commits differ without a visible Git delta"
+        }
+        val forbidden = changedPaths.filterNot { path ->
+            path == "README.md" || path == "README_CN.md" || path.startsWith("docs/evidence/")
+        }
+        require(forbidden.isEmpty()) {
+            "artifact source commit is stale across release-affecting paths: $forbidden"
+        }
+    }
+
+    private fun verifySourceIdentity(profile: String, commit: String, artifactCommit: String) {
         when (profile) {
             "RELEASE" -> {
                 require(commit.matches(Regex("[0-9a-f]{40}|[0-9a-f]{64}"))) {
                     "releaseBundle requires -PmcaceSourceCommit=<lowercase 40/64-character Git object id>"
                 }
                 verifyExactSourceIdentity(commit)
+                verifyArtifactSourceIdentity(commit, artifactCommit)
             }
-            "LOCAL_VERIFICATION" -> require(commit == "LOCAL_UNSPECIFIED") {
-                "localVerificationBundle must use source_commit=LOCAL_UNSPECIFIED"
+            "LOCAL_VERIFICATION" -> require(
+                commit == "LOCAL_UNSPECIFIED" && artifactCommit == "LOCAL_UNSPECIFIED") {
+                "localVerificationBundle must use LOCAL_UNSPECIFIED source identities"
             }
             else -> throw IllegalArgumentException("unsupported bundle profile $profile")
         }
@@ -192,7 +234,8 @@ abstract class MCAceReleaseBundleTask : DefaultTask() {
         }
         val profile = bundleProfile.get()
         val commit = sourceCommit.get()
-        verifySourceIdentity(profile, commit)
+        val artifactCommit = artifactSourceCommit.get()
+        verifySourceIdentity(profile, commit, artifactCommit)
         val clientBuildIds = listOf(
             fabric12111BuildId.get(),
             fabric2612BuildId.get(),
@@ -283,9 +326,9 @@ abstract class MCAceReleaseBundleTask : DefaultTask() {
             separator = "\n", postfix = "\n") { (name, hash) -> "$hash  $name" }
         val releaseIdentity = profile == "RELEASE"
         val manifestSchema = if (releaseIdentity) {
-            "MCACE_RELEASE_BUNDLE_V3"
+            "MCACE_RELEASE_BUNDLE_V4"
         } else {
-            "MCACE_LOCAL_VERIFICATION_BUNDLE_V1"
+            "MCACE_LOCAL_VERIFICATION_BUNDLE_V2"
         }
         val manifestText = buildString {
             append("schema=$manifestSchema\n")
@@ -295,6 +338,7 @@ abstract class MCAceReleaseBundleTask : DefaultTask() {
             append("bundle_entry_count=8\n")
             append("product_version=${productVersion.get()}\n")
             append("source_commit=$commit\n")
+            append("artifact_source_commit=$artifactCommit\n")
             append("root_java_version=${rootJavaVersion.get()}\n")
             append("root_java_specification_version=21\n")
             append("root_gradle_version=${rootGradleVersion.get()}\n")
@@ -405,28 +449,33 @@ val modernFabricProjectDirectory = layout.projectDirectory.dir("fabric-modern")
 val stagedModernDependenciesDirectory = layout.buildDirectory.dir("fabric-modern-deps")
 val stagedModernDependencyNames = setOf(
     "mcace-client-common.jar",
-    "mcace-core.jar",
+    "mcace-core-client-safe.jar",
     "mcace-sdk.jar",
     "mcace-protocol.jar",
 )
 
 val clientCommonJar = project(":mcace-client-common").tasks.named<Jar>("jar")
-val coreJar = project(":mcace-core").tasks.named<Jar>("jar")
+// mcace-core's clientSafeJar is declared in that project's build script, which is
+// evaluated after this root script. Resolve its archive lazily once all projects
+// have been configured instead of looking the task up during root configuration.
+val clientSafeCoreJar = providers.provider {
+    project(":mcace-core").tasks.named<Jar>("clientSafeJar").get()
+}
 val sdkJar = project(":mcace-sdk").tasks.named<Jar>("jar")
 val protocolJar = project(":mcace-protocol").tasks.named<Jar>("jar")
 
 val stageModernFabricDeps = tasks.register<Sync>("stageModernFabricDeps") {
     group = "build setup"
     description = "Stages the exact root JDK 21 library JAR set consumed by the JDK 25 Fabric build."
-    dependsOn(clientCommonJar, coreJar, sdkJar, protocolJar)
+    dependsOn(clientCommonJar, ":mcace-core:clientSafeJar", sdkJar, protocolJar)
     into(stagedModernDependenciesDirectory)
     includeEmptyDirs = false
     duplicatesStrategy = DuplicatesStrategy.FAIL
     from(clientCommonJar.flatMap { it.archiveFile }) {
         rename { "mcace-client-common.jar" }
     }
-    from(coreJar.flatMap { it.archiveFile }) {
-        rename { "mcace-core.jar" }
+    from(clientSafeCoreJar.flatMap { it.archiveFile }) {
+        rename { "mcace-core-client-safe.jar" }
     }
     from(sdkJar.flatMap { it.archiveFile }) {
         rename { "mcace-sdk.jar" }
@@ -465,15 +514,17 @@ val cleanModernFabric = tasks.register<Delete>("cleanModernFabric") {
 val modernJavaHome = providers.gradleProperty("mcaceModernJavaHome")
     .orElse(providers.environmentVariable("MCACE_JAVA25_HOME"))
 val sourceCommitProperty = providers.gradleProperty("mcaceSourceCommit")
+val artifactSourceCommitProperty = providers.gradleProperty("mcaceArtifactSourceCommit")
+    .orElse(sourceCommitProperty)
 val explicitClientBuildId = providers.gradleProperty("mcaceClientBuildId")
 val configuredFabric12111BuildId = explicitClientBuildId
-    .orElse(sourceCommitProperty.map { commit -> "fabric-1.21.11-$commit" })
+    .orElse(artifactSourceCommitProperty.map { commit -> "fabric-1.21.11-$commit" })
     .orElse("fabric-phase2-dev")
 val configuredFabric2612BuildId = explicitClientBuildId
-    .orElse(sourceCommitProperty.map { commit -> "fabric-26.1.2-$commit" })
+    .orElse(artifactSourceCommitProperty.map { commit -> "fabric-26.1.2-$commit" })
     .orElse("fabric-26.1.2-dev")
 val configuredFabric262BuildId = explicitClientBuildId
-    .orElse(sourceCommitProperty.map { commit -> "fabric-26.2-$commit" })
+    .orElse(artifactSourceCommitProperty.map { commit -> "fabric-26.2-$commit" })
     .orElse("fabric-26.2-dev")
 val modernFabric2612Jar = modernFabricProjectDirectory.file(
     "client-26.1.2/build/libs/mcace-client-fabric-26.1.2-${project.version}.jar")
@@ -544,6 +595,7 @@ val modernFabricBuild = tasks.register<Exec>("modernFabricBuild") {
         .withPathSensitivity(PathSensitivity.NONE)
     inputs.property("mcaceModernJavaHome", modernJavaHome.orElse("<missing>"))
     inputs.property("mcaceSourceCommit", sourceCommitProperty.orElse("<missing>"))
+    inputs.property("mcaceArtifactSourceCommit", artifactSourceCommitProperty.orElse("<missing>"))
     inputs.property("mcaceClientBuildId", explicitClientBuildId.orElse("<target-default>"))
     inputs.property("mcaceProductVersion", project.version.toString())
     inputs.property("offline", gradle.startParameter.isOffline)
@@ -576,6 +628,9 @@ val modernFabricBuild = tasks.register<Exec>("modernFabricBuild") {
         arguments.addAll(modernFabricNestedExecutionArguments(gradle.startParameter.isOffline))
         sourceCommitProperty.orNull?.let { commit ->
             arguments.add("-PmcaceSourceCommit=$commit")
+        }
+        artifactSourceCommitProperty.orNull?.let { commit ->
+            arguments.add("-PmcaceArtifactSourceCommit=$commit")
         }
         explicitClientBuildId.orNull?.let { buildId ->
             arguments.add("-PmcaceClientBuildId=$buildId")
@@ -644,14 +699,15 @@ tasks.register<MCAceReleaseBundleTask>("releaseBundle") {
     paperJar.set(project(":mcace-server-paper").layout.buildDirectory.file(
         "libs/mcace-server-paper-${project.version}.jar"))
     sourceCommit.set(sourceCommitProperty.orElse("MISSING"))
+    artifactSourceCommit.set(artifactSourceCommitProperty.orElse("MISSING"))
     productVersion.set(version.toString())
     bundleProfile.set("RELEASE")
     fabric12111BuildId.set(
-        sourceCommitProperty.map { commit -> "fabric-1.21.11-$commit" }.orElse("MISSING"))
+        artifactSourceCommitProperty.map { commit -> "fabric-1.21.11-$commit" }.orElse("MISSING"))
     fabric2612BuildId.set(
-        sourceCommitProperty.map { commit -> "fabric-26.1.2-$commit" }.orElse("MISSING"))
+        artifactSourceCommitProperty.map { commit -> "fabric-26.1.2-$commit" }.orElse("MISSING"))
     fabric262BuildId.set(
-        sourceCommitProperty.map { commit -> "fabric-26.2-$commit" }.orElse("MISSING"))
+        artifactSourceCommitProperty.map { commit -> "fabric-26.2-$commit" }.orElse("MISSING"))
     rootJavaVersion.set(providers.systemProperty("java.version"))
     rootGradleVersion.set(GradleVersion.current().version)
     modernRuntimeIdentity.set(modernRuntimeIdentityFile)
@@ -682,6 +738,7 @@ tasks.register<MCAceReleaseBundleTask>("localVerificationBundle") {
     paperJar.set(project(":mcace-server-paper").layout.buildDirectory.file(
         "libs/mcace-server-paper-${project.version}.jar"))
     sourceCommit.set("LOCAL_UNSPECIFIED")
+    artifactSourceCommit.set("LOCAL_UNSPECIFIED")
     productVersion.set(version.toString())
     bundleProfile.set("LOCAL_VERIFICATION")
     fabric12111BuildId.set(configuredFabric12111BuildId)

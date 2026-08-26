@@ -36,8 +36,13 @@ public final class DispositionPolicyDocuments {
     private static final int SCHEMA_VERSION = 1;
     private static final int MAX_RULES = 4096;
     private static final int MAX_SCOPE_VALUES = 64;
+    private static final int MAX_METADATA_ENTRIES = 64;
     private static final int MAX_IDENTIFIER_CHARS = 128;
+    private static final int MAX_METADATA_VALUE_CHARS = 256;
     private static final int MAX_NOTES_CHARS = 2048;
+    private static final String SIGNER_METADATA = "signer";
+    private static final String CONTENT_ROOT_METADATA = "content_root_sha256";
+    private static final String ADMIN_CLASSIFICATION_METADATA = "admin_classification";
     private static final Duration MAX_LIFETIME = Duration.ofDays(30);
     private static final Set<String> ROLLOUT_STAGES = Set.of("OBSERVE", "CANARY", "BROAD", "FULL");
 
@@ -227,18 +232,39 @@ public final class DispositionPolicyDocuments {
         switch (selector.getMatchType()) {
             case DETECTION_MATCH_EXACT_SHA256 -> requireHash(selector.getSha256(), "artifact hash");
             case DETECTION_MATCH_MOD_ID_VERSION -> requireIdentifier(selector.getArtifactId(), "artifact id");
-            case DETECTION_MATCH_SIGNER -> requireIdentifier(selector.getSigner(), "artifact signer");
-            case DETECTION_MATCH_CONTENT_ROOT -> requireHash(selector.getContentRootSha256(), "content root");
+            case DETECTION_MATCH_SIGNER -> {
+                requireIdentifier(selector.getSigner(), "artifact signer");
+                rejectDerivedMetadataDuplicate(selector, SIGNER_METADATA);
+            }
+            case DETECTION_MATCH_CONTENT_ROOT -> {
+                requireHash(selector.getContentRootSha256(), "content root");
+                rejectDerivedMetadataDuplicate(selector, CONTENT_ROOT_METADATA);
+            }
             case DETECTION_MATCH_METADATA -> {
-                if (selector.getMetadataCount() == 0 || selector.getMetadataCount() > 64) {
+                if (selector.getMetadataCount() == 0
+                        || selector.getMetadataCount() > MAX_METADATA_ENTRIES) {
                     throw new PolicyException("metadata selector must be non-empty and bounded");
                 }
             }
             case DETECTION_MATCH_BEHAVIOR_CORRELATION ->
                     requireIdentifier(selector.getBehaviorRuleId(), "behavior rule id");
-            case DETECTION_MATCH_ADMIN_CLASSIFICATION ->
-                    requireIdentifier(selector.getArtifactId(), "admin classification id");
+            case DETECTION_MATCH_ADMIN_CLASSIFICATION -> {
+                requireIdentifier(selector.getArtifactId(), "admin classification id");
+                rejectDerivedMetadataDuplicate(selector, ADMIN_CLASSIFICATION_METADATA);
+            }
             default -> throw new PolicyException("unsupported disposition selector");
+        }
+        if (selector.getMetadataCount() > MAX_METADATA_ENTRIES) {
+            throw new PolicyException("selector metadata exceeds its bound");
+        }
+        for (java.util.Map.Entry<String, String> entry : selector.getMetadataMap().entrySet()) {
+            requireMetadataKey(entry.getKey());
+            String value = entry.getValue();
+            if (value == null || value.isBlank() || !value.equals(value.trim())
+                    || !value.equals(value.strip())
+                    || value.length() > MAX_METADATA_VALUE_CHARS || containsControl(value)) {
+                throw new PolicyException("metadata value is not canonical or exceeds its bound");
+            }
         }
         if (!rule.getFoundationSecurity()) {
             validateSelectorActionGuard(selector.getMatchType(), rule.getDefaultAction());
@@ -407,6 +433,21 @@ public final class DispositionPolicyDocuments {
         if (value == null || value.isBlank() || value.length() > MAX_IDENTIFIER_CHARS
                 || containsControl(value)) {
             throw new PolicyException(name + " is missing or too long");
+        }
+    }
+
+    private static void requireMetadataKey(String value) throws PolicyException {
+        if (value == null || value.isBlank() || !value.equals(value.trim())
+                || !value.equals(value.strip()) || value.length() > MAX_IDENTIFIER_CHARS
+                || containsControl(value)) {
+            throw new PolicyException("metadata key is not canonical or exceeds its bound");
+        }
+    }
+
+    private static void rejectDerivedMetadataDuplicate(
+            DetectionSelector selector, String derivedKey) throws PolicyException {
+        if (selector.containsMetadata(derivedKey)) {
+            throw new PolicyException("selector metadata duplicates derived selector field: " + derivedKey);
         }
     }
 

@@ -14,6 +14,7 @@ repositories {
 dependencies {
     implementation(project(":mcace-core"))
     implementation(project(":mcace-sdk"))
+    testImplementation(project(":mcace-client-common"))
     testImplementation(project(":mcace-protocol"))
     // Build 2028 and later expose PlayerConfigurationEvent on the 1.21-R0.5 API line.
     compileOnly("net.md-5:bungeecord-api:1.21-R0.5-SNAPSHOT")

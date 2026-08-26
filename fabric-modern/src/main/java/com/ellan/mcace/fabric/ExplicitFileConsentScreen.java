@@ -129,18 +129,19 @@ final class ExplicitFileConsentScreen extends Screen {
         Objects.requireNonNull(requested, "requested");
         List<String> paragraphs = new ArrayList<>();
         paragraphs.add("Pinned server " + safe(verified.policy().getServerId())
-                + " requests MCAce enablement for this connection.");
-        paragraphs.add("One approval enables the signed MCAce handshake and content-free mod, resource-pack, shader-pack, and integrity metadata while connected.");
+                + " requests MCAce enablement for this connection and permission to select one later federation handoff.");
+        paragraphs.add("One approval enables the signed MCAce handshake and content-free mod, resource-pack, shader-pack, and integrity metadata for this connection.");
         paragraphs.add("If the signed policy names explicit files, only relative path, byte size, and SHA-256 are sent; raw file contents are never uploaded.");
-        paragraphs.add("A signed server may request one in-game render frame later. Only the Minecraft frame is captured; never the desktop, window, files, or other applications.");
-        paragraphs.add("A signed federation handoff may present one short-lived, memory-only token to the pinned target server.");
+        paragraphs.add("This approval authorizes at most one in-game render frame during this connection. Only the Minecraft frame is captured; never the desktop, window, files, or other applications.");
+        paragraphs.add("The federation target is not known at this prompt and no second prompt will appear. This source may select one operator-pinned target; its signed identity, key, disclosure, and expiry are verified before use.");
+        paragraphs.add("A signed, short-lived, memory-only grant may carry this approval once in the same running client. The target can inherit only the same or narrower explicit-file scope and cannot export the approval to another target.");
         if (requested.isEmpty()) {
             paragraphs.add("This connection has no explicit-file request.");
         } else {
             paragraphs.add("Explicit files covered by this single approval:");
             requested.stream().sorted().forEach(path -> paragraphs.add("- " + safe(path)));
         }
-        paragraphs.add("Approval is connection-bound, is not persisted, and ends on disconnect.");
+        paragraphs.add("Approval is not persisted. Grant expiry or abort before target presentation clears provisional access; after that one presentation, inherited access lasts only for that target connection. A second export or another hop is denied. When Minecraft exits, or for a normal unrelated connection, a new approval is required.");
         paragraphs.add("Declining or closing keeps MCAce disabled and sends no MCAce handshake, manifest, evidence, or federation frames.");
         return List.copyOf(paragraphs);
     }
@@ -158,7 +159,14 @@ final class ExplicitFileConsentScreen extends Screen {
         rebuildWidgets();
     }
 
-    private void decide(boolean allowed) { decision.accept(allowed); }
+    private void decide(boolean allowed) {
+        decision.accept(visibleDecision(allowed, firstRender));
+    }
+
+    static boolean visibleDecision(boolean allowed, OneShotRenderMarker firstRender) {
+        Objects.requireNonNull(firstRender, "firstRender");
+        return allowed && firstRender.emitted();
+    }
 
     private static String safe(String value) {
         return ConsentUiSupport.safeDisplay(value);

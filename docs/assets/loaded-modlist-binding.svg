@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="700" viewBox="0 0 1400 700" role="img" aria-labelledby="title desc">
+  <title id="title">Loaded ModList and installed artifact binding</title>
+  <desc id="desc">MCAce keeps FabricLoader runtime-loaded identities separate from installed files, privacy-bounds origins, reconciles direct mod files, and keeps all resulting evidence client reported.</desc>
+  <defs>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="8" markerHeight="8" orient="auto-start-reverse">
+      <path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/>
+    </marker>
+    <style>
+      .title { font: 700 31px Inter,Segoe UI,Arial,sans-serif; fill: #f8fafc; }
+      .sub { font: 400 16px Inter,Segoe UI,Arial,sans-serif; fill: #93c5fd; }
+      .head { font: 700 22px Inter,Segoe UI,Arial,sans-serif; }
+      .body { font: 400 16px Inter,Segoe UI,Arial,sans-serif; fill: #f8fafc; }
+      .small { font: 400 16px Inter,Segoe UI,Arial,sans-serif; fill: #cbd5e1; }
+      .mono { font: 600 16px Consolas,monospace; }
+    </style>
+  </defs>
+
+  <rect width="1400" height="700" rx="26" fill="#081426"/>
+  <text x="52" y="62" class="title">Actual Loaded ModList · privacy-bounded, manifest-bound, advisory</text>
+  <text x="52" y="95" class="sub">Installed files and the Fabric runtime graph are separate signed claims; neither self-promotes to SERVER_CONFIRMED.</text>
+
+  <rect x="52" y="137" width="280" height="315" rx="18" fill="#0d2d49" stroke="#38bdf8" stroke-width="2"/>
+  <text x="82" y="177" class="head" fill="#7dd3fc">Fabric client</text>
+  <text x="82" y="218" class="body">FabricLoader.getAllMods()</text>
+  <text x="82" y="250" class="small">• exact loaded ID + version</text>
+  <text x="82" y="279" class="small">• canonical sorted · max 256</text>
+  <text x="82" y="308" class="small">• change = dirty signal</text>
+  <rect x="82" y="338" width="220" height="70" rx="12" fill="#123d62"/>
+  <text x="102" y="367" class="mono" fill="#bae6fd">loaded=true</text>
+  <text x="102" y="392" class="small">runtime claim only</text>
+
+  <rect x="400" y="137" width="300" height="315" rx="18" fill="#1f1941" stroke="#a78bfa" stroke-width="2"/>
+  <text x="430" y="177" class="head" fill="#d8b4fe">Origin privacy</text>
+  <text x="430" y="220" class="body">Direct mods file</text>
+  <text x="450" y="248" class="small">basename only</text>
+  <text x="430" y="286" class="body">Nested JAR</text>
+  <text x="450" y="314" class="small">parent Mod ID only</text>
+  <text x="430" y="352" class="body">Other PATH origin</text>
+  <text x="450" y="380" class="small">UNKNOWN · no path value</text>
+  <text x="430" y="418" class="body">Built-in / unknown</text>
+  <text x="585" y="418" class="small">no path</text>
+
+  <rect x="768" y="137" width="300" height="315" rx="18" fill="#3a2808" stroke="#f59e0b" stroke-width="2"/>
+  <text x="798" y="177" class="head" fill="#fcd34d">Exact reconciliation</text>
+  <text x="798" y="220" class="body">Direct origin must match:</text>
+  <text x="818" y="251" class="small">• safe basename</text>
+  <text x="818" y="280" class="small">• Mod ID + version</text>
+  <text x="818" y="309" class="small">• installed entry size</text>
+  <text x="818" y="338" class="small">• installed entry SHA-256</text>
+  <rect x="798" y="369" width="240" height="50" rx="12" fill="#543a08"/>
+  <text x="818" y="400" class="mono" fill="#fde68a">origin_manifest_matched</text>
+
+  <rect x="1136" y="137" width="212" height="315" rx="18" fill="#073522" stroke="#34d399" stroke-width="2"/>
+  <text x="1166" y="177" class="head" fill="#6ee7b7">Server view</text>
+  <text x="1166" y="220" class="body">Validate</text>
+  <text x="1166" y="250" class="small">order · uniqueness</text>
+  <text x="1166" y="279" class="small">origin shape</text>
+  <text x="1166" y="308" class="small">binding integrity</text>
+  <text x="1166" y="350" class="body">Derive metadata</text>
+  <text x="1166" y="379" class="small">loaded</text>
+  <text x="1166" y="404" class="small">loaded_origin</text>
+  <text x="1166" y="429" class="small">manifest matched</text>
+
+  <path d="M 332 294 H 400" stroke="#64748b" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 700 294 H 768" stroke="#64748b" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+  <path d="M 1068 294 H 1136" stroke="#64748b" stroke-width="4" fill="none" marker-end="url(#arrow)"/>
+
+  <rect x="160" y="500" width="1080" height="158" rx="16" fill="#2d1420" stroke="#fb7185" stroke-width="2"/>
+  <text x="700" y="533" text-anchor="middle" class="head" fill="#fda4af">Trust ceiling: CLIENT_REPORTED / LOW</text>
+  <text x="700" y="568" text-anchor="middle" class="small">First pre-acceptance change may send immediately; later changes coalesce to the five-minute semantic cadence.</text>
+  <text x="700" y="596" text-anchor="middle" class="small">Retries re-fragment the identical serialized update; transfer IDs, nonces, and signatures are fresh (1–30 s backoff).</text>
+  <text x="700" y="624" text-anchor="middle" class="small">ACK accepts sequence, root, and digest; it is not an audit-queue or executor receipt, and there is no freshness lease.</text>
+  <text x="700" y="652" text-anchor="middle" class="small">Independent server evidence remains mandatory before any high-impact authority decision.</text>
+</svg>

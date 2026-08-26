@@ -19,7 +19,6 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.security.KeyPair;
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -28,6 +27,7 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -37,6 +37,12 @@ final class PaperServerAuthorityLifecycleTest {
             UUID.fromString("00000000-0000-0000-0000-000000000001");
 
     @TempDir Path directory;
+
+    @BeforeEach
+    void useDedicatedPrivateAuthorityDirectory() throws Exception {
+        directory = PaperAuthorityTestFiles.privateDirectory(
+                directory, "private-paper-lifecycle-root");
+    }
 
     @Test
     void disabledLifecycleRetainsNothingAndIssuesNothing() throws Exception {
@@ -266,14 +272,17 @@ final class PaperServerAuthorityLifecycleTest {
     }
 
     @Test
-    void productionPluginRetainsTheAuthoritySeamInDisabledNoChannelMode() throws Exception {
+    void productionPluginRegistersAuthorityChannelOnlyBehindDisabledMonitorConfiguration()
+            throws Exception {
         String plugin = Files.readString(paperProjectFile(
                 "src/main/java/com/ellan/mcace/paper/MCAcePaperPlugin.java"));
         String config = Files.readString(paperProjectFile("src/main/resources/config.yml"));
-        assertTrue(plugin.contains("PaperServerAuthorityLifecycle.disabled("));
-        assertFalse(plugin.contains("BACKEND_AUTHORITY_CHANNEL"));
+        assertTrue(plugin.contains("PaperServerAuthorityConfiguration.load("));
+        assertTrue(plugin.contains("BACKEND_AUTHORITY_CHANNEL"));
         assertFalse(plugin.contains("PaperServerAuthorityLifecycle.enabledForTests("));
-        assertFalse(config.contains("server-authority:"));
+        assertTrue(config.contains("authority:"));
+        assertTrue(config.contains("enabled: false"));
+        assertTrue(config.contains("mode: MONITOR"));
     }
 
     private static Path paperProjectFile(String relative) {
@@ -383,8 +392,7 @@ final class PaperServerAuthorityLifecycleTest {
         }
 
         static void initialize(Path path) throws Exception {
-            Files.write(path, ServerAuthorityJournalPreflight.requiredInitialContentUtf8(),
-                    StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+            PaperAuthorityTestFiles.initializeJournal(path);
             assertEquals(ServerAuthorityJournalPreflight.requiredHeaderLine() + "\n",
                     Files.readString(path, StandardCharsets.UTF_8));
         }

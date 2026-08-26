@@ -30,6 +30,7 @@ enum PacketType {
   FEDERATION_PRESENTATION = 20;
   BACKEND_AUTHORITY_GRANT = 21;
   SERVER_AUTHORITY_OBSERVATION = 22;
+  ARTIFACT_OBSERVATION_RESULT = 23;
 }
 
 // A deliberately separate, minimal remote claim. It is never a TrustLevel and must
@@ -60,6 +61,13 @@ enum LoaderType {
   FABRIC = 1;
   NEOFORGE = 2;
   FORGE = 3;
+}
+
+// Signed feature negotiation.  A policy may require a capability; field absence
+// remains wire-compatible with older clients but never satisfies that requirement.
+enum ClientCapability {
+  CLIENT_CAPABILITY_UNSPECIFIED = 0;
+  CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1 = 1;
 }
 
 enum EvidenceType {
@@ -221,6 +229,10 @@ message ClientHello {
   bytes public_key_x509 = 4;
   string build_id = 5;
   bytes challenge_nonce = 6;
+  // Empty for an ordinary login. A federation target login carries exactly
+  // SHA-256(SignedFederationAssertion.toByteArray()) so the target AUTH
+  // transcript cannot have started before the source issued the signed grant.
+  bytes federation_signed_assertion_sha256 = 7;
 }
 
 message ModEntry {
@@ -231,6 +243,32 @@ message ModEntry {
   bytes sha256 = 5;
   string signer = 6;
   map<string, string> metadata = 7;
+}
+
+// Fabric Loader's actual runtime mod graph.  This is separate from ModEntry:
+// ModEntry describes files present in the policy-authorized mods directory,
+// while LoadedModEntry describes what the loader says is active for this JVM.
+// It remains signed client telemetry and is never server-authoritative proof.
+enum LoadedModOriginKind {
+  LOADED_MOD_ORIGIN_UNSPECIFIED = 0;
+  LOADED_MOD_ORIGIN_MODS_FILE = 1;
+  LOADED_MOD_ORIGIN_NESTED = 2;
+  LOADED_MOD_ORIGIN_BUILTIN_OR_CLASSPATH = 3;
+  LOADED_MOD_ORIGIN_UNKNOWN = 4;
+}
+
+message LoadedModEntry {
+  string id = 1;
+  string version = 2;
+  LoadedModOriginKind origin_kind = 3;
+  // Basename only, and only for a direct child of <gameDir>/mods.
+  string origin_filename = 4;
+  // Present only for a nested mod reported by Fabric Loader.
+  string parent_mod_id = 5;
+  // Populated only after exact filename/size/hash reconciliation with ModEntry.
+  uint64 origin_file_size = 6;
+  bytes origin_sha256 = 7;
+  bool origin_manifest_matched = 8;
 }
 
 message IntegrityScopeRule {
@@ -264,6 +302,7 @@ message SecurityPolicy {
   bytes signer_key_id_sha256 = 11;
   repeated DelegatedSigningKey delegated_signing_keys = 12;
   repeated bytes revoked_key_ids_sha256 = 13;
+  repeated ClientCapability required_client_capabilities = 14;
 }
 
 message SignedPolicyDocument {
@@ -320,6 +359,12 @@ message AuthRequest {
   repeated string selected_resource_packs = 10;
   // Shader-pack IDs in the order currently enabled by the client.
   repeated string selected_shader_packs = 11;
+  // Must exactly repeat ClientHello.federation_signed_assertion_sha256.
+  bytes federation_signed_assertion_sha256 = 12;
+  // Canonically sorted snapshot from FabricLoader.getAllMods().
+  repeated LoadedModEntry loaded_mods = 13;
+  // Canonically sorted features actually represented by this signed request.
+  repeated ClientCapability client_capabilities = 14;
 }
 
 // A complete post-authentication snapshot of the same policy-authorized scopes used by
@@ -337,6 +382,35 @@ message ArtifactObservationUpdate {
   uint64 policy_sequence = 9;
   repeated string selected_resource_packs = 10;
   repeated string selected_shader_packs = 11;
+  repeated LoadedModEntry loaded_mods = 12;
+  // Must match the authenticated request; a dynamic update cannot drop a feature.
+  repeated ClientCapability client_capabilities = 13;
+}
+
+// Server-signed semantic acceptance for one complete ArtifactObservationUpdate. The
+// SignedEnvelope header and session_id must name the same authenticated session. A client
+// advances its update sequence/root only after verifying an accepted result with the exact
+// update_sequence and aggregate_root_sha256 it sent.
+enum ArtifactObservationResultReason {
+  ARTIFACT_OBSERVATION_RESULT_REASON_UNSPECIFIED = 0;
+  ARTIFACT_OBSERVATION_RESULT_ACCEPTED = 1;
+  ARTIFACT_OBSERVATION_RESULT_INVALID_UPDATE = 2;
+  ARTIFACT_OBSERVATION_RESULT_RATE_LIMITED = 3;
+  ARTIFACT_OBSERVATION_RESULT_SEQUENCE_MISMATCH = 4;
+}
+
+message ArtifactObservationResult {
+  string session_id = 1;
+  uint64 update_sequence = 2;
+  bytes aggregate_root_sha256 = 3;
+  bool accepted = 4;
+  ArtifactObservationResultReason reason = 5;
+  // Set only for RATE_LIMITED. It is a scheduling hint covered by the server signature;
+  // it never changes authentication or observation provenance.
+  int64 retry_after_epoch_ms = 6;
+  // SHA-256 of the canonical ArtifactObservationUpdate bytes. This prevents an idempotent
+  // same-sequence retry from changing selected packs, loaded mods, or other non-root fields.
+  bytes update_sha256 = 7;
 }
 
 message AuthResult {
@@ -349,6 +423,9 @@ message AuthResult {
   uint32 risk_score = 3;
   repeated string reason_codes = 4;
   int64 expires_at_epoch_ms = 5;
+  // Server-signed exact echo of the ClientHello/AuthRequest federation
+  // binding. Empty for an ordinary login, exactly 32 bytes for federation.
+  bytes federation_signed_assertion_sha256 = 6;
 }
 
 message Heartbeat {
@@ -764,6 +841,10 @@ message FederationAssertion {
   bytes client_consent_sha256 = 15;
   bytes source_key_id_sha256 = 16;
   bytes target_key_id_sha256 = 17;
+  // Source clock time at which the source verified the client consent and
+  // cryptographically authorized this grant. This is distinct from the
+  // earlier consent-request creation time and is covered by the source signature.
+  int64 source_authorized_at_epoch_ms = 18;
 }
 
 message SignedFederationAssertion {

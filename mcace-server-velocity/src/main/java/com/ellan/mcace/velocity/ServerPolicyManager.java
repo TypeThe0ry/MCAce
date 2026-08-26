@@ -2,6 +2,7 @@ package com.ellan.mcace.velocity;
 
 import com.ellan.mcace.core.policy.SignedPolicyProvider;
 import com.ellan.mcace.protocol.generated.DelegatedSigningKey;
+import com.ellan.mcace.protocol.generated.ClientCapability;
 import com.ellan.mcace.protocol.generated.IntegrityScopeRule;
 import com.ellan.mcace.protocol.generated.LoaderType;
 import com.ellan.mcace.protocol.generated.PolicyTrustStatement;
@@ -185,6 +186,8 @@ final class ServerPolicyManager implements SignedPolicyProvider {
                 .addAllAllowedMinecraftVersions(policyConfiguration.minecraftVersions())
                 .addAllowedLoaders(LoaderType.FABRIC)
                 .addAllAllowedBuildIds(policyConfiguration.clientBuildIds())
+                .addRequiredClientCapabilities(
+                        ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1)
                 .setSignerKeyIdSha256(ByteString.copyFrom(PolicyDocuments.keyId(delegate.getPublic())))
                 .addIntegrityScopes(directory("mods", true, "mods", 4096, 512L * 1024 * 1024,
                         List.of(".jar", ".disabled")))
@@ -208,7 +211,9 @@ final class ServerPolicyManager implements SignedPolicyProvider {
         return policyConfiguration.serverId().equals(policy.getServerId())
                 && policyConfiguration.minecraftVersions().equals(policy.getAllowedMinecraftVersionsList())
                 && policyConfiguration.clientBuildIds().equals(policy.getAllowedBuildIdsList())
-                && policy.getAllowedLoadersList().equals(List.of(LoaderType.FABRIC));
+                && policy.getAllowedLoadersList().equals(List.of(LoaderType.FABRIC))
+                && policy.getRequiredClientCapabilitiesList().equals(List.of(
+                        ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1));
     }
 
     private boolean trustMatchesServerId(SignedPolicyTrustStatement signed) throws PolicyException {

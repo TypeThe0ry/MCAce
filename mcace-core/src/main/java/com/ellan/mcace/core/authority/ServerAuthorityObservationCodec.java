@@ -27,8 +27,9 @@ import java.util.UUID;
 /**
  * Pure signing and verification library for content-free backend authority observations.
  *
- * <p>No production plugin registers this protocol or passes its output to a disposition runtime.
- * The output is deliberately narrower than an {@code ArtifactObservation}.</p>
+ * <p>Production adapters may register this protocol only through the default-disabled MONITOR
+ * runtime. Its verified output is deliberately narrower than an {@code ArtifactObservation} and
+ * is not itself a disposition authorization.</p>
  */
 public final class ServerAuthorityObservationCodec {
     private final Clock clock;

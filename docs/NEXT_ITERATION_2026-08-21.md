@@ -1,10 +1,14 @@
 # Next iteration status · 2026-08-21
 
+> **Historical, commit-bound snapshot.** “Current” below means the source and
+> evidence frozen on 2026-08-21; it does not describe the active worktree or the
+> present release gates.
+
 This is the implementation and verification handoff for the next release
 iteration. It is intentionally exact: an unlisted Minecraft patch is not
 silently treated as compatible.
 
-## Current status
+## Status captured on 2026-08-21
 
 | Workstream | Status | Evidence |
 | --- | --- | --- |
@@ -21,7 +25,7 @@ silently treated as compatible.
 | Visible GUI consent | Pending | one connection-bound MCAce enablement decision; feature requests inherit it |
 | Vulcan genuine event | Pending | licensed/current-source event delivery |
 | Federation human handoff | Pending | source export → target import → live-through-TTL |
-| Current HEAD Helio verification | Passed | Paper module 37 tests (0 failures, 0 errors, 1 skip) plus 14/14 static wrappers on `cc91c63…` |
+| Historical exact-source Helio verification | Passed for bound source | Paper module 37 tests (0 failures, 0 errors, 1 skip) plus 14/14 static wrappers on `cc91c63…` |
 
 ## What changed in this iteration
 
@@ -57,16 +61,23 @@ silently treated as compatible.
 
 ## Next acceptance gates
 
-1. Run the single visible `Enable MCAce` decision once and verify that decline/close
-   leaves all MCAce traffic disabled; run the three target compatibility checks without
-   opening per-feature prompts.
-2. Freeze the production `SERVER_CONFIRMED` provider/profile/key/topology and
-   action ceiling; keep the real Grim loopback record separate from that claim.
-3. Supply the licensed Vulcan 2.9.0 JAR, rerun current-source structural
-   preflight, isolated Paper enablement, and one genuine external event.
-4. Run the real Fabric federation handoff with both visible consent decisions.
-5. Run protected exact-commit CI and publish a tag only after the bundle and
-   source commit match.
+1. Run two non-promoting Fabric compatibility smokes, then choose one
+   representative version for the sole visible source-side `Enable MCAce`
+   decision. Decline/close must leave all MCAce traffic disabled.
+2. Complete the Federation V5 handoff under that one decision: source export
+   consumes its permit, target import opens no prompt, promotion follows
+   presentation commit, and the exact eight-file package contains an externally
+   signed V3 GUI attestation plus a post-run receipt from a different approved
+   signer root.
+3. Freeze and externally attest the Production Authority V4
+   `SERVER_CONFIRMED` provider/profile/key/topology/action ceiling; keep the Grim
+   loopback record separate from that claim.
+4. Supply the reviewed licensed Vulcan JAR and complete the externally supervised
+   seven-file Vulcan V3 genuine-event package. Structural preflight or a local V2
+   diagnostic does not satisfy this gate.
+5. Publish an externally supervised Matrix V4 package, then run protected
+   exact-commit CI and publish a tag only after all evidence, bundle, and source
+   commits match.
 
 ## Anti-cheat interpretation
 

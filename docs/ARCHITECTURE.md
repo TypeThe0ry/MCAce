@@ -25,7 +25,8 @@ ServerHello(nonce, signed policy, required level)
 ClientHello(public key, build, loader)
           |
           v
-AuthRequest(policy digest, scoped manifests, environment hash) -- Ed25519 envelope
+AuthRequest(policy digest, scoped manifests, loaded graph, capabilities,
+            selected packs, environment hash) -- Ed25519 envelope
           |
           v
 Envelope validation -> replay guard -> session transition -> risk evaluation
@@ -55,16 +56,21 @@ and scope check. Duplicates and other early packet types fail closed.
    rolled-back policy receives no client response and no scan is started.
 3. Fabric generates an ephemeral session key and sends a signed `CLIENT_HELLO`
    that binds the original challenge, public key, loader, Minecraft version, and build.
-4. Fabric scans only the policy-requested built-in directory allowlist
+4. Fabric enumerates the actual bounded runtime graph through
+   `FabricLoader.getAllMods()` and scans only the policy-requested built-in directory allowlist
    (`mods`, `resourcepacks`, and `shaderpacks`). A verified policy that requests
    explicit files such as `options.txt` first opens a paged visible disclosure;
    the player may authorize those exact paths for the current connection only.
    No file is pre-consented or persisted as consent. It sends a separately signed `AUTH_REQUEST`
-   binding every scope to the accepted policy digest and sequence.
+   binding every scope, the selected resource/shader packs, at most 256 loaded Mod identities,
+   and `CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1` to the accepted policy digest and sequence.
 5. The proxy validates size, checksum, timestamp, signature, nonce uniqueness,
    session ID, packet order, player UUID, policy compatibility, exact scope set,
-   path/extension/size ceilings, and recomputed manifest roots before publishing
-   a `VERIFIED` snapshot and returning a server-signed `AUTH_RESULT`.
+   path/extension/size ceilings, recomputed manifest roots, canonical capability/loaded-graph
+   order, and the one-to-one `ModEntry` to `mods`-scope binding before publishing a
+   `VERIFIED` snapshot and returning a server-signed `AUTH_RESULT`. Default Velocity and
+   BungeeCord policy requires the loaded-graph capability, so a legacy/empty request does
+   not satisfy verified admission under those defaults.
    `AUTH_RESULT.expires_at_epoch_ms` is a signed two-minute admission-result
    freshness bound, not a heartbeat lease; a still-connected authenticated
    session continues its independently signed heartbeats after that timestamp.
@@ -81,6 +87,44 @@ and scope check. Duplicates and other early packet types fail closed.
 The client manifest remains client-reported evidence. `VERIFIED` means the pinned
 challenge-response protocol completed; it does not prove that no external or
 modified client code exists.
+
+## Post-authentication artifact observation
+
+`ArtifactObservationUpdate` is an optional complete snapshot, not a patch and
+not an admission assertion. It repeats the current policy-authorized manifests,
+selected resource and shader packs, loaded Mod graph, and authenticated
+capability list, and binds them to a strict update sequence, the authentication-
+time manifest root, the previous/current aggregate roots, policy identity, and a
+fresh observation time.
+
+The Fabric scheduler is single-flight and ACK-driven. Its ordinary cadence is
+five minutes. The first detected runtime change before any dynamic update has
+been accepted may pull the first attempt forward immediately; after acceptance,
+later changes coalesce behind the next full interval. Scan and transport failures
+use bounded one-to-thirty-second backoff. The ACK timeout starts only after every
+fragment reaches the transport API.
+
+For every complete parseable update, the proxy sends a server-signed
+`ArtifactObservationResult` bound to the session, update sequence, aggregate
+root, semantic result shape, optional rate-limit time, and SHA-256 of the complete
+canonical update bytes. The client advances its sequence/root chain and cadence
+only after verifying an exact `ACCEPTED` result. A lost result retransmits the
+exact payload under fresh transfer IDs, nonces, and signatures. The proxy treats
+that retry as idempotent only when sequence, root, and full-update digest all
+match; changed non-root semantics cannot hide behind an already accepted root.
+A valid rejection schedules a fresh snapshot, while an invalid or mis-bound
+result leaves the original payload pending for timeout recovery.
+
+The server permits the first valid dynamic update immediately and rate-limits
+later newly accepted updates from the server's last accepted time. Its signed
+`RATE_LIMITED` result supplies a retry hint, but the client bounds that hint
+between local backoff and one normal interval.
+
+This channel is optional telemetry, not a heartbeat, freshness lease, or
+continuous attestation. `observed_at` is checked only when an update is ingested.
+A client that never sends, or later stops sending, remains authenticated; the
+last accepted server-side dynamic view can become stale until another accepted
+update or session cleanup.
 
 ## Runtime protocol test network
 
@@ -182,6 +226,13 @@ reach authentication/payload handling; `mcace:admission` is consumed at the prox
 and evidence, heartbeat, and bounded payload frames retain their fixed routing.
 The compatibility suite verifies those boundaries, pinned signed admission output,
 disconnect cleanup, and that `MONITOR` never executes a high-impact disposition.
+
+Accepted dynamic manifests use the same signed-policy evaluator and the same
+session-bound platform disposition executor as the initial authenticated
+manifest on both Velocity and BungeeCord. Dynamic input never rewrites
+admission. Client-origin `NOTICE`, `WARN`, and the content-free `CHALLENGE`
+message may execute after platform revalidation; client-origin `LIMIT`,
+`QUARANTINE`, and `DENY` remain non-executable without durable trusted authority.
 
 The backend artifact declares Folia support and selects Paper or Folia scheduling
 at runtime. Expiry work runs on the global scheduler; player-bound delivery and

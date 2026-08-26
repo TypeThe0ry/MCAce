@@ -1,6 +1,10 @@
 package com.ellan.mcace.velocity;
 
 import com.ellan.mcace.core.admission.SignedAdmissionSnapshotCodec;
+import com.ellan.mcace.core.authority.AuthorityProtocolException;
+import com.ellan.mcace.core.authority.ProxyServerAuthorityConfiguration;
+import com.ellan.mcace.core.authority.ProxyServerAuthorityRuntime;
+import com.ellan.mcace.core.authority.VerifiedServerAuthorityObservation;
 import com.ellan.mcace.core.api.InMemoryMCAceApi;
 import com.ellan.mcace.core.persistence.AsyncSecurityAuditSink;
 import com.ellan.mcace.core.persistence.SecurityAuditSink;
@@ -143,6 +147,7 @@ public final class MCAceVelocityPlugin {
     private ArtifactObservationAuditSink artifactObservationAudit;
     private TrustedDispositionAuthorizationRuntime trustedDispositionAuthorizations;
     private ServerBehaviorCorrelationRuntime serverBehaviorCorrelation;
+    private ProxyServerAuthorityRuntime serverAuthorityRuntime;
     private VelocityFederationLifecycle federationLifecycle;
     private FederationRuntime federationRuntime;
 
@@ -169,6 +174,7 @@ public final class MCAceVelocityPlugin {
             evidenceReviewConfiguration = loadEvidenceReviewConfiguration();
             KeyPair identity = ServerIdentityStore.loadOrCreate(dataDirectory.resolve("identity"));
             clock = Clock.systemUTC();
+            enableServerAuthority(identity);
             federationLifecycle = VelocityFederationLifecycle.loadOrDisabled(
                     dataDirectory, clock, new SecureRandom(), identity,
                     admissionConfig.policy().serverId(),
@@ -352,6 +358,9 @@ public final class MCAceVelocityPlugin {
             server.getChannelRegistrar().register(MCAceVelocityChannels.PAYLOAD);
             server.getChannelRegistrar().register(MCAceVelocityChannels.ADMISSION);
             server.getChannelRegistrar().register(MCAceVelocityChannels.BACKEND_CONTEXT);
+            if (serverAuthorityRuntime != null) {
+                server.getChannelRegistrar().register(MCAceVelocityChannels.BACKEND_AUTHORITY);
+            }
             server.getCommandManager().register(
                     server.getCommandManager().metaBuilder("mcacepolicy").plugin(this).build(),
                     new MCAcePolicyCommand(
@@ -507,6 +516,7 @@ public final class MCAceVelocityPlugin {
         synchronized (connectionLifecycleLock) {
             challengedPlayers.clear();
             loginLifecycle.clearAll();
+            if (serverAuthorityRuntime != null) serverAuthorityRuntime.clear();
         }
         if (evidenceReviewService != null) {
             evidenceReviewService.close();
@@ -551,6 +561,7 @@ public final class MCAceVelocityPlugin {
             federationLifecycle.close();
             federationLifecycle = null;
         }
+        serverAuthorityRuntime = null;
     }
 
     @Subscribe
@@ -599,6 +610,12 @@ public final class MCAceVelocityPlugin {
 
     @Subscribe
     public void onPluginMessage(PluginMessageEvent event) {
+
+        if (MCAceVelocityChannels.BACKEND_AUTHORITY.equals(event.getIdentifier())) {
+            event.setResult(PluginMessageEvent.ForwardResult.handled());
+            receiveServerAuthority(event);
+            return;
+        }
 
 
         com.ellan.mcace.core.proxy.ProxyAdapterTransportContract.InboundDecision decision =
@@ -687,6 +704,9 @@ public final class MCAceVelocityPlugin {
         synchronized (connectionLifecycleLock) {
             Optional<VelocityLoginLifecycle.LoginTicket> ticket = ticketForCurrentPlayerLocked(event.getPlayer());
             if (ticket.isEmpty()) return;
+            if (serverAuthorityRuntime != null) {
+                serverAuthorityRuntime.invalidate(event.getPlayer().getUniqueId());
+            }
             backendReadyBarrier.beginConnection(event.getPlayer().getUniqueId());
         }
     }
@@ -1313,6 +1333,8 @@ public final class MCAceVelocityPlugin {
                 if (connection.sendPluginMessage(MCAceVelocityChannels.ADMISSION, signed.encodedFrame())
                         && isCurrentPhysicalLogin(player, ticket)) {
                     lastBackendPublish.put(player.getUniqueId(), clock.instant());
+                    sendServerAuthorityGrantIfCurrent(
+                            player, ticket, connection, transportSequence);
                 } else {
                     logger.debug("MCAce backend admission channel is unavailable for {}", player.getUsername());
                 }
@@ -1347,6 +1369,114 @@ public final class MCAceVelocityPlugin {
         } else {
             logger.warn("MCAce rejected backend context for {} status={} (admission unchanged)",
                     player.getUsername(), result.status());
+        }
+    }
+
+    private void sendServerAuthorityGrantIfCurrent(
+            Player player,
+            VelocityLoginLifecycle.LoginTicket ticket,
+            ServerConnection connection,
+            long admissionTransportSequence) {
+        ProxyServerAuthorityRuntime runtime = serverAuthorityRuntime;
+        if (runtime == null) return;
+        synchronized (connectionLifecycleLock) {
+            UUID playerId = player.getUniqueId();
+            String backend = connection.getServerInfo().getName();
+            Optional<String> session = coordinator().currentAuthenticatedSessionId(playerId);
+            boolean exactConnection = player.getCurrentServer()
+                    .map(current -> current == connection).orElse(false);
+            boolean verified = api.snapshot(playerId)
+                    .map(snapshot -> snapshot.verified()
+                            && snapshot.admissionStatus() == AdmissionStatus.VERIFIED)
+                    .orElse(false);
+            if (!isCurrentPhysicalLoginLocked(player, ticket)
+                    || session.isEmpty() || !verified || !exactConnection
+                    || !backendReadyBarrier.isReady(playerId)) {
+                return;
+            }
+            try {
+                ProxyServerAuthorityRuntime.IssuedGrant grant = runtime.issueGrant(
+                        backend, playerId, session.orElseThrow(), admissionTransportSequence);
+                if (!grant.newlyIssued()) {
+                    logger.debug("MCAce authority grant retained across routine admission refresh "
+                                    + "player={} backend={} sequence={} mode=MONITOR",
+                            playerId, backend, grant.grantSequence());
+                    return;
+                }
+                if (!connection.sendPluginMessage(
+                        MCAceVelocityChannels.BACKEND_AUTHORITY, grant.frame())) {
+                    runtime.invalidate(playerId);
+                    logger.warn("MCAce authority grant send unavailable for {}", player.getUsername());
+                    return;
+                }
+                logger.info("MCAce authority grant send attempted player={} backend={} sequence={} mode=MONITOR",
+                        playerId, backend, grant.grantSequence());
+            } catch (AuthorityProtocolException | RuntimeException exception) {
+                runtime.invalidate(playerId);
+                logger.warn("MCAce authority grant send attempt failed for {}", player.getUsername(), exception);
+            }
+        }
+    }
+
+    private void receiveServerAuthority(PluginMessageEvent event) {
+        ProxyServerAuthorityRuntime runtime = serverAuthorityRuntime;
+        if (runtime == null
+                || !(event.getSource() instanceof ServerConnection connection)
+                || !(event.getTarget() instanceof Player player)
+                || connection.getPlayer() != player
+                || event.getData().length == 0
+                || event.getData().length > com.ellan.mcace.protocol.ProtocolConstants.MAX_BACKEND_AUTHORITY_FRAME_BYTES) {
+            return;
+        }
+        synchronized (connectionLifecycleLock) {
+            UUID playerId = player.getUniqueId();
+            Optional<VelocityLoginLifecycle.LoginTicket> ticket = ticketForCurrentPlayerLocked(player);
+            Optional<String> session = coordinator().currentAuthenticatedSessionId(playerId);
+            Optional<ProxyServerAuthorityRuntime.CurrentGrant> grant = runtime.currentGrant(playerId);
+            String backend = connection.getServerInfo().getName();
+            boolean exactConnection = player.getCurrentServer()
+                    .map(current -> current == connection).orElse(false);
+            if (ticket.isEmpty() || session.isEmpty() || grant.isEmpty()
+                    || !isCurrentAuthenticatedLoginLocked(
+                    player, ticket.orElseThrow(), session.orElseThrow())
+                    || !backendReadyBarrier.isReady(playerId)
+                    || !exactConnection || !grant.orElseThrow().registeredBackend().equals(backend)
+                    || !grant.orElseThrow().authenticatedSessionId().equals(session.orElseThrow())) {
+                return;
+            }
+            try {
+                VerifiedServerAuthorityObservation verified = runtime.acceptObservation(
+                        backend, playerId, session.orElseThrow(),
+                        grant.orElseThrow().admissionTransportSequence(), event.getData());
+                logger.info("MCAce verified signed SERVER_CONFIRMED authority observation in MONITOR mode: "
+                                + "player={} backend={} attestation={} profile={} sequence={} "
+                                + "frame={} provider_commitment={}",
+                        playerId, backend, verified.attestationId(),
+                        verified.authorityProfileSha256(), verified.observationSequence(),
+                        verified.signedFrameSha256(),
+                        verified.providerEvidenceCommitmentSha256());
+            } catch (AuthorityProtocolException | RuntimeException exception) {
+                logger.warn("MCAce rejected backend authority observation for {}", player.getUsername(), exception);
+            }
+        }
+    }
+
+    private void enableServerAuthority(KeyPair identity) {
+        try {
+            ProxyServerAuthorityConfiguration configuration =
+                    ProxyServerAuthorityConfiguration.loadOrCreate(
+                            dataDirectory.resolve(ProxyServerAuthorityConfiguration.FILE_NAME));
+            if (!configuration.enabled()) {
+                logger.info("MCAce signed backend authority is disabled by configuration");
+                return;
+            }
+            serverAuthorityRuntime = new ProxyServerAuthorityRuntime(
+                    configuration, identity, clock, new SecureRandom());
+            logger.info("MCAce signed backend authority enabled in MONITOR mode; proxy={} backends={}",
+                    configuration.proxyInstanceId(), configuration.registry().size());
+        } catch (IOException | RuntimeException exception) {
+            serverAuthorityRuntime = null;
+            logger.error("MCAce signed backend authority is disabled because its configuration is invalid", exception);
         }
     }
 
@@ -1483,6 +1613,7 @@ public final class MCAceVelocityPlugin {
     private Optional<String> removeCoordinatorStateForReplacementLocked(UUID playerId) {
         if (handshakes == null) return Optional.empty();
         Optional<String> authenticatedSession = coordinator().currentAuthenticatedSessionId(playerId);
+        if (serverAuthorityRuntime != null) serverAuthorityRuntime.invalidate(playerId);
         if (federationRuntime != null) {
             coordinator().federationSubject(playerId).ifPresent(subject ->
                     federationRuntime.removeForSession(playerId, subject.authenticatedSessionId()));

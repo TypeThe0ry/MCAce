@@ -1,6 +1,10 @@
 package com.ellan.mcace.bungeecord;
 
 import com.ellan.mcace.core.admission.SignedAdmissionSnapshotCodec;
+import com.ellan.mcace.core.authority.AuthorityProtocolException;
+import com.ellan.mcace.core.authority.ProxyServerAuthorityConfiguration;
+import com.ellan.mcace.core.authority.ProxyServerAuthorityRuntime;
+import com.ellan.mcace.core.authority.VerifiedServerAuthorityObservation;
 import com.ellan.mcace.core.evidence.EvidenceReviewEndpointConfiguration;
 import com.ellan.mcace.core.federation.FederationGrantResult;
 import com.ellan.mcace.core.federation.FederationIssueResult;
@@ -28,6 +32,7 @@ import com.ellan.mcace.sdk.AdmissionStatus;
 import com.ellan.mcace.sdk.PlayerSecuritySnapshot;
 import java.nio.file.Path;
 import java.security.PrivateKey;
+import java.security.KeyPair;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
@@ -106,6 +111,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
             BungeeDispositionExecutionMode.MONITOR;
     private EvidenceReviewEndpointConfiguration evidenceReviewConfiguration;
     private ShadowBackendContextRuntime backendContextRuntime;
+    private ProxyServerAuthorityRuntime serverAuthorityRuntime;
 
     @Override
     public void onEnable() {
@@ -115,6 +121,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         deferredDispositionRoutes = new BungeeDeferredDispositionRoutes(clock);
         admissionSnapshotCodec = new SignedAdmissionSnapshotCodec(clock, new SecureRandom());
         admissionSigningKey = bridge.admissionSigningKey().orElse(null);
+        enableServerAuthority();
         backendContextRuntime = bridge.shadowBackendContextRuntime().orElse(null);
         admissionSequence = new AtomicLong(Math.max(1L, clock.millis()));
         dispositionStatus = new AtomicReference<>(BungeeDispositionStatus.unavailable());
@@ -149,6 +156,9 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         getProxy().registerChannel(BungeeMCAceChannels.ADMISSION);
         getProxy().registerChannel(BungeeMCAceChannels.PAYLOAD);
         getProxy().registerChannel(BungeeMCAceChannels.BACKEND_CONTEXT);
+        if (serverAuthorityRuntime != null) {
+            getProxy().registerChannel(BungeeMCAceChannels.BACKEND_AUTHORITY);
+        }
         getProxy().getPluginManager().registerListener(this, this);
         getProxy().getPluginManager().registerCommand(
                 this, new MCAceBungeeCommand(
@@ -221,6 +231,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         terminalConfigurationTickets.clear();
         synchronized (connectionLifecycleLock) {
             authenticatedPhysicalSessions.clear();
+            if (serverAuthorityRuntime != null) serverAuthorityRuntime.clear();
         }
         if (bridge != null) {
             bridge.federationRuntime().ifPresent(runtime -> getProxy().getPlayers().forEach(
@@ -239,6 +250,9 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         getProxy().unregisterChannel(BungeeMCAceChannels.ADMISSION);
         getProxy().unregisterChannel(BungeeMCAceChannels.PAYLOAD);
         getProxy().unregisterChannel(BungeeMCAceChannels.BACKEND_CONTEXT);
+        if (serverAuthorityRuntime != null) {
+            getProxy().unregisterChannel(BungeeMCAceChannels.BACKEND_AUTHORITY);
+        }
         if (bridge != null) {
             try {
                 bridge.close();
@@ -252,6 +266,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         admissionSequence = null;
         backendContextRuntime = null;
         dispositionStatus = null;
+        serverAuthorityRuntime = null;
         clock = null;
     }
 
@@ -333,6 +348,9 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
             // predecessor bridge state while the lifecycle lock prevents either connection from
             // processing a frame, then publish the new physical-login ticket.
             departingSession = removeBridgeSessionForReplacement(bridge, player.getUniqueId());
+            if (serverAuthorityRuntime != null) {
+                serverAuthorityRuntime.invalidate(player.getUniqueId());
+            }
             authenticatedPhysicalSessions.remove(player.getUniqueId());
             replaceTicketBoundChallenge(challengedPlayers, player.getUniqueId());
             replaceTicketBoundChallenge(configurationStartAttempts, player.getUniqueId());
@@ -379,6 +397,11 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
 
     @EventHandler
     public void onPluginMessage(PluginMessageEvent event) {
+        if (BungeeMCAceChannels.BACKEND_AUTHORITY.equals(event.getTag())) {
+            event.setCancelled(true);
+            receiveServerAuthority(event);
+            return;
+        }
         BungeeInboundFrameGate.Decision decision = BungeeInboundFrameGate.decide(
                 event.getTag(), event.getSender() instanceof ProxiedPlayer);
         if (decision == BungeeInboundFrameGate.Decision.IGNORE) {
@@ -443,8 +466,12 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
             if (routes == null || !isCurrentPhysicalLogin(player)) {
                 return;
             }
-            routes.ticketFor(player.getUniqueId(), player).ifPresent(ticket ->
-                    routes.markBackendConnecting(player.getUniqueId(), player, ticket));
+            routes.ticketFor(player.getUniqueId(), player).ifPresent(ticket -> {
+                routes.markBackendConnecting(player.getUniqueId(), player, ticket);
+                if (serverAuthorityRuntime != null) {
+                    serverAuthorityRuntime.invalidate(player.getUniqueId());
+                }
+            });
         }
     }
 
@@ -500,6 +527,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
             removeTicketBoundChallenge(configurationStartAttempts, playerId, ticket.orElseThrow());
             removeTicketBoundChallenge(terminalConfigurationTickets, playerId, ticket.orElseThrow());
             authenticatedPhysicalSessions.remove(playerId);
+            if (serverAuthorityRuntime != null) serverAuthorityRuntime.invalidate(playerId);
             departingSession = removeBridgeSessionForReplacement(bridge, playerId);
         }
         clearDepartingDispositionSession(playerId, departingSession);
@@ -1539,6 +1567,8 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
                         transportSequence, signed.expiresAt());
             }
             backend.sendData(BungeeMCAceChannels.ADMISSION, signed.encodedFrame());
+            sendServerAuthorityGrantIfCurrent(
+                    player, ticket, sessionId, current, backend, transportSequence);
         } catch (EnvelopeException exception) {
             getLogger().warning("Could not sign MCAce backend admission snapshot for " + player.getName()
                     + ": " + safeMessage(exception));
@@ -1576,6 +1606,122 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         } else {
             getLogger().warning("MCAce rejected backend context for " + player.getName()
                     + " status=" + result.status() + " (admission unchanged)");
+        }
+    }
+
+    /** Call only under {@link #connectionLifecycleLock}. */
+    private void sendServerAuthorityGrantIfCurrent(
+            ProxiedPlayer player,
+            BungeeDeferredDispositionRoutes.LoginTicket ticket,
+            String sessionId,
+            BungeeSessionBridge current,
+            Server backend,
+            long admissionTransportSequence) {
+        ProxyServerAuthorityRuntime runtime = serverAuthorityRuntime;
+        BungeeDeferredDispositionRoutes routes = deferredDispositionRoutes;
+        if (runtime == null || routes == null
+                || player.getServer() != backend
+                || !routes.isReady(player.getUniqueId(), player, ticket)
+                || !isCurrentAuthenticatedPhysicalSession(player, ticket, current, sessionId)) {
+            return;
+        }
+        try {
+            ProxyServerAuthorityRuntime.IssuedGrant grant = runtime.issueGrant(
+                    backend.getInfo().getName(), player.getUniqueId(), sessionId,
+                    admissionTransportSequence);
+            if (!grant.newlyIssued()) {
+                getLogger().fine("MCAce authority grant retained across routine admission refresh player="
+                        + player.getUniqueId() + " backend=" + backend.getInfo().getName()
+                        + " sequence=" + grant.grantSequence() + " mode=MONITOR");
+                return;
+            }
+            backend.sendData(BungeeMCAceChannels.BACKEND_AUTHORITY, grant.frame());
+            // Bungee's sendData API has no delivery acknowledgement. This is an enqueue/send
+            // attempt, not proof that Paper consumed the grant.
+            getLogger().info("MCAce authority grant send attempted player=" + player.getUniqueId()
+                    + " backend=" + backend.getInfo().getName()
+                    + " sequence=" + grant.grantSequence() + " mode=MONITOR");
+        } catch (AuthorityProtocolException | RuntimeException exception) {
+            runtime.invalidate(player.getUniqueId());
+            getLogger().warning("MCAce authority grant send attempt failed for " + player.getName()
+                    + ": " + safeMessage(exception));
+        }
+    }
+
+    private void receiveServerAuthority(PluginMessageEvent event) {
+        ProxyServerAuthorityRuntime runtime = serverAuthorityRuntime;
+        if (runtime == null || !(event.getSender() instanceof Server backend)
+                || !(event.getReceiver() instanceof ProxiedPlayer player)
+                || event.getData().length == 0
+                || event.getData().length
+                > com.ellan.mcace.protocol.ProtocolConstants.MAX_BACKEND_AUTHORITY_FRAME_BYTES) {
+            return;
+        }
+        synchronized (connectionLifecycleLock) {
+            BungeeSessionBridge current = bridge;
+            BungeeDeferredDispositionRoutes routes = deferredDispositionRoutes;
+            Optional<BungeeDeferredDispositionRoutes.LoginTicket> ticket =
+                    current == null || routes == null ? Optional.empty()
+                            : routes.ticketFor(player.getUniqueId(), player);
+            Optional<String> session = current == null ? Optional.empty()
+                    : current.currentAuthenticatedSessionId(player.getUniqueId());
+            Optional<ProxyServerAuthorityRuntime.CurrentGrant> grant =
+                    runtime.currentGrant(player.getUniqueId());
+            String registeredBackend = backend.getInfo().getName();
+            if (ticket.isEmpty() || session.isEmpty() || grant.isEmpty()
+                    || player.getServer() != backend
+                    || !routes.isReady(player.getUniqueId(), player, ticket.orElseThrow())
+                    || !isCurrentAuthenticatedPhysicalSession(
+                    player, ticket.orElseThrow(), current, session.orElseThrow())
+                    || !grant.orElseThrow().registeredBackend().equals(registeredBackend)
+                    || !grant.orElseThrow().authenticatedSessionId().equals(session.orElseThrow())) {
+                return;
+            }
+            try {
+                VerifiedServerAuthorityObservation verified = runtime.acceptObservation(
+                        registeredBackend, player.getUniqueId(), session.orElseThrow(),
+                        grant.orElseThrow().admissionTransportSequence(), event.getData());
+                getLogger().info("MCAce verified signed SERVER_CONFIRMED authority observation in MONITOR mode: "
+                        + "player=" + player.getUniqueId() + " backend=" + registeredBackend
+                        + " attestation=" + verified.attestationId()
+                        + " profile=" + verified.authorityProfileSha256()
+                        + " sequence=" + verified.observationSequence()
+                        + " frame=" + verified.signedFrameSha256()
+                        + " provider_commitment="
+                        + verified.providerEvidenceCommitmentSha256());
+            } catch (AuthorityProtocolException | RuntimeException exception) {
+                getLogger().warning("MCAce rejected backend authority observation for "
+                        + player.getName() + ": " + safeMessage(exception));
+            }
+        }
+    }
+
+    private void enableServerAuthority() {
+        if (admissionSigningKey == null) {
+            getLogger().info("MCAce signed backend authority is disabled because the bridge has no signing key");
+            return;
+        }
+        try {
+            ProxyServerAuthorityConfiguration configuration =
+                    ProxyServerAuthorityConfiguration.loadOrCreate(
+                            getDataFolder().toPath().resolve(
+                                    ProxyServerAuthorityConfiguration.FILE_NAME));
+            if (!configuration.enabled()) {
+                getLogger().info("MCAce signed backend authority is disabled by configuration");
+                return;
+            }
+            KeyPair storedIdentity = BungeeIdentityStore.loadOrCreate(
+                    getDataFolder().toPath().resolve("identity"));
+            serverAuthorityRuntime = new ProxyServerAuthorityRuntime(
+                    configuration, new KeyPair(storedIdentity.getPublic(), admissionSigningKey),
+                    clock, new SecureRandom());
+            getLogger().info("MCAce signed backend authority enabled in MONITOR mode; proxy="
+                    + configuration.proxyInstanceId() + " backends="
+                    + configuration.registry().size());
+        } catch (Exception exception) {
+            serverAuthorityRuntime = null;
+            getLogger().warning("MCAce signed backend authority is disabled because its configuration is invalid: "
+                    + safeMessage(exception));
         }
     }
 

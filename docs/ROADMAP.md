@@ -1,41 +1,50 @@
 # MCAce delivery roadmap
 
-## Current execution baseline
+## Current roadmap and retained exact-commit baseline
 
 - [x] Support exactly three Fabric targets: 1.21.11 on JDK 21 as a final remapped
   JAR, and 26.1.2/26.2 on isolated JDK 25 as final named JARs. All use Fabric
   Loader 0.19.3 and the exact API tuples in `FABRIC_COMPATIBILITY.md`.
-- [x] Pass strict offline Windows A/D with Temurin 21.0.7+6, isolated Temurin
+- [x] Retain the historical strict offline Windows A/D witness with Temurin 21.0.7+6, isolated Temurin
   25.0.3+9, and Gradle 9.6.1. Each run completed 118/118 tasks. Root results:
   147 suites / 681 tests / 0 failures / 0 errors / 28 skipped; modern results:
-  24 / 74 / 0 / 0 / 0; combined: 171 / 755 / 0 / 0 / 28.
+  24 / 74 / 0 / 0 / 0; combined: 171 / 755 / 0 / 0 / 28. These totals are
+  commit-bound history and must be replaced by the final exact-source run rather
+  than described as current-working-tree totals.
 - [x] Generate byte-identical exact-eight LOCAL verification bundles in A/D: six
   deployables, `release-manifest.properties`, and `SHA256SUMS`. Retained evidence:
   `docs/evidence/local-build-2026-08-20.json`; `build/` remains mutable.
 - [x] Reduce current exact synthetic trust to 47 root Loom-local entries plus two
   isolated modern named-Minecraft entries; no group-wide trust.
-- [x] Seal the post-fix authoritative 12-case server process matrix: three
+- [x] Retain the post-fix historical Matrix V1 12-case diagnostic: three
   versions × Paper/Folia × Velocity/Bungee, then `-ReportOnly`. Paper 6/6,
   Folia 6/6, Velocity 6/6, Bungee 6/6; 10 STABLE plus two Folia 26.2 BETA
-  cases; cleanup zero. The current Helio record is bound to code commit
+  cases; cleanup zero. The Helio record is bound to code commit
   `f404971e6e9a9ac1d30e5cf4e2692750aa83f1b1` and retained at
-  `docs/evidence/server-version-process-matrix-2026-08-25-f404971.json`.
+  `docs/evidence/server-version-process-matrix-2026-08-25-f404971.json`; it is
+  not current-working-tree or release-grade Matrix V4 evidence.
+- [ ] Execute, externally supervise, publish, and revalidate the Matrix V4
+  twelve-case package against the frozen artifact source and protected bundle.
 - [x] Pass server-only `platform-load-smoke.ps1 -FabricTarget <target>` for all
   three targets and prewarm/verify all required Minecraft asset objects.
-- [ ] Complete the visible Fabric evidence gate for all three targets: one
-  connection-level `Enable MCAce` decision per target, three human clicks total.
-- [ ] Complete the distinct real Fabric federation export/import GUI handoff.
-- [ ] Rerun the licensed Vulcan structural preflight against current source, then
-  pass Paper enablement and one genuine externally triggered event.
+- [ ] Complete exactly one source-side, human-visible, connection-bound
+  `Enable MCAce` release approval inside the real Federation V5 handoff. The
+  target inherits that decision and opens no second prompt; the other two Fabric
+  versions receive compatibility/visual diagnostics only and cannot promote
+  release consent.
+- [ ] Rerun the licensed Vulcan structural preflight against the frozen source,
+  then capture and externally sign the seven-file Vulcan V3 genuine-event package.
 - [ ] Freeze SERVER_CONFIRMED provider/profile/key/topology/action-ceiling choices,
-  wire a genuine production producer, and pass its real process matrix.
-- [x] Pass current Linux run `cb6dc44ddad744b5a20dc2986c0a6d70`
+  capture genuine Production Authority V4 MONITOR evidence, and publish its
+  externally signed native index.
+- [x] Retain historical Linux run `cb6dc44ddad744b5a20dc2986c0a6d70`
   network-none with JDK 21, isolated JDK 25, strict offline verification,
   unchanged source, and exact-eight stream-byte parity with Windows A/D. The old
   JDK-21 exact-six and superseded pre-fix exact-eight records are historical.
-- [x] Review, commit, and push the current migration/evidence/documentation
-  changes to `feature/active-pack-integrity`; the protected exact-commit CI and
-  clean exact-commit `releaseBundle` candidate remain separate release gates.
+- [x] Review, commit, and push the earlier migration/evidence/documentation
+  iteration to `feature/active-pack-integrity`.
+- [ ] Review, commit, and push the current integration tree, then pass protected
+  exact-commit V4 CI and produce the clean exact-commit `releaseBundle` candidate.
 
 The enforcement invariants remain fixed: MONITOR default, no permanent automatic
 BAN, DENY current connection only, CLIENT_REPORTED never authorizes a high-impact
@@ -70,10 +79,11 @@ decision relies on an unverified client assertion.
 - [x] Separate-process loopback runtime protocol network with known-good and deliberately malformed clients
 - [x] Root-signed, expiring Velocity-to-Paper admission snapshots with backend replay protection
 - [x] Historical Velocity/Paper process-load and development-client handshake
-  foundations with explicit key pin and missing-pin fail-closed behavior; current
-  release process coverage is the 12-case matrix above
-- [ ] Current final-artifact Fabric GUI → Velocity → Paper consent/evidence route
-  for each of the three supported targets
+  foundations with explicit key pin and missing-pin fail-closed behavior; the
+  retained 12-case matrix above is diagnostic, while Matrix V4 remains pending
+- [ ] One selected final-artifact Fabric GUI → source proxy → target proxy
+  release handoff with a single visible approval; the other two target clients
+  require compatibility validation but do not mint additional approvals
 
 ## Preserved Cloud control-plane foundation (frozen outside the product roadmap)
 
@@ -103,11 +113,13 @@ decision relies on an unverified client assertion.
 - [x] Paper backend plugin consuming signed admission snapshots
 - [x] Paper/Folia context publisher plus Velocity/Bungee shadow-only evaluator
 - [x] Folia-safe global/region/entity scheduling and plugin metadata
-- [x] Refresh and seal the exact 12-case 1.21.11/26.1.2/26.2 server process
-  matrix against the post-fix source and deployables
+- [x] Retain the exact historical 12-case 1.21.11/26.1.2/26.2 Matrix V1
+  diagnostic against its post-fix source and deployables
 - [x] Bounded manifest fragmentation/reassembly and heartbeat/session health
-- [ ] Visible GUI/framebuffer evidence consent for all three final artifacts
-- [ ] Real Fabric federation GUI handoff
+- [ ] Exactly one visible GUI/framebuffer release approval on a selected final
+  artifact, consumed by the real Federation V5 handoff with no target prompt
+- [ ] Compatibility/visual diagnostics for the other two Fabric artifacts,
+  explicitly non-promoting and not additional release approvals
 
 ## Retained legacy extensions — frozen and not part of delivery
 
@@ -137,7 +149,7 @@ the supported trust path while preserving their existing source and data.
 - [x] Public-market detection catalog schema, explicit operator selections, safe preview/validate/list/publish commands, and false-positive controls
 - [x] Server-derived resource/shader directory content roots with exact-file fallback and client metadata ignored
 - [x] Authenticated manifest transport/derivation and observation-only proxy evaluation lifecycle
-- [x] Post-authentication dynamic observation updates with bounded complete snapshots, change binding, and audit-only proxy evaluation
+- [x] Post-authentication dynamic observation updates with bounded complete snapshots, full-payload signed ACK binding, exact retry, and Velocity/Bungee low-impact disposition parity; dynamic input does not rewrite admission and client-origin high-impact actions remain authority-gated
 - [x] Paper/Folia backend-local signed-admission adapter with MONITOR default, one-shot LIMITED notice, and explicit current-connection-only BLOCKED action; proxy adapters remain the owner of rule-level NOTICE/WARN/LIMIT/QUARANTINE/DENY
 - [x] Game-render-frame per-request consent UI, in-memory capture, paced signed upload, and shared proxy reassembly
 - [x] Explicit retention disclosure, legacy default-discard semantics, 24-hour ceiling, and opt-in bounded AES-GCM storage with status/delete/audit controls
@@ -145,13 +157,13 @@ the supported trust path while preserving their existing source and data.
 - [x] Window/desktop capture remains unsupported, zero-content, and disabled; no current product path collects or retains it
 - [x] Retain the historical August 13 opt-in Proxy + three-Paper 8/8 advisory-origin guard matrix: all Velocity/Bungee `MONITOR_LIMIT` and configured `LIMITED_ROUTE` LIMIT, QUARANTINE, and DENY requests proved that an exact-hash `CLIENT_REPORTED` match remained on lobby with no route lifecycle or connection close; retained aggregate evidence: `docs/evidence/client-reported-advisory-2026-08-13.json`.
 - [x] Retain both historical Velocity/Bungee configured `LIMITED_ROUTE` DENY advisory-origin cases as part of that eight-case aggregate, proving that the tested `CLIENT_REPORTED` DENY path neither routed nor closed the current lobby connection.
-- [x] Rerun the full advisory-origin matrix against the current source and exact proxy artifacts for 1.21.11, 26.1.2, and 26.2 (24/24); current committed evidence: `docs/evidence/disposition-current-2026-08-21.json`.
+- [x] Retain the August 21 exact-commit advisory-origin matrix for 1.21.11, 26.1.2, and 26.2 (24/24); historical committed evidence: `docs/evidence/disposition-current-2026-08-21.json`.
 - [x] Retain the historical August 13 6/6 real-process `ADMIN_REVIEWED` exact-hash action matrix under `UUID_CONTEXT_COMMITMENT_V3`, with distinct reversible LIMIT/QUARANTINE routes and current-connection-only DENY followed by a clean independent-session reconnect; retained aggregate evidence: `docs/evidence/trusted-disposition-v3-2026-08-13.json`.
-- [x] Rerun the `ADMIN_REVIEWED` process matrix against the current source and exact proxy artifacts for 1.21.11, 26.1.2, and 26.2 (18/18); current committed evidence: `docs/evidence/disposition-current-2026-08-21.json`.
+- [x] Retain the August 21 exact-commit `ADMIN_REVIEWED` process matrix for 1.21.11, 26.1.2, and 26.2 (18/18); historical committed evidence: `docs/evidence/disposition-current-2026-08-21.json`.
 - [x] Implement the default-disabled `SERVER_CONFIRMED` Phase 1 protocol library: bounded canonical wire schema/codecs; exact backend/key registry; canonical profiles binding provider ID/domain/version/family/threshold, quorum, shared window, and cooldown; live-verified-grant plus same-lifecycle-lock prior-snapshot validation; and a package-confined narrow token carrying the exact signed-frame SHA-256.
 - [x] Implement and harden the Phase 2.5 durable-issuance slice without creating a producer: the operator preprovisions the regular content-free Paper/Folia journal with its fixed header and protected directory; runtime has no create or initialize path. The public preflight is read-only, returns the exact header bytes, and never changes the supplied path. The package-private abstract journal contract forces every implementation to define `lastSequence` rather than inheriting zero. The file implementation holds one long-lived handle and exclusive lock, uses OpenJDK `NOSHARE_DELETE`/`NOSHARE_WRITE` on Windows or a required non-null `fileKey` on non-Windows, repeats no-follow path identity checks, and performs same-handle decode, append, force, and re-decode before the public issuer returns a non-forgeable durable token. Journal I/O/identity/post-force failure poisons the issuer until reopen; pre-journal semantic rejection does not. `recover(VerifiedGrant)` returns a typed, non-externally-constructible `RecoveredServerAuthoritySequence`, and every durable token binds the verified grant, lifecycle, backend key, and time window. The raw signer is package-private. Paper instantiates a default-disabled lifecycle whose prepare returns a unique lease capability, whose commit requires the matching durable token, and whose abort permits a fresh retry; it retains nothing while disabled. This is not a pure-JDK guarantee against a local administrator, weak ACLs, or mutation after return.
 - [x] Add the Phase 2.6 package-private inert Paper issuance coordinator. It enforces exact request/lease/grant precheck -> journal-derived next sequence and force -> exact durable-token commit; raw frame access remains package-private to core and is not exposed to Paper. Sequence drift removes lifecycle state and requires fresh typed recovery; uncertain I/O or post-durability commit failure poisons the coordinator instead of aborting/retrying. `MCAcePaperPlugin` does not instantiate it, and there is still no authority channel, configuration, provider, sender, trusted-authorization wiring, executor, producer process evidence, or release claim.
-- [x] Pass the JDK 21 offline authority directed selections: 8 suites, 51 tests, zero failures/errors, and one host-capability symlink skip. The current whole-repository root build covers Phase 2.6 at 147 suites and 681 tests with zero failures/errors; the isolated modern build adds 24 suites and 74 tests, for 171 suites and 755 tests combined.
+- [x] Retain the historical JDK 21 offline authority directed selections: 8 suites, 51 tests, zero failures/errors, and one host-capability symlink skip. That exact source's whole-repository root build covered Phase 2.6 at 147 suites and 681 tests with zero failures/errors; its isolated modern build added 24 suites and 74 tests, for 171 suites and 755 tests combined. These are not current-working-tree totals.
 - [ ] Establish and process-test a genuine `SERVER_CONFIRMED` artifact/behavior authorization producer under [the backend-authority contract](SERVER_CONFIRMED_AUTHORITY.md); Paper/Folia world/game-mode shadow context is intentionally not that producer.
 
 Evidence protocol/unit coverage is not a real Minecraft UI or proxy process smoke.
@@ -163,9 +175,10 @@ identity, and the Java 21/25 target split.
 
 The old 1.21.1/1.21.4 preparation runs and wrappers are retained only as
 historical diagnostics. Their Paper 1.21.1-133, BungeeCord 2028, and Folia
-1.21.4-6 ALPHA pins are not current release inputs. The current Helio
-three-version process evidence is
-`docs/evidence/server-version-process-matrix-2026-08-25-f404971.json`.
+1.21.4-6 ALPHA pins are not current release inputs. The retained historical
+three-version Helio Matrix V1 evidence is
+`docs/evidence/server-version-process-matrix-2026-08-25-f404971.json`; it cannot
+close Matrix V4 for the current artifact source.
 
 The final post-fix source/JAR/asset/prepared-tree-bound three-version raw-peer
 matrix reached
@@ -212,14 +225,16 @@ default-disabled library but does not substitute for producer process evidence.
 - [x] Stable read-only third-party SDK 1.0, capability negotiation, cross-classloader JDK-only bridge, and three-platform compatibility suite
 - [x] Cross-network federation threat model, reciprocal operator-pin contract, per-target one-time player consent state machine, privacy boundary, and executable attack/release matrix
 - [x] Versioned four-message federation protocol: explicit source-operator request, signed Fabric consent, source-signed client-carried grant, target-session PoP presentation, dual offline key fingerprints, strict <=5 minute bounds, final-step replay consumption, and protocol attack corpus
-- [x] Complete disabled-by-default federation runtime under `docs/FEDERATION.md`: source operator issue/audit, one connection-level Fabric `Enable MCAce` decision inherited by source-export and target-import, bounded in-memory grant/key vault, independent target-local `VERIFIED` prerequisite, exact prepared-presentation reservation, proxy observation-only store, and cleanup/noninterference tests; no source-target channel, HTTP/socket, token broker, Cloud, or instant remote revocation.
+- [x] Complete disabled-by-default federation runtime under `docs/FEDERATION.md`: source operator issue/audit, one connection-level Fabric `Enable MCAce` decision followed by one atomic source export and one exact inherited target handoff with no second prompt, bounded in-memory grant/key vault, independent target-local `VERIFIED` plus signed-assertion AUTH binding, exact prepared-presentation reservation, proxy observation-only store, and cleanup/noninterference tests; no source-target channel, HTTP/socket, token broker, Cloud, or instant remote revocation.
 - [x] Make federation audit fail closed: successful issue/grant/observation waits for a bounded durable worker acknowledgement; queue admission is never durable success; background/file/timeout faults are sticky, clear ephemeral state, disable federation only, and surface content-free health in both proxy commands. Unit and fault-injection gates pass.
 - [x] Durably retain the historical August 13 schema-2 federation process record in `docs/evidence/federation-durable-audit-2026-08-13.json`: the tested matrix passed 4/4 plus `-ReportOnly`, with healthy source/target audit, unchanged local trust/risk/Paper admission, and zero residual processes. The record binds older proxy artifacts/source, so it is not current release evidence. It records `residual_reacceptance=true`, `durable_replay_protection=false`, and `fabric_gui_coverage=false`.
 - [ ] Rerun the raw-peer federation matrix and target-restart process gate against the current source and exact proxy artifacts.
-- [x] Implement the default-disabled, fail-closed, three-target V2 Fabric
-  federation wrapper plus source-export/target-import screens and six exact
-  runtime markers; its static contract tests pass under PowerShell 7 and Windows
-  PowerShell 5.
+- [x] Implement the default-disabled, fail-closed, three-target Federation V5
+  wrapper with one visible source enablement decision, no target prompt, the
+  runner-generated GUI request plus `MCACE_VISIBLE_GUI_ATTESTATION_V3`, decoded
+  PNG, sealed runtime ledger, and a distinct post-run supervisor receipt. Its
+  exact eight-file parser/static contract tests pass under PowerShell 7 and
+  Windows PowerShell 5; the two signers require different approved roots.
 - [ ] Pass the remaining real Fabric federation gate: one human-visible connection-level
   `Enable MCAce`, disconnect/direct-connect to the exact target, inherited target
   handoff, actual client-carried transition, a live target session through expiry,

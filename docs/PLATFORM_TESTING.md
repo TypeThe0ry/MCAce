@@ -51,7 +51,7 @@ The backend pins are:
 | --- | --- | --- | --- |
 | Paper | `1.21.11-132` | STABLE | `5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba` |
 | Paper | `26.1.2-74` | STABLE | `1d70b1dab9cf4a6de615209a536f3a45a2186240253c428213ce2188ab95e5f7` |
-| Paper | `26.2-112` | STABLE | `bd3a58cf96874e5ea6643f5f6fe9b4f5bf9e34b795fa078c2f0ee8b98b2f907e` |
+| Paper | `26.2-116` | STABLE | `17eee738bc0f6b747646be4199672c4efcb2084efd7e291ec5254a45d5ae6f2e` |
 | Folia | `1.21.11-14` | STABLE | `f52c408490a0225611e67907a3ca19f7e6da2c6bc899e715d5f46844e7103c39` |
 | Folia | `26.1.2-8` | STABLE | `607afd1c3320008e1ffd2eaee6780ace4419d5f8c527b75e79f259be79ebf57b` |
 | Folia | `26.2-6` | BETA | `9a728381da3a3bea6732ee210519f8f6ab7d6affe132a430ee167c44c4603d08` |
@@ -87,12 +87,14 @@ The wrapper has no implicit mode. It fails unless exactly one of `-Execute` and
 8. publishes `report.json`, `binding.json`, and `commit.json` by a same-volume
    atomic directory rename.
 
-The current Helio run `2026-08-24T21-33-47-1914356Z` passed 12/12 and then passed
+The retained historical Helio run `2026-08-24T21-33-47-1914356Z` passed 12/12 and then passed
 `-ReportOnly`: Paper 6/6, Folia 6/6, Velocity 6/6, Bungee 6/6, with 10 STABLE
 cases and the two Folia 26.2 BETA cases. It binds 686 source files under manifest
 `db15e9707ac1deb87958f0d031fe3946d9bbf961ba01844550983fd5f8fcec72` on exact
-code commit `f404971…`. Its current sanitized repository evidence is
+code commit `f404971…`. Its retained sanitized repository evidence is
 [`evidence/server-version-process-matrix-2026-08-25-f404971.json`](evidence/server-version-process-matrix-2026-08-25-f404971.json).
+That Matrix V1 record is commit-bound diagnostic history, not current-working-tree
+or Matrix V4 release evidence.
 
 `-ReportOnly` starts no server or proxy. It re-derives current source, asset,
 prepared-tree, product-JAR, Java, Gradle, wrapper, and raw-report bindings and
@@ -112,20 +114,24 @@ evidence and any binding drift.
 # Real client and handshake, without frame evidence.
 .\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricClient
 
-# Full visible consent/evidence gate.
+# Optional local GUI compatibility diagnostic on one selected target. This does
+# not mint or promote the single Federation V5 release approval.
 .\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence
 ```
 
-The last command must be repeated for `26.1.2` and `26.2`. All three targets'
-Mojang version metadata, asset indexes, and asset objects are already present in
-the validated cache. There is no remaining asset-download blocker.
+The last command is not a three-target release requirement. The `26.1.2` and
+`26.2` clients may receive separate UI compatibility or visual diagnostics when
+needed, but those runs are not second or third release approvals and cannot mint
+or promote release consent. All three targets' Mojang version metadata, asset
+indexes, and asset objects are already present in the validated cache, so there
+is no remaining asset-download blocker.
 
-The human operator must approve one UI decision in each run: the signed-policy
-connection-level `Enable MCAce` prompt. That is three visible human clicks across
-three targets; evidence and federation operations inherit the accepted state. A
-request marker emitted before first render is not GUI evidence. The harness does not automate input,
-does not control an existing Minecraft process, and cannot convert a decline,
-close, expiry, or unsupported result into risk or enforcement.
+Release acceptance uses exactly one human-origin, source-side, visible,
+connection-bound `Enable MCAce` decision inside the Federation V5 handoff. The
+target inherits that decision and opens no second prompt. A request marker emitted
+before first render is not GUI evidence. Neither wrapper automates input or
+controls an existing Minecraft process, and neither may convert a decline, close,
+expiry, or unsupported result into risk or enforcement.
 
 A passing record uses report schema `8` and binding
 `MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6`. It must bind:
@@ -184,13 +190,18 @@ their own retained evidence, but they do not add Fabric-version support:
   residual characterization; it truthfully records
   `durable_replay_protection=false`.
 
-The separate Fabric federation V2 wrapper and both visible screens are
-implemented for all three targets. Its PowerShell 7 and Windows PowerShell 5
-static contract tests pass, including the six exact source-export/target-import
-runtime markers. A real run still needs a human to approve source export,
-disconnect and directly join the exact target, approve target import, and keep
-the target connection alive through signed expiry. Raw-peer or static evidence
-cannot be promoted to that coverage.
+The Fabric Federation V5 wrapper is implemented for all three targets. Its
+PowerShell 7 and Windows PowerShell 5 parser/static contract tests pass. A real
+run still needs one independently attested visible `Enable MCAce` decision at the
+source, followed by source authorization, source disconnect, direct join to the
+exact target with no second prompt, and a live target connection through signed
+expiry. The exact eight-file native set is report, binding, commit, the runner-
+generated GUI signing request, `MCACE_VISIBLE_GUI_ATTESTATION_V3`, decoded PNG,
+sealed runtime ledger, and the distinct post-run supervisor receipt. The GUI
+signer and post-run supervisor must use independently approved, different roots;
+the complete set must survive V5 publication/readiness validation. Raw-peer,
+fixture, equal-key, self-approved, or static evidence cannot be promoted to that
+coverage.
 
 ## Legacy wrappers and historical evidence
 

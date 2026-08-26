@@ -167,6 +167,9 @@ public final class SharedProxyDispositionPolicyRuntime {
         ProxyPolicyRefreshStatus status = accepted == null ? ProxyPolicyRefreshStatus.OBSERVE_NO_VALID_POLICY : lastStatus;
         java.util.EnumMap<DispositionAction, Integer> counts = new java.util.EnumMap<>(DispositionAction.class);
         int advisoryEnforcementRuleBlocks = 0;
+        DispositionAction highestAction = DispositionAction.OBSERVE;
+        Optional<String> winningRuleId = Optional.empty();
+        boolean evaluatedAny = false;
         List<ProxyPolicyEvaluation> evaluations = new java.util.ArrayList<>(Math.min(observations.size(), maxRetainedEvaluations));
         for (ArtifactObservation observation : observations) {
             Objects.requireNonNull(observation, "observation");
@@ -174,6 +177,13 @@ public final class SharedProxyDispositionPolicyRuntime {
                     ? observe(observation)
                     : engine.evaluate(accepted.policy(), context, observation);
             counts.merge(decision.action(), 1, Integer::sum);
+            if (!evaluatedAny || decision.action().severity() > highestAction.severity()
+                    || (decision.action() == highestAction
+                        && winningRuleId.isEmpty() && decision.winningRuleId().isPresent())) {
+                highestAction = decision.action();
+                winningRuleId = decision.winningRuleId();
+            }
+            evaluatedAny = true;
             advisoryEnforcementRuleBlocks += (int) decision.explanations().stream()
                     .filter(detail -> "advisory-origin-cannot-enforce".equals(detail.outcome()))
                     .count();
@@ -186,8 +196,16 @@ public final class SharedProxyDispositionPolicyRuntime {
                     accepted == null ? Optional.empty() : Optional.of(java.time.Instant.ofEpochMilli(
                             accepted.document().getExpiresAtEpochMs()))));
         }
+        Optional<String> activePolicyVersion = accepted == null
+                ? Optional.empty() : Optional.of(accepted.document().getVersion());
+        Optional<Long> activePolicySequence = accepted == null
+                ? Optional.empty() : Optional.of(accepted.document().getSequence());
+        Optional<Instant> activePolicyExpiresAt = accepted == null
+                ? Optional.empty() : Optional.of(Instant.ofEpochMilli(accepted.document().getExpiresAtEpochMs()));
         return new ProxyPolicyBatchEvaluation(status, observations.size(), counts,
-                advisoryEnforcementRuleBlocks, evaluations, evaluations.size() < observations.size());
+                highestAction, winningRuleId, activePolicyVersion, activePolicySequence,
+                activePolicyExpiresAt, advisoryEnforcementRuleBlocks, evaluations,
+                evaluations.size() < observations.size());
     }
 
     /** Returns the last known-good policy identity without exposing mutable signing material. */

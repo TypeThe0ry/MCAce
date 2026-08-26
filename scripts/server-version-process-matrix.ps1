@@ -4,15 +4,41 @@ param(
     [switch]$ReportOnly,
     [switch]$Resume,
     [ValidateRange(1, 10080)]
-    [int]$MaximumReportAgeMinutes = 1440
+    [int]$MaximumReportAgeMinutes = 1440,
+    [string]$ExpectedSourceCommit = $env:MCACE_ARTIFACT_SOURCE_COMMIT,
+    [string]$ReleaseBundleRoot = $env:MCACE_MATRIX_RELEASE_BUNDLE_ROOT,
+    [string]$SupervisorTrustRootPath = $env:MCACE_MATRIX_SUPERVISOR_TRUST_ROOT_PATH,
+    [string]$ExpectedSupervisorTrustRootSha256 = $env:MCACE_RELEASE_APPROVED_MATRIX_SUPERVISOR_TRUST_ROOT_SHA256,
+    [string]$SupervisorExchangeRoot = $env:MCACE_MATRIX_SUPERVISOR_EXCHANGE_ROOT,
+    [ValidateRange(1, 1800)]
+    [int]$SupervisorReceiptWaitSeconds = 300,
+    [string]$ProductVersion = '0.0.1'
 )
 
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
+Add-Type -AssemblyName System.IO.Compression -ErrorAction Stop
 
-$reportSchema = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V1'
-$bindingSchema = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V1'
-$commitSchema = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V1'
+$reportSchema = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V4'
+$bindingSchema = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V4'
+$commitSchema = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V4'
+$rawManifestSchema = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_RAW_MANIFEST_V1'
+$signingRequestSchema = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_SUPERVISOR_SIGNING_REQUEST_V1'
+$receiptSchema = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_SUPERVISOR_RECEIPT_V1'
+$trustRootSchema = 'MCACE_SERVER_VERSION_MATRIX_SUPERVISOR_TRUST_ROOT_V1'
+$rawSetDomain = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_RAW_SET_V1'
+$caseRuntimeDomain = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_CASE_RUNTIME_SET_V1'
+$releaseArtifactDomain = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_RELEASE_ARTIFACT_SET_V1'
+$matrixProductDomain = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_PRODUCT_JAR_SET_V1'
+# These names are retained only as an explicit terminal legacy deny-list.  No
+# V2/V3 document is generated or accepted by this producer.
+$obsoleteEvidenceSchemas = @(
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V2',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V2',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V2',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V3',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V3',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V3')
 $preparedTreeDomain = "MCACE_PREPARED_TREE_SHA256_V1`0"
 $preparedRoots = @('cache', 'libraries', 'versions')
 $targetVersions = @('1.21.11', '26.1.2', '26.2')
@@ -29,12 +55,12 @@ $invocationRoot = Join-Path $workRoot 'invocations'
 $evidenceRunsRoot = Join-Path $workRoot 'runs'
 $lockPath = Join-Path $workRoot 'matrix.lock'
 $checkpointPath = Join-Path $workRoot 'checkpoint.json'
-$checkpointSchema = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_CHECKPOINT_V1'
+$checkpointSchema = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_CHECKPOINT_V2'
 
 $productJarRelatives = [ordered]@{
-    velocity = 'mcace-server-velocity/build/libs/mcace-server-velocity-0.1.0-SNAPSHOT.jar'
-    bungee = 'mcace-server-bungeecord/build/libs/mcace-server-bungeecord-0.1.0-SNAPSHOT.jar'
-    paper = 'mcace-server-paper/build/libs/mcace-server-paper-0.1.0-SNAPSHOT.jar'
+    velocity = "mcace-server-velocity/build/libs/mcace-server-velocity-$ProductVersion.jar"
+    bungee = "mcace-server-bungeecord/build/libs/mcace-server-bungeecord-$ProductVersion.jar"
+    paper = "mcace-server-paper/build/libs/mcace-server-paper-$ProductVersion.jar"
 }
 
 # These are reviewed release inputs, not a "latest" lookup and not a fallback list.
@@ -51,6 +77,42 @@ $expectedAssets = @(
 
 function ConvertTo-LowerHex([byte[]]$Bytes) {
     return ([BitConverter]::ToString($Bytes)).Replace('-', '').ToLowerInvariant()
+}
+
+function Invoke-ExactGit([string[]]$Arguments, [string]$FailureCode) {
+    $oldErrorActionPreference = $ErrorActionPreference
+    $exitCode = $null
+    $output = @()
+    try {
+        $ErrorActionPreference = 'Continue'
+        $output = @(& git -C $repoRoot @Arguments 2>&1 | ForEach-Object { $_.ToString() })
+        $exitCode = $LASTEXITCODE
+    } finally { $ErrorActionPreference = $oldErrorActionPreference }
+    if ($null -eq $exitCode -or $exitCode -ne 0) {
+        throw "$FailureCode|exit=$exitCode"
+    }
+    return (($output -join "`n").Trim())
+}
+
+function Assert-ExactGitSourceIdentity {
+    if ($ExpectedSourceCommit -cnotmatch '^[0-9a-f]{40}$') {
+        throw 'SERVER_VERSION_MATRIX_SOURCE_COMMIT_REQUIRED'
+    }
+    if ($ProductVersion -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$') {
+        throw 'SERVER_VERSION_MATRIX_PRODUCT_VERSION_INVALID'
+    }
+    $null = Invoke-ExactGit @('cat-file','-e',"$ExpectedSourceCommit^{commit}") `
+        'SERVER_VERSION_MATRIX_SOURCE_COMMIT_UNKNOWN'
+    $head = Invoke-ExactGit @('rev-parse','--verify','HEAD') `
+        'SERVER_VERSION_MATRIX_SOURCE_HEAD_UNAVAILABLE'
+    if ($head -cne $ExpectedSourceCommit) {
+        throw "SERVER_VERSION_MATRIX_SOURCE_HEAD_MISMATCH|expected=$ExpectedSourceCommit|actual=$head"
+    }
+    $status = Invoke-ExactGit @('status','--porcelain=v1','--untracked-files=all') `
+        'SERVER_VERSION_MATRIX_SOURCE_STATUS_FAILED'
+    if (-not [string]::IsNullOrEmpty($status)) {
+        throw 'SERVER_VERSION_MATRIX_SOURCE_WORKTREE_DIRTY'
+    }
 }
 
 function Get-BytesSha256([byte[]]$Bytes) {
@@ -779,6 +841,7 @@ function Get-MatrixDefinitions([object]$AssetState, [object]$PreparedState) {
 }
 
 function Get-CurrentBinding {
+    Assert-ExactGitSourceIdentity
     $repo = Assert-DirectLocalPath $repoRoot -Directory
     $null = Assert-DirectLocalPath $wrapperPath
     $null = Assert-DirectLocalPath $wrapperTestPath
@@ -811,6 +874,8 @@ function Get-CurrentBinding {
         }
     })
     $public = [pscustomobject][ordered]@{
+        source_commit = $ExpectedSourceCommit
+        product_version = $ProductVersion
         target_versions = @($targetVersions)
         case_count = 12
         source_manifest_sha256 = $source.sha256
@@ -843,6 +908,267 @@ function Get-CurrentBinding {
 function ConvertTo-CompactJsonBytes([object]$Value, [int]$Depth = 30) {
     $json = ($Value | ConvertTo-Json -Depth $Depth -Compress) + "`n"
     return [Text.UTF8Encoding]::new($false).GetBytes($json)
+}
+
+function Get-OrderedRawReportSetSha256([object[]]$Descriptors) {
+    $records = @($Descriptors | ForEach-Object {
+        [pscustomobject][ordered]@{
+            ordinal = [int]$_.ordinal
+            case_id = [string]$_.case_id
+            path = [string]$_.path
+            sha256 = [string]$_.sha256
+            size_bytes = [long]$_.size_bytes
+        }
+    })
+    return Get-BytesSha256 (ConvertTo-CompactJsonBytes ([pscustomobject][ordered]@{
+        domain = $rawSetDomain
+        source_commit = $ExpectedSourceCommit
+        reports = $records
+    }))
+}
+
+function Get-SetSha256([string]$Domain, [object]$Value) {
+    return Get-BytesSha256 (ConvertTo-CompactJsonBytes ([pscustomobject][ordered]@{
+        domain=$Domain; value=$Value
+    }))
+}
+
+function Test-FullPathBelow([string]$Root, [string]$Candidate) {
+    $prefix = [IO.Path]::GetFullPath($Root).TrimEnd([char[]]@('\','/')) +
+        [IO.Path]::DirectorySeparatorChar
+    $candidateFull = [IO.Path]::GetFullPath($Candidate)
+    $comparison = if ([IO.Path]::DirectorySeparatorChar -eq '\') {
+        [StringComparison]::OrdinalIgnoreCase
+    } else { [StringComparison]::Ordinal }
+    return $candidateFull.StartsWith($prefix, $comparison)
+}
+
+function Assert-OutOfBandDirectory([string]$Path, [string]$Label) {
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        throw "SERVER_VERSION_MATRIX_${Label}_REQUIRED"
+    }
+    $full = [IO.Path]::GetFullPath($Path)
+    if (Test-FullPathBelow $repoRoot $full) {
+        throw "SERVER_VERSION_MATRIX_${Label}_MUST_BE_OUT_OF_REPO"
+    }
+    if (-not (Test-Path -LiteralPath $full)) {
+        $null = Assert-ExistingOrParentDirect $full
+        [void][IO.Directory]::CreateDirectory($full)
+    }
+    return Assert-DirectLocalPath $full -Directory
+}
+
+function Read-MatrixSupervisorTrustRoot {
+    if ($ExpectedSupervisorTrustRootSha256 -cnotmatch '^[0-9a-fA-F]{64}$') {
+        throw 'SERVER_VERSION_MATRIX_APPROVED_SUPERVISOR_PIN_REQUIRED'
+    }
+    $approved = [Environment]::GetEnvironmentVariable(
+        'MCACE_RELEASE_APPROVED_MATRIX_SUPERVISOR_TRUST_ROOT_SHA256','Process')
+    if ($approved -cnotmatch '^[0-9a-fA-F]{64}$' -or
+            $approved.ToLowerInvariant() -cne $ExpectedSupervisorTrustRootSha256.ToLowerInvariant()) {
+        throw 'SERVER_VERSION_MATRIX_SUPERVISOR_PIN_NOT_APPROVED'
+    }
+    if ([string]::IsNullOrWhiteSpace($SupervisorTrustRootPath)) {
+        throw 'SERVER_VERSION_MATRIX_SUPERVISOR_TRUST_ROOT_REQUIRED'
+    }
+    $path = [IO.Path]::GetFullPath($SupervisorTrustRootPath)
+    if (Test-FullPathBelow $repoRoot $path) {
+        throw 'SERVER_VERSION_MATRIX_SUPERVISOR_TRUST_ROOT_MUST_BE_OUT_OF_REPO'
+    }
+    if (-not [string]::IsNullOrWhiteSpace($ReleaseBundleRoot) -and
+            (Test-FullPathBelow ([IO.Path]::GetFullPath($ReleaseBundleRoot)) $path)) {
+        throw 'SERVER_VERSION_MATRIX_SELF_SUPERVISOR_TRUST_ROOT_REJECTED'
+    }
+    if (-not [string]::IsNullOrWhiteSpace($SupervisorExchangeRoot) -and
+            (Test-FullPathBelow ([IO.Path]::GetFullPath($SupervisorExchangeRoot)) $path)) {
+        throw 'SERVER_VERSION_MATRIX_SELF_SUPERVISOR_TRUST_ROOT_REJECTED'
+    }
+    $document = Read-StableJson $path
+    if ([string]$document.digest.sha256 -cne $approved.ToLowerInvariant()) {
+        throw 'SERVER_VERSION_MATRIX_SUPERVISOR_TRUST_ROOT_PIN_MISMATCH'
+    }
+    $root = $document.value
+    if (-not (Test-ExactProperties $root @('schema','artifact_class','key_id','algorithm',
+            'modulus_base64','exponent_base64','test_fixture')) -or
+            [string]$root.schema -cne $trustRootSchema -or
+            [string]$root.artifact_class -cne 'OUT_OF_BAND_PINNED_MATRIX_SUPERVISOR_TRUST_ROOT' -or
+            [string]$root.key_id -cnotmatch '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$' -or
+            [string]$root.algorithm -cne 'RSA_PKCS1_SHA256' -or
+            -not (Test-JsonBoolean $root.test_fixture) -or [bool]$root.test_fixture) {
+        throw 'SERVER_VERSION_MATRIX_SUPERVISOR_TRUST_ROOT_INVALID'
+    }
+    try {
+        $modulus = [Convert]::FromBase64String([string]$root.modulus_base64)
+        $exponent = [Convert]::FromBase64String([string]$root.exponent_base64)
+    } catch { throw 'SERVER_VERSION_MATRIX_SUPERVISOR_TRUST_ROOT_KEY_ENCODING_INVALID' }
+    if ($modulus.Length -lt 256 -or $modulus.Length -gt 512 -or
+            $exponent.Length -lt 1 -or $exponent.Length -gt 4) {
+        throw 'SERVER_VERSION_MATRIX_SUPERVISOR_TRUST_ROOT_KEY_SIZE_INVALID'
+    }
+    return [pscustomobject]@{
+        evidence=$document; value=$root; modulus=$modulus; exponent=$exponent
+    }
+}
+
+function Assert-ServerReleaseJar([string]$Path, [string]$FileName) {
+    $marker = [ordered]@{
+        'mcace-server-velocity.jar'='com/ellan/mcace/velocity/MCAceVelocityPlugin.class'
+        'mcace-server-bungeecord.jar'='com/ellan/mcace/bungeecord/MCAceBungeePlugin.class'
+        'mcace-server-paper.jar'='com/ellan/mcace/paper/MCAcePaperPlugin.class'
+    }
+    if (-not $marker.Contains($FileName)) { return }
+    $stream = [IO.File]::Open((Assert-DirectLocalPath $Path), [IO.FileMode]::Open,
+        [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    try {
+        $archive = [IO.Compression.ZipArchive]::new(
+            $stream,[IO.Compression.ZipArchiveMode]::Read,$false)
+        try {
+            $names = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+            foreach ($entry in $archive.Entries) {
+                if ([string]::IsNullOrWhiteSpace([string]$entry.FullName) -or
+                        [string]$entry.FullName -match '(^|/)\.\.?(?:/|$)' -or
+                        -not $names.Add([string]$entry.FullName)) {
+                    throw "SERVER_VERSION_MATRIX_RELEASE_JAR_ENTRY_INVALID|$FileName"
+                }
+            }
+            if (-not $names.Contains([string]$marker[$FileName])) {
+                throw "SERVER_VERSION_MATRIX_RELEASE_JAR_MARKER_MISSING|$FileName"
+            }
+        } finally { $archive.Dispose() }
+    } finally { $stream.Dispose() }
+}
+
+function Read-ReleaseBundleSnapshot {
+    if ([string]::IsNullOrWhiteSpace($ReleaseBundleRoot)) {
+        throw 'SERVER_VERSION_MATRIX_RELEASE_BUNDLE_ROOT_REQUIRED'
+    }
+    $root = Assert-DirectLocalPath ([IO.Path]::GetFullPath($ReleaseBundleRoot)) -Directory
+    $jarNames = @('mcace-client-fabric-1.21.11.jar','mcace-client-fabric-26.1.2.jar',
+        'mcace-client-fabric-26.2.jar','mcace-server-velocity.jar',
+        'mcace-server-bungeecord.jar','mcace-server-paper.jar')
+    $expectedNames = @('SHA256SUMS','release-manifest.properties') + $jarNames
+    $entries = @(Get-ChildItem -LiteralPath $root -Force -ErrorAction Stop)
+    if ($entries.Count -ne 8 -or
+            ((@($entries.Name | Sort-Object) -join '|') -cne
+                (($expectedNames | Sort-Object) -join '|')) -or
+            @($entries | Where-Object { $_.PSIsContainer -or
+                ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 }).Count -ne 0) {
+        throw 'SERVER_VERSION_MATRIX_RELEASE_BUNDLE_FILE_SET_INVALID'
+    }
+    $manifestDigest = Get-StableFileDigest (Join-Path $root 'release-manifest.properties')
+    $sumsDigest = Get-StableFileDigest (Join-Path $root 'SHA256SUMS')
+    $manifestRaw = [IO.File]::ReadAllText($manifestDigest.path,[Text.UTF8Encoding]::new($false,$true))
+    $sumsRaw = [IO.File]::ReadAllText($sumsDigest.path,[Text.UTF8Encoding]::new($false,$true))
+    if ($manifestRaw.Contains("`r") -or -not $manifestRaw.EndsWith("`n") -or
+            $sumsRaw.Contains("`r") -or -not $sumsRaw.EndsWith("`n")) {
+        throw 'SERVER_VERSION_MATRIX_RELEASE_BUNDLE_ENCODING_INVALID'
+    }
+    $manifest = [ordered]@{}
+    foreach ($line in @($manifestRaw.TrimEnd("`n") -split "`n")) {
+        $separator = $line.IndexOf('=')
+        if ($separator -lt 1) { throw 'SERVER_VERSION_MATRIX_RELEASE_MANIFEST_INVALID' }
+        $key = $line.Substring(0,$separator); $value = $line.Substring($separator+1)
+        if ($manifest.Contains($key)) { throw 'SERVER_VERSION_MATRIX_RELEASE_MANIFEST_DUPLICATE' }
+        $manifest[$key] = $value
+    }
+    if ([string]$manifest.schema -cne 'MCACE_RELEASE_BUNDLE_V4' -or
+            [string]$manifest.bundle_profile -cne 'RELEASE' -or
+            [string]$manifest.release_identity -cne 'true' -or
+            [string]$manifest.deployable_count -cne '6' -or
+            [string]$manifest.bundle_entry_count -cne '8' -or
+            [string]$manifest.product_version -cne $ProductVersion -or
+            [string]$manifest.source_commit -cnotmatch '^[0-9a-f]{40}$' -or
+            [string]$manifest.artifact_source_commit -cne $ExpectedSourceCommit) {
+        throw 'SERVER_VERSION_MATRIX_RELEASE_MANIFEST_INVALID'
+    }
+    $sumLines = @($sumsRaw.TrimEnd("`n") -split "`n")
+    if ($sumLines.Count -ne 6) { throw 'SERVER_VERSION_MATRIX_RELEASE_SHA256SUMS_INVALID' }
+    $artifacts = [Collections.Generic.List[object]]::new()
+    $byName = [ordered]@{}
+    foreach ($line in $sumLines) {
+        if ($line -cnotmatch '^(?<sha>[0-9a-f]{64})  (?<file>[A-Za-z0-9][A-Za-z0-9._-]*\.jar)$' -or
+                [string]$Matches.file -cnotin $jarNames -or $byName.Contains([string]$Matches.file)) {
+            throw 'SERVER_VERSION_MATRIX_RELEASE_SHA256SUMS_INVALID'
+        }
+        $fileName=[string]$Matches.file; $digest=Get-StableFileDigest (Join-Path $root $fileName)
+        $key=$fileName.Remove($fileName.Length-4).Replace('-','_').Replace('.','_')
+        if ([string]$digest.sha256 -cne [string]$Matches.sha -or
+                [string]$manifest["artifact.$key.file"] -cne $fileName -or
+                [string]$manifest["artifact.$key.sha256"] -cne [string]$digest.sha256) {
+            throw "SERVER_VERSION_MATRIX_RELEASE_ARTIFACT_BINDING_INVALID|$fileName"
+        }
+        Assert-ServerReleaseJar $digest.path $fileName
+        $descriptor=[pscustomobject][ordered]@{
+            file=$fileName; sha256=[string]$digest.sha256; size_bytes=[long]$digest.size
+        }
+        $byName[$fileName]=$descriptor; [void]$artifacts.Add($descriptor)
+    }
+    $artifactValues=@($artifacts.ToArray() | Sort-Object file)
+    return [pscustomobject]@{
+        root=$root; schema='MCACE_RELEASE_BUNDLE_V4'
+        release_source_commit=[string]$manifest.source_commit
+        artifact_source_commit=[string]$manifest.artifact_source_commit
+        manifest_sha256=[string]$manifestDigest.sha256; manifest_bytes=[long]$manifestDigest.size
+        sha256s_sha256=[string]$sumsDigest.sha256; sha256s_bytes=[long]$sumsDigest.size
+        artifacts=$artifactValues; by_name=[pscustomobject]$byName
+        artifact_set_sha256=Get-SetSha256 $releaseArtifactDomain $artifactValues
+    }
+}
+
+function Get-MatrixProductCommitment([object]$Current, [object]$Bundle) {
+    $map=[ordered]@{ velocity='mcace-server-velocity.jar'; bungee='mcace-server-bungeecord.jar'; paper='mcace-server-paper.jar' }
+    $values=[Collections.Generic.List[object]]::new()
+    foreach ($pair in $map.GetEnumerator()) {
+        $matrix=$Current.public.product_jars.([string]$pair.Key)
+        $release=$Bundle.by_name.([string]$pair.Value)
+        if ([string]$matrix.sha256 -cne [string]$release.sha256 -or
+                [long]$matrix.size -ne [long]$release.size_bytes) {
+            throw "SERVER_VERSION_MATRIX_RELEASE_PRODUCT_CROSS_BINDING_INVALID|$($pair.Key)"
+        }
+        [void]$values.Add([pscustomobject][ordered]@{
+            role=[string]$pair.Key; bundle_file=[string]$pair.Value
+            matrix_relative=[string]$matrix.relative; sha256=[string]$matrix.sha256
+            size_bytes=[long]$matrix.size
+        })
+    }
+    return [pscustomobject]@{
+        values=$values.ToArray(); count=3
+        sha256=Get-SetSha256 $matrixProductDomain $values.ToArray()
+    }
+}
+
+$matrixReceiptPropertyNames = @(
+    'schema','artifact_class','source_mode','signed_at','expires_at',
+    'release_source_commit','artifact_source_commit','product_version',
+    'operation_attempt_id','challenge_nonce','challenge_issued_at',
+    'report_sha256','report_size_bytes','binding_sha256','binding_size_bytes',
+    'raw_manifest_sha256','raw_manifest_size_bytes','ordered_raw_report_set_sha256',
+    'case_runtime_commitment_sha256','case_count','process_identity_count',
+    'release_bundle_schema','release_bundle_manifest_sha256',
+    'release_bundle_manifest_size_bytes','release_bundle_sha256s_sha256',
+    'release_bundle_sha256s_size_bytes','release_bundle_artifact_set_sha256',
+    'release_bundle_artifact_count','matrix_product_jar_set_sha256',
+    'matrix_product_jar_count','supervisor_independent','signer_key_id',
+    'signer_trust_root_sha256','signature_algorithm','test_fixture','signature_base64')
+
+function Get-MatrixReceiptSigningPayload([object]$Receipt) {
+    $lines=[Collections.Generic.List[string]]::new()
+    [void]$lines.Add('MCACE_SERVER_VERSION_PROCESS_MATRIX_SUPERVISOR_RECEIPT_SIGNING_V1')
+    foreach($name in @($matrixReceiptPropertyNames | Where-Object { $_ -cne 'signature_base64' })) {
+        $value=$Receipt.$name
+        if($value -is [bool]){$rendered=if([bool]$value){'true'}else{'false'}}
+        elseif(Test-JsonInteger $value){$rendered=[Convert]::ToString($value,[Globalization.CultureInfo]::InvariantCulture)}
+        else{$rendered=[string]$value}
+        if($rendered -match '[\r\n]'){throw 'SERVER_VERSION_MATRIX_SUPERVISOR_SIGNING_VALUE_INVALID'}
+        [void]$lines.Add("$name=$rendered")
+    }
+    return [Text.UTF8Encoding]::new($false).GetBytes(($lines -join "`n")+"`n")
+}
+
+function Test-RsaPkcs1Sha256Signature([byte[]]$Payload,[byte[]]$Signature,[byte[]]$Modulus,[byte[]]$Exponent) {
+    $rsa=[Security.Cryptography.RSACryptoServiceProvider]::new()
+    try{$rsa.PersistKeyInCsp=$false;$rsa.ImportParameters([Security.Cryptography.RSAParameters]@{Modulus=$Modulus;Exponent=$Exponent});return $rsa.VerifyData($Payload,'SHA256',$Signature)}
+    finally{$rsa.Dispose()}
 }
 
 function Assert-SanitizedEvidenceBytes([byte[]]$Bytes, [string]$Label) {
@@ -898,7 +1224,10 @@ function Invoke-StrictGradle {
         # Windows PowerShell 5 surfaces redirected native stderr as nonterminating ErrorRecords.
         # Keep those lines visible/logged; the native exit code remains the authoritative gate.
         $ErrorActionPreference = 'Continue'
-        $allArguments = @($Arguments) + @(Get-StrictGradleFlags) + @(
+        $allArguments = @($Arguments) + @(
+            "-PmcaceSourceCommit=$ExpectedSourceCommit",
+            "-PmcaceArtifactSourceCommit=$ExpectedSourceCommit",
+            "-PmcaceProductVersion=$ProductVersion") + @(Get-StrictGradleFlags) + @(
             '--gradle-user-home', $Current.gradle.user_home,
             '--project-dir', $repoRoot)
         & $Current.gradle.command @allArguments 2>&1 |
@@ -1062,6 +1391,7 @@ function Assert-RawCaseReport {
         [Parameter(Mandatory)][string]$ReportPath,
         [Parameter(Mandatory)][DateTimeOffset]$InvocationStarted,
         [Parameter(Mandatory)][DateTimeOffset]$InvocationFinished,
+        [string]$InvocationLogSha256,
         [switch]$ReportOnlyValidation
     )
     $evidence = Read-StableJson $ReportPath
@@ -1097,8 +1427,15 @@ function Assert-RawCaseReport {
     $cleanupIds = @($report.cleanup_process_ids)
     if ($cleanupIds.Count -lt 2 -or @($cleanupIds | Where-Object {
                 -not (Test-JsonInteger $_) -or [long]$_ -le 0
-            }).Count -ne 0) {
+            }).Count -ne 0 -or @($cleanupIds | Select-Object -Unique).Count -ne $cleanupIds.Count) {
         throw "SERVER_VERSION_MATRIX_RAW_CLEANUP_IDS_INVALID|$($Definition.case_id)"
+    }
+    if ([string]::IsNullOrWhiteSpace($InvocationLogSha256)) {
+        if ($ReportOnlyValidation) { $InvocationLogSha256 = ('0' * 64) }
+        else { throw "SERVER_VERSION_MATRIX_INVOCATION_LOG_HASH_REQUIRED|$($Definition.case_id)" }
+    }
+    if ($InvocationLogSha256 -cnotmatch '^[0-9a-f]{64}$') {
+        throw "SERVER_VERSION_MATRIX_INVOCATION_LOG_HASH_INVALID|$($Definition.case_id)"
     }
     if (@($report.channels | Where-Object { [string]$_ -ceq 'mcace:handshake' }).Count -lt 1 -or
             @($report.packet_trace | Where-Object {
@@ -1140,6 +1477,9 @@ function Assert-RawCaseReport {
         selector = $Definition.selector
         invocation_started_at = $InvocationStarted.ToUniversalTime().ToString('o')
         invocation_finished_at = $InvocationFinished.ToUniversalTime().ToString('o')
+        execution_mode = 'EXECUTE'
+        invocation_exit_code = 0
+        invocation_log_sha256 = $InvocationLogSha256
         raw_report = $relative
         raw_report_sha256 = $evidence.digest.sha256
         raw_report_size = $evidence.digest.size
@@ -1150,7 +1490,134 @@ function Assert-RawCaseReport {
         cleanup_process_count = $cleanupIds.Count
         remaining_run_process_count = 0
         sensitive_artifact_count = 0
+        process_cleanup_observed = $true
         passed = $true
+    }
+}
+
+function Assert-PackagedRawReport {
+    param(
+        [Parameter(Mandatory)][object]$Raw,
+        [Parameter(Mandatory)][object]$Case,
+        [Parameter(Mandatory)][object]$Definition
+    )
+    $names = @(
+        'schema','proxy','backend_platform','backend_minecraft_version','forwarding_mode',
+        'forwarding_configured','proxy_port','backend_port','tcp_connected','login_success',
+        'compression_seen','configuration_finished','mcace_server_hello','mcace_auth_result',
+        'mcace_auth_accepted','backend_admission','backend_context_shadow_audit','channels',
+        'packet_trace','limitations','cleanup_process_ids','remaining_run_processes')
+    $forwarding = if ($Definition.proxy -ceq 'VELOCITY') {
+        'velocity-modern'
+    } else { 'bungee-ip-forwarding' }
+    if (-not (Test-ExactProperties $Raw $names) -or
+            -not (Test-JsonInteger $Raw.schema) -or [int]$Raw.schema -ne 4 -or
+            [string]$Raw.proxy -cne [string]$Definition.proxy -or
+            [string]$Raw.backend_platform -cne [string]$Definition.backend -or
+            [string]$Raw.backend_minecraft_version -cne [string]$Definition.minecraft_version -or
+            [string]$Raw.forwarding_mode -cne $forwarding -or
+            -not (Test-JsonInteger $Raw.proxy_port) -or [int]$Raw.proxy_port -lt 1 -or
+            [int]$Raw.proxy_port -gt 65535 -or -not (Test-JsonInteger $Raw.backend_port) -or
+            [int]$Raw.backend_port -lt 1 -or [int]$Raw.backend_port -gt 65535 -or
+            [int]$Raw.proxy_port -eq [int]$Raw.backend_port) {
+        throw "SERVER_VERSION_MATRIX_PACKAGED_RAW_IDENTITY_INVALID|$($Definition.case_id)"
+    }
+    foreach ($name in @('forwarding_configured','tcp_connected','login_success',
+            'compression_seen','configuration_finished','mcace_server_hello','mcace_auth_result',
+            'mcace_auth_accepted','backend_admission','backend_context_shadow_audit')) {
+        if (-not (Test-JsonBoolean $Raw.$name) -or -not [bool]$Raw.$name) {
+            throw "SERVER_VERSION_MATRIX_PACKAGED_RAW_ASSERTION_FAILED|$($Definition.case_id)|$name"
+        }
+    }
+    $cleanupIds = @($Raw.cleanup_process_ids)
+    if (@($Raw.limitations).Count -ne 0 -or @($Raw.remaining_run_processes).Count -ne 0 -or
+            $cleanupIds.Count -lt 2 -or @($cleanupIds | Where-Object {
+                -not (Test-JsonInteger $_) -or [long]$_ -le 0
+            }).Count -ne 0 -or @($cleanupIds | Select-Object -Unique).Count -ne $cleanupIds.Count -or
+            $cleanupIds.Count -ne [int]$Case.cleanup_process_count) {
+        throw "SERVER_VERSION_MATRIX_PACKAGED_RAW_CLEANUP_INVALID|$($Definition.case_id)"
+    }
+    $expectedPlay = if ($Definition.minecraft_version -ceq '1.21.11') { '0x30' } else { '0x31' }
+    if (@($Raw.channels | Where-Object { [string]$_ -ceq 'mcace:handshake' }).Count -lt 1 -or
+            @($Raw.packet_trace | Where-Object { [string]$_ -ceq "PLAY:$expectedPlay" }).Count -ne 1) {
+        throw "SERVER_VERSION_MATRIX_PACKAGED_RAW_PROTOCOL_INVALID|$($Definition.case_id)"
+    }
+}
+
+function Assert-RawManifest {
+    param(
+        [Parameter(Mandatory)][object]$ManifestEvidence,
+        [Parameter(Mandatory)][object]$Report,
+        [Parameter(Mandatory)][object]$Current,
+        [Parameter(Mandatory)][string]$EvidenceDirectory
+    )
+    $manifest = $ManifestEvidence.value
+    $names = @('schema','generated_at','source_mode','source_commit','product_version',
+        'case_count','ordered_raw_report_set_sha256','reports')
+    if (-not (Test-ExactProperties $manifest $names) -or
+            [string]$manifest.schema -cne $rawManifestSchema -or
+            [string]$manifest.source_mode -cne 'EXECUTED' -or
+            [string]$manifest.source_commit -cne $ExpectedSourceCommit -or
+            [string]$manifest.product_version -cne $ProductVersion -or
+            -not (Test-JsonInteger $manifest.case_count) -or [int]$manifest.case_count -ne 12 -or
+            [string]$manifest.ordered_raw_report_set_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+            @($manifest.reports).Count -ne 12 -or
+            -not (Test-ExactDateTimeOffsetInstant $manifest.generated_at $Report.generated_at `
+                'raw-manifest.generated_at')) {
+        throw 'SERVER_VERSION_MATRIX_RAW_MANIFEST_INVALID'
+    }
+    $rawRoot = Assert-DirectLocalPath (Join-Path $EvidenceDirectory 'raw') -Directory
+    $entries = @(Get-ChildItem -LiteralPath $rawRoot -Force -ErrorAction Stop)
+    if ($entries.Count -ne 12 -or @($entries | Where-Object {
+                $_.PSIsContainer -or ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
+            }).Count -ne 0) {
+        throw 'SERVER_VERSION_MATRIX_RAW_REPORT_SET_INVALID'
+    }
+    $descriptors = @($manifest.reports)
+    $cases = @($Report.cases)
+    $descriptorNames = @('ordinal','case_id','path','sha256','size_bytes','raw_schema',
+        'minecraft_version','backend','proxy','execution_mode','invocation_exit_code',
+        'invocation_log_sha256','cleanup_process_count','remaining_run_process_count',
+        'process_cleanup_observed')
+    for ($index = 0; $index -lt 12; $index++) {
+        $descriptor = $descriptors[$index]
+        $case = $cases[$index]
+        $definition = $Current.definitions[$index]
+        $expectedPath = "raw/$($definition.case_id).json"
+        if (-not (Test-ExactProperties $descriptor $descriptorNames) -or
+                -not (Test-JsonInteger $descriptor.ordinal) -or [int]$descriptor.ordinal -ne ($index + 1) -or
+                [string]$descriptor.case_id -cne [string]$definition.case_id -or
+                [string]$descriptor.path -cne $expectedPath -or
+                [string]$descriptor.sha256 -cne [string]$case.raw_report_sha256 -or
+                [long]$descriptor.size_bytes -ne [long]$case.raw_report_size -or
+                [int]$descriptor.raw_schema -ne 4 -or
+                [string]$descriptor.minecraft_version -cne [string]$definition.minecraft_version -or
+                [string]$descriptor.backend -cne [string]$definition.backend -or
+                [string]$descriptor.proxy -cne [string]$definition.proxy -or
+                [string]$descriptor.execution_mode -cne 'EXECUTE' -or
+                [int]$descriptor.invocation_exit_code -ne 0 -or
+                [string]$descriptor.invocation_log_sha256 -cne [string]$case.invocation_log_sha256 -or
+                [int]$descriptor.cleanup_process_count -ne [int]$case.cleanup_process_count -or
+                [int]$descriptor.remaining_run_process_count -ne 0 -or
+                -not (Test-JsonBoolean $descriptor.process_cleanup_observed) -or
+                -not [bool]$descriptor.process_cleanup_observed -or
+                [string]$case.raw_report -cne $expectedPath) {
+            throw "SERVER_VERSION_MATRIX_RAW_DESCRIPTOR_INVALID|$($definition.case_id)"
+        }
+        $rawEvidence = Read-StableJson (Join-Path $EvidenceDirectory ($expectedPath.Replace('/','\')))
+        Assert-SanitizedEvidenceBytes $rawEvidence.bytes "raw-$($definition.case_id)"
+        if ([string]$rawEvidence.digest.sha256 -cne [string]$descriptor.sha256 -or
+                [long]$rawEvidence.digest.size -ne [long]$descriptor.size_bytes) {
+            throw "SERVER_VERSION_MATRIX_RAW_DESCRIPTOR_BYTES_MISMATCH|$($definition.case_id)"
+        }
+        Assert-PackagedRawReport $rawEvidence.value $case $definition
+    }
+    $ordered = Get-OrderedRawReportSetSha256 $descriptors
+    if ([string]$manifest.ordered_raw_report_set_sha256 -cne $ordered -or
+            [string]$Report.ordered_raw_report_set_sha256 -cne $ordered -or
+            [string]$Report.raw_manifest_sha256 -cne [string]$ManifestEvidence.digest.sha256 -or
+            [long]$Report.raw_manifest_bytes -ne [long]$ManifestEvidence.digest.size) {
+        throw 'SERVER_VERSION_MATRIX_RAW_SET_BINDING_INVALID'
     }
 }
 
@@ -1234,7 +1701,8 @@ function Invoke-MatrixCase([object]$Definition, [object]$Current, [int]$Ordinal)
     $log = Invoke-StrictGradle $Current $arguments ('{0:d2}-{1}' -f $Ordinal,$Definition.case_id)
     $finished = [DateTimeOffset]::UtcNow
     $reportPath = Find-FreshRawReport $Definition $before $started $finished
-    $result = Assert-RawCaseReport $Definition $Current $reportPath $started $finished
+    $result = Assert-RawCaseReport $Definition $Current $reportPath $started $finished `
+        -InvocationLogSha256 ([string]$log.sha256)
     return [pscustomobject]@{ case=$result; invocation_log_sha256=$log.sha256 }
 }
 
@@ -1242,14 +1710,16 @@ function Assert-CaseBinding {
     param(
         [Parameter(Mandatory)][object]$Case,
         [Parameter(Mandatory)][object]$Definition,
-        [Parameter(Mandatory)][object]$Current
+        [Parameter(Mandatory)][object]$Current,
+        [string]$EvidenceDirectory
     )
     $names = @(
         'case_id','raw_schema','minecraft_version','minecraft_protocol','server_java_feature','backend','proxy',
-        'lane','selector','invocation_started_at','invocation_finished_at','raw_report',
+        'lane','selector','invocation_started_at','invocation_finished_at','execution_mode',
+        'invocation_exit_code','invocation_log_sha256','raw_report',
         'raw_report_sha256','raw_report_size','raw_report_last_write_at','server_asset_identity',
         'proxy_asset_identity','run_root','cleanup_process_count','remaining_run_process_count',
-        'sensitive_artifact_count','passed')
+        'sensitive_artifact_count','process_cleanup_observed','passed')
     if (-not (Test-ExactProperties $Case $names) -or
             [string]$Case.case_id -cne $Definition.case_id -or
             [int]$Case.raw_schema -ne 4 -or
@@ -1262,10 +1732,16 @@ function Assert-CaseBinding {
             [string]$Case.selector -cne $Definition.selector -or
             [string]$Case.server_asset_identity -cne $Definition.server_key -or
             [string]$Case.proxy_asset_identity -cne $Definition.proxy_key -or
+            [string]$Case.execution_mode -cne 'EXECUTE' -or
+            -not (Test-JsonInteger $Case.invocation_exit_code) -or
+            [int]$Case.invocation_exit_code -ne 0 -or
+            [string]$Case.invocation_log_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
             -not (Test-JsonBoolean $Case.passed) -or -not $Case.passed -or
             [int]$Case.cleanup_process_count -lt 2 -or
             [int]$Case.remaining_run_process_count -ne 0 -or
-            [int]$Case.sensitive_artifact_count -ne 0) {
+            [int]$Case.sensitive_artifact_count -ne 0 -or
+            -not (Test-JsonBoolean $Case.process_cleanup_observed) -or
+            -not [bool]$Case.process_cleanup_observed) {
         throw "SERVER_VERSION_MATRIX_CASE_BINDING_INVALID|$($Definition.case_id)"
     }
     $started = ConvertTo-ExactDateTimeOffset $Case.invocation_started_at 'invocation_started_at'
@@ -1276,9 +1752,17 @@ function Assert-CaseBinding {
             $writeAt -gt $finished.AddSeconds(2)) {
         throw "SERVER_VERSION_MATRIX_CASE_TIME_INVALID|$($Definition.case_id)"
     }
+    if (-not [string]::IsNullOrWhiteSpace($EvidenceDirectory)) {
+        $expectedPackagedPath = "raw/$($Definition.case_id).json"
+        if ([string]$Case.raw_report -cne $expectedPackagedPath) {
+            throw "SERVER_VERSION_MATRIX_PACKAGED_RAW_PATH_INVALID|$($Definition.case_id)"
+        }
+        return
+    }
     $rawPath = Resolve-RepositoryRelative ([string]$Case.raw_report) 'raw-report-binding'
     $null = Assert-PathBelow $rawRunsRoot $rawPath 'raw-report-binding'
-    $actual = Assert-RawCaseReport $Definition $Current $rawPath $started $finished -ReportOnlyValidation
+    $actual = Assert-RawCaseReport $Definition $Current $rawPath $started $finished `
+        -InvocationLogSha256 ([string]$Case.invocation_log_sha256) -ReportOnlyValidation
     $actualWriteAt = ConvertTo-ExactDateTimeOffset $actual.raw_report_last_write_at `
         'actual_raw_report_last_write_at'
     if ([string]$actual.raw_report_sha256 -cne [string]$Case.raw_report_sha256 -or
@@ -1294,20 +1778,51 @@ function Assert-CaseBinding {
 function Assert-Report {
     param(
         [Parameter(Mandatory)][object]$Report,
-        [Parameter(Mandatory)][object]$Current
+        [Parameter(Mandatory)][object]$Current,
+        [string]$EvidenceDirectory
     )
     $names = @(
-        'schema','generated_at','source_mode','target_versions','expected_case_count',
+        'schema','generated_at','source_mode','source_commit','release_source_commit',
+        'artifact_source_commit','product_version',
+        'target_versions','expected_case_count',
         'observed_case_count','stable_case_count','beta_case_count','all_cases_passed',
-        'cleanup_all_zero','cases')
+        'cleanup_all_zero','raw_manifest_schema','raw_manifest_sha256','raw_manifest_bytes',
+        'ordered_raw_report_set_sha256','case_runtime_commitment_sha256',
+        'release_bundle_manifest_sha256','release_bundle_artifact_set_sha256',
+        'matrix_product_jar_set_sha256','supervisor_operation_attempt_id',
+        'supervisor_challenge_nonce','supervisor_challenge_issued_at',
+        'supervisor_receipt_expires_at','supervisor_trust_root_sha256',
+        'supervisor_signer_key_id','supervisor_signature_algorithm',
+        'independent_supervisor_signature_present',
+        'release_eligible','cases')
     if (-not (Test-ExactProperties $Report $names) -or
             [string]$Report.schema -cne $reportSchema -or
             [string]$Report.source_mode -cne 'EXECUTED' -or
+            [string]$Report.source_commit -cne $ExpectedSourceCommit -or
+            [string]$Report.artifact_source_commit -cne $ExpectedSourceCommit -or
+            [string]$Report.release_source_commit -cnotmatch '^[0-9a-f]{40}$' -or
+            [string]$Report.product_version -cne $ProductVersion -or
             ((@($Report.target_versions) -join ',') -cne ($targetVersions -join ',')) -or
             [int]$Report.expected_case_count -ne 12 -or [int]$Report.observed_case_count -ne 12 -or
             [int]$Report.stable_case_count -ne 10 -or [int]$Report.beta_case_count -ne 2 -or
             -not (Test-JsonBoolean $Report.all_cases_passed) -or -not $Report.all_cases_passed -or
             -not (Test-JsonBoolean $Report.cleanup_all_zero) -or -not $Report.cleanup_all_zero -or
+            [string]$Report.raw_manifest_schema -cne $rawManifestSchema -or
+            [string]$Report.raw_manifest_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+            -not (Test-JsonInteger $Report.raw_manifest_bytes) -or [long]$Report.raw_manifest_bytes -le 0 -or
+            [string]$Report.ordered_raw_report_set_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+            [string]$Report.case_runtime_commitment_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+            [string]$Report.release_bundle_manifest_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+            [string]$Report.release_bundle_artifact_set_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+            [string]$Report.matrix_product_jar_set_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+            [string]$Report.supervisor_operation_attempt_id -cnotmatch '^[0-9a-f]{32}$' -or
+            [string]$Report.supervisor_challenge_nonce -cnotmatch '^[0-9a-f]{64}$' -or
+            [string]$Report.supervisor_trust_root_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+            [string]$Report.supervisor_signer_key_id -cnotmatch '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$' -or
+            [string]$Report.supervisor_signature_algorithm -cne 'RSA_PKCS1_SHA256' -or
+            -not (Test-JsonBoolean $Report.independent_supervisor_signature_present) -or
+            -not [bool]$Report.independent_supervisor_signature_present -or
+            -not (Test-JsonBoolean $Report.release_eligible) -or -not [bool]$Report.release_eligible -or
             @($Report.cases).Count -ne 12) {
         throw 'SERVER_VERSION_MATRIX_REPORT_INVALID'
     }
@@ -1326,7 +1841,7 @@ function Assert-Report {
     for ($index = 0; $index -lt $Current.definitions.Count; $index++) {
         $definition = $Current.definitions[$index]
         $case = @($Report.cases)[$index]
-        Assert-CaseBinding $case $definition $Current
+        Assert-CaseBinding $case $definition $Current -EvidenceDirectory $EvidenceDirectory
         $finished = ConvertTo-ExactDateTimeOffset $case.invocation_finished_at `
             "case[$index].invocation_finished_at"
         if ($finished.ToUniversalTime() -gt $generated.ToUniversalTime()) {
@@ -1339,12 +1854,22 @@ function Assert-Binding {
     param(
         [Parameter(Mandatory)][object]$Binding,
         [Parameter(Mandatory)][string]$ReportSha256,
+        [Parameter(Mandatory)][long]$ReportBytes,
         [Parameter(Mandatory)][object]$Report,
         [Parameter(Mandatory)][object]$Current
     )
     $names = @(
         'schema','generated_at','report_schema','report_generated_at','report_sha256',
-        'source_mode','current_sha256','current','passed')
+        'report_bytes','source_mode','source_commit','release_source_commit',
+        'artifact_source_commit','product_version',
+        'raw_manifest_schema','raw_manifest_sha256','raw_manifest_bytes',
+        'ordered_raw_report_set_sha256','case_runtime_commitment_sha256',
+        'release_bundle_manifest_sha256','release_bundle_artifact_set_sha256',
+        'matrix_product_jar_set_sha256','supervisor_operation_attempt_id',
+        'supervisor_challenge_nonce','supervisor_challenge_issued_at',
+        'supervisor_receipt_expires_at','supervisor_trust_root_sha256',
+        'supervisor_signer_key_id','supervisor_signature_algorithm','current_sha256','current',
+        'independent_supervisor_signature_present','release_eligible','passed')
     $expectedCurrentBytes = ConvertTo-CompactJsonBytes $Current.public
     $expectedCurrentSha256 = Get-BytesSha256 $expectedCurrentBytes
     if (-not (Test-ExactProperties $Binding $names) -or
@@ -1354,9 +1879,35 @@ function Assert-Binding {
             [string]$Binding.report_generated_at -cne [string]$Report.generated_at -or
             [string]$Binding.report_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
             [string]$Binding.report_sha256 -cne $ReportSha256 -or
+            -not (Test-JsonInteger $Binding.report_bytes) -or
+            [long]$Binding.report_bytes -ne $ReportBytes -or
             [string]$Binding.source_mode -cne 'EXECUTED' -or
+            [string]$Binding.source_commit -cne $ExpectedSourceCommit -or
+            [string]$Binding.source_commit -cne [string]$Report.source_commit -or
+            [string]$Binding.release_source_commit -cne [string]$Report.release_source_commit -or
+            [string]$Binding.artifact_source_commit -cne $ExpectedSourceCommit -or
+            [string]$Binding.product_version -cne $ProductVersion -or
+            [string]$Binding.product_version -cne [string]$Report.product_version -or
+            [string]$Binding.raw_manifest_schema -cne $rawManifestSchema -or
+            [string]$Binding.raw_manifest_sha256 -cne [string]$Report.raw_manifest_sha256 -or
+            [long]$Binding.raw_manifest_bytes -ne [long]$Report.raw_manifest_bytes -or
+            [string]$Binding.ordered_raw_report_set_sha256 -cne [string]$Report.ordered_raw_report_set_sha256 -or
+            [string]$Binding.case_runtime_commitment_sha256 -cne [string]$Report.case_runtime_commitment_sha256 -or
+            [string]$Binding.release_bundle_manifest_sha256 -cne [string]$Report.release_bundle_manifest_sha256 -or
+            [string]$Binding.release_bundle_artifact_set_sha256 -cne [string]$Report.release_bundle_artifact_set_sha256 -or
+            [string]$Binding.matrix_product_jar_set_sha256 -cne [string]$Report.matrix_product_jar_set_sha256 -or
+            [string]$Binding.supervisor_operation_attempt_id -cne [string]$Report.supervisor_operation_attempt_id -or
+            [string]$Binding.supervisor_challenge_nonce -cne [string]$Report.supervisor_challenge_nonce -or
+            [string]$Binding.supervisor_challenge_issued_at -cne [string]$Report.supervisor_challenge_issued_at -or
+            [string]$Binding.supervisor_receipt_expires_at -cne [string]$Report.supervisor_receipt_expires_at -or
+            [string]$Binding.supervisor_trust_root_sha256 -cne [string]$Report.supervisor_trust_root_sha256 -or
+            [string]$Binding.supervisor_signer_key_id -cne [string]$Report.supervisor_signer_key_id -or
+            [string]$Binding.supervisor_signature_algorithm -cne 'RSA_PKCS1_SHA256' -or
             [string]$Binding.current_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
             [string]$Binding.current_sha256 -cne $expectedCurrentSha256 -or
+            -not (Test-JsonBoolean $Binding.independent_supervisor_signature_present) -or
+            -not [bool]$Binding.independent_supervisor_signature_present -or
+            -not (Test-JsonBoolean $Binding.release_eligible) -or -not [bool]$Binding.release_eligible -or
             -not (Test-JsonBoolean $Binding.passed) -or -not $Binding.passed) {
         throw 'SERVER_VERSION_MATRIX_BINDING_INVALID'
     }
@@ -1367,12 +1918,22 @@ function Assert-Commit {
     param(
         [Parameter(Mandatory)][object]$Commit,
         [Parameter(Mandatory)][string]$ReportSha256,
+        [Parameter(Mandatory)][long]$ReportBytes,
         [Parameter(Mandatory)][string]$BindingSha256,
+        [Parameter(Mandatory)][long]$BindingBytes,
         [Parameter(Mandatory)][object]$Report
     )
     $names = @(
         'schema','generated_at','report_schema','binding_schema','report_sha256',
-        'binding_sha256','committed')
+        'report_bytes','binding_sha256','binding_bytes','raw_manifest_schema',
+        'raw_manifest_sha256','raw_manifest_bytes','ordered_raw_report_set_sha256',
+        'source_commit','release_source_commit','artifact_source_commit','product_version',
+        'supervisor_signing_request_schema','supervisor_signing_request_sha256',
+        'supervisor_signing_request_bytes','supervisor_receipt_schema',
+        'supervisor_receipt_sha256','supervisor_receipt_bytes',
+        'supervisor_operation_attempt_id','supervisor_challenge_nonce',
+        'supervisor_trust_root_sha256','independent_supervisor_signature_present',
+        'release_eligible','committed')
     if (-not (Test-ExactProperties $Commit $names) -or
             [string]$Commit.schema -cne $commitSchema -or
             [string]$Commit.generated_at -cne [string]$Report.generated_at -or
@@ -1380,8 +1941,36 @@ function Assert-Commit {
             [string]$Commit.binding_schema -cne $bindingSchema -or
             [string]$Commit.report_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
             [string]$Commit.report_sha256 -cne $ReportSha256 -or
+            -not (Test-JsonInteger $Commit.report_bytes) -or
+            [long]$Commit.report_bytes -ne $ReportBytes -or
             [string]$Commit.binding_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
             [string]$Commit.binding_sha256 -cne $BindingSha256 -or
+            -not (Test-JsonInteger $Commit.binding_bytes) -or
+            [long]$Commit.binding_bytes -ne $BindingBytes -or
+            [string]$Commit.raw_manifest_schema -cne $rawManifestSchema -or
+            [string]$Commit.raw_manifest_sha256 -cne [string]$Report.raw_manifest_sha256 -or
+            [long]$Commit.raw_manifest_bytes -ne [long]$Report.raw_manifest_bytes -or
+            [string]$Commit.ordered_raw_report_set_sha256 -cne [string]$Report.ordered_raw_report_set_sha256 -or
+            [string]$Commit.source_commit -cne $ExpectedSourceCommit -or
+            [string]$Commit.source_commit -cne [string]$Report.source_commit -or
+            [string]$Commit.release_source_commit -cne [string]$Report.release_source_commit -or
+            [string]$Commit.artifact_source_commit -cne $ExpectedSourceCommit -or
+            [string]$Commit.product_version -cne $ProductVersion -or
+            [string]$Commit.product_version -cne [string]$Report.product_version -or
+            [string]$Commit.supervisor_signing_request_schema -cne $signingRequestSchema -or
+            [string]$Commit.supervisor_signing_request_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+            -not (Test-JsonInteger $Commit.supervisor_signing_request_bytes) -or
+            [long]$Commit.supervisor_signing_request_bytes -le 0 -or
+            [string]$Commit.supervisor_receipt_schema -cne $receiptSchema -or
+            [string]$Commit.supervisor_receipt_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
+            -not (Test-JsonInteger $Commit.supervisor_receipt_bytes) -or
+            [long]$Commit.supervisor_receipt_bytes -le 0 -or
+            [string]$Commit.supervisor_operation_attempt_id -cne [string]$Report.supervisor_operation_attempt_id -or
+            [string]$Commit.supervisor_challenge_nonce -cne [string]$Report.supervisor_challenge_nonce -or
+            [string]$Commit.supervisor_trust_root_sha256 -cne [string]$Report.supervisor_trust_root_sha256 -or
+            -not (Test-JsonBoolean $Commit.independent_supervisor_signature_present) -or
+            -not [bool]$Commit.independent_supervisor_signature_present -or
+            -not (Test-JsonBoolean $Commit.release_eligible) -or -not [bool]$Commit.release_eligible -or
             -not (Test-JsonBoolean $Commit.committed) -or -not $Commit.committed) {
         throw 'SERVER_VERSION_MATRIX_COMMIT_INVALID'
     }
@@ -1398,19 +1987,164 @@ function Assert-ExactEvidenceDirectory([string]$Directory, [switch]$AllowStaging
         throw 'SERVER_VERSION_MATRIX_EVIDENCE_RUN_NAME_INVALID'
     }
     $entries = @(Get-ChildItem -LiteralPath $root -Force -ErrorAction Stop)
-    if ($entries.Count -ne 3) { throw 'SERVER_VERSION_MATRIX_EVIDENCE_TRIPLET_REQUIRED' }
+    if ($entries.Count -ne 7) { throw 'SERVER_VERSION_MATRIX_EVIDENCE_PACKAGE_REQUIRED' }
     $expected = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-    foreach ($entryName in @('report.json','binding.json','commit.json')) {
+    foreach ($entryName in @('report.json','binding.json','commit.json','raw-manifest.json',
+            'supervisor-signing-request.json','supervisor-receipt.json','raw')) {
         [void]$expected.Add($entryName)
     }
     foreach ($entry in $entries) {
+        $isRawName = [string]$entry.Name -ceq 'raw'
         if (($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
-                $entry.PSIsContainer -or -not $expected.Remove([string]$entry.Name)) {
+                ($isRawName -and -not $entry.PSIsContainer) -or
+                (-not $isRawName -and $entry.PSIsContainer) -or
+                -not $expected.Remove([string]$entry.Name)) {
             throw "SERVER_VERSION_MATRIX_EVIDENCE_ENTRY_INVALID|$($entry.Name)"
         }
     }
     if ($expected.Count -ne 0) { throw 'SERVER_VERSION_MATRIX_EVIDENCE_TRIPLET_INCOMPLETE' }
     return $root
+}
+
+function Assert-SupervisorEvidencePackage {
+    param(
+        [Parameter(Mandatory)][string]$Directory,
+        [Parameter(Mandatory)][object]$ReportEvidence,
+        [Parameter(Mandatory)][object]$BindingEvidence,
+        [Parameter(Mandatory)][object]$CommitEvidence,
+        [Parameter(Mandatory)][object]$RawManifestEvidence,
+        [Parameter(Mandatory)][object]$Current
+    )
+    $report=$ReportEvidence.value; $binding=$BindingEvidence.value; $commit=$CommitEvidence.value
+    $bundle=Read-ReleaseBundleSnapshot
+    $productCommitment=Get-MatrixProductCommitment $Current $bundle
+    $trustRoot=Read-MatrixSupervisorTrustRoot
+    $caseCommitments=[Collections.Generic.List[object]]::new();$processIdentityCount=0
+    for($caseIndex=0;$caseIndex -lt 12;$caseIndex++){
+        $case=@($report.cases)[$caseIndex]
+        $rawPath=Join-Path $Directory (([string]$case.raw_report).Replace('/','\'))
+        $raw=(Read-StableJson $rawPath).value
+        $processes=[Collections.Generic.List[object]]::new();$cleanupIds=@($raw.cleanup_process_ids)
+        for($processIndex=0;$processIndex -lt $cleanupIds.Count;$processIndex++){
+            $role=if($processIndex -eq 0){'PROXY'}elseif($processIndex -eq 1){'BACKEND'}else{"AUXILIARY_$($processIndex-1)"}
+            $identityBody=[pscustomobject][ordered]@{
+                case_id=[string]$case.case_id;role=$role;process_id=[long]$cleanupIds[$processIndex]
+                invocation_started_at=[string]$case.invocation_started_at
+                invocation_finished_at=[string]$case.invocation_finished_at
+                proxy_jar_sha256=[string]$case.run_root.proxy_jar_sha256
+                backend_jar_sha256=[string]$case.run_root.backend_jar_sha256
+            }
+            [void]$processes.Add([pscustomobject][ordered]@{
+                role=$role;process_id=[long]$cleanupIds[$processIndex]
+                process_incarnation_sha256=Get-SetSha256 'MCACE_SERVER_VERSION_PROCESS_MATRIX_PROCESS_INCARNATION_V1' $identityBody
+                cleanup_observed=$true;remaining_process_count=0
+            });$processIdentityCount++
+        }
+        [void]$caseCommitments.Add([pscustomobject][ordered]@{
+            ordinal=$caseIndex+1;case_id=[string]$case.case_id
+            invocation_started_at=[string]$case.invocation_started_at
+            invocation_finished_at=[string]$case.invocation_finished_at
+            invocation_log_sha256=[string]$case.invocation_log_sha256
+            raw_report_sha256=[string]$case.raw_report_sha256
+            raw_report_size_bytes=[long]$case.raw_report_size
+            cleanup_process_count=[int]$case.cleanup_process_count
+            remaining_process_count=0;process_cleanup_observed=$true;processes=$processes.ToArray()
+        })
+    }
+    $caseValues=$caseCommitments.ToArray();$caseSha=Get-SetSha256 $caseRuntimeDomain $caseValues
+    $releaseSha=Get-SetSha256 $releaseArtifactDomain $bundle.artifacts
+    if([string]$report.release_source_commit -cne [string]$bundle.release_source_commit -or
+            [string]$report.artifact_source_commit -cne [string]$bundle.artifact_source_commit -or
+            [string]$report.release_bundle_manifest_sha256 -cne [string]$bundle.manifest_sha256 -or
+            [string]$report.release_bundle_artifact_set_sha256 -cne $releaseSha -or
+            [string]$report.matrix_product_jar_set_sha256 -cne [string]$productCommitment.sha256 -or
+            [string]$report.case_runtime_commitment_sha256 -cne $caseSha -or
+            [string]$report.supervisor_trust_root_sha256 -cne [string]$trustRoot.evidence.digest.sha256 -or
+            [string]$report.supervisor_signer_key_id -cne [string]$trustRoot.value.key_id){
+        throw 'SERVER_VERSION_MATRIX_EXTERNAL_BINDING_INVALID'
+    }
+    $requestEvidence=Read-StableJson (Join-Path $Directory 'supervisor-signing-request.json')
+    $receiptEvidence=Read-StableJson (Join-Path $Directory 'supervisor-receipt.json')
+    $request=$requestEvidence.value;$receipt=$receiptEvidence.value
+    if([string]$request.schema -cne $signingRequestSchema -or
+            [string]$request.source_mode -cne 'EXECUTED_AWAITING_EXTERNAL_SUPERVISOR' -or
+            [string]$request.release_source_commit -cne [string]$bundle.release_source_commit -or
+            [string]$request.artifact_source_commit -cne $ExpectedSourceCommit -or
+            [string]$request.operation_attempt_id -cne [string]$report.supervisor_operation_attempt_id -or
+            [string]$request.challenge_nonce -cne [string]$report.supervisor_challenge_nonce -or
+            [string]$request.challenge_issued_at -cne [string]$report.supervisor_challenge_issued_at -or
+            [string]$request.receipt_not_after -cne [string]$report.supervisor_receipt_expires_at -or
+            [string]$request.report_sha256 -cne [string]$ReportEvidence.digest.sha256 -or
+            [long]$request.report_size_bytes -ne [long]$ReportEvidence.digest.size -or
+            [string]$request.binding_sha256 -cne [string]$BindingEvidence.digest.sha256 -or
+            [long]$request.binding_size_bytes -ne [long]$BindingEvidence.digest.size -or
+            [string]$request.raw_manifest_sha256 -cne [string]$RawManifestEvidence.digest.sha256 -or
+            [long]$request.raw_manifest_size_bytes -ne [long]$RawManifestEvidence.digest.size -or
+            [string]$request.case_runtime_commitment_sha256 -cne $caseSha -or
+            [int]$request.case_count -ne 12 -or [int]$request.process_identity_count -ne $processIdentityCount -or
+            (Get-SetSha256 $caseRuntimeDomain @($request.case_runtime_commitments)) -cne $caseSha -or
+            [string]$request.release_bundle_manifest_sha256 -cne [string]$bundle.manifest_sha256 -or
+            [string]$request.release_bundle_artifact_set_sha256 -cne $releaseSha -or
+            (Get-SetSha256 $releaseArtifactDomain @($request.release_bundle_artifacts)) -cne $releaseSha -or
+            [string]$request.matrix_product_jar_set_sha256 -cne [string]$productCommitment.sha256 -or
+            (Get-SetSha256 $matrixProductDomain @($request.matrix_product_jars)) -cne [string]$productCommitment.sha256 -or
+            [string]$request.supervisor_trust_root_sha256 -cne [string]$trustRoot.evidence.digest.sha256 -or
+            [string]$request.supervisor_signer_key_id -cne [string]$trustRoot.value.key_id -or
+            [string]$request.signature_algorithm -cne 'RSA_PKCS1_SHA256'){
+        throw 'SERVER_VERSION_MATRIX_SUPERVISOR_SIGNING_REQUEST_INVALID'
+    }
+    if(-not(Test-ExactProperties $receipt $matrixReceiptPropertyNames) -or
+            [string]$receipt.schema -cne $receiptSchema -or
+            [string]$receipt.artifact_class -cne 'EXTERNALLY_SIGNED_MATRIX_SUPERVISOR_RECEIPT' -or
+            [string]$receipt.source_mode -cne 'EXTERNAL_MATRIX_SUPERVISOR' -or
+            -not(Test-JsonBoolean $receipt.supervisor_independent) -or -not[bool]$receipt.supervisor_independent -or
+            -not(Test-JsonBoolean $receipt.test_fixture) -or [bool]$receipt.test_fixture -or
+            [string]$receipt.signer_key_id -cne [string]$trustRoot.value.key_id -or
+            [string]$receipt.signer_trust_root_sha256 -cne [string]$trustRoot.evidence.digest.sha256 -or
+            [string]$receipt.signature_algorithm -cne 'RSA_PKCS1_SHA256'){
+        throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_PROVENANCE_INVALID'
+    }
+    $map=[ordered]@{
+        release_source_commit='release_source_commit';artifact_source_commit='artifact_source_commit'
+        product_version='product_version';operation_attempt_id='operation_attempt_id'
+        challenge_nonce='challenge_nonce';challenge_issued_at='challenge_issued_at'
+        report_sha256='report_sha256';report_size_bytes='report_size_bytes'
+        binding_sha256='binding_sha256';binding_size_bytes='binding_size_bytes'
+        raw_manifest_sha256='raw_manifest_sha256';raw_manifest_size_bytes='raw_manifest_size_bytes'
+        ordered_raw_report_set_sha256='ordered_raw_report_set_sha256'
+        case_runtime_commitment_sha256='case_runtime_commitment_sha256';case_count='case_count'
+        process_identity_count='process_identity_count';release_bundle_schema='release_bundle_schema'
+        release_bundle_manifest_sha256='release_bundle_manifest_sha256'
+        release_bundle_manifest_size_bytes='release_bundle_manifest_size_bytes'
+        release_bundle_sha256s_sha256='release_bundle_sha256s_sha256'
+        release_bundle_sha256s_size_bytes='release_bundle_sha256s_size_bytes'
+        release_bundle_artifact_set_sha256='release_bundle_artifact_set_sha256'
+        release_bundle_artifact_count='release_bundle_artifact_count'
+        matrix_product_jar_set_sha256='matrix_product_jar_set_sha256'
+        matrix_product_jar_count='matrix_product_jar_count'
+    }
+    foreach($pair in $map.GetEnumerator()){
+        $actual=$receipt.([string]$pair.Key);$expected=$request.([string]$pair.Value)
+        if(Test-JsonInteger $expected){if(-not(Test-JsonInteger $actual)-or[long]$actual-ne[long]$expected){throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_BINDING_INVALID'}}
+        elseif([string]$actual -cne [string]$expected){throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_BINDING_INVALID'}
+    }
+    $issued=ConvertTo-ExactDateTimeOffset $request.challenge_issued_at 'request.challenge_issued_at'
+    $expires=ConvertTo-ExactDateTimeOffset $request.receipt_not_after 'request.receipt_not_after'
+    $signed=ConvertTo-ExactDateTimeOffset $receipt.signed_at 'receipt.signed_at'
+    $receiptExpires=ConvertTo-ExactDateTimeOffset $receipt.expires_at 'receipt.expires_at'
+    if($expires.Ticks-ne$receiptExpires.Ticks-or$signed-lt$issued-or$signed-gt$expires-or
+            [DateTimeOffset]::UtcNow-gt$expires.AddMinutes(1)){throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_EXPIRED_OR_TIME_INVALID'}
+    try{$signature=[Convert]::FromBase64String([string]$receipt.signature_base64)}catch{throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_SIGNATURE_ENCODING_INVALID'}
+    if($signature.Length-ne$trustRoot.modulus.Length-or-not(Test-RsaPkcs1Sha256Signature (Get-MatrixReceiptSigningPayload $receipt) $signature $trustRoot.modulus $trustRoot.exponent)){
+        throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_SIGNATURE_INVALID'
+    }
+    if([string]$commit.supervisor_signing_request_sha256-cne[string]$requestEvidence.digest.sha256-or
+            [long]$commit.supervisor_signing_request_bytes-ne[long]$requestEvidence.digest.size-or
+            [string]$commit.supervisor_receipt_sha256-cne[string]$receiptEvidence.digest.sha256-or
+            [long]$commit.supervisor_receipt_bytes-ne[long]$receiptEvidence.digest.size){
+        throw 'SERVER_VERSION_MATRIX_COMMIT_SUPERVISOR_DOCUMENT_BINDING_INVALID'
+    }
+    return @($requestEvidence,$receiptEvidence)
 }
 
 function Assert-EvidenceTriplet {
@@ -1424,18 +2158,27 @@ function Assert-EvidenceTriplet {
         -AllowStaging:$AllowStaging
     $bindingPath = Join-Path $directory 'binding.json'
     $commitPath = Join-Path $directory 'commit.json'
+    $rawManifestPath = Join-Path $directory 'raw-manifest.json'
     $reportEvidence = Read-StableJson $resolvedReport
     $bindingEvidence = Read-StableJson $bindingPath
     $commitEvidence = Read-StableJson $commitPath
+    $rawManifestEvidence = Read-StableJson $rawManifestPath
     Assert-SanitizedEvidenceBytes $reportEvidence.bytes 'report'
     Assert-SanitizedEvidenceBytes $bindingEvidence.bytes 'binding'
     Assert-SanitizedEvidenceBytes $commitEvidence.bytes 'commit'
-    Assert-Report $reportEvidence.value $Current
+    Assert-SanitizedEvidenceBytes $rawManifestEvidence.bytes 'raw-manifest'
+    Assert-Report $reportEvidence.value $Current -EvidenceDirectory $directory
+    Assert-RawManifest $rawManifestEvidence $reportEvidence.value $Current $directory
     Assert-Binding $bindingEvidence.value $reportEvidence.digest.sha256 `
+        $reportEvidence.digest.size `
         $reportEvidence.value $Current
     Assert-Commit $commitEvidence.value $reportEvidence.digest.sha256 `
-        $bindingEvidence.digest.sha256 $reportEvidence.value
-    foreach ($evidence in @($reportEvidence,$bindingEvidence,$commitEvidence)) {
+        $reportEvidence.digest.size $bindingEvidence.digest.sha256 `
+        $bindingEvidence.digest.size $reportEvidence.value
+    $supervisorDocuments = @(Assert-SupervisorEvidencePackage $directory $reportEvidence `
+        $bindingEvidence $commitEvidence $rawManifestEvidence $Current)
+    foreach ($evidence in @($reportEvidence,$bindingEvidence,$commitEvidence,$rawManifestEvidence) +
+            $supervisorDocuments) {
         $after = Get-StableFileDigest $evidence.digest.path
         if ($after.sha256 -cne $evidence.digest.sha256 -or
                 $after.size -ne $evidence.digest.size -or
@@ -1493,78 +2236,333 @@ function New-EvidenceTriplet {
         [Parameter(Mandatory)][object[]]$Cases
     )
     if ($Cases.Count -ne 12) { throw 'SERVER_VERSION_MATRIX_COMPLETE_12_OF_12_REQUIRED' }
-    $generatedAt = [DateTimeOffset]::UtcNow.ToString('o')
-    $report = [pscustomobject][ordered]@{
-        schema = $reportSchema
-        generated_at = $generatedAt
-        source_mode = 'EXECUTED'
-        target_versions = @($targetVersions)
-        expected_case_count = 12
-        observed_case_count = 12
-        stable_case_count = 10
-        beta_case_count = 2
-        all_cases_passed = $true
-        cleanup_all_zero = $true
-        cases = @($Cases)
+    $bundle = Read-ReleaseBundleSnapshot
+    $productCommitment = Get-MatrixProductCommitment $Current $bundle
+    $trustRoot = Read-MatrixSupervisorTrustRoot
+    $exchangeRoot = Assert-OutOfBandDirectory $SupervisorExchangeRoot 'SUPERVISOR_EXCHANGE_ROOT'
+    if (Test-FullPathBelow $exchangeRoot ([string]$trustRoot.evidence.digest.path)) {
+        throw 'SERVER_VERSION_MATRIX_SELF_SUPERVISOR_TRUST_ROOT_REJECTED'
     }
-    $reportBytes = ConvertTo-CompactJsonBytes $report
-    Assert-SanitizedEvidenceBytes $reportBytes 'new-report'
-    $reportSha256 = Get-BytesSha256 $reportBytes
-    $currentBytes = ConvertTo-CompactJsonBytes $Current.public
-    $binding = [pscustomobject][ordered]@{
-        schema = $bindingSchema
-        generated_at = $generatedAt
-        report_schema = $reportSchema
-        report_generated_at = $generatedAt
-        report_sha256 = $reportSha256
-        source_mode = 'EXECUTED'
-        current_sha256 = Get-BytesSha256 $currentBytes
-        current = $Current.public
-        passed = $true
-    }
-    $bindingBytes = ConvertTo-CompactJsonBytes $binding
-    Assert-SanitizedEvidenceBytes $bindingBytes 'new-binding'
-    $bindingSha256 = Get-BytesSha256 $bindingBytes
-    $commit = [pscustomobject][ordered]@{
-        schema = $commitSchema
-        generated_at = $generatedAt
-        report_schema = $reportSchema
-        binding_schema = $bindingSchema
-        report_sha256 = $reportSha256
-        binding_sha256 = $bindingSha256
-        committed = $true
-    }
-    $commitBytes = ConvertTo-CompactJsonBytes $commit
-    Assert-SanitizedEvidenceBytes $commitBytes 'new-commit'
 
-    $runName = [DateTimeOffset]::UtcNow.ToString('yyyy-MM-ddTHH-mm-ss-fffffffZ')
-    $finalRoot = Join-Path $evidenceRunsRoot $runName
-    $stagingRoot = Join-Path $evidenceRunsRoot (
-        '.staging-' + $runName + '-' + [IO.Path]::GetRandomFileName())
-    if ((Test-Path -LiteralPath $finalRoot) -or (Test-Path -LiteralPath $stagingRoot)) {
+    $generatedAt = [DateTimeOffset]::UtcNow.ToString('o')
+    $challengeIssuedAt = $generatedAt
+    $receiptNotAfter = [DateTimeOffset]::UtcNow.AddMinutes(15).ToString('o')
+    $operationAttemptId = [Guid]::NewGuid().ToString('N')
+    $random = [Security.Cryptography.RandomNumberGenerator]::Create()
+    try {
+        $challengeBytes = New-Object byte[] 32
+        $random.GetBytes($challengeBytes)
+    } finally { $random.Dispose() }
+    $challengeNonce = ConvertTo-LowerHex $challengeBytes
+
+    $rawSources = [Collections.Generic.List[object]]::new()
+    $rawDescriptors = [Collections.Generic.List[object]]::new()
+    $publishedCases = [Collections.Generic.List[object]]::new()
+    for ($index = 0; $index -lt 12; $index++) {
+        $case = $Cases[$index]
+        $definition = $Current.definitions[$index]
+        Assert-CaseBinding $case $definition $Current
+        $sourcePath = Resolve-RepositoryRelative ([string]$case.raw_report) 'raw-report-publication'
+        $source = Read-StableJson $sourcePath
+        if ([string]$source.digest.sha256 -cne [string]$case.raw_report_sha256 -or
+                [long]$source.digest.size -ne [long]$case.raw_report_size) {
+            throw "SERVER_VERSION_MATRIX_RAW_PUBLICATION_BYTES_MISMATCH|$($case.case_id)"
+        }
+        Assert-SanitizedEvidenceBytes $source.bytes "raw-publication-$($case.case_id)"
+        $publishedPath = "raw/$($case.case_id).json"
+        [void]$rawSources.Add([pscustomobject]@{
+            path=$publishedPath; bytes=[byte[]]$source.bytes; value=$source.value
+        })
+        [void]$rawDescriptors.Add([pscustomobject][ordered]@{
+            ordinal=$index+1; case_id=[string]$case.case_id; path=$publishedPath
+            sha256=[string]$source.digest.sha256; size_bytes=[long]$source.digest.size
+            raw_schema=4; minecraft_version=[string]$case.minecraft_version
+            backend=[string]$case.backend; proxy=[string]$case.proxy
+            execution_mode='EXECUTE'; invocation_exit_code=0
+            invocation_log_sha256=[string]$case.invocation_log_sha256
+            cleanup_process_count=[int]$case.cleanup_process_count
+            remaining_run_process_count=0; process_cleanup_observed=$true
+        })
+        [void]$publishedCases.Add([pscustomobject][ordered]@{
+            case_id=[string]$case.case_id; raw_schema=4
+            minecraft_version=[string]$case.minecraft_version
+            minecraft_protocol=[int]$case.minecraft_protocol
+            server_java_feature=[int]$case.server_java_feature
+            backend=[string]$case.backend; proxy=[string]$case.proxy
+            lane=[string]$case.lane; selector=[string]$case.selector
+            invocation_started_at=[string]$case.invocation_started_at
+            invocation_finished_at=[string]$case.invocation_finished_at
+            execution_mode='EXECUTE'; invocation_exit_code=0
+            invocation_log_sha256=[string]$case.invocation_log_sha256
+            raw_report=$publishedPath; raw_report_sha256=[string]$source.digest.sha256
+            raw_report_size=[long]$source.digest.size
+            raw_report_last_write_at=[string]$case.raw_report_last_write_at
+            server_asset_identity=[string]$case.server_asset_identity
+            proxy_asset_identity=[string]$case.proxy_asset_identity; run_root=$case.run_root
+            cleanup_process_count=[int]$case.cleanup_process_count
+            remaining_run_process_count=0; sensitive_artifact_count=0
+            process_cleanup_observed=$true; passed=$true
+        })
+    }
+
+    $caseCommitments = [Collections.Generic.List[object]]::new()
+    $processIdentityCount = 0
+    for ($caseIndex=0; $caseIndex -lt 12; $caseIndex++) {
+        $case=@($publishedCases)[$caseIndex]; $raw=@($rawSources)[$caseIndex].value
+        $processes=[Collections.Generic.List[object]]::new()
+        $cleanupIds=@($raw.cleanup_process_ids)
+        for($processIndex=0;$processIndex -lt $cleanupIds.Count;$processIndex++) {
+            $role=if($processIndex -eq 0){'PROXY'}elseif($processIndex -eq 1){'BACKEND'}else{"AUXILIARY_$($processIndex-1)"}
+            $identityBody=[pscustomobject][ordered]@{
+                case_id=[string]$case.case_id; role=$role; process_id=[long]$cleanupIds[$processIndex]
+                invocation_started_at=[string]$case.invocation_started_at
+                invocation_finished_at=[string]$case.invocation_finished_at
+                proxy_jar_sha256=[string]$case.run_root.proxy_jar_sha256
+                backend_jar_sha256=[string]$case.run_root.backend_jar_sha256
+            }
+            [void]$processes.Add([pscustomobject][ordered]@{
+                role=$role; process_id=[long]$cleanupIds[$processIndex]
+                process_incarnation_sha256=Get-SetSha256 'MCACE_SERVER_VERSION_PROCESS_MATRIX_PROCESS_INCARNATION_V1' $identityBody
+                cleanup_observed=$true; remaining_process_count=0
+            })
+            $processIdentityCount++
+        }
+        [void]$caseCommitments.Add([pscustomobject][ordered]@{
+            ordinal=$caseIndex+1; case_id=[string]$case.case_id
+            invocation_started_at=[string]$case.invocation_started_at
+            invocation_finished_at=[string]$case.invocation_finished_at
+            invocation_log_sha256=[string]$case.invocation_log_sha256
+            raw_report_sha256=[string]$case.raw_report_sha256
+            raw_report_size_bytes=[long]$case.raw_report_size
+            cleanup_process_count=[int]$case.cleanup_process_count
+            remaining_process_count=0; process_cleanup_observed=$true
+            processes=$processes.ToArray()
+        })
+    }
+    $caseCommitmentValues=$caseCommitments.ToArray()
+    $caseCommitmentSha256=Get-SetSha256 $caseRuntimeDomain $caseCommitmentValues
+    $orderedRawSetSha256=Get-OrderedRawReportSetSha256 $rawDescriptors.ToArray()
+    $rawManifest=[pscustomobject][ordered]@{
+        schema=$rawManifestSchema; generated_at=$generatedAt; source_mode='EXECUTED'
+        source_commit=$ExpectedSourceCommit; product_version=$ProductVersion; case_count=12
+        ordered_raw_report_set_sha256=$orderedRawSetSha256; reports=$rawDescriptors.ToArray()
+    }
+    $rawManifestBytes=ConvertTo-CompactJsonBytes $rawManifest
+    Assert-SanitizedEvidenceBytes $rawManifestBytes 'new-raw-manifest'
+    $rawManifestSha256=Get-BytesSha256 $rawManifestBytes
+
+    $report=[pscustomobject][ordered]@{
+        schema=$reportSchema; generated_at=$generatedAt; source_mode='EXECUTED'
+        source_commit=$ExpectedSourceCommit; release_source_commit=$bundle.release_source_commit
+        artifact_source_commit=$ExpectedSourceCommit; product_version=$ProductVersion
+        target_versions=@($targetVersions); expected_case_count=12; observed_case_count=12
+        stable_case_count=10; beta_case_count=2; all_cases_passed=$true; cleanup_all_zero=$true
+        raw_manifest_schema=$rawManifestSchema; raw_manifest_sha256=$rawManifestSha256
+        raw_manifest_bytes=[long]$rawManifestBytes.Length
+        ordered_raw_report_set_sha256=$orderedRawSetSha256
+        case_runtime_commitment_sha256=$caseCommitmentSha256
+        release_bundle_manifest_sha256=$bundle.manifest_sha256
+        release_bundle_artifact_set_sha256=$bundle.artifact_set_sha256
+        matrix_product_jar_set_sha256=$productCommitment.sha256
+        supervisor_operation_attempt_id=$operationAttemptId
+        supervisor_challenge_nonce=$challengeNonce
+        supervisor_challenge_issued_at=$challengeIssuedAt
+        supervisor_receipt_expires_at=$receiptNotAfter
+        supervisor_trust_root_sha256=[string]$trustRoot.evidence.digest.sha256
+        supervisor_signer_key_id=[string]$trustRoot.value.key_id
+        supervisor_signature_algorithm='RSA_PKCS1_SHA256'
+        independent_supervisor_signature_present=$true; release_eligible=$true
+        cases=$publishedCases.ToArray()
+    }
+    $reportBytes=ConvertTo-CompactJsonBytes $report
+    Assert-SanitizedEvidenceBytes $reportBytes 'new-report'
+    $reportSha256=Get-BytesSha256 $reportBytes
+    $currentBytes=ConvertTo-CompactJsonBytes $Current.public
+    $binding=[pscustomobject][ordered]@{
+        schema=$bindingSchema; generated_at=$generatedAt; report_schema=$reportSchema
+        report_generated_at=$generatedAt; report_sha256=$reportSha256
+        report_bytes=[long]$reportBytes.Length; source_mode='EXECUTED'
+        source_commit=$ExpectedSourceCommit; release_source_commit=$bundle.release_source_commit
+        artifact_source_commit=$ExpectedSourceCommit; product_version=$ProductVersion
+        raw_manifest_schema=$rawManifestSchema; raw_manifest_sha256=$rawManifestSha256
+        raw_manifest_bytes=[long]$rawManifestBytes.Length
+        ordered_raw_report_set_sha256=$orderedRawSetSha256
+        case_runtime_commitment_sha256=$caseCommitmentSha256
+        release_bundle_manifest_sha256=$bundle.manifest_sha256
+        release_bundle_artifact_set_sha256=$bundle.artifact_set_sha256
+        matrix_product_jar_set_sha256=$productCommitment.sha256
+        supervisor_operation_attempt_id=$operationAttemptId
+        supervisor_challenge_nonce=$challengeNonce
+        supervisor_challenge_issued_at=$challengeIssuedAt
+        supervisor_receipt_expires_at=$receiptNotAfter
+        supervisor_trust_root_sha256=[string]$trustRoot.evidence.digest.sha256
+        supervisor_signer_key_id=[string]$trustRoot.value.key_id
+        supervisor_signature_algorithm='RSA_PKCS1_SHA256'
+        current_sha256=(Get-BytesSha256 $currentBytes); current=$Current.public
+        independent_supervisor_signature_present=$true; release_eligible=$true; passed=$true
+    }
+    $bindingBytes=ConvertTo-CompactJsonBytes $binding
+    Assert-SanitizedEvidenceBytes $bindingBytes 'new-binding'
+    $bindingSha256=Get-BytesSha256 $bindingBytes
+
+    $signingRequest=[pscustomobject][ordered]@{
+        schema=$signingRequestSchema; generated_at=$generatedAt
+        source_mode='EXECUTED_AWAITING_EXTERNAL_SUPERVISOR'
+        release_source_commit=$bundle.release_source_commit; artifact_source_commit=$ExpectedSourceCommit
+        product_version=$ProductVersion; operation_attempt_id=$operationAttemptId
+        challenge_nonce=$challengeNonce; challenge_issued_at=$challengeIssuedAt
+        receipt_not_after=$receiptNotAfter; report_sha256=$reportSha256
+        report_size_bytes=[long]$reportBytes.Length; binding_sha256=$bindingSha256
+        binding_size_bytes=[long]$bindingBytes.Length; raw_manifest_sha256=$rawManifestSha256
+        raw_manifest_size_bytes=[long]$rawManifestBytes.Length
+        ordered_raw_report_set_sha256=$orderedRawSetSha256
+        case_runtime_commitment_sha256=$caseCommitmentSha256; case_count=12
+        process_identity_count=$processIdentityCount; case_runtime_commitments=$caseCommitmentValues
+        release_bundle_schema='MCACE_RELEASE_BUNDLE_V4'
+        release_bundle_manifest_sha256=$bundle.manifest_sha256
+        release_bundle_manifest_size_bytes=[long]$bundle.manifest_bytes
+        release_bundle_sha256s_sha256=$bundle.sha256s_sha256
+        release_bundle_sha256s_size_bytes=[long]$bundle.sha256s_bytes
+        release_bundle_artifact_set_sha256=$bundle.artifact_set_sha256
+        release_bundle_artifact_count=6; release_bundle_artifacts=$bundle.artifacts
+        matrix_product_jar_set_sha256=$productCommitment.sha256
+        matrix_product_jar_count=3; matrix_product_jars=$productCommitment.values
+        supervisor_trust_root_sha256=[string]$trustRoot.evidence.digest.sha256
+        supervisor_signer_key_id=[string]$trustRoot.value.key_id
+        signature_algorithm='RSA_PKCS1_SHA256'
+    }
+    $signingRequestBytes=ConvertTo-CompactJsonBytes $signingRequest
+    Assert-SanitizedEvidenceBytes $signingRequestBytes 'supervisor-signing-request'
+    $signingRequestSha256=Get-BytesSha256 $signingRequestBytes
+
+    $runName=[DateTimeOffset]::UtcNow.ToString('yyyy-MM-ddTHH-mm-ss-fffffffZ')
+    $finalRoot=Join-Path $evidenceRunsRoot $runName
+    $stagingRoot=Join-Path $evidenceRunsRoot ('.staging-'+$runName+'-'+[IO.Path]::GetRandomFileName())
+    if((Test-Path -LiteralPath $finalRoot) -or (Test-Path -LiteralPath $stagingRoot)){
         throw 'SERVER_VERSION_MATRIX_EVIDENCE_RUN_COLLISION'
     }
     [void][IO.Directory]::CreateDirectory($stagingRoot)
     try {
-        $stagingReport = Join-Path $stagingRoot 'report.json'
+        $rawRoot=Join-Path $stagingRoot 'raw';[void][IO.Directory]::CreateDirectory($rawRoot)
+        foreach($rawSource in $rawSources){
+            Write-NewFileBytes (Join-Path $stagingRoot (([string]$rawSource.path).Replace('/','\'))) ([byte[]]$rawSource.bytes)
+        }
+        Write-NewFileBytes (Join-Path $stagingRoot 'raw-manifest.json') $rawManifestBytes
+        $stagingReport=Join-Path $stagingRoot 'report.json'
         Write-NewFileBytes $stagingReport $reportBytes
         Write-NewFileBytes (Join-Path $stagingRoot 'binding.json') $bindingBytes
-        # The commit marker is the last staged write; publication is one same-volume rename.
+        Write-NewFileBytes (Join-Path $stagingRoot 'supervisor-signing-request.json') $signingRequestBytes
+
+        $externalRequest=Join-Path $exchangeRoot ("request-$operationAttemptId.json")
+        $externalReceipt=Join-Path $exchangeRoot ("receipt-$operationAttemptId.json")
+        if((Test-Path -LiteralPath $externalRequest) -or (Test-Path -LiteralPath $externalReceipt)){
+            throw 'SERVER_VERSION_MATRIX_SUPERVISOR_EXCHANGE_REPLAY_OR_COLLISION'
+        }
+        Write-NewFileBytes $externalRequest $signingRequestBytes
+        Write-Host "SERVER_VERSION_MATRIX_SIGNING_REQUEST_READY|request=$externalRequest|receipt=$externalReceipt|attempt=$operationAttemptId|challenge=$challengeNonce"
+        $deadline=[DateTimeOffset]::UtcNow.AddSeconds($SupervisorReceiptWaitSeconds)
+        while(-not(Test-Path -LiteralPath $externalReceipt -PathType Leaf)){
+            if([DateTimeOffset]::UtcNow -ge $deadline){throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_TIMEOUT'}
+            Start-Sleep -Milliseconds 250
+        }
+        $receiptEvidence=Read-StableJson $externalReceipt
+        $receipt=$receiptEvidence.value
+        if(-not(Test-ExactProperties $receipt $matrixReceiptPropertyNames)){
+            throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_SCHEMA_INVALID'
+        }
+        $expected=[ordered]@{
+            release_source_commit=$bundle.release_source_commit; artifact_source_commit=$ExpectedSourceCommit
+            product_version=$ProductVersion; operation_attempt_id=$operationAttemptId
+            challenge_nonce=$challengeNonce; challenge_issued_at=$challengeIssuedAt
+            report_sha256=$reportSha256; report_size_bytes=[long]$reportBytes.Length
+            binding_sha256=$bindingSha256; binding_size_bytes=[long]$bindingBytes.Length
+            raw_manifest_sha256=$rawManifestSha256; raw_manifest_size_bytes=[long]$rawManifestBytes.Length
+            ordered_raw_report_set_sha256=$orderedRawSetSha256
+            case_runtime_commitment_sha256=$caseCommitmentSha256; case_count=12
+            process_identity_count=$processIdentityCount; release_bundle_schema='MCACE_RELEASE_BUNDLE_V4'
+            release_bundle_manifest_sha256=$bundle.manifest_sha256
+            release_bundle_manifest_size_bytes=[long]$bundle.manifest_bytes
+            release_bundle_sha256s_sha256=$bundle.sha256s_sha256
+            release_bundle_sha256s_size_bytes=[long]$bundle.sha256s_bytes
+            release_bundle_artifact_set_sha256=$bundle.artifact_set_sha256
+            release_bundle_artifact_count=6; matrix_product_jar_set_sha256=$productCommitment.sha256
+            matrix_product_jar_count=3
+        }
+        if([string]$receipt.schema -cne $receiptSchema -or
+                [string]$receipt.artifact_class -cne 'EXTERNALLY_SIGNED_MATRIX_SUPERVISOR_RECEIPT' -or
+                [string]$receipt.source_mode -cne 'EXTERNAL_MATRIX_SUPERVISOR' -or
+                -not(Test-JsonBoolean $receipt.supervisor_independent) -or -not[bool]$receipt.supervisor_independent -or
+                -not(Test-JsonBoolean $receipt.test_fixture) -or [bool]$receipt.test_fixture -or
+                [string]$receipt.signer_key_id -cne [string]$trustRoot.value.key_id -or
+                [string]$receipt.signer_trust_root_sha256 -cne [string]$trustRoot.evidence.digest.sha256 -or
+                [string]$receipt.signature_algorithm -cne 'RSA_PKCS1_SHA256'){
+            throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_PROVENANCE_INVALID'
+        }
+        foreach($pair in $expected.GetEnumerator()){
+            $actual=$receipt.([string]$pair.Key)
+            if(Test-JsonInteger $pair.Value){
+                if(-not(Test-JsonInteger $actual) -or [long]$actual -ne [long]$pair.Value){throw "SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_BINDING_INVALID|$($pair.Key)"}
+            }elseif([string]$actual -cne [string]$pair.Value){throw "SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_BINDING_INVALID|$($pair.Key)"}
+        }
+        $signedAt=ConvertTo-ExactDateTimeOffset $receipt.signed_at 'receipt.signed_at'
+        $expiresAt=ConvertTo-ExactDateTimeOffset $receipt.expires_at 'receipt.expires_at'
+        $issuedAt=ConvertTo-ExactDateTimeOffset $challengeIssuedAt 'challenge_issued_at'
+        if($expiresAt.Ticks -ne (ConvertTo-ExactDateTimeOffset $receiptNotAfter 'receipt_not_after').Ticks -or
+                $signedAt -lt $issuedAt -or $signedAt -gt $expiresAt -or [DateTimeOffset]::UtcNow -gt $expiresAt){
+            throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_EXPIRED_OR_TIME_INVALID'
+        }
+        try{$signature=[Convert]::FromBase64String([string]$receipt.signature_base64)}
+        catch{throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_SIGNATURE_ENCODING_INVALID'}
+        if($signature.Length -ne $trustRoot.modulus.Length -or
+                -not(Test-RsaPkcs1Sha256Signature (Get-MatrixReceiptSigningPayload $receipt) $signature $trustRoot.modulus $trustRoot.exponent)){
+            throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_SIGNATURE_INVALID'
+        }
+        if((Get-BytesSha256 (ConvertTo-CompactJsonBytes $receipt)) -cne [string]$receiptEvidence.digest.sha256){
+            throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_NONCANONICAL'
+        }
+        $bundleAfter=Read-ReleaseBundleSnapshot
+        if($bundleAfter.manifest_sha256 -cne $bundle.manifest_sha256 -or
+                $bundleAfter.sha256s_sha256 -cne $bundle.sha256s_sha256 -or
+                $bundleAfter.artifact_set_sha256 -cne $bundle.artifact_set_sha256){
+            throw 'SERVER_VERSION_MATRIX_RELEASE_BUNDLE_CHANGED_DURING_SUPERVISION'
+        }
+        $rootAfter=Get-StableFileDigest ([string]$trustRoot.evidence.digest.path)
+        if($rootAfter.sha256 -cne [string]$trustRoot.evidence.digest.sha256 -or
+                $rootAfter.size -ne [long]$trustRoot.evidence.digest.size){
+            throw 'SERVER_VERSION_MATRIX_SUPERVISOR_TRUST_ROOT_CHANGED'
+        }
+        Write-NewFileBytes (Join-Path $stagingRoot 'supervisor-receipt.json') ([byte[]]$receiptEvidence.bytes)
+        $commit=[pscustomobject][ordered]@{
+            schema=$commitSchema; generated_at=$generatedAt; report_schema=$reportSchema
+            binding_schema=$bindingSchema; report_sha256=$reportSha256
+            report_bytes=[long]$reportBytes.Length; binding_sha256=$bindingSha256
+            binding_bytes=[long]$bindingBytes.Length; raw_manifest_schema=$rawManifestSchema
+            raw_manifest_sha256=$rawManifestSha256; raw_manifest_bytes=[long]$rawManifestBytes.Length
+            ordered_raw_report_set_sha256=$orderedRawSetSha256; source_commit=$ExpectedSourceCommit
+            release_source_commit=$bundle.release_source_commit; artifact_source_commit=$ExpectedSourceCommit
+            product_version=$ProductVersion; supervisor_signing_request_schema=$signingRequestSchema
+            supervisor_signing_request_sha256=$signingRequestSha256
+            supervisor_signing_request_bytes=[long]$signingRequestBytes.Length
+            supervisor_receipt_schema=$receiptSchema
+            supervisor_receipt_sha256=[string]$receiptEvidence.digest.sha256
+            supervisor_receipt_bytes=[long]$receiptEvidence.digest.size
+            supervisor_operation_attempt_id=$operationAttemptId
+            supervisor_challenge_nonce=$challengeNonce
+            supervisor_trust_root_sha256=[string]$trustRoot.evidence.digest.sha256
+            independent_supervisor_signature_present=$true; release_eligible=$true; committed=$true
+        }
+        $commitBytes=ConvertTo-CompactJsonBytes $commit
+        Assert-SanitizedEvidenceBytes $commitBytes 'new-commit'
+        # The commit marker is deliberately the last staged write.
         Write-NewFileBytes (Join-Path $stagingRoot 'commit.json') $commitBytes
-        $null = Assert-EvidenceTriplet $stagingReport $Current -AllowStaging
-        [IO.Directory]::Move($stagingRoot, $finalRoot)
-        $finalReport = Join-Path $finalRoot 'report.json'
-        $null = Assert-EvidenceTriplet $finalReport $Current
+        $null=Assert-EvidenceTriplet $stagingReport $Current -AllowStaging
+        [IO.Directory]::Move($stagingRoot,$finalRoot)
+        $finalReport=Join-Path $finalRoot 'report.json'
+        $null=Assert-EvidenceTriplet $finalReport $Current
         return $finalReport
     } finally {
-        if (Test-Path -LiteralPath $stagingRoot -PathType Container) {
-            foreach ($name in @('report.json','binding.json','commit.json')) {
-                $candidate = Join-Path $stagingRoot $name
-                if (Test-Path -LiteralPath $candidate -PathType Leaf) {
-                    [IO.File]::Delete((Assert-DirectLocalPath $candidate))
-                }
-            }
-            [IO.Directory]::Delete((Assert-DirectLocalPath $stagingRoot -Directory), $false)
+        if(Test-Path -LiteralPath $stagingRoot -PathType Container){
+            [IO.Directory]::Delete((Assert-DirectLocalPath $stagingRoot -Directory),$true)
         }
     }
 }
@@ -1673,6 +2671,7 @@ if ([bool]$Execute -eq [bool]$ReportOnly) {
 if ($Resume -and -not $Execute) {
     throw 'SERVER_VERSION_MATRIX_RESUME_EXECUTE_REQUIRED|specify -Execute with -Resume'
 }
+Assert-ExactGitSourceIdentity
 
 if ($ReportOnly) {
     Assert-NoActiveExecution

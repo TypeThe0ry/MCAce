@@ -1,15 +1,19 @@
 package com.ellan.mcace.core.session;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.ellan.mcace.client.integrity.ClientIntegrityBundle;
+import com.ellan.mcace.client.integrity.IntegrityEntry;
 import com.ellan.mcace.client.integrity.ScopeIntegrityManifest;
+import com.ellan.mcace.client.observation.LoadedModObservation;
 import com.ellan.mcace.client.policy.VerifiedPolicyCache;
 import com.ellan.mcace.client.session.ClientHandshakeEngine;
 import com.ellan.mcace.core.api.InMemoryMCAceApi;
+import com.ellan.mcace.core.federation.FederationAuthenticationBinding;
 import com.ellan.mcace.core.persistence.EvidenceMetadataDraft;
 import com.ellan.mcace.core.persistence.ObservationOrigin;
 import com.ellan.mcace.core.persistence.RiskEventAuditRecord;
@@ -22,13 +26,24 @@ import com.ellan.mcace.core.risk.RiskPolicy;
 import com.ellan.mcace.protocol.crypto.Ed25519Keys;
 import com.ellan.mcace.protocol.crypto.EnvelopeCodec;
 import com.ellan.mcace.protocol.crypto.EnvelopeException;
+import com.ellan.mcace.protocol.crypto.NonceReplayGuard;
 import com.ellan.mcace.protocol.generated.AuthResult;
+import com.ellan.mcace.protocol.generated.AuthRequest;
+import com.ellan.mcace.protocol.generated.ArtifactObservationResult;
+import com.ellan.mcace.protocol.generated.ArtifactObservationResultReason;
+import com.ellan.mcace.protocol.generated.ArtifactObservationUpdate;
+import com.ellan.mcace.protocol.generated.BoundedPayloadKind;
 import com.ellan.mcace.protocol.generated.ClientHello;
+import com.ellan.mcace.protocol.generated.ClientCapability;
 import com.ellan.mcace.protocol.generated.LoaderType;
+import com.ellan.mcace.protocol.generated.LoadedModEntry;
+import com.ellan.mcace.protocol.generated.LoadedModOriginKind;
+import com.ellan.mcace.protocol.generated.ModEntry;
 import com.ellan.mcace.protocol.generated.DelegatedSigningKey;
 import com.ellan.mcace.protocol.generated.IntegrityScopeRule;
 import com.ellan.mcace.protocol.generated.PacketType;
 import com.ellan.mcace.protocol.generated.SignedEnvelope;
+import com.ellan.mcace.protocol.generated.ServerHello;
 import com.ellan.mcace.protocol.generated.TrustLevel;
 import com.ellan.mcace.protocol.generated.SecurityPolicy;
 import com.ellan.mcace.protocol.generated.PolicyTrustStatement;
@@ -36,11 +51,14 @@ import com.ellan.mcace.protocol.generated.SignedPolicyDocument;
 import com.ellan.mcace.protocol.policy.PolicyDocuments;
 import com.ellan.mcace.protocol.integrity.IntegrityDigests;
 import com.ellan.mcace.protocol.ProtocolConstants;
+import com.ellan.mcace.protocol.transport.BoundedPayloadTransferReceiver;
+import com.ellan.mcace.protocol.transport.BoundedPayloadTransferSender;
 import com.ellan.mcace.sdk.AdmissionStatus;
 import com.ellan.mcace.sdk.RiskBand;
 import com.google.protobuf.ByteString;
 import java.nio.file.Path;
 import java.security.KeyPair;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
@@ -131,6 +149,7 @@ final class HandshakeIntegrationTest {
         assertTrue(helloAction.outboundFrames().isEmpty());
         assertFalse(helloAction.protocolViolation());
         assertTrue(result.getAccepted());
+        assertTrue(result.getFederationSignedAssertionSha256().isEmpty());
         assertEquals(TrustLevel.VERIFIED, result.getTrustLevel());
         assertEquals(AdmissionStatus.VERIFIED, authAction.snapshot().orElseThrow().admissionStatus());
         assertTrue(api.isVerified(playerId));
@@ -142,9 +161,210 @@ final class HandshakeIntegrationTest {
         assertEquals("phase2-test", federation.policyVersion());
         assertEquals(ProtocolConstants.NONCE_BYTES, federation.serverChallengeNonce().length);
         assertEquals(32, federation.policySha256().length);
+        assertTrue(federation.targetAuthenticationBinding().isEmpty());
         server.remove(playerId);
         assertTrue(server.currentAuthenticatedSessionId(playerId).isEmpty());
         assertTrue(server.federationSubject(playerId).isEmpty());
+    }
+
+    @Test
+    void federationBindingRoundTripsThroughDeferredAuthAndSubject() throws Exception {
+        byte[] binding = new byte[32];
+        java.util.Arrays.fill(binding, (byte) 0x42);
+        KeyPair clientKeys = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = new ClientHandshakeEngine(
+                playerId, productVersion(), "1.21.1", "test-build", LoaderType.FABRIC,
+                serverKeys.getPublic(), clock, new SecureRandom(), clientKeys, binding);
+        List<byte[]> frames = frames(client, server.begin(playerId));
+        ClientHello hello = ClientHello.parseFrom(SignedEnvelope.parseFrom(frames.getFirst()).getPayload());
+        AuthRequest request = AuthRequest.parseFrom(SignedEnvelope.parseFrom(frames.get(1)).getPayload());
+        assertArrayEquals(binding, hello.getFederationSignedAssertionSha256().toByteArray());
+        assertArrayEquals(binding, request.getFederationSignedAssertionSha256().toByteArray());
+
+        HandshakeAction deferred = server.receive(playerId, frames.get(1));
+        HandshakeAction completed = server.receive(playerId, frames.getFirst());
+        assertFalse(deferred.protocolViolation());
+        AuthResult result = client.receiveAuthResult(completed.outboundFrames().getFirst());
+        assertArrayEquals(binding, result.getFederationSignedAssertionSha256().toByteArray());
+        FederationAuthenticationBinding subjectBinding = server.federationSubject(playerId)
+                .orElseThrow().targetAuthenticationBinding().orElseThrow();
+        assertArrayEquals(binding, subjectBinding.signedAssertionSha256());
+    }
+
+    @Test
+    void rejectsHalfBoundMismatchedAndOversizedFederationAuthTranscripts() throws Exception {
+        byte[] first = new byte[32];
+        byte[] second = new byte[32];
+        first[0] = 1;
+        second[0] = 2;
+
+        assertBindingTranscriptRejected(first, new byte[0]);
+        assertBindingTranscriptRejected(new byte[0], first);
+        assertBindingTranscriptRejected(first, second);
+        assertBindingTranscriptRejected(first, new byte[33]);
+        assertHelloBindingRejected(new byte[31]);
+        assertHelloBindingRejected(new byte[33]);
+    }
+
+    @Test
+    void rejectsForgedLoadedModManifestMatchBeforeAuthentication() throws Exception {
+        KeyPair clientKeys = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = new ClientHandshakeEngine(
+                playerId, productVersion(), "1.21.1", "test-build", LoaderType.FABRIC,
+                serverKeys.getPublic(), clock, new SecureRandom(), clientKeys);
+        List<byte[]> original = frames(client, server.begin(playerId));
+        AuthRequest forged = AuthRequest.parseFrom(
+                SignedEnvelope.parseFrom(original.get(1)).getPayload()).toBuilder()
+                .addLoadedMods(LoadedModEntry.newBuilder()
+                        .setId("forged.mod").setVersion("1")
+                        .setOriginKind(LoadedModOriginKind.LOADED_MOD_ORIGIN_MODS_FILE)
+                        .setOriginFilename("missing.jar")
+                        .setOriginFileSize(99)
+                        .setOriginSha256(ByteString.copyFrom(new byte[32]))
+                        .setOriginManifestMatched(true))
+                .build();
+
+        assertFalse(server.receive(playerId, original.getFirst()).protocolViolation());
+        assertTrue(server.receive(playerId, resign(original.get(1), PacketType.AUTH_REQUEST,
+                forged.toByteArray(), clientKeys)).protocolViolation());
+        assertFalse(api.isVerified(playerId));
+    }
+
+    @Test
+    void rejectsSelfConsistentExtraModEntryOutsideTheSignedModsScope() throws Exception {
+        byte[] realHash = new byte[32];
+        realHash[0] = 7;
+        ClientIntegrityBundle bundle = bundleWithMod("real.jar", 41L, realHash);
+        KeyPair clientKeys = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = new ClientHandshakeEngine(
+                playerId, productVersion(), "1.21.1", "test-build", LoaderType.FABRIC,
+                serverKeys.getPublic(), clock, new SecureRandom(), clientKeys);
+        byte[] serverHello = server.begin(playerId);
+        client.prepareServerHello(serverHello, "test.example:25565",
+                new VerifiedPolicyCache(temporaryDirectory.resolve("forged-extra-mod"), clock));
+        List<ClientHandshakeEngine.OutboundFrame> original =
+                client.createAuthenticationFrames(bundle, List.of());
+        byte[] forgedHash = new byte[32];
+        forgedHash[0] = 11;
+        AuthRequest forged = AuthRequest.parseFrom(
+                SignedEnvelope.parseFrom(original.get(1).data()).getPayload()).toBuilder()
+                .addMods(ModEntry.newBuilder()
+                        .setId("meteor-client").setVersion("1")
+                        .setFilename("fake.jar").setFileSize(99L)
+                        .setSha256(ByteString.copyFrom(forgedHash)))
+                .addLoadedMods(LoadedModEntry.newBuilder()
+                        .setId("meteor-client").setVersion("1")
+                        .setOriginKind(LoadedModOriginKind.LOADED_MOD_ORIGIN_MODS_FILE)
+                        .setOriginFilename("fake.jar").setOriginFileSize(99L)
+                        .setOriginSha256(ByteString.copyFrom(forgedHash))
+                        .setOriginManifestMatched(true))
+                .addClientCapabilities(ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1)
+                .build();
+
+        assertFalse(server.receive(playerId, original.getFirst().data()).protocolViolation());
+        assertTrue(server.receive(playerId, resign(original.get(1).data(), PacketType.AUTH_REQUEST,
+                forged.toByteArray(), clientKeys)).protocolViolation());
+        assertFalse(api.isVerified(playerId));
+    }
+
+    @Test
+    void rejectsManifestRootThatDoesNotEqualTheSignedModsScopeRoot() throws Exception {
+        KeyPair clientKeys = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = new ClientHandshakeEngine(
+                playerId, productVersion(), "1.21.1", "test-build", LoaderType.FABRIC,
+                serverKeys.getPublic(), clock, new SecureRandom(), clientKeys);
+        List<byte[]> original = frames(client, server.begin(playerId));
+        byte[] wrongRoot = new byte[32];
+        wrongRoot[0] = 1;
+        AuthRequest forged = AuthRequest.parseFrom(
+                SignedEnvelope.parseFrom(original.get(1)).getPayload()).toBuilder()
+                .setManifestRootSha256(ByteString.copyFrom(wrongRoot))
+                .build();
+
+        assertFalse(server.receive(playerId, original.getFirst()).protocolViolation());
+        assertTrue(server.receive(playerId, resign(original.get(1), PacketType.AUTH_REQUEST,
+                forged.toByteArray(), clientKeys)).protocolViolation());
+        assertFalse(api.isVerified(playerId));
+    }
+
+    @Test
+    void signedPolicyCanRequireLoadedGraphCapabilityAndRejectLegacyEmptyRequests() throws Exception {
+        SignedPolicyDocument requiredPolicy = signedPolicyRequiringLoadedGraph();
+        server = new ServerHandshakeCoordinator(
+                clock, new SecureRandom(), serverKeys, new RiskEngine(RiskPolicy.defaults()), api,
+                Duration.ofSeconds(5), () -> requiredPolicy);
+        KeyPair clientKeys = Ed25519Keys.generate(new SecureRandom());
+        byte[] helloFrame = server.begin(playerId);
+        SignedEnvelope helloEnvelope = SignedEnvelope.parseFrom(helloFrame);
+        ServerHello hello = ServerHello.parseFrom(helloEnvelope.getPayload());
+        ClientHello clientHello = ClientHello.newBuilder()
+                .setClientVersion(productVersion())
+                .setLoader(LoaderType.FABRIC)
+                .setMinecraftVersion("1.21.1")
+                .setPublicKeyX509(ByteString.copyFrom(clientKeys.getPublic().getEncoded()))
+                .setBuildId("test-build")
+                .setChallengeNonce(hello.getChallengeNonce())
+                .build();
+        byte[] emptyRoot = IntegrityDigests.scopeRoot(List.of());
+        AuthRequest legacy = AuthRequest.newBuilder()
+                .setPlayerUuid(playerId.toString())
+                .setClientId("legacy-client")
+                .setBuildId("test-build")
+                .setManifestRootSha256(ByteString.copyFrom(emptyRoot))
+                .setEnvironmentSha256(ByteString.copyFrom(new byte[32]))
+                .setPolicySha256(ByteString.copyFrom(PolicyDocuments.policyDigest(requiredPolicy)))
+                .setPolicySequence(1L)
+                .addScopeManifests(com.ellan.mcace.protocol.generated.IntegrityScopeManifest.newBuilder()
+                        .setScope("mods").setRelativeRoot("mods").setPresent(true)
+                        .setEntryCount(0).setRootSha256(ByteString.copyFrom(emptyRoot)))
+                .build();
+        EnvelopeCodec codec = new EnvelopeCodec(clock, new SecureRandom(),
+                ProtocolConstants.MAX_PAYLOAD_BYTES, ProtocolConstants.DEFAULT_CLOCK_SKEW);
+        String sessionId = helloEnvelope.getHeader().getSessionId();
+
+        assertFalse(server.receive(playerId, codec.sign(PacketType.CLIENT_HELLO, sessionId,
+                clientHello.toByteArray(), clientKeys.getPrivate()).toByteArray()).protocolViolation());
+        assertTrue(server.receive(playerId, codec.sign(PacketType.AUTH_REQUEST, sessionId,
+                legacy.toByteArray(), clientKeys.getPrivate()).toByteArray()).protocolViolation());
+        assertFalse(api.isVerified(playerId));
+    }
+
+    @Test
+    void acceptsCanonicalRuntimeLoadedModGraphAsSignedClientTelemetry() throws Exception {
+        ClientHandshakeEngine client = client(serverKeys);
+        client.prepareServerHello(server.begin(playerId), "test.example:25565",
+                new VerifiedPolicyCache(temporaryDirectory.resolve("loaded-mod-graph"), clock));
+        LoadedModObservation fabric = new LoadedModObservation("fabricloader", "0.19.3",
+                LoadedModObservation.OriginKind.BUILTIN_OR_CLASSPATH, "", "");
+        List<ClientHandshakeEngine.OutboundFrame> frames = client.createAuthenticationFrames(
+                emptyBundle(), List.of(), List.of(), List.of(), List.of(fabric));
+
+        assertFalse(server.receive(playerId, frames.getFirst().data()).protocolViolation());
+        HandshakeAction authenticated = server.receive(playerId, frames.get(1).data());
+
+        assertFalse(authenticated.protocolViolation());
+        assertTrue(api.isVerified(playerId));
+        AuthRequest request = AuthRequest.parseFrom(
+                SignedEnvelope.parseFrom(frames.get(1).data()).getPayload());
+        assertEquals(List.of(ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1),
+                request.getClientCapabilitiesList());
+    }
+
+    @Test
+    void rejectsLoadedGraphCapabilityShapeMismatchesAndUnknownValues() throws Exception {
+        assertLoadedGraphRequestMutationRejected(
+                "missing-capability", builder -> builder.clearClientCapabilities());
+        assertLoadedGraphRequestMutationRejected(
+                "capability-without-graph", builder -> builder.clearLoadedMods());
+        assertLoadedGraphRequestMutationRejected(
+                "duplicate-capability", builder -> builder.addClientCapabilities(
+                        ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1));
+        assertLoadedGraphRequestMutationRejected(
+                "unspecified-capability", builder -> builder.clearClientCapabilities()
+                        .addClientCapabilities(ClientCapability.CLIENT_CAPABILITY_UNSPECIFIED));
+        assertLoadedGraphRequestMutationRejected(
+                "unknown-capability", builder -> builder.clearClientCapabilities()
+                        .addClientCapabilitiesValue(999));
     }
 
     @Test
@@ -172,7 +392,13 @@ final class HandshakeIntegrationTest {
         // a fresh preparation with the same first update sequence.
         ClientHandshakeEngine.PreparedArtifactObservationUpdate replacement =
                 client.prepareArtifactObservationUpdate(bundle, List.of());
-        for (ClientHandshakeEngine.OutboundFrame frame : replacement.frames()) server.receive(playerId, frame.data());
+        HandshakeAction firstAccepted = sendObservationFrames(replacement.frames());
+        assertEquals(1, firstAccepted.outboundFrames().size());
+        // Drop the first signed result and retry the exact payload under fresh transfer nonces.
+        HandshakeAction retryAccepted = sendObservationFrames(
+                client.retryArtifactObservationUpdate(replacement));
+        assertTrue(client.receiveArtifactObservationResult(
+                retryAccepted.outboundFrames().getFirst(), replacement).accepted());
         client.commitArtifactObservationUpdate(replacement);
         assertThrows(EnvelopeException.class, () -> client.commitArtifactObservationUpdate(update));
 
@@ -197,24 +423,174 @@ final class HandshakeIntegrationTest {
         byte[] hello = server.begin(playerId);
         client.prepareServerHello(hello, "test.example:25565",
                 new VerifiedPolicyCache(temporaryDirectory.resolve("selected-packs"), clock));
+        LoadedModObservation fabric = new LoadedModObservation("fabricloader", "0.19.3",
+                LoadedModObservation.OriginKind.BUILTIN_OR_CLASSPATH, "", "");
         List<ClientHandshakeEngine.OutboundFrame> authentication = client.createAuthenticationFrames(
-                emptyBundle(), List.of(), List.of("file/xray.zip"), List.of("Complementary"));
+                emptyBundle(), List.of(), List.of("file/xray.zip"), List.of("Complementary"),
+                List.of(fabric));
         server.receive(playerId, authentication.get(0).data());
         HandshakeAction authenticated = server.receive(playerId, authentication.get(1).data());
         client.receiveAuthResult(authenticated.outboundFrames().getFirst());
 
         ClientHandshakeEngine.PreparedArtifactObservationUpdate prepared =
                 client.prepareArtifactObservationUpdate(
-                        emptyBundle(), List.of(), List.of("file/xray.zip"), List.of("Complementary"));
-        for (ClientHandshakeEngine.OutboundFrame frame : prepared.frames()) {
-            server.receive(playerId, frame.data());
-        }
+                        emptyBundle(), List.of(), List.of("file/xray.zip"), List.of("Complementary"),
+                        List.of(fabric));
+        HandshakeAction accepted = sendObservationFrames(prepared.frames());
+        assertTrue(client.receiveArtifactObservationResult(
+                accepted.outboundFrames().getFirst(), prepared).accepted());
         client.commitArtifactObservationUpdate(prepared);
 
         AuthenticatedManifest observed = update.get();
         assertTrue(observed != null);
         assertEquals(List.of("file/xray.zip"), observed.request().getSelectedResourcePacksList());
         assertEquals(List.of("Complementary"), observed.request().getSelectedShaderPacksList());
+        assertEquals(1, observed.request().getLoadedModsCount());
+        assertEquals("fabricloader", observed.request().getLoadedMods(0).getId());
+    }
+
+    @Test
+    void invalidUpdateRecoversAndIdempotentAckRequiresExactCanonicalPayload() throws Exception {
+        AtomicInteger updates = new AtomicInteger();
+        server = new ServerHandshakeCoordinator(
+                clock, new SecureRandom(), serverKeys, new RiskEngine(RiskPolicy.defaults()), api,
+                Duration.ofSeconds(5), () -> signedPolicy,
+                SecurityAuditSink.noop(), ignored -> { }, ignored -> { },
+                ignored -> updates.incrementAndGet(),
+                com.ellan.mcace.core.evidence.EvidenceContentStore.discard(),
+                com.ellan.mcace.core.evidence.EvidenceAuditSink.noop());
+        KeyPair clientKeys = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = authenticatedClient(clientKeys, "exact-update");
+        ClientHandshakeEngine.PreparedArtifactObservationUpdate prepared =
+                client.prepareArtifactObservationUpdate(emptyBundle(), List.of());
+        ArtifactObservationUpdate exact = observationUpdate(prepared);
+
+        ArtifactObservationUpdate invalid = exact.toBuilder()
+                .addSelectedResourcePacks(" invalid-leading-space")
+                .build();
+        ArtifactObservationResult invalidResult = verifiedObservationResult(
+                sendForgedObservation(invalid, clientKeys));
+        assertFalse(invalidResult.getAccepted());
+        assertEquals(ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_INVALID_UPDATE,
+                invalidResult.getReason());
+        assertArrayEquals(MessageDigest.getInstance("SHA-256").digest(invalid.toByteArray()),
+                invalidResult.getUpdateSha256().toByteArray());
+        assertEquals(0, updates.get(), "a semantic rejection cannot advance server state");
+
+        HandshakeAction acceptedButResultDropped = sendObservationFrames(prepared.frames());
+        assertTrue(verifiedObservationResult(acceptedButResultDropped).getAccepted());
+        assertEquals(1, updates.get());
+
+        ArtifactObservationUpdate sameSequenceRootDifferentPayload = exact.toBuilder()
+                .addSelectedResourcePacks("file/changed.zip")
+                .build();
+        ArtifactObservationResult changed = verifiedObservationResult(
+                sendForgedObservation(sameSequenceRootDifferentPayload, clientKeys));
+        assertFalse(changed.getAccepted());
+        assertEquals(ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_SEQUENCE_MISMATCH,
+                changed.getReason());
+        assertEquals(exact.getAggregateRootSha256(), changed.getAggregateRootSha256());
+        assertArrayEquals(MessageDigest.getInstance("SHA-256").digest(
+                sameSequenceRootDifferentPayload.toByteArray()), changed.getUpdateSha256().toByteArray());
+        assertEquals(1, updates.get(), "same root cannot hide changed loaded/pack semantics");
+
+        HandshakeAction exactRetry = sendObservationFrames(
+                client.retryArtifactObservationUpdate(prepared));
+        assertTrue(client.receiveArtifactObservationResult(
+                exactRetry.outboundFrames().getFirst(), prepared).accepted());
+        client.commitArtifactObservationUpdate(prepared);
+        assertEquals(1, updates.get(), "exact retry must ACK without duplicate disposition work");
+    }
+
+    @Test
+    void serverRateLimitsPerSessionAfterAllowingTheFirstImmediateUpdate() throws Exception {
+        AtomicInteger updates = new AtomicInteger();
+        server = new ServerHandshakeCoordinator(
+                clock, new SecureRandom(), serverKeys, new RiskEngine(RiskPolicy.defaults()), api,
+                Duration.ofSeconds(5), () -> signedPolicy,
+                SecurityAuditSink.noop(), ignored -> { }, ignored -> { },
+                ignored -> updates.incrementAndGet(),
+                com.ellan.mcace.core.evidence.EvidenceContentStore.discard(),
+                com.ellan.mcace.core.evidence.EvidenceAuditSink.noop());
+        KeyPair clientKeys = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = authenticatedClient(clientKeys, "rate-limit");
+        ClientHandshakeEngine.PreparedArtifactObservationUpdate firstPrepared =
+                client.prepareArtifactObservationUpdate(emptyBundle(), List.of());
+        ArtifactObservationUpdate first = observationUpdate(firstPrepared);
+        HandshakeAction firstAction = sendObservationFrames(firstPrepared.frames());
+        assertTrue(client.receiveArtifactObservationResult(
+                firstAction.outboundFrames().getFirst(), firstPrepared).accepted());
+        client.commitArtifactObservationUpdate(firstPrepared);
+        assertEquals(1, updates.get(), "the first changed snapshot is immediate");
+
+        ArtifactObservationUpdate earlySecond = first.toBuilder()
+                .setUpdateSequence(2L)
+                .setPreviousAggregateRootSha256(first.getAggregateRootSha256())
+                .setObservedAtEpochMs(clock.millis())
+                .build();
+        ArtifactObservationResult limited = verifiedObservationResult(
+                sendForgedObservation(earlySecond, clientKeys));
+        assertFalse(limited.getAccepted());
+        assertEquals(ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_RATE_LIMITED,
+                limited.getReason());
+        assertEquals(clock.millis() + ProtocolConstants.ARTIFACT_OBSERVATION_INTERVAL.toMillis(),
+                limited.getRetryAfterEpochMs());
+        assertEquals(1, updates.get());
+
+        clock.advance(ProtocolConstants.ARTIFACT_OBSERVATION_INTERVAL);
+        ArtifactObservationUpdate dueSecond = earlySecond.toBuilder()
+                .setObservedAtEpochMs(clock.millis())
+                .build();
+        ArtifactObservationResult accepted = verifiedObservationResult(
+                sendForgedObservation(dueSecond, clientKeys));
+        assertTrue(accepted.getAccepted());
+        assertEquals(2, updates.get());
+    }
+
+    @Test
+    void directLoadedModBindingRejectsDowngradeAndDuplicateFilenameButAllowsExplicitUnmatched() throws Exception {
+        assertDirectLoadedRequestMutationRejected("matched-false", request -> {
+            LoadedModEntry downgraded = request.getLoadedMods(0).toBuilder()
+                    .setOriginManifestMatched(false)
+                    .setOriginFileSize(0L)
+                    .clearOriginSha256()
+                    .build();
+            return request.toBuilder().setLoadedMods(0, downgraded).build();
+        });
+        assertDirectLoadedRequestMutationRejected("duplicate-filename", request -> request.toBuilder()
+                .addLoadedMods(LoadedModEntry.newBuilder()
+                        .setId("second.mod")
+                        .setVersion("9")
+                        .setOriginKind(LoadedModOriginKind.LOADED_MOD_ORIGIN_MODS_FILE)
+                        .setOriginFilename("example.jar"))
+                .build());
+
+        resetHandshakeServer();
+        KeyPair clientKeys = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = new ClientHandshakeEngine(
+                playerId, productVersion(), "1.21.1", "test-build", LoaderType.FABRIC,
+                serverKeys.getPublic(), clock, new SecureRandom(), clientKeys);
+        client.prepareServerHello(server.begin(playerId), "test.example:25565",
+                new VerifiedPolicyCache(temporaryDirectory.resolve("explicit-unmatched"), clock));
+        byte[] hash = new byte[32];
+        hash[0] = 7;
+        ClientIntegrityBundle bundle = bundleWithMod("example.jar", 4L, hash);
+        com.ellan.mcace.core.disposition.ArtifactObservation metadata = modMetadata(
+                "example.mod", "1.2.3", "example.jar", hash);
+        List<ClientHandshakeEngine.OutboundFrame> frames = client.createAuthenticationFrames(
+                bundle, List.of(metadata), List.of(), List.of(), List.of(
+                        new LoadedModObservation("different.mod", "9",
+                                LoadedModObservation.OriginKind.MODS_FILE, "example.jar", ""),
+                        new LoadedModObservation("missing.mod", "1",
+                                LoadedModObservation.OriginKind.MODS_FILE, "missing.jar", "")));
+        AuthRequest request = AuthRequest.parseFrom(
+                SignedEnvelope.parseFrom(frames.get(1).data()).getPayload());
+        assertTrue(request.getLoadedModsList().stream()
+                .noneMatch(LoadedModEntry::getOriginManifestMatched));
+        assertFalse(server.receive(playerId, frames.getFirst().data()).protocolViolation());
+        HandshakeAction accepted = server.receive(playerId, frames.get(1).data());
+        assertFalse(accepted.protocolViolation());
+        assertTrue(api.isVerified(playerId));
     }
 
     @Test
@@ -568,15 +944,234 @@ final class HandshakeIntegrationTest {
                 new SecureRandom());
     }
 
+    private void assertBindingTranscriptRejected(byte[] helloBinding, byte[] requestBinding)
+            throws Exception {
+        resetHandshakeServer();
+        KeyPair clientKeys = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = new ClientHandshakeEngine(
+                playerId, productVersion(), "1.21.1", "test-build", LoaderType.FABRIC,
+                serverKeys.getPublic(), clock, new SecureRandom(), clientKeys);
+        List<byte[]> original = frames(client, server.begin(playerId));
+        ClientHello hello = ClientHello.parseFrom(
+                SignedEnvelope.parseFrom(original.getFirst()).getPayload()).toBuilder()
+                .setFederationSignedAssertionSha256(ByteString.copyFrom(helloBinding))
+                .build();
+        AuthRequest request = AuthRequest.parseFrom(
+                SignedEnvelope.parseFrom(original.get(1)).getPayload()).toBuilder()
+                .setFederationSignedAssertionSha256(ByteString.copyFrom(requestBinding))
+                .build();
+        byte[] helloFrame = resign(original.getFirst(), PacketType.CLIENT_HELLO,
+                hello.toByteArray(), clientKeys);
+        byte[] requestFrame = resign(original.get(1), PacketType.AUTH_REQUEST,
+                request.toByteArray(), clientKeys);
+
+        assertFalse(server.receive(playerId, helloFrame).protocolViolation());
+        assertTrue(server.receive(playerId, requestFrame).protocolViolation());
+    }
+
+    private void assertHelloBindingRejected(byte[] helloBinding) throws Exception {
+        resetHandshakeServer();
+        KeyPair clientKeys = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = new ClientHandshakeEngine(
+                playerId, productVersion(), "1.21.1", "test-build", LoaderType.FABRIC,
+                serverKeys.getPublic(), clock, new SecureRandom(), clientKeys);
+        List<byte[]> original = frames(client, server.begin(playerId));
+        ClientHello hello = ClientHello.parseFrom(
+                SignedEnvelope.parseFrom(original.getFirst()).getPayload()).toBuilder()
+                .setFederationSignedAssertionSha256(ByteString.copyFrom(helloBinding))
+                .build();
+        assertTrue(server.receive(playerId, resign(original.getFirst(), PacketType.CLIENT_HELLO,
+                hello.toByteArray(), clientKeys)).protocolViolation());
+    }
+
+    private byte[] resign(byte[] originalFrame, PacketType type, byte[] payload, KeyPair clientKeys)
+            throws Exception {
+        String sessionId = SignedEnvelope.parseFrom(originalFrame).getHeader().getSessionId();
+        return new EnvelopeCodec(clock, new SecureRandom(), ProtocolConstants.MAX_PAYLOAD_BYTES,
+                ProtocolConstants.DEFAULT_CLOCK_SKEW)
+                .sign(type, sessionId, payload, clientKeys.getPrivate()).toByteArray();
+    }
+
+    private void resetHandshakeServer() throws EnvelopeException {
+        api = new InMemoryMCAceApi();
+        server = new ServerHandshakeCoordinator(
+                clock, new SecureRandom(), serverKeys, new RiskEngine(RiskPolicy.defaults()), api,
+                Duration.ofSeconds(5), () -> signedPolicy);
+        playerId = UUID.randomUUID();
+    }
+
     private List<byte[]> frames(ClientHandshakeEngine client, byte[] hello) throws Exception {
         client.prepareServerHello(hello, "test.example:25565",
                 new VerifiedPolicyCache(temporaryDirectory.resolve(UUID.randomUUID().toString()), clock));
         return client.createAuthentication(emptyBundle());
     }
 
+    private HandshakeAction sendObservationFrames(
+            List<ClientHandshakeEngine.OutboundFrame> frames) {
+        HandshakeAction action = HandshakeAction.none();
+        for (ClientHandshakeEngine.OutboundFrame frame : frames) {
+            action = server.receive(playerId, frame.data());
+        }
+        return action;
+    }
+
+    private ClientHandshakeEngine authenticatedClient(KeyPair clientKeys, String cacheSuffix)
+            throws Exception {
+        ClientHandshakeEngine client = new ClientHandshakeEngine(
+                playerId, productVersion(), "1.21.1", "test-build", LoaderType.FABRIC,
+                serverKeys.getPublic(), clock, new SecureRandom(), clientKeys);
+        client.prepareServerHello(server.begin(playerId), "test.example:25565",
+                new VerifiedPolicyCache(temporaryDirectory.resolve(cacheSuffix), clock));
+        List<byte[]> authentication = client.createAuthentication(emptyBundle());
+        assertFalse(server.receive(playerId, authentication.getFirst()).protocolViolation());
+        HandshakeAction accepted = server.receive(playerId, authentication.get(1));
+        assertTrue(client.receiveAuthResult(accepted.outboundFrames().getFirst()).getAccepted());
+        return client;
+    }
+
+    private ArtifactObservationUpdate observationUpdate(
+            ClientHandshakeEngine.PreparedArtifactObservationUpdate prepared) throws Exception {
+        BoundedPayloadTransferReceiver receiver = new BoundedPayloadTransferReceiver(
+                server.currentAuthenticatedSessionId(playerId).orElseThrow(), clock,
+                ProtocolConstants.DEFAULT_BOUNDED_PAYLOAD_TTL);
+        java.util.Optional<BoundedPayloadTransferReceiver.CompletedPayload> completed =
+                java.util.Optional.empty();
+        for (ClientHandshakeEngine.OutboundFrame frame : prepared.frames()) {
+            completed = receiver.acceptVerified(SignedEnvelope.parseFrom(frame.data()));
+        }
+        return ArtifactObservationUpdate.parseFrom(completed.orElseThrow().content());
+    }
+
+    private HandshakeAction sendForgedObservation(
+            ArtifactObservationUpdate update, KeyPair clientKeys) throws Exception {
+        String sessionId = server.currentAuthenticatedSessionId(playerId).orElseThrow();
+        List<byte[]> frames = new BoundedPayloadTransferSender().send(
+                BoundedPayloadKind.BOUNDED_PAYLOAD_ARTIFACT_OBSERVATION,
+                sessionId, update.toByteArray(), update.getAggregateRootSha256().toByteArray(), 1L,
+                new EnvelopeCodec(clock, new SecureRandom(), ProtocolConstants.MAX_PAYLOAD_BYTES,
+                        ProtocolConstants.DEFAULT_CLOCK_SKEW),
+                clientKeys.getPrivate());
+        HandshakeAction action = HandshakeAction.none();
+        for (byte[] frame : frames) action = server.receive(playerId, frame);
+        return action;
+    }
+
+    private ArtifactObservationResult verifiedObservationResult(HandshakeAction action)
+            throws Exception {
+        assertEquals(1, action.outboundFrames().size());
+        SignedEnvelope envelope = SignedEnvelope.parseFrom(action.outboundFrames().getFirst());
+        new EnvelopeCodec(clock, new SecureRandom(), ProtocolConstants.MAX_PAYLOAD_BYTES,
+                ProtocolConstants.DEFAULT_CLOCK_SKEW).verify(
+                        envelope, serverKeys.getPublic(),
+                        new NonceReplayGuard(clock, ProtocolConstants.DEFAULT_REPLAY_WINDOW));
+        assertEquals(PacketType.ARTIFACT_OBSERVATION_RESULT,
+                envelope.getHeader().getPacketType());
+        return ArtifactObservationResult.parseFrom(envelope.getPayload());
+    }
+
+    private void assertDirectLoadedRequestMutationRejected(
+            String cacheSuffix,
+            java.util.function.UnaryOperator<AuthRequest> mutation) throws Exception {
+        resetHandshakeServer();
+        KeyPair clientKeys = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = new ClientHandshakeEngine(
+                playerId, productVersion(), "1.21.1", "test-build", LoaderType.FABRIC,
+                serverKeys.getPublic(), clock, new SecureRandom(), clientKeys);
+        client.prepareServerHello(server.begin(playerId), "test.example:25565",
+                new VerifiedPolicyCache(temporaryDirectory.resolve("direct-" + cacheSuffix), clock));
+        byte[] hash = new byte[32];
+        hash[0] = 11;
+        ClientIntegrityBundle bundle = bundleWithMod("example.jar", 4L, hash);
+        com.ellan.mcace.core.disposition.ArtifactObservation metadata = modMetadata(
+                "example.mod", "1.2.3", "example.jar", hash);
+        LoadedModObservation loaded = new LoadedModObservation(
+                "example.mod", "1.2.3", LoadedModObservation.OriginKind.MODS_FILE,
+                "example.jar", "");
+        List<ClientHandshakeEngine.OutboundFrame> frames = client.createAuthenticationFrames(
+                bundle, List.of(metadata), List.of(), List.of(), List.of(loaded));
+        AuthRequest original = AuthRequest.parseFrom(
+                SignedEnvelope.parseFrom(frames.get(1).data()).getPayload());
+        assertTrue(original.getLoadedMods(0).getOriginManifestMatched());
+
+        assertFalse(server.receive(playerId, frames.getFirst().data()).protocolViolation());
+        HandshakeAction rejected = server.receive(playerId, resign(
+                frames.get(1).data(), PacketType.AUTH_REQUEST,
+                mutation.apply(original).toByteArray(), clientKeys));
+        assertTrue(rejected.protocolViolation());
+        assertFalse(api.isVerified(playerId));
+    }
+
+    private static com.ellan.mcace.core.disposition.ArtifactObservation modMetadata(
+            String id, String version, String filename, byte[] sha256) {
+        return new com.ellan.mcace.core.disposition.ArtifactObservation(
+                com.ellan.mcace.core.disposition.ArtifactType.MOD,
+                id, version, java.util.HexFormat.of().formatHex(sha256),
+                java.util.Map.of("scope", "mods", "artifact_path", filename),
+                com.ellan.mcace.core.disposition.ObservationOrigin.CLIENT_REPORTED,
+                com.ellan.mcace.core.disposition.Confidence.LOW,
+                false);
+    }
+
     private ClientIntegrityBundle emptyBundle() throws Exception {
         return ClientIntegrityBundle.of(List.of(new ScopeIntegrityManifest(
                 "mods", "mods", true, clock.instant(), List.of(), IntegrityDigests.scopeRoot(List.of()))));
+    }
+
+    private ClientIntegrityBundle bundleWithMod(String filename, long size, byte[] sha256) throws Exception {
+        IntegrityEntry entry = new IntegrityEntry(filename, size, sha256);
+        com.ellan.mcace.protocol.generated.FileEntry wire =
+                com.ellan.mcace.protocol.generated.FileEntry.newBuilder()
+                        .setRelativePath(filename).setFileSize(size)
+                        .setSha256(ByteString.copyFrom(sha256)).build();
+        return ClientIntegrityBundle.of(List.of(new ScopeIntegrityManifest(
+                "mods", "mods", true, clock.instant(), List.of(entry),
+                IntegrityDigests.scopeRoot(List.of(wire)))));
+    }
+
+    private void assertLoadedGraphRequestMutationRejected(
+            String cacheSuffix,
+            java.util.function.UnaryOperator<AuthRequest.Builder> mutation) throws Exception {
+        resetHandshakeServer();
+        KeyPair clientKeys = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = new ClientHandshakeEngine(
+                playerId, productVersion(), "1.21.1", "test-build", LoaderType.FABRIC,
+                serverKeys.getPublic(), clock, new SecureRandom(), clientKeys);
+        byte[] hello = server.begin(playerId);
+        client.prepareServerHello(hello, "test.example:25565",
+                new VerifiedPolicyCache(temporaryDirectory.resolve("loaded-capability-" + cacheSuffix), clock));
+        LoadedModObservation fabric = new LoadedModObservation(
+                "fabricloader", "0.19.3", LoadedModObservation.OriginKind.BUILTIN_OR_CLASSPATH, "", "");
+        List<ClientHandshakeEngine.OutboundFrame> frames = client.createAuthenticationFrames(
+                emptyBundle(), List.of(), List.of(), List.of(), List.of(fabric));
+        AuthRequest original = AuthRequest.parseFrom(
+                SignedEnvelope.parseFrom(frames.get(1).data()).getPayload());
+        AuthRequest forged = mutation.apply(original.toBuilder()).build();
+
+        assertFalse(server.receive(playerId, frames.getFirst().data()).protocolViolation());
+        assertTrue(server.receive(playerId, resign(
+                frames.get(1).data(), PacketType.AUTH_REQUEST, forged.toByteArray(), clientKeys)).protocolViolation());
+        assertFalse(api.isVerified(playerId));
+    }
+
+    private SignedPolicyDocument signedPolicyRequiringLoadedGraph() throws Exception {
+        KeyPair delegate = Ed25519Keys.generate(new SecureRandom());
+        SecurityPolicy base = SecurityPolicy.parseFrom(signedPolicy.getPolicy());
+        SecurityPolicy policy = base.toBuilder()
+                .setSignerKeyIdSha256(ByteString.copyFrom(PolicyDocuments.keyId(delegate.getPublic())))
+                .addRequiredClientCapabilities(ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1)
+                .build();
+        var trust = PolicyDocuments.signTrustStatement(PolicyTrustStatement.newBuilder()
+                .setSequence(1).setServerId(policy.getServerId())
+                .setIssuedAtEpochMs(clock.millis())
+                .setExpiresAtEpochMs(clock.millis() + Duration.ofDays(30).toMillis())
+                .setRootKeyIdSha256(ByteString.copyFrom(PolicyDocuments.keyId(serverKeys.getPublic())))
+                .addDelegatedSigningKeys(DelegatedSigningKey.newBuilder()
+                        .setKeyIdSha256(ByteString.copyFrom(PolicyDocuments.keyId(delegate.getPublic())))
+                        .setPublicKeyX509(ByteString.copyFrom(delegate.getPublic().getEncoded()))
+                        .setNotBeforeEpochMs(clock.millis())
+                        .setNotAfterEpochMs(clock.millis() + Duration.ofDays(14).toMillis()))
+                .build(), serverKeys.getPrivate(), serverKeys.getPublic());
+        return PolicyDocuments.signDelegated(policy, delegate.getPrivate(), delegate.getPublic(), trust);
     }
 
     private static final class MutableClock extends Clock {

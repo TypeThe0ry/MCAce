@@ -3,6 +3,7 @@ package com.ellan.mcace.core.disposition;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.ellan.mcace.protocol.generated.DetectionArtifactType;
 import com.ellan.mcace.protocol.generated.DetectionConfidence;
@@ -149,6 +150,127 @@ final class DispositionPolicyCompilerTest {
         assertEquals(MatchType.METADATA, compiled.selector().matchType());
         assertEquals(Map.of("selected", "true"), compiled.selector().requiredMetadata());
         assertEquals(DispositionAction.WARN, compiled.action());
+    }
+
+    @Test
+    void modIdentityRuleCanRequireTheActualRuntimeLoadedMarker() {
+        DetectionRule rule = baseRule("loaded-meteor")
+                .setSelector(DetectionSelector.newBuilder()
+                        .setArtifactType(DetectionArtifactType.DETECTION_ARTIFACT_MOD)
+                        .setMatchType(DetectionMatchType.DETECTION_MATCH_MOD_ID_VERSION)
+                        .setArtifactId("meteor-client")
+                        .putMetadata("loaded", "true"))
+                .setDefaultAction(com.ellan.mcace.protocol.generated.DispositionAction.DISPOSITION_WARN)
+                .build();
+
+        ArtifactSelector selector = DispositionPolicyCompiler.compileVerified(document(rule))
+                .rules().getFirst().selector();
+        ArtifactObservation loaded = new ArtifactObservation(ArtifactType.MOD, "meteor-client", "1",
+                null, Map.of("loaded", "true"), ObservationOrigin.CLIENT_REPORTED,
+                Confidence.LOW, false);
+        ArtifactObservation dormant = new ArtifactObservation(ArtifactType.MOD, "meteor-client", "1",
+                null, Map.of("loaded", "false"), ObservationOrigin.CLIENT_REPORTED,
+                Confidence.LOW, false);
+
+        assertEquals(Map.of("loaded", "true"), selector.requiredMetadata());
+        assertTrue(selector.matches(loaded));
+        assertFalse(selector.matches(dormant));
+    }
+
+    @Test
+    void exactHashRuleKeepsAllOptionalMetadataAsAndConstraints() {
+        DetectionRule rule = baseRule("loaded-exact-hash")
+                .setSelector(DetectionSelector.newBuilder()
+                        .setArtifactType(DetectionArtifactType.DETECTION_ARTIFACT_MOD)
+                        .setMatchType(DetectionMatchType.DETECTION_MATCH_EXACT_SHA256)
+                        .setSha256(HASH)
+                        .putMetadata("loaded", "true")
+                        .putMetadata("origin_manifest_matched", "true"))
+                .build();
+
+        ArtifactSelector selector = DispositionPolicyCompiler.compileVerified(document(rule))
+                .rules().getFirst().selector();
+        ArtifactObservation fullyBound = new ArtifactObservation(ArtifactType.MOD, "client.jar", "1",
+                "00".repeat(32), Map.of("loaded", "true", "origin_manifest_matched", "true"),
+                ObservationOrigin.CLIENT_REPORTED, Confidence.LOW, false);
+        ArtifactObservation missingOneMetadataTerm = new ArtifactObservation(
+                ArtifactType.MOD, "client.jar", "1", "00".repeat(32), Map.of("loaded", "true"),
+                ObservationOrigin.CLIENT_REPORTED, Confidence.LOW, false);
+        ArtifactObservation wrongHash = new ArtifactObservation(ArtifactType.MOD, "client.jar", "1",
+                "11".repeat(32), Map.of("loaded", "true", "origin_manifest_matched", "true"),
+                ObservationOrigin.CLIENT_REPORTED, Confidence.LOW, false);
+
+        assertEquals(Map.of("loaded", "true", "origin_manifest_matched", "true"),
+                selector.requiredMetadata());
+        assertTrue(selector.matches(fullyBound));
+        assertFalse(selector.matches(missingOneMetadataTerm));
+        assertFalse(selector.matches(wrongHash));
+    }
+
+    @Test
+    void derivedAndBehaviorSelectorFamiliesKeepOptionalMetadataAsAndConstraints() {
+        List<DetectionRule> rules = List.of(
+                baseRule("signer-with-origin").setSelector(DetectionSelector.newBuilder()
+                        .setArtifactType(DetectionArtifactType.DETECTION_ARTIFACT_MOD)
+                        .setMatchType(DetectionMatchType.DETECTION_MATCH_SIGNER)
+                        .setSigner("trusted-signer")
+                        .putMetadata("loaded", "true")).build(),
+                baseRule("root-with-selection").setSelector(DetectionSelector.newBuilder()
+                        .setArtifactType(DetectionArtifactType.DETECTION_ARTIFACT_RESOURCE_PACK)
+                        .setMatchType(DetectionMatchType.DETECTION_MATCH_CONTENT_ROOT)
+                        .setContentRootSha256(HASH)
+                        .putMetadata("selected", "true")).build(),
+                baseRule("behavior-with-provider").setSelector(DetectionSelector.newBuilder()
+                        .setArtifactType(DetectionArtifactType.DETECTION_ARTIFACT_BEHAVIOR)
+                        .setMatchType(DetectionMatchType.DETECTION_MATCH_BEHAVIOR_CORRELATION)
+                        .setBehaviorRuleId("reach-correlation")
+                        .putMetadata("provider", "vulcan")).build(),
+                baseRule("admin-with-review").setSelector(DetectionSelector.newBuilder()
+                        .setArtifactType(DetectionArtifactType.DETECTION_ARTIFACT_MOD)
+                        .setMatchType(DetectionMatchType.DETECTION_MATCH_ADMIN_CLASSIFICATION)
+                        .setArtifactId("reviewed-aid")
+                        .putMetadata("review_state", "approved")).build());
+
+        List<ArtifactSelector> selectors = DispositionPolicyCompiler.compileVerified(document(rules))
+                .rules().stream().map(DispositionRule::selector).toList();
+        String contentRoot = "00".repeat(32);
+        List<ArtifactObservation> complete = List.of(
+                new ArtifactObservation(ArtifactType.MOD, "signed-mod", "1", null,
+                        Map.of("signer", "trusted-signer", "loaded", "true"),
+                        ObservationOrigin.CLIENT_REPORTED, Confidence.LOW, false),
+                new ArtifactObservation(ArtifactType.RESOURCE_PACK, "selected-pack", "1", null,
+                        Map.of("content_root_sha256", contentRoot, "selected", "true"),
+                        ObservationOrigin.CLIENT_REPORTED, Confidence.LOW, false),
+                new ArtifactObservation(ArtifactType.BEHAVIOR, "reach-correlation", "1", null,
+                        Map.of("provider", "vulcan"), ObservationOrigin.SERVER_CONFIRMED,
+                        Confidence.HIGH, false),
+                new ArtifactObservation(ArtifactType.MOD, "reviewed-mod", "1", null,
+                        Map.of("admin_classification", "reviewed-aid", "review_state", "approved"),
+                        ObservationOrigin.ADMIN_REVIEWED, Confidence.HIGH, false));
+        List<ArtifactObservation> missingOptionalTerm = List.of(
+                new ArtifactObservation(ArtifactType.MOD, "signed-mod", "1", null,
+                        Map.of("signer", "trusted-signer"), ObservationOrigin.CLIENT_REPORTED,
+                        Confidence.LOW, false),
+                new ArtifactObservation(ArtifactType.RESOURCE_PACK, "selected-pack", "1", null,
+                        Map.of("content_root_sha256", contentRoot), ObservationOrigin.CLIENT_REPORTED,
+                        Confidence.LOW, false),
+                new ArtifactObservation(ArtifactType.BEHAVIOR, "reach-correlation", "1", null,
+                        Map.of(), ObservationOrigin.SERVER_CONFIRMED, Confidence.HIGH, false),
+                new ArtifactObservation(ArtifactType.MOD, "reviewed-mod", "1", null,
+                        Map.of("admin_classification", "reviewed-aid"),
+                        ObservationOrigin.ADMIN_REVIEWED, Confidence.HIGH, false));
+
+        assertEquals(Map.of("signer", "trusted-signer", "loaded", "true"),
+                selectors.get(0).requiredMetadata());
+        assertEquals(Map.of("content_root_sha256", contentRoot, "selected", "true"),
+                selectors.get(1).requiredMetadata());
+        assertEquals(Map.of("provider", "vulcan"), selectors.get(2).requiredMetadata());
+        assertEquals(Map.of("admin_classification", "reviewed-aid", "review_state", "approved"),
+                selectors.get(3).requiredMetadata());
+        for (int index = 0; index < selectors.size(); index++) {
+            assertTrue(selectors.get(index).matches(complete.get(index)));
+            assertFalse(selectors.get(index).matches(missingOptionalTerm.get(index)));
+        }
     }
 
     @Test

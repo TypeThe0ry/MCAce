@@ -39,9 +39,15 @@ val stagedDependencies = providers.gradleProperty("mcaceRootDepsDir")
     .orElse(rootProject.layout.projectDirectory.dir("../build/fabric-modern-deps").asFile)
 val requiredRootJars = setOf(
     "mcace-client-common.jar",
-    "mcace-core.jar",
+    "mcace-core-client-safe.jar",
     "mcace-sdk.jar",
     "mcace-protocol.jar",
+)
+val clientSafeCoreClassEntries = setOf(
+    "com/ellan/mcace/core/disposition/ArtifactObservation.class",
+    "com/ellan/mcace/core/disposition/ArtifactType.class",
+    "com/ellan/mcace/core/disposition/Confidence.class",
+    "com/ellan/mcace/core/disposition/ObservationOrigin.class",
 )
 val smokeArtifactMode = providers.gradleProperty("mcaceSmokeArtifactMode")
     .map { configured ->
@@ -53,6 +59,7 @@ val smokeArtifactMode = providers.gradleProperty("mcaceSmokeArtifactMode")
     .orElse(false)
 val smokeExpectedArtifactSha256 = providers.gradleProperty("mcaceSmokeExpectedArtifactSha256")
 val smokeRunToken = providers.gradleProperty("mcaceSmokeRunToken")
+val smokeRuntimeArtifactPath = providers.gradleProperty("mcaceSmokeRuntimeArtifactPath")
 val smokeRunDirectory = providers.gradleProperty("mcaceSmokeRunDirectory")
 val smokeServerAddress = providers.gradleProperty("mcaceSmokeServerAddress")
 val smokeEvidence = providers.gradleProperty("mcaceSmokeEvidence")
@@ -139,6 +146,20 @@ val verifyStagedRootDependencies = tasks.register("verifyStagedRootDependencies"
                 "staged root dependency is missing or empty: $jar"
             }
         }
+        val clientSafeCoreJar = directory.resolve("mcace-core-client-safe.jar")
+        val actualCoreClasses = JarFile(clientSafeCoreJar).use { jar ->
+            jar.entries().asSequence()
+                .filter { entry ->
+                    !entry.isDirectory && entry.name.startsWith("com/ellan/mcace/core/") &&
+                        entry.name.endsWith(".class")
+                }
+                .map { it.name }
+                .toSet()
+        }
+        check(actualCoreClasses == clientSafeCoreClassEntries) {
+            "staged client-safe core classes differ from the reviewed allowlist; " +
+                "expected=$clientSafeCoreClassEntries actual=$actualCoreClasses"
+        }
     }
 }
 
@@ -164,15 +185,17 @@ subprojects {
         "unsupported modern Fabric target $name"
     }
     val mcaceClientBuildId = providers.gradleProperty("mcaceClientBuildId")
-        .orElse(providers.gradleProperty("mcaceSourceCommit")
+        .orElse(providers.gradleProperty("mcaceArtifactSourceCommit")
+            .orElse(providers.gradleProperty("mcaceSourceCommit"))
             .map { commit -> "fabric-$minecraftVersion-$commit" })
         .getOrElse("fabric-$minecraftVersion-dev")
     val smokeArtifactModeEnabled = smokeArtifactMode.get()
+    val exactReleaseRuntimeMode = smokeArtifactModeEnabled && smokeRuntimeArtifactPath.isPresent
     if (smokeArtifactModeEnabled) {
-        require(Regex("(?:platform-smoke-[0-9]{8}T[0-9]{9}Z|[0-9a-f]{32})")
+        require(Regex("(?:platform-smoke-[0-9]{8}T[0-9]{9}Z|[0-9a-f]{32}|fabric-[0-9][0-9.]*-[0-9a-f]{40})")
                 .matches(mcaceClientBuildId)) {
-            "artifact-mode mcaceClientBuildId must be a platform-smoke timestamp ID " +
-                "or 32 lowercase hex characters"
+            "artifact-mode mcaceClientBuildId must identify either a development smoke " +
+                "or the exact release artifact"
         }
         smokeExpectedArtifactSha256.orNull?.let { expected ->
             require(Regex("[0-9a-f]{64}").matches(expected)) {
@@ -247,6 +270,13 @@ subprojects {
             }
         }
     }
+    val smokeRuntimeArtifact = providers.provider {
+        if (smokeRuntimeArtifactPath.isPresent) {
+            file(smokeRuntimeArtifactPath.get()).canonicalFile
+        } else {
+            deployableJar.get().archiveFile.get().asFile.canonicalFile
+        }
+    }
 
     val loomExtension = extensions.getByType<LoomGradleExtensionAPI>()
     if (smokeArtifactModeEnabled) {
@@ -258,7 +288,7 @@ subprojects {
             modFiles.setFrom(emptyList<Any>())
         }
         loomExtension.mods.maybeCreate("mcace").apply {
-            modFiles.setFrom(deployableJar)
+            modFiles.setFrom(smokeRuntimeArtifact)
         }
     }
 
@@ -282,7 +312,9 @@ subprojects {
 
     if (smokeArtifactModeEnabled) {
         runClientTask.configure {
-            dependsOn(deployableJar)
+            if (!exactReleaseRuntimeMode) {
+                dependsOn(deployableJar)
+            }
             val developmentClasspath = classpath
             // Loom 1.17 keeps the source-set classpath when a file-backed mod is
             // configured through `loom.mods`; removing that source origin also removes
@@ -294,7 +326,7 @@ subprojects {
                     candidatePath == forbidden || candidatePath.startsWith(forbidden) ||
                         forbidden.startsWith(candidatePath)
                 }
-            }.plus(files(deployableJar))
+            }.plus(files(smokeRuntimeArtifact))
             doFirst {
                 val expectedArtifactSha256 = smokeExpectedArtifactSha256.orNull
                     ?: throw GradleException(
@@ -336,10 +368,12 @@ subprojects {
         group = "verification"
         description =
             "Proves that $minecraftVersion smoke startup can only load MCAce from its final named JAR."
-        dependsOn(deployableJar)
+        if (!exactReleaseRuntimeMode) {
+            dependsOn(deployableJar)
+        }
         inputs.property("mcaceSmokeArtifactMode", smokeArtifactMode)
         inputs.property("mcaceClientBuildId", mcaceClientBuildId)
-        inputs.file(deployableJar.flatMap { it.archiveFile })
+        inputs.file(smokeRuntimeArtifact)
 
         doLast {
             check(smokeArtifactMode.get()) {
@@ -348,7 +382,7 @@ subprojects {
             check(JavaVersion.current().majorVersion == "25") {
                 "modern Fabric artifact-mode verification must run on JDK 25"
             }
-            val artifact = deployableJar.get().archiveFile.get().asFile.canonicalFile
+            val artifact = smokeRuntimeArtifact.get()
             check(artifact.isFile && artifact.length() > 0L) {
                 "artifact-mode Fabric named JAR is missing or empty"
             }

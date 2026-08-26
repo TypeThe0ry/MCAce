@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="590" viewBox="0 0 1200 590" role="img" aria-labelledby="title desc">
+  <title id="title">MCAce controlled executable anti-cheat fixture results</title>
+  <desc id="desc">The MCAce-owned executable fixture ran once on each of three supported versions. Each session produced an independent server signal and a server confirmed quarantine decision. The clean control produced zero false positives.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" x2="1"><stop stop-color="#07111f"/><stop offset="1" stop-color="#0f1d34"/></linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="8" stdDeviation="9" flood-color="#000" flood-opacity=".25"/></filter>
+  </defs>
+  <rect width="1200" height="590" rx="24" fill="url(#bg)"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="54" y="62" fill="#f8fafc" font-size="30" font-weight="700">Controlled executable anti-cheat fixture</text>
+    <text x="54" y="94" fill="#94a3b8" font-size="17">Exact source 2c89876 · Helio Windows worker · isolated session correlation</text>
+    <g filter="url(#shadow)">
+      <rect x="54" y="132" width="338" height="246" rx="18" fill="#102a1b" stroke="#4ade80" stroke-width="2"/>
+      <rect x="431" y="132" width="338" height="246" rx="18" fill="#102a1b" stroke="#4ade80" stroke-width="2"/>
+      <rect x="808" y="132" width="338" height="246" rx="18" fill="#102a1b" stroke="#4ade80" stroke-width="2"/>
+    </g>
+    <g text-anchor="middle">
+      <text x="223" y="180" fill="#86efac" font-size="24" font-weight="700">Minecraft 1.21.11</text>
+      <text x="600" y="180" fill="#86efac" font-size="24" font-weight="700">Minecraft 26.1.2</text>
+      <text x="977" y="180" fill="#86efac" font-size="24" font-weight="700">Minecraft 26.2</text>
+      <g fill="#f0fdf4" font-size="19">
+        <text x="223" y="231">Executable fixture loaded · 1 / 1</text>
+        <text x="223" y="269">Independent server signal · 1 / 1</text>
+        <text x="223" y="307">SERVER_CONFIRMED · 1 / 1</text>
+        <text x="223" y="345" fill="#bbf7d0" font-weight="700">QUARANTINE</text>
+        <text x="600" y="231">Executable fixture loaded · 1 / 1</text>
+        <text x="600" y="269">Independent server signal · 1 / 1</text>
+        <text x="600" y="307">SERVER_CONFIRMED · 1 / 1</text>
+        <text x="600" y="345" fill="#bbf7d0" font-weight="700">QUARANTINE</text>
+        <text x="977" y="231">Executable fixture loaded · 1 / 1</text>
+        <text x="977" y="269">Independent server signal · 1 / 1</text>
+        <text x="977" y="307">SERVER_CONFIRMED · 1 / 1</text>
+        <text x="977" y="345" fill="#bbf7d0" font-weight="700">QUARANTINE</text>
+      </g>
+    </g>
+    <rect x="54" y="412" width="520" height="104" rx="16" fill="#0c2742" stroke="#38bdf8" stroke-width="2"/>
+    <text x="82" y="451" fill="#7dd3fc" font-size="21" font-weight="700">Clean-client control</text>
+    <text x="82" y="487" fill="#e0f2fe" font-size="25" font-weight="700">False positives: 0 · Cleanup residue: 0</text>
+    <rect x="604" y="412" width="542" height="104" rx="16" fill="#2a1d12" stroke="#f59e0b" stroke-width="2"/>
+    <text x="632" y="451" fill="#fcd34d" font-size="21" font-weight="700">Evidence boundary</text>
+    <text x="632" y="483" fill="#fef3c7" font-size="16">MCAce-owned fixture; not a third-party cheat, public-server,</text>
+    <text x="632" y="507" fill="#fef3c7" font-size="16">kernel, DMA, genuine Vulcan, kick, or ban claim.</text>
+    <text x="600" y="558" text-anchor="middle" fill="#64748b" font-size="14">Source: docs/evidence/helio-2026-08-25-anticheat-live-fixture-2c89876.json</text>
+  </g>
+</svg>

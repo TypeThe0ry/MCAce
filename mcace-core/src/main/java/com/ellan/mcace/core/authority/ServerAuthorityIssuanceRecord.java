@@ -12,7 +12,8 @@ record ServerAuthorityIssuanceRecord(
         String backendKeyIdSha256,
         long observationSequence,
         String sessionBindingCommitmentSha256,
-        String providerProfileCommitmentSha256,
+        String authorityProfileSha256,
+        String providerEvidenceCommitmentSha256,
         Instant observedAt,
         Instant issuedAt,
         Instant expiresAt,
@@ -26,8 +27,10 @@ record ServerAuthorityIssuanceRecord(
         }
         sessionBindingCommitmentSha256 = BackendAuthorityPin.sha256(
                 sessionBindingCommitmentSha256, "sessionBindingCommitmentSha256");
-        providerProfileCommitmentSha256 = BackendAuthorityPin.sha256(
-                providerProfileCommitmentSha256, "providerProfileCommitmentSha256");
+        authorityProfileSha256 = BackendAuthorityPin.sha256(
+                authorityProfileSha256, "authorityProfileSha256");
+        providerEvidenceCommitmentSha256 = BackendAuthorityPin.sha256(
+                providerEvidenceCommitmentSha256, "providerEvidenceCommitmentSha256");
         Objects.requireNonNull(observedAt, "observedAt");
         Objects.requireNonNull(issuedAt, "issuedAt");
         Objects.requireNonNull(expiresAt, "expiresAt");

@@ -35,8 +35,8 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
     private MCAceRuntimeScheduler runtimeScheduler;
     private BackendLocalSessionActionAdapter sessionActions;
     private PaperBackendContextPublisher backendContextPublisher;
-    // Phase 2 seam only: default-disabled, no authority channel registration or sender.
-    private PaperServerAuthorityLifecycle serverAuthorityLifecycle;
+    private PaperServerAuthorityRuntime serverAuthorityRuntime;
+    private PaperServerAuthorityChannelLease<PaperServerAuthorityRuntime> serverAuthorityLease;
 
     @Override
     public void onEnable() {
@@ -49,7 +49,6 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
                 new BackendLocalSessionActionAdapter(sessionActionConfiguration, getLogger());
         sessionActions = localSessionActions;
         backendContextPublisher = new PaperBackendContextPublisher(this, Clock.systemUTC(), getLogger());
-        serverAuthorityLifecycle = PaperServerAuthorityLifecycle.disabled(Clock.systemUTC());
         PublicKey proxyPublicKey;
         ProxyIdentityPinPaths.Selection selectedPin = ProxyIdentityPinPaths.select(getDataFolder().toPath());
         Path preferredProxyPin = getDataFolder().toPath().resolve(ProxyIdentityPinPaths.PREFERRED_FILE_NAME);
@@ -66,6 +65,7 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
         if (selectedPin.legacy()) {
             getLogger().warning("Using legacy velocity-public-key.txt; rename it to proxy-public-key.txt");
         }
+        enableServerAuthority(proxyPublicKey);
         admissionReceiver = new PaperAdmissionReceiver(
                 api, proxyPublicKey, Clock.systemUTC(), getLogger(), runtimeScheduler,
                 new PaperAdmissionReceiver.AdmissionObserver() {
@@ -73,10 +73,16 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
                             PaperAdmissionReceiver.AcceptedAdmission update) {
                         localSessionActions.accept(carrier, update);
                         backendContextPublisher.accept(carrier, update);
+                        if (serverAuthorityRuntime != null) {
+                            serverAuthorityRuntime.acceptAdmission(carrier, update);
+                        }
                     }
                     @Override public void remove(java.util.UUID playerId) {
                         localSessionActions.remove(playerId);
                         backendContextPublisher.remove(playerId);
+                        if (serverAuthorityRuntime != null) {
+                            serverAuthorityRuntime.remove(playerId);
+                        }
                     }
                 });
         getServer().getMessenger().registerIncomingPluginChannel(
@@ -85,6 +91,9 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
                 this, ProtocolConstants.BACKEND_CONTEXT_CHANNEL);
         getServer().getPluginManager().registerEvents(this, this);
         runtimeScheduler.repeatGlobal(admissionReceiver::expire, 20L, 20L);
+        if (serverAuthorityRuntime != null) {
+            runtimeScheduler.repeatGlobal(serverAuthorityRuntime::expire, 20L, 20L);
+        }
         getServer().getServicesManager().register(MCAceApi.class, api, this, ServicePriority.Normal);
         PluginCommand command = Objects.requireNonNull(getCommand("mcace"), "mcace command missing from plugin.yml");
         command.setExecutor(new MCAceCommand(api, runtimeScheduler));
@@ -114,13 +123,19 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
             cloudRiskClient.close();
             cloudRiskClient = null;
         }
+        if (serverAuthorityLease != null) {
+            try {
+                serverAuthorityLease.close();
+            } catch (IOException | RuntimeException | LinkageError exception) {
+                getLogger().warning("Failed to close MCAce server authority channels/journal: "
+                        + safeMessage(exception));
+            }
+            serverAuthorityLease = null;
+            serverAuthorityRuntime = null;
+        }
         getServer().getMessenger().unregisterIncomingPluginChannel(this);
         getServer().getMessenger().unregisterOutgoingPluginChannel(this);
         backendContextPublisher = null;
-        if (serverAuthorityLifecycle != null) {
-            serverAuthorityLifecycle.clear();
-            serverAuthorityLifecycle = null;
-        }
         if (runtimeScheduler != null) {
             runtimeScheduler.close();
             runtimeScheduler = null;
@@ -181,8 +196,8 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
         if (behaviorPipeline != null) {
             behaviorPipeline.remove(playerId);
         }
-        if (serverAuthorityLifecycle != null) {
-            serverAuthorityLifecycle.remove(playerId);
+        if (serverAuthorityRuntime != null) {
+            serverAuthorityRuntime.remove(playerId);
         }
         getLogger().info("MCAce player state cleanup completed for " + playerId);
     }
@@ -205,16 +220,21 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
             getLogger().info("MCAce behavior integrations are disabled by configuration");
             return;
         }
-        if (configuration.cloud() == null) {
-            getLogger().warning("MCAce behavior integrations require cloud.enabled=true; no adapters were registered");
+        if (configuration.cloud() == null && serverAuthorityRuntime == null) {
+            getLogger().warning("MCAce behavior integrations have no Cloud or local authority sink; no adapters were registered");
             return;
         }
-        cloudRiskClient = new CloudRiskEventClient(configuration.cloud(), getLogger()::warning);
+        cloudRiskClient = configuration.cloud() == null ? null
+                : new CloudRiskEventClient(configuration.cloud(), getLogger()::warning);
         behaviorPipeline = new BehaviorAlertPipeline(
-                new BehaviorAlertCorrelator(
+                cloudRiskClient == null ? null : new BehaviorAlertCorrelator(
                         configuration.minimumFlags(), configuration.window(), configuration.cooldown(),
                         configuration.maximumKeys()),
-                cloudRiskClient, getLogger());
+                cloudRiskClient,
+                serverAuthorityRuntime == null
+                        ? (ignoredPlayer, ignoredAlert) -> { }
+                        : serverAuthorityRuntime::accept,
+                getLogger());
         if (configuration.grimEnabled()) {
             enableGrim();
         }
@@ -223,6 +243,77 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
         }
         if (behaviorIntegrations.isEmpty()) {
             getLogger().info("No supported behavior anti-cheat plugin is currently enabled");
+        }
+    }
+
+    private void enableServerAuthority(PublicKey proxyPublicKey) {
+        PaperServerAuthorityConfiguration authorityConfiguration;
+        try {
+            authorityConfiguration = PaperServerAuthorityConfiguration.load(
+                    getConfig(), getDataFolder().toPath());
+        } catch (IOException | RuntimeException exception) {
+            getLogger().severe("MCAce signed backend authority is disabled because its configuration is invalid: "
+                    + safeMessage(exception));
+            return;
+        }
+        if (authorityConfiguration == null) {
+            getLogger().info("MCAce signed backend authority is disabled by configuration");
+            return;
+        }
+        PaperServerAuthorityChannelLease<PaperServerAuthorityRuntime> lease = null;
+        try {
+            lease = PaperServerAuthorityChannelLease.open(
+                            () -> new PaperServerAuthorityRuntime(
+                                    this, authorityConfiguration, proxyPublicKey, Clock.systemUTC(),
+                                    runtimeScheduler, getLogger()),
+                            new PaperServerAuthorityChannelLease.ChannelOperations<>() {
+                                @Override
+                                public void registerIncoming(PaperServerAuthorityRuntime runtime) {
+                                    getServer().getMessenger().registerIncomingPluginChannel(
+                                            MCAcePaperPlugin.this,
+                                            ProtocolConstants.BACKEND_AUTHORITY_CHANNEL, runtime);
+                                }
+
+                                @Override
+                                public void unregisterIncoming(PaperServerAuthorityRuntime runtime) {
+                                    getServer().getMessenger().unregisterIncomingPluginChannel(
+                                            MCAcePaperPlugin.this,
+                                            ProtocolConstants.BACKEND_AUTHORITY_CHANNEL, runtime);
+                                }
+
+                                @Override
+                                public void registerOutgoing() {
+                                    getServer().getMessenger().registerOutgoingPluginChannel(
+                                            MCAcePaperPlugin.this,
+                                            ProtocolConstants.BACKEND_AUTHORITY_CHANNEL);
+                                }
+
+                                @Override
+                                public void unregisterOutgoing() {
+                                    getServer().getMessenger().unregisterOutgoingPluginChannel(
+                                            MCAcePaperPlugin.this,
+                                            ProtocolConstants.BACKEND_AUTHORITY_CHANNEL);
+                                }
+                            });
+            PaperServerAuthorityRuntime runtime = lease.resource();
+            getLogger().info("MCAce signed backend authority enabled in MONITOR mode; backend="
+                    + authorityConfiguration.backendInstanceId() + " key="
+                    + authorityConfiguration.backendKeyIdSha256() + " profile="
+                    + authorityConfiguration.profile().sha256());
+            serverAuthorityRuntime = runtime;
+            serverAuthorityLease = lease;
+        } catch (IOException | RuntimeException | LinkageError exception) {
+            if (lease != null) {
+                try {
+                    lease.close();
+                } catch (IOException | RuntimeException | LinkageError rollbackFailure) {
+                    exception.addSuppressed(rollbackFailure);
+                }
+            }
+            serverAuthorityLease = null;
+            serverAuthorityRuntime = null;
+            getLogger().severe("MCAce signed backend authority is disabled because its key/journal startup failed: "
+                    + safeMessage(exception));
         }
     }
 

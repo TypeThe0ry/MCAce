@@ -20,6 +20,8 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
+import java.util.List;
+import java.util.Map;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -46,6 +48,89 @@ final class DispositionPolicyDocumentsTest {
 
         assertEquals(policy, verified);
         assertEquals(32, DispositionPolicyDocuments.documentSha256(verified).length);
+    }
+
+    @Test
+    void canonicalSelectorMetadataSurvivesTheSignedDocumentRoundTrip() throws Exception {
+        DetectionRule canonical = rule(
+                DetectionMatchType.DETECTION_MATCH_EXACT_SHA256,
+                DispositionAction.DISPOSITION_WARN,
+                false).toBuilder()
+                .setSelector(DetectionSelector.newBuilder()
+                        .setArtifactType(DetectionArtifactType.DETECTION_ARTIFACT_MOD)
+                        .setMatchType(DetectionMatchType.DETECTION_MATCH_EXACT_SHA256)
+                        .setSha256(ByteString.copyFrom(new byte[32]))
+                        .putMetadata("loaded", "true")
+                        .putMetadata("origin_manifest_matched", "true"))
+                .build();
+
+        SignedDispositionPolicyDocument signed = DispositionPolicyDocuments.sign(
+                policy(canonical), identity.getPrivate(), identity.getPublic());
+        DetectionSelector verified = DispositionPolicyDocuments.verify(
+                signed, identity.getPublic(), fixedClock(), Duration.ZERO).getRules(0).getSelector();
+
+        assertEquals(Map.of("loaded", "true", "origin_manifest_matched", "true"),
+                verified.getMetadataMap());
+    }
+
+    @Test
+    void rejectsNonCanonicalControlOrUnboundedSelectorMetadata() throws Exception {
+        List<DetectionSelector> invalid = List.of(
+                exactSelector().putMetadata(" loaded", "true").build(),
+                exactSelector().putMetadata("loaded ", "true").build(),
+                exactSelector().putMetadata("\u2003loaded", "true").build(),
+                exactSelector().putMetadata("lo\naded", "true").build(),
+                exactSelector().putMetadata("k".repeat(129), "true").build(),
+                exactSelector().putMetadata("loaded", " true").build(),
+                exactSelector().putMetadata("loaded", "true ").build(),
+                exactSelector().putMetadata("loaded", "tr\nue").build(),
+                exactSelector().putMetadata("loaded", "v".repeat(257)).build());
+
+        for (DetectionSelector selector : invalid) {
+            DetectionRule candidate = rule(DetectionMatchType.DETECTION_MATCH_EXACT_SHA256,
+                    DispositionAction.DISPOSITION_WARN, false).toBuilder().setSelector(selector).build();
+            assertThrows(PolicyException.class, () -> DispositionPolicyDocuments.sign(
+                    policy(candidate), identity.getPrivate(), identity.getPublic()));
+        }
+
+        DetectionSelector.Builder oversized = exactSelector();
+        for (int index = 0; index < 65; index++) {
+            oversized.putMetadata("key-" + index, "value-" + index);
+        }
+        DetectionRule tooMany = rule(DetectionMatchType.DETECTION_MATCH_EXACT_SHA256,
+                DispositionAction.DISPOSITION_WARN, false).toBuilder().setSelector(oversized).build();
+        assertThrows(PolicyException.class, () -> DispositionPolicyDocuments.sign(
+                policy(tooMany), identity.getPrivate(), identity.getPublic()));
+    }
+
+    @Test
+    void rejectsMetadataThatDuplicatesDerivedSelectorFields() throws Exception {
+        List<DetectionSelector> invalid = List.of(
+                DetectionSelector.newBuilder()
+                        .setArtifactType(DetectionArtifactType.DETECTION_ARTIFACT_MOD)
+                        .setMatchType(DetectionMatchType.DETECTION_MATCH_SIGNER)
+                        .setSigner("trusted-signer")
+                        .putMetadata("signer", "different-signer")
+                        .build(),
+                DetectionSelector.newBuilder()
+                        .setArtifactType(DetectionArtifactType.DETECTION_ARTIFACT_RESOURCE_PACK)
+                        .setMatchType(DetectionMatchType.DETECTION_MATCH_CONTENT_ROOT)
+                        .setContentRootSha256(ByteString.copyFrom(new byte[32]))
+                        .putMetadata("content_root_sha256", "11".repeat(32))
+                        .build(),
+                DetectionSelector.newBuilder()
+                        .setArtifactType(DetectionArtifactType.DETECTION_ARTIFACT_MOD)
+                        .setMatchType(DetectionMatchType.DETECTION_MATCH_ADMIN_CLASSIFICATION)
+                        .setArtifactId("reviewed-aid")
+                        .putMetadata("admin_classification", "different-aid")
+                        .build());
+
+        for (DetectionSelector selector : invalid) {
+            DetectionRule candidate = rule(selector.getMatchType(), DispositionAction.DISPOSITION_WARN, false)
+                    .toBuilder().setSelector(selector).build();
+            assertThrows(PolicyException.class,
+                    () -> DispositionPolicyDocuments.validateStructure(policy(candidate)));
+        }
     }
 
     @Test
@@ -280,6 +365,13 @@ final class DispositionPolicyDocumentsTest {
                 .setEffectiveFromEpochMs(NOW - 500)
                 .setExpiresAtEpochMs(NOW + Duration.ofHours(1).toMillis())
                 .build();
+    }
+
+    private static DetectionSelector.Builder exactSelector() {
+        return DetectionSelector.newBuilder()
+                .setArtifactType(DetectionArtifactType.DETECTION_ARTIFACT_MOD)
+                .setMatchType(DetectionMatchType.DETECTION_MATCH_EXACT_SHA256)
+                .setSha256(ByteString.copyFrom(new byte[32]));
     }
 
     private static Clock fixedClock() {

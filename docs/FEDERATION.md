@@ -71,6 +71,45 @@ unknown enum values, unknown signed fields, malformed identifiers, noncanonical
 UUIDs, oversized encodings, unsafe time arithmetic, and partial bindings are
 rejected as a whole.
 
+Protocol schema version 2 adds the signed
+`source_authorized_at_epoch_ms` audit/freshness boundary. This is not the request
+issue time or the time at which the GUI first rendered. The source records it
+only after it has validated the still-live request, verified the exact
+client-signed consent and all bindings, and is about to sign the source
+assertion/grant. It must be at or after `issued_at_epoch_ms` and strictly before
+`expires_at_epoch_ms`.
+
+Cross-network causal ordering does **not** compare source and target wall clocks.
+Instead, after receiving the grant the client computes
+`H_A = SHA-256(SignedFederationAssertion.toByteArray())`. The target AUTH
+transcript is cryptographically bound to that exact value:
+
+- the client-signed `ClientHello` carries `H_A` with the target session and
+  target-issued challenge;
+- the client-signed `AuthRequest` repeats the same `H_A` with the local integrity
+  manifest and policy;
+- the target-signed successful `AuthResult` echoes the same `H_A`;
+- the later client-signed `FederationPresentationProof` already commits the
+  SHA-256 of the same complete signed assertion wrapper.
+
+Ordinary authentication requires all three AUTH fields to be empty. Federation
+target authentication requires all three to be exactly 32 bytes and equal.
+Missing, partial, oversized, mixed-empty, or mismatched bindings fail closed.
+Because `H_A` covers the source signature, the client cannot know this exact
+binding before the source has authorized and signed the grant. The target keeps
+the immutable hash in the authenticated session context and a presentation must
+match it before replay state can be consumed. `source_authorized_at_epoch_ms`
+therefore remains useful signed audit/freshness data, but is not used to infer
+causality from independent clocks.
+
+Expiry is a strict signed authorization boundary and clock-skew tolerance never
+extends it. Presentation verification must occur strictly before
+`expires_at_epoch_ms`; the target's acceptance/decision linearization point must
+also be at or after the recorded verification time and strictly before expiry;
+and an installed observation is removed once `now >= expires_at_epoch_ms`.
+Verification, decision, or observation at the exact expiry millisecond therefore
+fails closed rather than receiving an extra tick of authority.
+
 The grant contains no new authority. It packages the signed consent, signed
 assertion, and source-session client public key. A client validates the grant
 against its original pending request, its current client key, and the pinned
@@ -91,7 +130,10 @@ transitive trust, or a pin configured only on the other network is insufficient.
 The source copies both key IDs into the signed request/assertion. The target
 checks the source key against its pin and the target key against its own current
 identity key. A same-name network with a different key therefore cannot reuse
-consent or act as the audience.
+consent or act as the audience. The protocol rejects equal source/target key
+fingerprints even when the network IDs differ, and runtime startup/reload rejects
+any peer pin equal to the local identity. Source and target therefore require two
+independent Ed25519 identities rather than merely two labels for one key.
 
 Key rotation requires explicit offline configuration on both sides and a fresh
 connection-level MCAce enablement decision. Removing a local target-side source
@@ -102,38 +144,48 @@ control channel exists.
 ## Player consent and Fabric vault
 
 Before any MCAce handshake, Fabric displays one connection-level `Enable MCAce`
-screen containing the verified network/policy disclosure. The same decision
-covers federation and contains:
+screen containing the verified source network/policy disclosure. The same one-time
+decision covers at most one later federation handoff and states explicitly that:
 
-- exact source and target network names/IDs;
-- short source and target key fingerprints;
-- the single disclosed statement, in plain language;
-- the exact expiry and the five-minute maximum;
+- the future target is not yet known at this prompt;
+- the approved source may select one operator-pinned target and no second prompt appears;
+- the later grant must bind exact source/target IDs, both key fingerprints, disclosure,
+  and an expiry no longer than five minutes before the client will use it;
 - that the statement is observation-only and cannot replace local verification;
 - equally clear `Enable MCAce` and `Decline` actions;
-- that decline, close, timeout, or failure causes no automatic action.
+- that decline, close, timeout, or failure causes no automatic action. The screen
+  expires at the earlier of signed-policy expiry or 30 seconds; a monotonic
+  deadline prevents wall-clock rollback from extending that window.
 
 There is no `Always allow`, preselected approval, gameplay-key shortcut, inferred
 approval, or approval inherited from server terms. Closing the prompt produces
 no `CLIENT_HELLO`, manifest, evidence, or federation response. A policy changed
-after display is not the policy the player approved. The decision is held only
-for the current connection and is never persisted.
+after display is not the policy the player approved. The decision is never
+persisted. It is connection-bound at the source and grants one atomic source-export
+permit. An inherited target has no export permit, so A -> B cannot become B -> C.
 
-After the target independently authenticates the same short-lived client key,
-Fabric prepares one target-session/challenge-bound presentation. Target import
-inherits the already accepted connection-level enablement; it does not render a
-second prompt or create a second human decision. The client still repeats the
-exact source/target IDs, key fingerprints, disclosed observation, and expiry in
-the signed presentation, and sends only the exact prepared object. A declined,
-closed, expired, or changed connection therefore sends nothing and cannot
-change local admission.
+After the target independently authenticates the same short-lived client key
+**and** returns a signed successful `AuthResult` echoing the exact source-signed
+assertion hash, Fabric prepares one target-session/challenge-bound presentation.
+Target import starts as provisional under the already accepted enablement; it
+does not render a second prompt or create a second human decision. The client
+still repeats the exact source/target IDs, key fingerprints, disclosed
+observation, and expiry in the signed presentation, and sends only the exact
+prepared object. A declined, closed, expired, changed, or hash-mismatched
+connection therefore sends nothing and cannot change local admission.
+Heartbeats, evidence, observation refresh, and further federation export remain
+disabled until that exact presentation is handed to transport and the vault
+entry is atomically burned; only then is the inherited authorization promoted
+for the remainder of the exact target connection. Vault commit returns a
+non-constructible, one-shot receipt bound by object identity to that exact
+target claim; copied public claim metadata cannot promote a connection.
 
 After validating a grant, Fabric keeps only the grant and the associated
 short-lived source-session private key in a bounded in-memory vault. This is a
 session credential, not a device identifier. It is never written to disk,
 config, log, chat, URL, audit, clipboard, or server-list metadata. The vault is
-cleared when the exact allowed target presentation is handed to transport, when
-the target prompt is declined, on explicit local discard, expiry, client
+cleared when the exact allowed target presentation is handed to transport, on
+explicit local discard, expiry before promotion, target connection abort, client
 shutdown, or bounded-capacity rejection. A local send failure releases only the
 exact reservation and exposes no signing key.
 
@@ -149,8 +201,14 @@ The target accepts a presentation only after the player has independently
 completed a local authenticated MCAce session with `TrustLevel.VERIFIED`. Phase
 one uses the same short-lived client key from the Fabric vault for the target
 handshake; the target compares its authenticated session key hash with the hash
-inside the consent and assertion. A different target-session key makes
-federation unavailable and does not affect the local authentication result.
+inside the consent and assertion. Before that target session can become
+authenticated, its client-signed `ClientHello` and `AuthRequest` must carry the
+same exact `H_A`, and the target-signed successful `AuthResult` must echo it.
+The target stores `H_A` as an immutable optional session binding. Ordinary
+sessions keep it absent and remain fully compatible, but an ordinary or legacy
+session cannot import a federation presentation. A different target-session
+key or assertion binding makes federation unavailable and does not affect the
+local authentication result.
 
 After local authentication, Fabric signs a fresh
 `FederationPresentationProof` with the retained source-session private key. The
@@ -164,24 +222,28 @@ proof binds:
 - presentation time within the short proof-freshness window.
 
 The proof and grant are then held behind a single exact
-`PreparedPresentation` reservation while the target-import screen is visible.
-Only the matching unexpired object shown to the player can be committed to the
-current plugin channel. A second connection, wrong target key, superseded screen,
-decline, close, or expired reservation cannot send it.
+`PreparedPresentation` reservation while the inherited authorization remains
+provisional. Only the matching unexpired object may be committed to the current
+plugin channel. A second connection, wrong target key, superseded lifecycle,
+close, transport failure, or expired reservation cannot send it.
 
 The target verifies the proof using `grant.client_public_key_x509`, verifies that
 key's SHA-256 against the signed consent/assertion and its current authenticated
-client session, and verifies the expected current session, player, challenge,
-audience, target identity key, source pin, assertion time, and policy bindings.
-A captured grant is therefore not a usable bearer credential without the
-retained private key, and a captured complete presentation is bound to one
-target session/challenge.
+client session, and verifies that the actual signed assertion hash exactly
+matches the value frozen in the target AUTH transcript. It also verifies the
+expected current session, player, challenge, audience, target identity key,
+source pin, assertion time, and policy bindings. A captured grant is therefore
+not a usable bearer credential without the retained private key, and a captured
+complete presentation is bound to one target session/challenge and one exact
+source-signed assertion.
 
-Replay state is consumed atomically only after size, parse, both signatures,
-both network keys, all consent/assertion bindings, audience, player, time, local
-session, challenge, and PoP are valid. Invalid traffic cannot pre-consume an
-assertion ID/nonce to deny the legitimate presentation. Replay storage is
-bounded globally and one-time per source/target/assertion scope.
+Replay state is consumed atomically only after size, parse, target-AUTH assertion
+hash, both signatures, both network keys, all consent/assertion bindings,
+audience, player, time, local session, challenge, and PoP are valid. In
+particular, a wrong target-AUTH hash is rejected before replay mutation, so it
+cannot pre-consume an assertion ID/nonce to deny the correctly bound
+presentation. Replay storage is bounded globally and one-time per
+source/target/assertion scope.
 
 ## Executable state model
 
@@ -197,14 +259,15 @@ stateDiagram-v2
     CARRIED --> CARRIED: source disconnect or source restart
     CARRIED --> EXPIRED: grant deadline
     CARRIED --> DISCARDED: local discard or client shutdown
-    CARRIED --> TARGET_LOCAL_VERIFIED: target independently verifies same client key
-    TARGET_LOCAL_VERIFIED --> IMPORT_PENDING: Fabric prepares PoP under enablement
-    IMPORT_PENDING --> PRESENTING: connection enablement remains accepted
+    CARRIED --> TARGET_LOCAL_VERIFIED: target AUTH binds and echoes exact signed-assertion hash
+    TARGET_LOCAL_VERIFIED --> IMPORT_PENDING: Fabric prepares PoP under provisional enablement
+    IMPORT_PENDING --> PRESENTING: exact grant remains live
     IMPORT_PENDING --> DISCARDED: disconnect, expiry, or transport failure
     IMPORT_PENDING --> EXPIRED: assertion deadline
-    PRESENTING --> OBSERVED: target validates all fields then atomically consumes replay state
+    PRESENTING --> CONNECTION_BOUND: client commits one presentation and burns vault grant
+    CONNECTION_BOUND --> OBSERVED: target validates all fields then atomically consumes replay state
     PRESENTING --> FAILED: any mismatch, replay, capacity, or freshness failure
-    OBSERVED --> EXPIRED: assertion or target-session deadline
+    OBSERVED --> EXPIRED: target observation deadline
     OBSERVED --> COMPLETE: target session ends
     DECLINED --> [*]
     EXPIRED --> [*]
@@ -216,12 +279,13 @@ stateDiagram-v2
 | State/input | Required guard | Effect |
 | --- | --- | --- |
 | `IDLE -> ENABLEMENT_PENDING` | Signed server hello/policy; enabled offline target pin; live local session; bounded request capacity | Show one connection-level `Enable MCAce` prompt; create no assertion |
-| `ENABLEMENT_PENDING -> CONSENT_SIGNED` | Exact unexpired request and explicit `Enable MCAce` | Sign one response with the bound client key; all later evidence/federation requests inherit it |
+| `ENABLEMENT_PENDING -> CONSENT_SIGNED` | Explicit `Enable MCAce`; human-origin source export permit is unused | Atomically bind one assertion ID **and the SHA-256 of its exact verified request payload** in flight. A concurrent duplicate, a changed request reusing the ID, and every distinct/inherited export are rejected. Only a local pre-send/send failure releases that exact ID+digest pair for retry; handing its response to transport permanently consumes the permit. |
 | `CONSENT_SIGNED -> GRANT_READY` | Source verifies client signature, pending request, local session, both configured key IDs, time, and local verification | Sign only `FEDERATION_SOURCE_LOCALLY_VERIFIED` |
 | `GRANT_READY -> CARRIED` | Fabric verifies source signature, consent signature, consent hash, all bindings, original request, key, audience, and time | Store bounded grant/key only in memory |
-| `CARRIED -> TARGET_LOCAL_VERIFIED` | Target independently returns local `VERIFIED` using the same short-lived client key | Preserve local trust; make PoP possible |
-| `TARGET_LOCAL_VERIFIED -> IMPORT_PENDING` | Current target session ID and fresh server challenge available | Sign and reserve one complete presentation under the accepted connection enablement |
-| `IMPORT_PENDING -> PRESENTING` | Exact reservation remains current/unexpired and connection enablement remains accepted | Send only that prepared presentation and burn the vault entry on transport handoff |
+| `CARRIED -> TARGET_LOCAL_VERIFIED` | Client-signed `ClientHello` and `AuthRequest` carry the same exact `H_A`; target independently returns local `VERIFIED` and a target-signed `AuthResult` echoing `H_A` | Freeze the exact source-signed assertion identity in the target session; preserve local trust; make PoP possible |
+| `TARGET_LOCAL_VERIFIED -> IMPORT_PENDING` | Current target session ID, fresh server challenge, exact claim, and grant deadline remain live | Sign and reserve one complete presentation under provisional inherited enablement |
+| `IMPORT_PENDING -> PRESENTING` | Exact reservation and provisional claim remain current/unexpired | Send only that prepared presentation |
+| `PRESENTING -> CONNECTION_BOUND` | Local transport handoff succeeds, exact vault commit wins, and its one-shot claim-bound receipt is consumed | Burn the grant, promote only this target connection, activate heartbeat/observation; export budget remains zero |
 | `PRESENTING -> OBSERVED` | All validation succeeds and replay accept wins atomically | Install bounded remote-observation summary only |
 | Any error/absence | Bounds, capacity, direction, pin, signature, time, session, challenge, player, or replay failure | Install nothing; do not alter local player state |
 
@@ -294,6 +358,7 @@ counters so operators can distinguish a configured feature from a healthy one.
 | Mixed consent and assertion | Source assertion binds full signed-consent hash; all common fields compared | Whole grant rejected |
 | Forged source claim | Ed25519 assertion signature and pinned source key ID | Whole grant/presentation rejected |
 | Stolen grant | Target-session PoP by retained source client key | Grant alone is insufficient |
+| Target session established before source authorization | Exact complete signed-assertion hash is carried by client-signed `ClientHello`/`AuthRequest`, echoed by target-signed `AuthResult`, retained in the authenticated target session, and matched again by presentation proof | Causality is cryptographic; independent source/target wall clocks are not compared |
 | Capture-first presentation race | PoP binds current target session, player, challenge, and assertion | Other session/challenge fails without consuming replay |
 | Replay after success | Final atomic bounded replay accept | Same assertion rejected in that target process |
 | Invalid packet consumes nonce first | Replay mutation occurs only after all checks | Legitimate presentation remains usable |
@@ -312,7 +377,7 @@ counters so operators can distinguish a configured feature from a healthy one.
 | --- | --- | --- |
 | `FED-PROTO-01` | Four distinct packet types and exact directions | Wrong-direction and partial messages rejected |
 | `FED-BIND-01` | Source/target IDs and key IDs, player, client key, source session, assertion ID/nonce, policy, disclosure, issue/expiry | Every one-field mismatch rejected |
-| `FED-CONSENT-01` | One real Fabric connection-level `Enable MCAce` decision, decline, close, timeout | One prompt renders exact fingerprints/fields/expiry; later source-export and target-import operations inherit it; all other outcomes have no player effect |
+| `FED-CONSENT-01` | One real Fabric connection-level `Enable MCAce` decision, decline, close, policy expiry, and 30-second monotonic timeout | One prompt honestly states that one future source-selected pinned target is not yet known and no second prompt appears; source export is atomic one-shot, inherited export is rejected, and all other outcomes emit no MCAce frame and have no player effect |
 | `FED-GRANT-01` | Valid grant and mixed-consent/assertion, wrong source key, stale, oversized, unknown enum/field | Only exact pinned grant enters Fabric vault |
 | `FED-LOCAL-01` | Target local unknown/failed/missing vs local `VERIFIED` | Presentation accepted only after independent local `VERIFIED`; remote state never changes result |
 | `FED-POP-01` | Wrong target/player/session/challenge/key, tampered proof, stale proof | Rejected; valid presentation still succeeds afterward |
@@ -320,9 +385,9 @@ counters so operators can distinguish a configured feature from a healthy one.
 | `FED-REPLAY-01` | Two concurrent valid presentations | Exactly one atomic winner in one target process |
 | `FED-REPLAY-02` | Target restart while malicious client retains unexpired grant | Old target-session PoP is rejected; a newly signed target-session PoP is deliberately re-observed after the in-memory target replay guard is lost. This is an explicit bounded residual, not durable replay protection and has no enforcement effect. |
 | `FED-TIME-01` | Expiry, >5-minute TTL, future issue, excess skew, overflow/rollback | Strict bounded failure |
-| `FED-PIN-01` | Missing/wrong/rotated source or target offline pin | No accepted grant/presentation; no local player effect |
+| `FED-PIN-01` | Missing/wrong/rotated source or target offline pin, or reused local/peer identity key | No accepted grant/presentation; startup/reload rejects equal local/peer fingerprints; no local player effect |
 | `FED-PRIV-01` | Logs/audit/config/disk scan | No grant, nonce, challenge, private key, evidence, manifest, risk, IP, or path leakage |
-| `FED-VAULT-01` | Use, expiry, discard, capacity, client shutdown; source disconnect after delivery | Clears on terminal cases; survives only intended post-delivery source disconnect |
+| `FED-VAULT-01` | Use, expiry, discard, capacity, client shutdown; source disconnect after delivery; near-expiry target claim | Clears on terminal cases; survives only intended post-delivery source disconnect; target remains provisional until presentation commit |
 | `FED-PROXY-01` | Velocity->Velocity, Velocity->Bungee, Bungee->Velocity, Bungee->Bungee | Explicit source issue through target observation with exact pins and process cleanup |
 | `FED-E2E-01` | Real Fabric source/target transition | GUI consent, grant carry, independent target verification, one PoP presentation, expiry/cleanup recorded |
 | `FED-ISOLATE-01` | Add/remove valid/invalid/missing federation data around every local policy action | Trust, risk, disposition, route, message, disconnect, ban, and evidence behavior unchanged |
@@ -342,15 +407,107 @@ both ends, unchanged target trust/risk/Paper admission, and zero owned processes
 It intentionally records `fabric_gui_coverage=false`, so `FED-CONSENT-01` and
 `FED-E2E-01` still require a real Fabric GUI transition.
 
-`scripts/fabric-federation-gui-handoff-smoke.ps1` is now the default-deny V2
+`scripts/fabric-federation-gui-handoff-smoke.ps1` is now the default-deny V5
 contract for exactly `1.21.11`, `26.1.2`, or `26.2`. It reuses the platform
 wrapper's exact target/cache/artifact authority, launches current Velocity or
 Bungee source and target proxies plus source/target Paper, loads only the selected
-final Fabric artifact, and publishes a target-bound report/binding/commit triplet.
-Its PowerShell 7 and Windows PowerShell 5 static contract tests pass. The
-required runtime markers are one connection-level enablement request/render/accept
-triplet plus source/target inheritance markers. Static validation is not a
-human-executed PASS, and no such V2 PASS is retained yet.
+final release-bundle Fabric JAR, and produces exactly eight native files:
+`report.json`, `binding.json`, `commit.json`,
+`visible-gui-signing-request.json`, `visible-gui-attestation.json`,
+`visible-gui.png`, `runtime-events.jsonl`, and `post-run-receipt.json`.
+
+The current GUI exchange is `MCACE_VISIBLE_GUI_SIGNING_REQUEST_V1` plus
+`MCACE_VISIBLE_GUI_ATTESTATION_V3`; the older GUI-attestation V2 shape is retained
+only as historical context and is not accepted by the V5 release gate. An
+`-Execute` caller must now provide three initially absent, out-of-tree paths:
+
+```powershell
+-VisibleGuiSigningRequestPath C:\mcace-exchange\visible-gui-signing-request.json `
+-VisibleGuiScreenshotPath C:\mcace-exchange\visible-gui.png `
+-VisibleGuiAttestationPath C:\mcace-exchange\visible-gui-attestation.json
+```
+
+Those three paths must be distinct from each other and from every post-run
+exchange path. The runner resolves them without following a replacement leaf,
+binds each canonical full path by SHA-256, and rejects a pre-existing leaf or a
+path inside the source tree. Once the prompt is visibly rendered, the external
+GUI operator writes the PNG. The runner opens and identity-checks that exact PNG,
+holds a no-share mutation/delete lock, and atomically creates the canonical
+signing request with `FileMode.CreateNew`. It reads the request back through the
+same open handle, checks its identity, length, and SHA-256, and keeps both request
+and PNG locked through the one human `Enable MCAce` acceptance.
+
+The canonical request gives an out-of-process signer every non-derivable value
+needed to construct the exact V3 attestation: schema and signing domains,
+source/artifact commits, product and Fabric target, source/target proxy route,
+release-manifest and final Fabric-JAR identity, run and GUI attempt IDs,
+challenge and issue/render/create/expiry times, client process incarnation,
+the three canonical path hashes, frozen screenshot bytes/dimensions/decoded-pixel
+hash, assertion set, field order, payload format, approved key ID, trust-root
+hash, and signature algorithm. The console prints only the request/receipt/
+screenshot paths plus non-secret request hash, GUI attempt ID, and expiry; the
+external private key never enters the repository or runner.
+
+The external signer reads that request, validates its expiry and bindings,
+constructs `MCACE_VISIBLE_GUI_ATTESTATION_V3`, signs the canonical V3 payload,
+and atomically creates the attestation leaf. The attestation signs the exact
+request SHA-256 and GUI attempt ID, so a missing field, changed JAR or screenshot,
+different path, replayed attempt/challenge, expired request, self-approved key,
+or substituted request is rejected. The runner opens and locks the attestation,
+verifies it while the prompt is still visible, records exactly one human accept,
+and verifies the same receipt again against the exact acceptance time. Target
+import inherits that single source decision and never creates a second prompt.
+
+The GUI receipt and post-run receipt use different RSA public keys, different
+out-of-band root files, and different independently approved SHA-256 pins.
+Protected CI or an external release policy supplies those approvals through
+`MCACE_RELEASE_APPROVED_FEDERATION_GUI_TRUST_ROOT_SHA256` and
+`MCACE_RELEASE_APPROVED_FEDERATION_POSTRUN_TRUST_ROOT_SHA256`; caller-supplied root
+paths and expected hashes do not authorize themselves.
+
+After runtime completion, the runner deletes mutable runtime material, writes the
+immutable report and binding, and emits an external post-run signing request. The
+external supervisor's detached receipt signs the release/artifact commits, product,
+target and route, V4 release-manifest hash, exact Fabric/Paper/source-proxy/
+target-proxy JAR hashes, operation and challenge, all six process incarnation IDs,
+GUI receipt and decoded-pixel hashes, raw runtime-ledger hash/head/seal/count, and
+the raw report/binding hashes and byte counts. Only after that receipt verifies does
+the runner copy its exact bytes and write `commit.json`; the receipt is deliberately
+absent from report/binding to avoid a signature cycle, while commit and publisher
+index bind its raw hash. The GUI signing request does not create a cycle either:
+the V3 attestation signs the already-frozen request hash, the report binds the
+request and attestation identities, the binding binds that immutable report,
+and the post-run receipt signs the report/binding and GUI evidence hashes. The
+native publisher preserves the eight exact files under
+`MCACE_FABRIC_FEDERATION_GUI_HANDOFF_EVIDENCE_INDEX_V5`. V4 handoff documents,
+legacy indexes, V2 GUI attestations, fixture roots/receipts, equal signer keys,
+missing receipts, and repository-contained or unapproved roots are
+release-invalid. `-ReportOnly` reopens the exact eight-file set and revalidates
+the request, V3 attestation, report/binding, post-run receipt, release bundle,
+and publisher bindings. Its PowerShell 7 and Windows PowerShell 5 static contract
+tests pass.
+
+The V5 index exposes `gui_attempt_id`, `gui_challenge_nonce`,
+`postrun_operation_attempt_id`, and `postrun_challenge_nonce`. The publisher holds
+a repository-wide cross-process mutex across sibling replay scan and atomic install;
+neither concurrent publication nor `-Force` may reuse any one of those signed
+values. Readiness repeats the repository-wide sibling scan, preventing a copied
+eight-file package or duplicated index from becoming a second release witness.
+
+The V5 receipt's `release_source_commit` and manifest hash describe the exact
+capture bundle at artifact commit A. After the eight evidence files are tracked,
+protected CI runs at descendant R with a final `R/A` bundle. Readiness validates
+the historical A manifest through the receipt, validates the current R manifest
+as an exact V4 bundle, and cross-binds the Fabric, Paper, source-proxy, and
+target-proxy JAR bytes. It deliberately does not require the A manifest hash to
+equal the R manifest hash; only the commit metadata is allowed to differ, while
+the runtime JAR hashes must remain exact.
+
+The required runtime markers are one connection-level enablement request/render/accept
+triplet, one source-export permit reservation, target inheritance, and target
+promotion after presentation commit. Static validation is not a
+human-executed PASS, and no production V5 PASS is retained yet because the two
+external private keys and signatures are not generated or stored in this repository.
 
 A passing execution requires one rendered, human-selected connection-level
 `Enable MCAce` decision; independent target-local `VERIFIED`; target observation;

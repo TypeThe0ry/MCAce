@@ -1,18 +1,39 @@
 package com.ellan.mcace.fabric;
 
 import com.ellan.mcace.client.policy.VerifiedPolicy;
+import java.time.Clock;
+import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
+import java.util.function.LongSupplier;
 import net.minecraft.client.MinecraftClient;
 
 /**
- * Owns the single connection-bound MCAce enablement decision.  No decision is persisted and
- * closing the screen is exactly the same as declining it.
+ * Owns the single connection-bound MCAce enablement decision. No decision is persisted and
+ * closing the screen is exactly the same as declining it. Federation inheritance is carried by
+ * the exact one-time vault grant rather than by this screen controller.
  */
 final class MCAceEnablementController {
+    private static final long MAX_DECISION_AGE_MILLIS = Duration.ofSeconds(30).toMillis();
+    private final Clock clock;
+    private final LongSupplier monotonicMillis;
     private Pending pending;
+
+    MCAceEnablementController() {
+        this(Clock.systemUTC(), () -> System.nanoTime() / 1_000_000L);
+    }
+
+    MCAceEnablementController(Clock clock) {
+        this(clock, () -> System.nanoTime() / 1_000_000L);
+    }
+
+    MCAceEnablementController(Clock clock, LongSupplier monotonicMillis) {
+        this.clock = Objects.requireNonNull(clock, "clock");
+        this.monotonicMillis = Objects.requireNonNull(monotonicMillis, "monotonicMillis");
+    }
 
     void request(MinecraftClient client, VerifiedPolicy policy, Set<String> requestedFiles,
             Runnable rendered, Consumer<Set<String>> enabled, Runnable declined) {
@@ -24,23 +45,43 @@ final class MCAceEnablementController {
         Objects.requireNonNull(declined, "declined");
         cancel(client);
         List<String> files = requestedFiles.stream().sorted().toList();
-        if (!validDisplayRequest(files)) {
+        long nowEpochMs = clock.millis();
+        long nowMonotonicMillis = monotonicMillis.getAsLong();
+        long deadlineEpochMs = decisionDeadlineEpochMs(policy, nowEpochMs);
+        long monotonicDeadlineMillis = decisionMonotonicDeadlineMillis(nowMonotonicMillis);
+        if (!validDisplayRequest(files)
+                || !decisionStillCurrent(
+                        deadlineEpochMs, nowEpochMs,
+                        monotonicDeadlineMillis, nowMonotonicMillis)) {
             declined.run();
             return;
         }
-        Pending next = new Pending(files, enabled, declined, client.currentScreen);
+        Pending next = new Pending(
+                files, enabled, declined, client.currentScreen,
+                deadlineEpochMs, monotonicDeadlineMillis);
         pending = next;
-        client.setScreen(ExplicitFileConsentScreen.forEnablement(
+        next.screen = ExplicitFileConsentScreen.forEnablement(
                 next.previous(), policy, files, rendered,
-                decision -> decide(client, next, decision)));
+                decision -> decide(client, next, decision));
+        client.setScreen(next.screen);
+    }
+
+    void tick(MinecraftClient client) {
+        Pending current = pending;
+        if (current == null) return;
+        if (!decisionStillCurrent(
+                    current.deadlineEpochMs, clock.millis(),
+                    current.monotonicDeadlineMillis, monotonicMillis.getAsLong())
+                || client.currentScreen != current.screen) {
+            decide(client, current, false);
+        }
     }
 
     void cancel(MinecraftClient client) {
         Pending current = pending;
         pending = null;
         if (current == null) return;
-        if (client.currentScreen instanceof ExplicitFileConsentScreen screen
-                && screen.previous() == current.previous()) {
+        if (client.currentScreen == current.screen) {
             client.setScreen(current.previous());
         }
         current.declined().run();
@@ -55,18 +96,86 @@ final class MCAceEnablementController {
                 && path.length() <= 512 && path.chars().noneMatch(Character::isISOControl));
     }
 
+    static long decisionDeadlineEpochMs(VerifiedPolicy policy, long nowEpochMs) {
+        Objects.requireNonNull(policy, "policy");
+        long localDeadline;
+        try {
+            localDeadline = Math.addExact(nowEpochMs, MAX_DECISION_AGE_MILLIS);
+        } catch (ArithmeticException exception) {
+            localDeadline = Long.MAX_VALUE;
+        }
+        return Math.min(policy.policy().getExpiresAtEpochMs(), localDeadline);
+    }
+
+    static boolean decisionStillCurrent(long deadlineEpochMs, long nowEpochMs) {
+        return deadlineEpochMs > 0L && nowEpochMs < deadlineEpochMs;
+    }
+
+    static long decisionMonotonicDeadlineMillis(long nowMonotonicMillis) {
+        try {
+            return Math.addExact(nowMonotonicMillis, MAX_DECISION_AGE_MILLIS);
+        } catch (ArithmeticException exception) {
+            return Long.MAX_VALUE;
+        }
+    }
+
+    static boolean decisionStillCurrent(
+            long deadlineEpochMs,
+            long nowEpochMs,
+            long monotonicDeadlineMillis,
+            long nowMonotonicMillis) {
+        return decisionStillCurrent(deadlineEpochMs, nowEpochMs)
+                && nowMonotonicMillis < monotonicDeadlineMillis;
+    }
+
+    static Optional<Set<String>> inheritedFederationFiles(
+            Set<String> sourceApprovedFiles, Set<String> targetRequestedFiles) {
+        Objects.requireNonNull(sourceApprovedFiles, "sourceApprovedFiles");
+        Objects.requireNonNull(targetRequestedFiles, "targetRequestedFiles");
+        List<String> requested = targetRequestedFiles.stream().sorted().toList();
+        if (!validDisplayRequest(requested) || !sourceApprovedFiles.containsAll(requested)) {
+            return Optional.empty();
+        }
+        return Optional.of(Set.copyOf(requested));
+    }
+
     private void decide(MinecraftClient client, Pending current, boolean allow) {
         if (!isCurrent(pending, current)) return;
         pending = null;
-        client.setScreen(current.previous());
-        if (allow) current.enabled().accept(Set.copyOf(current.files()));
+        if (client.currentScreen == current.screen) {
+            client.setScreen(current.previous());
+        }
+        if (allow && decisionStillCurrent(
+                current.deadlineEpochMs, clock.millis(),
+                current.monotonicDeadlineMillis, monotonicMillis.getAsLong())) {
+            current.enabled().accept(Set.copyOf(current.files()));
+        }
         else current.declined().run();
     }
 
-    private record Pending(List<String> files, Consumer<Set<String>> enabled, Runnable declined,
-                           net.minecraft.client.gui.screen.Screen previous) {
-        private Pending {
-            files = List.copyOf(files);
+    private static final class Pending {
+        private final List<String> files;
+        private final Consumer<Set<String>> enabled;
+        private final Runnable declined;
+        private final net.minecraft.client.gui.screen.Screen previous;
+        private final long deadlineEpochMs;
+        private final long monotonicDeadlineMillis;
+        private ExplicitFileConsentScreen screen;
+
+        private Pending(List<String> files, Consumer<Set<String>> enabled, Runnable declined,
+                net.minecraft.client.gui.screen.Screen previous, long deadlineEpochMs,
+                long monotonicDeadlineMillis) {
+            this.files = List.copyOf(files);
+            this.enabled = enabled;
+            this.declined = declined;
+            this.previous = previous;
+            this.deadlineEpochMs = deadlineEpochMs;
+            this.monotonicDeadlineMillis = monotonicDeadlineMillis;
         }
+
+        private List<String> files() { return files; }
+        private Consumer<Set<String>> enabled() { return enabled; }
+        private Runnable declined() { return declined; }
+        private net.minecraft.client.gui.screen.Screen previous() { return previous; }
     }
 }

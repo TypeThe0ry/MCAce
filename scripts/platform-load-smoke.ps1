@@ -632,6 +632,27 @@ function Test-TextContains(
     return $null -ne $Content -and $Content.IndexOf($Needle, $Comparison) -ge 0
 }
 
+function Normalize-FabricConsentEvidence([System.Collections.IDictionary]$Evidence) {
+    # Schema-8 compatibility fields describe the one visible connection-enablement
+    # screen.  They are aliases, not evidence that another explicit-file screen was
+    # rendered later in the connection.
+    $Evidence['explicit_file_requested'] = [bool]$Evidence['enablement_requested']
+    $Evidence['explicit_file_rendered'] = [bool]$Evidence['enablement_rendered']
+    $Evidence['explicit_file_accepted'] = [bool]$Evidence['enablement_accepted']
+
+    # GAME_RENDER_FRAME inherits that accepted connection decision.  A producer
+    # that observes both a separately rendered frame prompt and inheritance is
+    # contradictory and must fail rather than publish two-human-confirmation data.
+    if ([bool]$Evidence['game_render_frame_rendered'] -and
+            [bool]$Evidence['game_render_frame_inherited']) {
+        throw 'PLATFORM_SMOKE_GAME_RENDER_FRAME_RENDERED_AND_INHERITED'
+    }
+    if ([bool]$Evidence['game_render_frame_inherited']) {
+        $Evidence['game_render_frame_rendered'] = $false
+        $Evidence['game_render_frame_allowed'] = $true
+    }
+}
+
 function Update-FabricConsentEvidence(
         [System.Collections.IDictionary]$Evidence,
         [string]$LogPath) {
@@ -666,14 +687,7 @@ function Update-FabricConsentEvidence(
             $Evidence[$entry.Key] = $true
         }
     }
-    # Compatibility aliases remain in the sanitized report for consumers of schema 7.  The
-    # explicit-file fields now describe the single enablement screen, not a second prompt.
-    if ([bool]$Evidence['enablement_requested']) { $Evidence['explicit_file_requested'] = $true }
-    if ([bool]$Evidence['enablement_rendered']) { $Evidence['explicit_file_rendered'] = $true }
-    if ([bool]$Evidence['enablement_accepted']) { $Evidence['explicit_file_accepted'] = $true }
-    if ([bool]$Evidence['game_render_frame_inherited']) {
-        $Evidence['game_render_frame_consent_allowed'] = $true
-    }
+    Normalize-FabricConsentEvidence $Evidence
 }
 
 function Get-FabricGuiStage(
@@ -690,16 +704,23 @@ function Get-FabricGuiStage(
 }
 
 function Test-FabricGuiCoverage([System.Collections.IDictionary]$Evidence) {
+    Normalize-FabricConsentEvidence $Evidence
     return [bool]$Evidence['enablement_requested'] -and
         [bool]$Evidence['enablement_rendered'] -and
         [bool]$Evidence['enablement_accepted'] -and
+        [bool]$Evidence['explicit_file_requested'] -and
+        [bool]$Evidence['explicit_file_rendered'] -and
+        [bool]$Evidence['explicit_file_accepted'] -and
         [int]$Evidence['explicit_file_manifest_entries'] -eq 1 -and
         [bool]$Evidence['authenticated']
 }
 
 function Test-FabricEvidenceCoverage([System.Collections.IDictionary]$Evidence) {
+    Normalize-FabricConsentEvidence $Evidence
     return (Test-FabricGuiCoverage $Evidence) -and
         [bool]$Evidence['game_render_frame_requested'] -and
+        -not [bool]$Evidence['game_render_frame_rendered'] -and
+        [bool]$Evidence['game_render_frame_allowed'] -and
         [bool]$Evidence['game_render_frame_inherited'] -and
         [bool]$Evidence['game_render_frame_completed']
 }
@@ -722,6 +743,7 @@ function New-SanitizedReleaseReport(
         [int]$AssertionCount,
         [int]$RemainingOwnedProcessCount,
         [System.Collections.IDictionary]$VelocityPolicyTuple) {
+    Normalize-FabricConsentEvidence $ConsentEvidence
     return [ordered]@{
         schema = $reportSchema
         generated_at = [DateTimeOffset]::UtcNow.ToString('o')
@@ -1681,8 +1703,8 @@ function Assert-PassingReportRaw([string]$Raw, [switch]$RequireFullFabricEvidenc
         'explicit_file_manifest_entries_observed',
         'explicit_file_consent_requested', 'explicit_file_consent_rendered',
         'explicit_file_consent_accepted', 'fabric_authenticated', 'fabric_gui_coverage')
-    $evidenceFields = @('game_render_frame_requested', 'game_render_frame_consent_rendered',
-        'game_render_frame_consent_allowed', 'game_render_frame_consent_inherited',
+    $evidenceFields = @('game_render_frame_requested', 'game_render_frame_consent_allowed',
+        'game_render_frame_consent_inherited',
         'game_render_frame_completed',
         'fabric_evidence_coverage', 'evidence_audit_summary_observed')
     foreach ($name in $guiFields) {
@@ -1694,6 +1716,13 @@ function Assert-PassingReportRaw([string]$Raw, [switch]$RequireFullFabricEvidenc
         if ([bool]$report.$name -ne [bool]$report.fabric_evidence_requested) {
             throw "PLATFORM_SMOKE_REPORT_EVIDENCE_BOUNDARY_INVALID: $name"
         }
+    }
+    if ([bool]$report.game_render_frame_consent_rendered -and
+            [bool]$report.game_render_frame_consent_inherited) {
+        throw 'PLATFORM_SMOKE_REPORT_GAME_RENDER_FRAME_RENDERED_AND_INHERITED'
+    }
+    if ([bool]$report.game_render_frame_consent_rendered) {
+        throw 'PLATFORM_SMOKE_REPORT_GAME_RENDER_FRAME_RENDERED_INVALID'
     }
     if ($report.fabric_evidence_requested -and -not $report.fabric_client_requested) {
         throw 'PLATFORM_SMOKE_REPORT_EVIDENCE_WITHOUT_CLIENT_INVALID'
@@ -2313,7 +2342,7 @@ try {
             Update-FabricConsentEvidence $fabricConsentEvidence $fabricLog
             $fabricGuiStage = Get-FabricGuiStage $fabricConsentEvidence $fabricGuiStage
             if (-not (Test-FabricEvidenceCoverage $fabricConsentEvidence)) {
-                throw 'Fabric evidence flow completed without its full requested/rendered/allowed/completed marker chain'
+                throw 'Fabric evidence flow completed without its full requested/non-rendered/allowed/inherited/completed marker chain'
             }
             $evidenceAudit = Join-Path $velocityRoot 'plugins\mcace\evidence-audit.log'
             $auditDeadline = [DateTime]::UtcNow.AddSeconds(30)

@@ -10,6 +10,7 @@ public final class MCAceVelocityChannels {
     public static final MinecraftChannelIdentifier PAYLOAD = MinecraftChannelIdentifier.create("mcace", "payload");
     public static final MinecraftChannelIdentifier ADMISSION = MinecraftChannelIdentifier.create("mcace", "admission");
     public static final MinecraftChannelIdentifier BACKEND_CONTEXT = MinecraftChannelIdentifier.create("mcace", "context");
+    public static final MinecraftChannelIdentifier BACKEND_AUTHORITY = MinecraftChannelIdentifier.create("mcace", "authority");
 
     private MCAceVelocityChannels() {
     }

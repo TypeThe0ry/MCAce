@@ -39,6 +39,11 @@ try { & $target -Resume -ReportOnly 2>&1 | Out-Null }
 catch { $resumeOnly = $_.Exception.Message }
 Assert-True ($resumeOnly -like '*SERVER_VERSION_MATRIX_RESUME_EXECUTE_REQUIRED*') `
     'resume without Execute did not fail closed'
+$missingSource = $null
+try { & $target -ReportOnly -ExpectedSourceCommit '' 2>&1 | Out-Null }
+catch { $missingSource = $_.Exception.Message }
+Assert-True ($missingSource -like '*SERVER_VERSION_MATRIX_SOURCE_COMMIT_REQUIRED*') `
+    'ReportOnly without an exact artifact source commit did not fail closed'
 
 $expectedAssets = @(
     @('paper','1.21.11','132','5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba','54846016','STABLE','21'),
@@ -61,11 +66,29 @@ foreach ($token in @(
     "'1.21.11'=774", "'26.1.2'=775", "'26.2'=776",
     "'1.21.11'=21", "'26.1.2'=25", "'26.2'=25",
     "'1.21.11'='0x30'", "'26.1.2'='0x31'", "'26.2'='0x31'",
-    'MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V1',
-    'MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V1',
-    'MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V1',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V4',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V4',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V4',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V2',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V2',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V2',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V3',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V3',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V3',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_SUPERVISOR_SIGNING_REQUEST_V1',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_SUPERVISOR_RECEIPT_V1',
+    'MCACE_SERVER_VERSION_MATRIX_SUPERVISOR_TRUST_ROOT_V1',
+    'MCACE_RELEASE_BUNDLE_V4',
+    'MCACE_RELEASE_APPROVED_MATRIX_SUPERVISOR_TRUST_ROOT_SHA256',
+    'OUT_OF_BAND_PINNED_MATRIX_SUPERVISOR_TRUST_ROOT',
+    'EXTERNALLY_SIGNED_MATRIX_SUPERVISOR_RECEIPT',
+    'RSA_PKCS1_SHA256',
     'MCACE_PREPARED_TREE_SHA256_V1',
-    'MCACE_SERVER_VERSION_PROCESS_MATRIX_CHECKPOINT_V1',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_CHECKPOINT_V2',
+    'ExpectedSourceCommit', 'ProductVersion',
+    'SERVER_VERSION_MATRIX_SOURCE_COMMIT_REQUIRED',
+    'SERVER_VERSION_MATRIX_SOURCE_WORKTREE_DIRTY',
+    '-PmcaceSourceCommit=', '-PmcaceArtifactSourceCommit=', '-PmcaceProductVersion=',
     'Read-ExecutionCheckpoint', 'Write-ExecutionCheckpoint',
     'SERVER_VERSION_MATRIX_RESUME_EXECUTE_REQUIRED')) {
     Assert-Contains $source $token "matrix/protocol/schema token missing: $token"
@@ -102,8 +125,14 @@ foreach ($token in @(
     'Resolve-CachedJdk 25','java_executable_sha256','modules_sha256','jvm_sha256',
     'source_manifest_sha256','wrapper_sha256','wrapper_test_sha256',
     'runtime_assets_manifest_sha256','prepared_manifest_sha256','product_jars',
+    'source_commit','product_version','report_bytes','binding_bytes',
     'server_asset_identity','proxy_asset_identity','raw_report_sha256',
-    'raw_report_last_write_at','prepared_tree_sha256','sensitive_artifact_count')) {
+    'raw_report_last_write_at','prepared_tree_sha256','sensitive_artifact_count',
+    'operation_attempt_id','challenge_nonce','challenge_issued_at','receipt_expires_at',
+    'ordered_raw_report_set_sha256','case_runtime_commitment_sha256',
+    'process_incarnation_sha256','process_identity_count',
+    'release_bundle_manifest_sha256','release_bundle_artifact_set_sha256',
+    'matrix_product_jar_set_sha256')) {
     Assert-Contains $source $token "binding token missing: $token"
 }
 Assert-True ($source -match 'stable_case_count\s*=\s*10' -and
@@ -115,7 +144,17 @@ foreach ($token in @(
     'Get-Int32BigEndianBytes','Get-Int64BigEndianBytes','TransformBlock',
     'Assert-NoSensitiveRunArtifacts','forwarding.secret','private[-_]?key',
     'PRIVATE KEY-----','Assert-RunRootBytes','Get-RunProcesses',
-    'remaining_run_processes','cleanup_process_ids','schema -ne 4')) {
+    'remaining_run_processes','cleanup_process_ids','schema -ne 4',
+    'Assert-SupervisorEvidencePackage','Read-MatrixSupervisorTrustRoot',
+    "[Guid]::NewGuid().ToString('N')",'New-Object byte[] 32','RandomNumberGenerator',
+    'SERVER_VERSION_MATRIX_SIGNING_REQUEST_READY',
+    'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_TIMEOUT',
+    'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_EXPIRED_OR_TIME_INVALID',
+    'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_SIGNATURE_INVALID',
+    'SERVER_VERSION_MATRIX_SUPERVISOR_TRUST_ROOT_MUST_BE_OUT_OF_REPO',
+    'SERVER_VERSION_MATRIX_SELF_SUPERVISOR_TRUST_ROOT_REJECTED',
+    'SERVER_VERSION_MATRIX_SUPERVISOR_TRUST_ROOT_PIN_MISMATCH',
+    'test_fixture')) {
     Assert-Contains $source $token "runtime byte/cleanup token missing: $token"
 }
 
@@ -152,13 +191,30 @@ $reportWrite = $source.IndexOf('Write-NewFileBytes $stagingReport $reportBytes',
     [StringComparison]::Ordinal)
 $bindingWrite = $source.IndexOf("Write-NewFileBytes (Join-Path `$stagingRoot 'binding.json') `$bindingBytes",
     [StringComparison]::Ordinal)
+$signingRequestWrite = $source.IndexOf("Write-NewFileBytes (Join-Path `$stagingRoot 'supervisor-signing-request.json') `$signingRequestBytes",
+    [StringComparison]::Ordinal)
+$externalRequestWrite = $source.IndexOf('Write-NewFileBytes $externalRequest $signingRequestBytes',
+    [StringComparison]::Ordinal)
+$supervisorReceiptWrite = $source.IndexOf("Write-NewFileBytes (Join-Path `$stagingRoot 'supervisor-receipt.json') ([byte[]]`$receiptEvidence.bytes)",
+    [StringComparison]::Ordinal)
 $commitWrite = $source.IndexOf("Write-NewFileBytes (Join-Path `$stagingRoot 'commit.json') `$commitBytes",
     [StringComparison]::Ordinal)
-$publishMove = $source.IndexOf('[IO.Directory]::Move($stagingRoot, $finalRoot)',
+$publishMove = $source.IndexOf('[IO.Directory]::Move($stagingRoot,$finalRoot)',
     [StringComparison]::Ordinal)
 Assert-True ($reportWrite -ge 0 -and $reportWrite -lt $bindingWrite -and
-    $bindingWrite -lt $commitWrite -and $commitWrite -lt $publishMove) `
-    'report/binding/commit/rename publication order is invalid'
+    $bindingWrite -lt $signingRequestWrite -and
+    $signingRequestWrite -lt $externalRequestWrite -and
+    $externalRequestWrite -lt $supervisorReceiptWrite -and
+    $supervisorReceiptWrite -lt $commitWrite -and $commitWrite -lt $publishMove) `
+    'report/binding/signing-request/external-receipt/commit/rename publication order is invalid'
+
+foreach ($forbiddenPrivateKeySurface in @(
+        '$SupervisorPrivateKey', '$SupervisorPrivateKeyPath', '$PrivateKeyPath',
+        'ImportRSAPrivateKey', 'ImportPkcs8PrivateKey', 'SignData(')) {
+    Assert-True ($source.IndexOf($forbiddenPrivateKeySurface,
+            [StringComparison]::OrdinalIgnoreCase) -lt 0) `
+        "producer must not accept or embed a supervisor private key: $forbiddenPrivateKeySurface"
+}
 
 function Get-FunctionText([string]$Name) {
     $matches = @($ast.FindAll({
@@ -369,6 +425,8 @@ Set-StrictMode -Version Latest
 `$ErrorActionPreference = 'Stop'
 `$repoRoot = `$FixtureRepoRoot
 `$invocationRoot = `$FixtureInvocationRoot
+`$ExpectedSourceCommit = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+`$ProductVersion = '0.0.1'
 $($invokeFunctionNames | ForEach-Object { Get-FunctionText $_ } | Out-String)
 `$fixtureCurrent = [pscustomobject]@{
     jdk21 = [pscustomobject]@{ home = `$FixtureJdkHome }

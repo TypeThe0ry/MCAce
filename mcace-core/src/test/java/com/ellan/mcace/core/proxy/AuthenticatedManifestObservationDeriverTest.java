@@ -11,6 +11,8 @@ import com.ellan.mcace.core.session.AuthenticatedManifest;
 import com.ellan.mcace.protocol.generated.AuthRequest;
 import com.ellan.mcace.protocol.generated.FileEntry;
 import com.ellan.mcace.protocol.generated.IntegrityScopeManifest;
+import com.ellan.mcace.protocol.generated.LoadedModEntry;
+import com.ellan.mcace.protocol.generated.LoadedModOriginKind;
 import com.ellan.mcace.protocol.generated.ModEntry;
 import com.ellan.mcace.protocol.generated.SecurityPolicy;
 import com.google.protobuf.ByteString;
@@ -47,6 +49,58 @@ final class AuthenticatedManifestObservationDeriverTest {
         assertEquals(ObservationOrigin.CLIENT_REPORTED, unknown.origin());
         assertEquals(Confidence.LOW, unknown.confidence());
         assertTrue(result.consistencyIssues().contains("mods-scope-entry-without-matching-mod-list-entry"));
+    }
+
+    @Test
+    void marksOnlyAnExactRuntimeAndManifestBoundModAsLoaded() {
+        byte[] hash = new byte[32]; hash[0] = 7;
+        AuthRequest request = AuthRequest.newBuilder()
+                .addMods(ModEntry.newBuilder().setId("loaded.mod").setVersion("1.0")
+                        .setFilename("loaded.jar").setFileSize(10).setSha256(ByteString.copyFrom(hash)))
+                .addLoadedMods(LoadedModEntry.newBuilder().setId("loaded.mod").setVersion("1.0")
+                        .setOriginKind(LoadedModOriginKind.LOADED_MOD_ORIGIN_MODS_FILE)
+                        .setOriginFilename("loaded.jar").setOriginFileSize(10)
+                        .setOriginSha256(ByteString.copyFrom(hash)).setOriginManifestMatched(true))
+                .addScopeManifests(IntegrityScopeManifest.newBuilder().setScope("mods").setPresent(true)
+                        .addEntries(file("loaded.jar", 10, hash)))
+                .build();
+
+        AuthenticatedManifestDerivation result = new AuthenticatedManifestObservationDeriver()
+                .derive(manifest(request));
+
+        assertEquals(1, result.observations().size());
+        ArtifactObservation observation = result.observations().getFirst();
+        assertEquals("loaded.mod", observation.identifier());
+        assertEquals("true", observation.metadata().get("loaded"));
+        assertEquals("mods_file", observation.metadata().get("loaded_origin"));
+        assertEquals("true", observation.metadata().get("origin_manifest_matched"));
+        assertTrue(!result.consistencyIssues().contains("loaded-mod-manifest-binding-not-consumed"));
+    }
+
+    @Test
+    void separatesDormantInstalledJarFromNestedRuntimeMod() {
+        byte[] hash = new byte[32]; hash[0] = 8;
+        AuthRequest request = AuthRequest.newBuilder()
+                .addMods(ModEntry.newBuilder().setId("dormant.mod").setVersion("1")
+                        .setFilename("dormant.jar").setFileSize(12).setSha256(ByteString.copyFrom(hash)))
+                .addLoadedMods(LoadedModEntry.newBuilder().setId("nested.mod").setVersion("2")
+                        .setOriginKind(LoadedModOriginKind.LOADED_MOD_ORIGIN_NESTED)
+                        .setParentModId("parent.mod"))
+                .addScopeManifests(IntegrityScopeManifest.newBuilder().setScope("mods").setPresent(true)
+                        .addEntries(file("dormant.jar", 12, hash)))
+                .build();
+
+        List<ArtifactObservation> observations = new AuthenticatedManifestObservationDeriver()
+                .derive(manifest(request)).observations();
+
+        assertEquals("false", observations.stream().filter(item -> item.identifier().equals("dormant.mod"))
+                .findFirst().orElseThrow().metadata().get("loaded"));
+        ArtifactObservation nested = observations.stream().filter(item -> item.identifier().equals("nested.mod"))
+                .findFirst().orElseThrow();
+        assertEquals("true", nested.metadata().get("loaded"));
+        assertEquals("nested", nested.metadata().get("loaded_origin"));
+        assertEquals("parent.mod", nested.metadata().get("parent_mod_id"));
+        assertEquals(null, nested.sha256());
     }
 
     @Test

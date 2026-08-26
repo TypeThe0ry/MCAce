@@ -36,6 +36,7 @@ import java.time.Duration;
 import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Consumer;
 import java.util.logging.Logger;
 
 /** Built-in local bridge for a standalone BungeeCord deployment. */
@@ -69,7 +70,8 @@ public final class LocalBungeeSessionBridgeFactory implements BungeeSessionBridg
                         + " (no admission or disposition effect)"));
         ArtifactObservationAuditSink artifactObservationAudit = new FileArtifactObservationAuditSink(
                 normalizedDataDirectory.resolve("artifact-observation-audit.log"), 8L * 1024 * 1024);
-        AtomicReference<CoordinatorBungeeSessionBridge> bridgeHolder = new AtomicReference<>();
+        AtomicReference<Consumer<com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent>>
+                dispositionEventSink = new AtomicReference<>(ignored -> { });
         BoundedAuthenticatedManifestAuditQueue manifestAuditQueue = new BoundedAuthenticatedManifestAuditQueue(1, 32, manifest -> {
             backendContextRuntime.rememberManifest(manifest);
             com.ellan.mcace.core.proxy.AuthenticatedManifestAuditResult audit = manifestEvaluator.evaluate(
@@ -81,21 +83,25 @@ public final class LocalBungeeSessionBridgeFactory implements BungeeSessionBridg
                     + " advisoryBlocks=" + audit.evaluation().advisoryEnforcementRuleBlocks()
                     + " policyVersion=" + dispositionEvent.activePolicyVersion().orElse("none")
                     + " consistencyIssues=" + audit.consistencyIssues().size());
-            CoordinatorBungeeSessionBridge bridge = bridgeHolder.get();
-            if (bridge != null) {
-                bridge.emitDispositionEvent(dispositionEvent);
-            }
+            relayDispositionEvent(dispositionEventSink, dispositionEvent);
         });
         BoundedAuthenticatedManifestAuditQueue artifactObservationAuditQueue = new BoundedAuthenticatedManifestAuditQueue(1, 32, manifest -> {
             backendContextRuntime.rememberManifest(manifest);
             com.ellan.mcace.core.proxy.AuthenticatedManifestAuditResult audit = manifestEvaluator.evaluate(
                     manifest, new EvaluationContext(manifest.playerId(), "bungeecord", null, null, null, Set.of(), manifest.authenticatedAt()));
+            com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent dispositionEvent =
+                    audit.dispositionEvent();
             logger.info("MCAce artifact observation audit player=" + manifest.playerId()
                     + " observations=" + audit.evaluation().totalObservations() + " actions=" + audit.evaluation().actionCounts()
+                    + " policyVersion=" + dispositionEvent.activePolicyVersion().orElse("none")
                     + " consistencyIssues=" + audit.consistencyIssues().size() + " (no admission effect)");
             artifactObservationAudit.append(new ArtifactObservationAuditRecord(
                     audit.playerId(), manifest.authenticatedAt(), clock.instant(), audit.evaluation().totalObservations(),
                     audit.consistencyIssues().size(), audit.evaluation().actionCounts(), audit.evaluation().refreshStatus()));
+            // Dynamic observations have the same session-bound disposition path as the initial
+            // authenticated manifest. The core keeps client-only high-impact actions advisory;
+            // the platform executor repeats current-session/admission/policy checks before acting.
+            relayDispositionEvent(dispositionEventSink, dispositionEvent);
         });
         FileDispositionPolicyPublisher dispositionPublisher = new FileDispositionPolicyPublisher(
                 dispositionPolicyPath, clock, identity);
@@ -116,8 +122,19 @@ public final class LocalBungeeSessionBridgeFactory implements BungeeSessionBridg
                 handshakePolicy,
                 com.ellan.mcace.core.persistence.SecurityAuditSink.noop(),
                 ignored -> { },
-                manifestAuditQueue::offer,
-                artifactObservationAuditQueue::offer,
+                manifest -> {
+                    if (!manifestAuditQueue.offer(manifest)) {
+                        logger.warning("MCAce authenticated-manifest audit handoff dropped: queue saturated");
+                    }
+                },
+                manifest -> {
+                    if (!artifactObservationAuditQueue.offer(manifest)) {
+                        // Protocol acceptance means the update was semantically valid and advanced
+                        // the session chain. It does not promise that this bounded asynchronous
+                        // audit/disposition handoff had capacity, so make any loss explicit.
+                        logger.warning("MCAce accepted artifact-observation audit handoff dropped: queue saturated");
+                    }
+                },
                 evidenceStorage.contentStore(), evidenceAuditSink);
         logger.info("MCAce Bungee built-in bridge configured; server-key fingerprint="
                 + BungeeIdentityStore.fingerprint(identity));
@@ -159,8 +176,14 @@ public final class LocalBungeeSessionBridgeFactory implements BungeeSessionBridg
         bridge.setShadowBackendContextRuntime(backendContextRuntime);
         startEvidenceReview(normalizedDataDirectory, evidenceStorage, evidenceAuditSink, clock, logger)
                 .ifPresent(bridge::setEvidenceReviewService);
-        bridgeHolder.set(bridge);
+        dispositionEventSink.set(bridge::emitDispositionEvent);
         return bridge;
+    }
+
+    static void relayDispositionEvent(
+            AtomicReference<Consumer<com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent>> sink,
+            com.ellan.mcace.core.proxy.AuthenticatedManifestDispositionEvent event) {
+        Objects.requireNonNull(sink, "sink").get().accept(Objects.requireNonNull(event, "event"));
     }
 
     private static String safeMessage(Throwable throwable) {

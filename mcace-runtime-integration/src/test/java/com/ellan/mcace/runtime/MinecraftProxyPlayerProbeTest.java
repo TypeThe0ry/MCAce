@@ -4535,7 +4535,9 @@ final class MinecraftProxyPlayerProbeTest {
                                 + firstEnvelope.getPayload().size() + ":nonce="
                                 + firstEnvelope.getHeader().getNonce().size());
                         sendCustomPayload("mcace:handshake", federationFirstOuter);
-                        if (!vault.commit(prepared)) throw new IOException("federation vault commit failed");
+                        if (vault.commit(prepared, Clock.systemUTC()).isEmpty()) {
+                            throw new IOException("federation vault commit failed");
+                        }
                         presentationSent = true;
                     }
                     if (role == FederationPeerRole.RESTART_TARGET && authResult != null

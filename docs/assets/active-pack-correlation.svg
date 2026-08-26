@@ -1,15 +1,15 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="360" viewBox="0 0 1200 360" role="img" aria-labelledby="title desc">
-  <title id="title">MCAce active pack and server correlation pipeline</title>
-  <desc id="desc">Signed client ModList and selected resource pack telemetry is reconciled by the server, optionally correlated with Grim or Vulcan, and then routed through a signed policy before a reversible action.</desc>
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="390" viewBox="0 0 1200 390" role="img" aria-labelledby="title desc">
+  <title id="title">MCAce active-pack advisory correlation and authority-gated eligibility</title>
+  <desc id="desc">Signed client ModList and selected resource-pack telemetry remains advisory, may be correlated with provider-authenticated evidence, and computes eligibility only. Current production authority ends at MONITOR logging.</desc>
   <defs>
     <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1"><stop offset="0" stop-color="#0b1220"/><stop offset="1" stop-color="#172554"/></linearGradient>
     <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#93c5fd"/></marker>
     <style>
-      .box{fill:#111827;stroke:#60a5fa;stroke-width:2;rx:14}.trusted{fill:#123524;stroke:#34d399}.warn{fill:#3b2508;stroke:#fbbf24}.t{font:600 17px Segoe UI,Arial;fill:#f8fafc}.s{font:14px Segoe UI,Arial;fill:#cbd5e1}.a{stroke:#93c5fd;stroke-width:3;fill:none;marker-end:url(#arrow)}
+      .box{fill:#111827;stroke:#60a5fa;stroke-width:2;rx:14}.trusted{fill:#123524;stroke:#34d399}.warn{fill:#3b2508;stroke:#fbbf24}.gate{fill:#321d2a;stroke:#fb7185}.t{font:600 17px Segoe UI,Arial;fill:#f8fafc}.s{font:16px Segoe UI,Arial;fill:#cbd5e1}.a{stroke:#93c5fd;stroke-width:3;fill:none;marker-end:url(#arrow)}
     </style>
   </defs>
-  <rect width="1200" height="360" fill="url(#bg)"/>
-  <text x="40" y="42" class="t" font-size="23">MCAce active-pack integrity → provider-confirmed disposition</text>
+  <rect width="1200" height="390" fill="url(#bg)"/>
+  <text x="40" y="42" class="t" font-size="23">Active-pack advisory correlation → authority-gated eligibility</text>
   <rect x="35" y="90" width="205" height="175" class="box"/>
   <text x="55" y="125" class="t">Fabric client</text><text x="55" y="155" class="s">ModList + file SHA-256</text><text x="55" y="180" class="s">selected resource packs</text><text x="55" y="202" class="s">selected shader packs</text><text x="55" y="238" class="s">signed initial/update</text>
   <path d="M240 177 H300" class="a"/>
@@ -22,7 +22,8 @@
   <rect x="830" y="90" width="180" height="175" class="trusted"/>
   <text x="850" y="125" class="t">Grim / Vulcan</text><text x="850" y="155" class="s">same session</text><text x="850" y="180" class="s">bounded time window</text><text x="850" y="202" class="s">provider-authenticated</text><text x="850" y="238" class="s">SERVER_CONFIRMED</text>
   <path d="M1010 177 H1065" class="a"/>
-  <rect x="1065" y="115" width="105" height="120" class="trusted"/>
-  <text x="1082" y="150" class="t">Action</text><text x="1082" y="177" class="s">LIMIT /</text><text x="1082" y="198" class="s">QUARANTINE</text><text x="1082" y="219" class="s">/ DENY</text>
-  <text x="40" y="320" class="s">Client-only reports stay advisory; high-impact actions require a durable trusted authorization record.</text>
+  <rect x="1060" y="105" width="120" height="145" class="gate"/>
+  <text x="1072" y="137" class="t">Eligibility</text><text x="1072" y="169" class="s">LIMIT</text><text x="1072" y="194" class="s">QUARANTINE</text><text x="1072" y="219" class="s">DENY</text><text x="1072" y="242" class="s">not execution</text>
+  <text x="40" y="320" class="s">Correlation computes eligibility only; it does not execute a production punishment.</text>
+  <text x="40" y="350" class="s">Current Production Authority V4 ends at MONITOR logging; no live kick, deny, quarantine, or ban is claimed.</text>
 </svg>

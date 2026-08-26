@@ -14,8 +14,11 @@ public record FederationVerification(
         byte[] clientPublicKeySha256,
         String sourceAuthenticatedSessionId,
         String assertionId,
+        byte[] signedAssertionSha256,
         long issuedAtEpochMs,
+        long sourceAuthorizedAtEpochMs,
         long expiresAtEpochMs,
+        long verifiedAtEpochMs,
         String policyVersion,
         byte[] policySha256,
         String disclosure,
@@ -28,6 +31,16 @@ public record FederationVerification(
         clientPublicKeySha256 = Objects.requireNonNull(clientPublicKeySha256, "clientPublicKeySha256").clone();
         Objects.requireNonNull(sourceAuthenticatedSessionId, "sourceAuthenticatedSessionId");
         Objects.requireNonNull(assertionId, "assertionId");
+        signedAssertionSha256 = Objects.requireNonNull(
+                signedAssertionSha256, "signedAssertionSha256").clone();
+        if (signedAssertionSha256.length != 32) {
+            throw new IllegalArgumentException("signedAssertionSha256 must be SHA-256");
+        }
+        if (issuedAtEpochMs <= 0L || sourceAuthorizedAtEpochMs < issuedAtEpochMs
+                || sourceAuthorizedAtEpochMs >= expiresAtEpochMs
+                || verifiedAtEpochMs <= 0L || verifiedAtEpochMs >= expiresAtEpochMs) {
+            throw new IllegalArgumentException("invalid federation verification timeline");
+        }
         Objects.requireNonNull(policyVersion, "policyVersion");
         policySha256 = Objects.requireNonNull(policySha256, "policySha256").clone();
         Objects.requireNonNull(disclosure, "disclosure");
@@ -42,5 +55,10 @@ public record FederationVerification(
     @Override
     public byte[] policySha256() {
         return policySha256.clone();
+    }
+
+    @Override
+    public byte[] signedAssertionSha256() {
+        return signedAssertionSha256.clone();
     }
 }

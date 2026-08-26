@@ -181,7 +181,12 @@ public final class FederationDocuments {
         validateConsent(consent);
         requireSameBindings(request, consent);
         verifyClientSignature(consent, clientPublicKey);
-        FederationAssertion assertion = assertionFrom(request, consent).build();
+        long sourceAuthorizedAt = Objects.requireNonNull(clock, "clock").millis();
+        validateAtTime(request.getIssuedAtEpochMs(), request.getExpiresAtEpochMs(),
+                sourceAuthorizedAt, validClockSkew(allowedClockSkew));
+        FederationAssertion assertion = assertionFrom(request, consent)
+                .setSourceAuthorizedAtEpochMs(sourceAuthorizedAt)
+                .build();
         validateAssertion(assertion);
         if (!MessageDigest.isEqual(keyId(sourcePublicKey), assertion.getSourceKeyIdSha256().toByteArray())) {
             throw new FederationException("source signing key does not match consented source key");
@@ -217,6 +222,16 @@ public final class FederationDocuments {
         return grant.toByteArray();
     }
 
+    /**
+     * Exact federation target-authentication binding. The digest covers the complete protobuf
+     * encoding of {@link SignedFederationAssertion}, including the canonical assertion bytes,
+     * source key id, and source signature. It is the same value carried by presentation proof.
+     */
+    public static byte[] signedAssertionSha256(FederationGrant grant) throws FederationException {
+        validateGrant(grant);
+        return sha256(grant.getSignedAssertion().toByteArray());
+    }
+
     public static FederationGrant verifyGrant(
             byte[] encoded,
             FederationConsentRequest expectedRequest,
@@ -235,7 +250,12 @@ public final class FederationDocuments {
             throw new FederationException("malformed federation grant", exception);
         }
         validateGrant(grant);
-        validateRequestAtTime(expectedRequest, clock, allowedClockSkew);
+        Objects.requireNonNull(clock, "clock");
+        long verificationTime = clock.millis();
+        long skewMillis = validClockSkew(allowedClockSkew);
+        validateRequest(expectedRequest);
+        validateAtTime(expectedRequest.getIssuedAtEpochMs(), expectedRequest.getExpiresAtEpochMs(),
+                verificationTime, skewMillis);
         if (!MessageDigest.isEqual(keyId(clientSessionPublicKey),
                 grant.getClientConsent().getClientPublicKeySha256().toByteArray())
                 || !Arrays.equals(clientSessionPublicKey.getEncoded(), grant.getClientPublicKeyX509().toByteArray())) {
@@ -263,8 +283,8 @@ public final class FederationDocuments {
                         assertion.getClientConsentSha256().toByteArray())) {
             throw new FederationException("federation grant signed bindings mismatch");
         }
-        validateAtTime(assertion.getIssuedAtEpochMs(), assertion.getExpiresAtEpochMs(),
-                Objects.requireNonNull(clock, "clock").millis(), validClockSkew(allowedClockSkew));
+        validateAtTime(assertion.getSourceAuthorizedAtEpochMs(), assertion.getExpiresAtEpochMs(),
+                verificationTime, skewMillis);
         return grant;
     }
 
@@ -338,6 +358,7 @@ public final class FederationDocuments {
             String expectedPlayerUuid,
             String expectedTargetAuthenticatedSessionId,
             byte[] expectedTargetChallengeNonce,
+            byte[] expectedFederationSignedAssertionSha256,
             Clock clock,
             Duration allowedClockSkew,
             NonceReplayGuard replayGuard) throws FederationException {
@@ -364,8 +385,11 @@ public final class FederationDocuments {
                 || expectedTargetChallengeNonce.length != ProtocolConstants.NONCE_BYTES) {
             throw new FederationException("invalid expected target federation challenge length");
         }
+        requireSha256(expectedFederationSignedAssertionSha256,
+                "expected target-auth signed assertion hash");
         Objects.requireNonNull(clock, "clock");
         long skewMillis = validClockSkew(allowedClockSkew);
+        long verificationTime = clock.millis();
         Objects.requireNonNull(replayGuard, "replayGuard");
 
         FederationGrant grant = presentation.getGrant();
@@ -381,6 +405,14 @@ public final class FederationDocuments {
 
         SignedFederationAssertion signed = grant.getSignedAssertion();
         validateSignedAssertion(signed);
+        byte[] actualSignedAssertionSha256 = sha256(signed.toByteArray());
+        if (!MessageDigest.isEqual(actualSignedAssertionSha256,
+                expectedFederationSignedAssertionSha256)) {
+            // This check deliberately precedes replayGuard.accept. A target AUTH transcript that
+            // did not bind the exact source-signed grant must not burn the legitimate one-shot
+            // presentation and deny the correctly bound retry.
+            throw new FederationException("federation target-auth assertion binding mismatch");
+        }
         byte[] pinnedKeyId = keyId(pinnedSourcePublicKey);
         if (!MessageDigest.isEqual(pinnedKeyId, signed.getSourceKeyIdSha256().toByteArray())) {
             throw new FederationException("federation source key is not pinned");
@@ -416,10 +448,12 @@ public final class FederationDocuments {
             throw new FederationException("federation player binding mismatch");
         }
         validateAtTime(assertion.getIssuedAtEpochMs(), assertion.getExpiresAtEpochMs(),
-                clock.millis(), skewMillis);
+                verificationTime, skewMillis);
+        validateAtTime(assertion.getSourceAuthorizedAtEpochMs(), assertion.getExpiresAtEpochMs(),
+                verificationTime, skewMillis);
         verifyPresentationProof(presentation.getPresentationProof(), signed, assertion, clientPublicKey,
                 expectedTargetNetworkId, expectedPlayerUuid, expectedTargetAuthenticatedSessionId,
-                expectedTargetChallengeNonce, clock.millis(), skewMillis);
+                expectedTargetChallengeNonce, verificationTime, skewMillis);
         byte[] replayToken = replayToken(assertion);
         String replayScope = "federation:" + expectedSourceNetworkId + "->" + expectedTargetNetworkId
                 + ":" + assertion.getAssertionId();
@@ -430,7 +464,9 @@ public final class FederationDocuments {
                 assertion.getSourceNetworkId(), assertion.getTargetNetworkId(), assertion.getPlayerUuid(),
                 assertion.getClientPublicKeySha256().toByteArray(),
                 assertion.getLocalAuthenticatedSessionId(), assertion.getAssertionId(),
-                assertion.getIssuedAtEpochMs(), assertion.getExpiresAtEpochMs(), assertion.getPolicyVersion(),
+                actualSignedAssertionSha256,
+                assertion.getIssuedAtEpochMs(), assertion.getSourceAuthorizedAtEpochMs(),
+                assertion.getExpiresAtEpochMs(), verificationTime, assertion.getPolicyVersion(),
                 assertion.getPolicySha256().toByteArray(), assertion.getDisclosure(), assertion.getLocalClaim());
     }
 
@@ -653,6 +689,10 @@ public final class FederationDocuments {
         if (assertion.getLocalClaim() != FederationLocalClaim.FEDERATION_SOURCE_LOCALLY_VERIFIED) {
             throw new FederationException("unsupported federation local claim");
         }
+        if (assertion.getSourceAuthorizedAtEpochMs() < assertion.getIssuedAtEpochMs()
+                || assertion.getSourceAuthorizedAtEpochMs() >= assertion.getExpiresAtEpochMs()) {
+            throw new FederationException("invalid federation source authorization time");
+        }
         requireSha256(assertion.getClientConsentSha256().toByteArray(), "client consent hash");
         requireInnerBudget(assertion, "federation assertion");
     }
@@ -688,6 +728,9 @@ public final class FederationDocuments {
         requireSha256(policyHash, "policy hash");
         requireSha256(sourceKeyId, "source network key id");
         requireSha256(targetKeyId, "target network key id");
+        if (MessageDigest.isEqual(sourceKeyId, targetKeyId)) {
+            throw new FederationException("source and target network identity keys must differ");
+        }
         if (!MINIMAL_DISCLOSURE.equals(disclosure)) {
             throw new FederationException("federation disclosure is not the minimal supported claim");
         }
@@ -705,7 +748,9 @@ public final class FederationDocuments {
         if (issued > safeAdd(now, skew, "federation clock comparison overflow")) {
             throw new FederationException("federation assertion was issued in the future");
         }
-        if (expires <= safeSubtract(now, skew, "federation clock comparison overflow")) {
+        // Clock skew only tolerates a slightly future issuedAt value.  A signed
+        // expiration is an authorization boundary and is never extended by skew.
+        if (expires <= now) {
             throw new FederationException("federation assertion has expired");
         }
     }
@@ -907,11 +952,4 @@ public final class FederationDocuments {
         }
     }
 
-    private static long safeSubtract(long left, long right, String message) throws FederationException {
-        try {
-            return Math.subtractExact(left, right);
-        } catch (ArithmeticException exception) {
-            throw new FederationException(message, exception);
-        }
-    }
 }

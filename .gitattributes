@@ -1,3 +1,4 @@
 * text=auto
 *.ps1 text eol=lf
+docs/evidence/** -text
 mcace-server-bungeecord/src/main/resources/META-INF/services/com.ellan.mcace.bungeecord.BungeeSessionBridgeFactory text eol=lf

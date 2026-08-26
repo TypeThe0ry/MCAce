@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.function.LongSupplier;
 
@@ -37,6 +38,8 @@ import java.util.function.LongSupplier;
  */
 public final class FederationTokenVault implements AutoCloseable {
     public static final int DEFAULT_MAX_ENTRIES = 4;
+    private static final int MAX_APPROVED_EXPLICIT_FILES = 128;
+    private static final int MAX_APPROVED_EXPLICIT_FILE_CHARS = 512;
 
     private final int maxEntries;
     private final LongSupplier monotonicMillis;
@@ -65,10 +68,84 @@ public final class FederationTokenVault implements AutoCloseable {
             UUID expectedPlayerId,
             String expectedSourceSessionId,
             Clock clock) throws FederationException {
+        store(grant, sourceSessionKeyPair, expectedPlayerId, expectedSourceSessionId, clock, Set.of());
+    }
+
+    /**
+     * Stores the exact explicit-file scope covered by the source connection's visible approval
+     * together with the one-time grant. A target never inherits a process-global consent bit.
+     */
+    public synchronized void store(
+            FederationGrant grant,
+            KeyPair sourceSessionKeyPair,
+            UUID expectedPlayerId,
+            String expectedSourceSessionId,
+            Clock clock,
+            Set<String> approvedExplicitFiles) throws FederationException {
+        storeInternal(
+                grant,
+                sourceSessionKeyPair,
+                expectedPlayerId,
+                expectedSourceSessionId,
+                clock,
+                approvedExplicitFiles,
+                ConnectionEnablementAuthorization.detachedEvidenceLineagePermit());
+    }
+
+    /**
+     * Stores a grant together with the exact process-local evidence budget created by the source
+     * connection's visible approval.
+     *
+     * <p>The source export must already have been committed on this exact handshake engine. This
+     * prevents a copied grant, a different connection authorization, or an inherited target from
+     * manufacturing a fresh render-frame budget during federation handoff.</p>
+     */
+    public synchronized void store(
+            FederationGrant grant,
+            KeyPair sourceSessionKeyPair,
+            UUID expectedPlayerId,
+            String expectedSourceSessionId,
+            Clock clock,
+            Set<String> approvedExplicitFiles,
+            ClientHandshakeEngine expectedSourceEngine,
+            ConnectionEnablementAuthorization sourceAuthorization) throws FederationException {
+        Objects.requireNonNull(expectedSourceEngine, "expectedSourceEngine");
+        Objects.requireNonNull(sourceAuthorization, "sourceAuthorization");
+        ConnectionEnablementAuthorization.EvidenceLineagePermit evidenceLineagePermit =
+                sourceAuthorization.evidenceLineagePermitForGrant(
+                        expectedSourceEngine,
+                        grant == null || !grant.hasClientConsent()
+                                ? null
+                                : grant.getClientConsent().getAssertionId());
+        if (evidenceLineagePermit == null) {
+            throw new FederationException(
+                    "federation grant is not bound to a committed human source authorization");
+        }
+        storeInternal(
+                grant,
+                sourceSessionKeyPair,
+                expectedPlayerId,
+                expectedSourceSessionId,
+                clock,
+                approvedExplicitFiles,
+                evidenceLineagePermit);
+    }
+
+    private void storeInternal(
+            FederationGrant grant,
+            KeyPair sourceSessionKeyPair,
+            UUID expectedPlayerId,
+            String expectedSourceSessionId,
+            Clock clock,
+            Set<String> approvedExplicitFiles,
+            ConnectionEnablementAuthorization.EvidenceLineagePermit evidenceLineagePermit)
+            throws FederationException {
         Objects.requireNonNull(grant, "grant");
         Objects.requireNonNull(sourceSessionKeyPair, "sourceSessionKeyPair");
         Objects.requireNonNull(expectedPlayerId, "expectedPlayerId");
         Objects.requireNonNull(clock, "clock");
+        Objects.requireNonNull(evidenceLineagePermit, "evidenceLineagePermit");
+        Set<String> approvedScope = copyApprovedExplicitFiles(approvedExplicitFiles);
         String sourceSessionId = requireText(expectedSourceSessionId, "source session id");
         purgeExpired();
 
@@ -100,11 +177,50 @@ public final class FederationTokenVault implements AutoCloseable {
             // Never evict a different active player-approved grant to make room for new work.
             throw new FederationException("federation transfer vault is full");
         }
-        entries.put(binding.assertionId(), new Entry(binding, grant, sourceSessionKeyPair, deadline));
+        entries.put(binding.assertionId(),
+                new Entry(
+                        binding,
+                        grant,
+                        sourceSessionKeyPair,
+                        deadline,
+                        approvedScope,
+                        evidenceLineagePermit));
     }
 
-    /** Builds a target handshake using the retained source-session key without exposing it. */
+    /**
+     * Builds a target handshake using the retained source-session key without exposing it.
+     *
+     * <p>This compatibility entry point is deliberately limited to grants whose visible source
+     * approval contained no explicit-file scope. A scoped approval must be consumed through
+     * {@link #claimTargetHandshake} so a caller cannot accidentally discard the scope and turn a
+     * narrow approval into an unbounded target handshake.</p>
+     */
     public synchronized Optional<ClientHandshakeEngine> newTargetHandshake(
+            String targetNetworkId,
+            UUID playerId,
+            String clientVersion,
+            String minecraftVersion,
+            String buildId,
+            LoaderType loader,
+            PublicKey targetServerPublicKey,
+            Clock clock,
+            SecureRandom secureRandom) throws EnvelopeException {
+        Entry entry = activeFor(targetNetworkId, playerId);
+        if (entry != null && !entry.approvedExplicitFiles.isEmpty()) {
+            return Optional.empty();
+        }
+        return claimTargetHandshake(
+                targetNetworkId, playerId, clientVersion, minecraftVersion,
+                buildId, loader, targetServerPublicKey, clock, secureRandom)
+                .map(TargetHandshakeClaim::engine);
+    }
+
+    /**
+     * Atomically claims the exact target handshake and the source-approved file scope carried by
+     * the same one-time vault entry. The returned scope is immutable and cannot outlive a second
+     * claim because the entry's target-key claim bit is set before this method returns.
+     */
+    public synchronized Optional<TargetHandshakeClaim> claimTargetHandshake(
             String targetNetworkId,
             UUID playerId,
             String clientVersion,
@@ -138,14 +254,45 @@ public final class FederationTokenVault implements AutoCloseable {
             return Optional.empty();
         }
         entry.boundTargetKeyVerified = true;
-        return Optional.of(new ClientHandshakeEngine(
+        ClientHandshakeEngine engine = new ClientHandshakeEngine(
                 playerId, clientVersion, minecraftVersion, buildId, loader, targetServerPublicKey,
-                clock, secureRandom, entry.sourceSessionKeyPair));
+                clock, secureRandom, entry.sourceSessionKeyPair,
+                entry.binding.signedAssertionSha256());
+        TargetHandshakeClaim claim = new TargetHandshakeClaim(
+                engine,
+                entry.approvedExplicitFiles,
+                entry.binding.assertionId(),
+                entry.binding.targetNetworkId(),
+                entry.binding.expiresAtEpochMs(),
+                entry.monotonicDeadlineMillis,
+                entry.evidenceLineagePermit);
+        entry.targetClaim = claim;
+        return Optional.of(claim);
+    }
+
+    /**
+     * Checks that an exact provisional target claim still owns the live, unexpired vault entry.
+     * Object identity prevents a caller from fabricating a claim with copied public fields.
+     */
+    public synchronized boolean isTargetClaimLive(TargetHandshakeClaim claim, Clock clock) {
+        Objects.requireNonNull(claim, "claim");
+        Objects.requireNonNull(clock, "clock");
+        purgeExpired();
+        Entry entry = entries.get(claim.assertionId());
+        if (entry == null || entry.targetClaim != claim || !entry.boundTargetKeyVerified) {
+            return false;
+        }
+        if (entry.binding.expiresAtEpochMs() <= clock.millis()) {
+            entries.remove(entry.binding.assertionId());
+            entry.clear();
+            return false;
+        }
+        return true;
     }
 
     /**
      * Creates a one-shot presentation reservation. It remains usable after a local send failure
-     * until its monotonic deadline; it is removed only by {@link #commit(PreparedPresentation)},
+     * until its monotonic deadline; it is removed only by {@link #commit(PreparedPresentation, Clock)},
      * expiry, explicit revocation, or shutdown.
      */
     public synchronized Optional<PreparedPresentation> preparePresentation(
@@ -159,6 +306,11 @@ public final class FederationTokenVault implements AutoCloseable {
             return Optional.empty();
         }
         Objects.requireNonNull(clock, "clock");
+        if (entry.binding.expiresAtEpochMs() <= clock.millis()) {
+            entries.remove(entry.binding.assertionId());
+            entry.clear();
+            return Optional.empty();
+        }
         FederationPresentation presentation = FederationDocuments.presentation(
                 entry.grant, entry.sourceSessionKeyPair.getPrivate(), targetAuthenticatedSessionId,
                 targetChallengeNonce, clock);
@@ -179,9 +331,35 @@ public final class FederationTokenVault implements AutoCloseable {
         return Optional.of(prepared);
     }
 
-    /** Atomically burns a grant after its exact prepared presentation has been handed to transport. */
-    public synchronized boolean commit(PreparedPresentation prepared) {
-        return burn(prepared);
+    /**
+     * Atomically burns a grant after its exact prepared presentation has been handed to transport.
+     *
+     * <p>The returned one-shot receipt is the only capability that can promote the matching
+     * provisional connection authorization. Merely holding or copying the public target-claim
+     * metadata is intentionally insufficient.</p>
+     */
+    public synchronized Optional<PresentationCommitReceipt> commit(
+            PreparedPresentation prepared,
+            Clock clock) {
+        Objects.requireNonNull(prepared, "prepared");
+        Objects.requireNonNull(clock, "clock");
+        purgeExpired();
+        Entry entry = entries.get(prepared.assertionId);
+        if (entry == null || !entry.reserved || entry.reservation != prepared
+                || entry.targetClaim == null
+                || !Arrays.equals(entry.presentationBytes, prepared.encoded)) {
+            prepared.clear();
+            return Optional.empty();
+        }
+        if (prepared.expiresAtEpochMs <= clock.millis()) {
+            entries.remove(prepared.assertionId);
+            entry.clear();
+            return Optional.empty();
+        }
+        TargetHandshakeClaim committedClaim = entry.targetClaim;
+        entries.remove(prepared.assertionId);
+        entry.clear();
+        return Optional.of(new PresentationCommitReceipt(committedClaim));
     }
 
     /** Burns only the exact visible-prompt capability after an explicit Decline or close action. */
@@ -266,17 +444,20 @@ public final class FederationTokenVault implements AutoCloseable {
         }
     }
 
-    /** Clears a target connection claim after authentication or handoff aborts. */
-    public synchronized void cancelTargetClaims() {
+    /**
+     * Clears only the exact target connection claim that is aborting. Object identity prevents a
+     * delayed generation from revoking a newer connection's claim for the same player/target.
+     */
+    public synchronized boolean cancelTargetClaim(TargetHandshakeClaim claim) {
+        Objects.requireNonNull(claim, "claim");
         purgeExpired();
-        Iterator<Entry> iterator = entries.values().iterator();
-        while (iterator.hasNext()) {
-            Entry entry = iterator.next();
-            if (entry.boundTargetKeyVerified) {
-                iterator.remove();
-                entry.clear();
-            }
+        Entry entry = entries.get(claim.assertionId());
+        if (entry == null || entry.targetClaim != claim || !entry.boundTargetKeyVerified) {
+            return false;
         }
+        entries.remove(claim.assertionId());
+        entry.clear();
+        return true;
     }
 
     public synchronized void clear() {
@@ -368,6 +549,94 @@ public final class FederationTokenVault implements AutoCloseable {
         return value;
     }
 
+    private static Set<String> copyApprovedExplicitFiles(Set<String> approvedExplicitFiles)
+            throws FederationException {
+        if (approvedExplicitFiles == null || approvedExplicitFiles.size() > MAX_APPROVED_EXPLICIT_FILES) {
+            throw new FederationException("invalid federation-approved explicit-file scope");
+        }
+        for (String path : approvedExplicitFiles) {
+            if (path == null || path.isBlank() || path.length() > MAX_APPROVED_EXPLICIT_FILE_CHARS
+                    || path.chars().anyMatch(Character::isISOControl)
+                    || !canonicalRelativeExplicitFile(path)) {
+                throw new FederationException("invalid federation-approved explicit-file path");
+            }
+        }
+        return Set.copyOf(approvedExplicitFiles);
+    }
+
+    private static boolean canonicalRelativeExplicitFile(String path) {
+        if (path.startsWith("/") || path.endsWith("/") || path.contains("\\")
+                || path.contains("//") || path.indexOf(':') >= 0) {
+            return false;
+        }
+        for (String component : path.split("/", -1)) {
+            if (component.isEmpty() || component.equals(".") || component.equals("..")) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Opaque target claim carrying immutable lifecycle metadata, never private-key bytes. */
+    public record TargetHandshakeClaim(
+            ClientHandshakeEngine engine,
+            Set<String> approvedExplicitFiles,
+            String assertionId,
+            String targetNetworkId,
+            long expiresAtEpochMs,
+            long monotonicDeadlineMillis,
+            ConnectionEnablementAuthorization.EvidenceLineagePermit evidenceLineagePermit) {
+        public TargetHandshakeClaim {
+            engine = Objects.requireNonNull(engine, "engine");
+            approvedExplicitFiles = Set.copyOf(approvedExplicitFiles);
+            assertionId = requireText(assertionId, "assertion id");
+            targetNetworkId = requireText(targetNetworkId, "target network id");
+            evidenceLineagePermit = Objects.requireNonNull(
+                    evidenceLineagePermit, "evidenceLineagePermit");
+            if (expiresAtEpochMs <= 0L) {
+                throw new IllegalArgumentException("invalid federation target claim deadline");
+            }
+        }
+
+        /** Compatibility constructor for isolated tests and callers without a source lineage. */
+        public TargetHandshakeClaim(
+                ClientHandshakeEngine engine,
+                Set<String> approvedExplicitFiles,
+                String assertionId,
+                String targetNetworkId,
+                long expiresAtEpochMs,
+                long monotonicDeadlineMillis) {
+            this(
+                    engine,
+                    approvedExplicitFiles,
+                    assertionId,
+                    targetNetworkId,
+                    expiresAtEpochMs,
+                    monotonicDeadlineMillis,
+                    ConnectionEnablementAuthorization.detachedEvidenceLineagePermit());
+        }
+    }
+
+    /**
+     * Opaque, non-constructible, one-shot proof that the vault burned the exact target claim.
+     * Only the federation authorization state machine in this package can consume it.
+     */
+    public static final class PresentationCommitReceipt {
+        private TargetHandshakeClaim committedClaim;
+
+        private PresentationCommitReceipt(TargetHandshakeClaim committedClaim) {
+            this.committedClaim = Objects.requireNonNull(committedClaim, "committedClaim");
+        }
+
+        synchronized boolean consumeFor(TargetHandshakeClaim expectedClaim) {
+            if (committedClaim == null || committedClaim != expectedClaim) {
+                return false;
+            }
+            committedClaim = null;
+            return true;
+        }
+    }
+
     /** Opaque prepared bytes; its constructor and contents are never externally mutable. */
     public static final class PreparedPresentation {
         private final String assertionId;
@@ -430,18 +699,29 @@ public final class FederationTokenVault implements AutoCloseable {
         private FederationGrant grant;
         private KeyPair sourceSessionKeyPair;
         private final long monotonicDeadlineMillis;
+        private final Set<String> approvedExplicitFiles;
+        private final ConnectionEnablementAuthorization.EvidenceLineagePermit evidenceLineagePermit;
         private boolean reserved;
         private boolean boundTargetKeyVerified;
         private boolean sourceConnectionClosed;
         private byte[] presentationBytes = new byte[0];
         private PreparedPresentation reservation;
+        private TargetHandshakeClaim targetClaim;
 
-        private Entry(GrantBinding binding, FederationGrant grant, KeyPair sourceSessionKeyPair,
-                long monotonicDeadlineMillis) {
+        private Entry(
+                GrantBinding binding,
+                FederationGrant grant,
+                KeyPair sourceSessionKeyPair,
+                long monotonicDeadlineMillis,
+                Set<String> approvedExplicitFiles,
+                ConnectionEnablementAuthorization.EvidenceLineagePermit evidenceLineagePermit) {
             this.binding = binding;
             this.grant = grant;
             this.sourceSessionKeyPair = sourceSessionKeyPair;
             this.monotonicDeadlineMillis = monotonicDeadlineMillis;
+            this.approvedExplicitFiles = Set.copyOf(approvedExplicitFiles);
+            this.evidenceLineagePermit = Objects.requireNonNull(
+                    evidenceLineagePermit, "evidenceLineagePermit");
         }
 
         private void clear() {
@@ -458,6 +738,7 @@ public final class FederationTokenVault implements AutoCloseable {
             reserved = false;
             boundTargetKeyVerified = false;
             sourceConnectionClosed = false;
+            targetClaim = null;
         }
     }
 
@@ -470,12 +751,17 @@ public final class FederationTokenVault implements AutoCloseable {
             String disclosure,
             long issuedAtEpochMs,
             long expiresAtEpochMs,
+            byte[] signedAssertionSha256,
             byte[] sourceKeyId,
             byte[] targetKeyId) {
         private GrantBinding {
+            signedAssertionSha256 = signedAssertionSha256.clone();
             sourceKeyId = sourceKeyId.clone();
             targetKeyId = targetKeyId.clone();
         }
+
+        @Override
+        public byte[] signedAssertionSha256() { return signedAssertionSha256.clone(); }
 
         @Override
         public byte[] sourceKeyId() { return sourceKeyId.clone(); }
@@ -515,6 +801,8 @@ public final class FederationTokenVault implements AutoCloseable {
                             assertion.getAssertionNonce().toByteArray())
                     || consent.getIssuedAtEpochMs() != assertion.getIssuedAtEpochMs()
                     || consent.getExpiresAtEpochMs() != assertion.getExpiresAtEpochMs()
+                    || assertion.getSourceAuthorizedAtEpochMs() < assertion.getIssuedAtEpochMs()
+                    || assertion.getSourceAuthorizedAtEpochMs() >= assertion.getExpiresAtEpochMs()
                     || !consent.getPolicyVersion().equals(assertion.getPolicyVersion())
                     || !MessageDigest.isEqual(consent.getPolicySha256().toByteArray(),
                             assertion.getPolicySha256().toByteArray())
@@ -539,6 +827,8 @@ public final class FederationTokenVault implements AutoCloseable {
                     requireText(consent.getAssertionId(), "assertion id"),
                     requireDisclosure(consent.getDisclosure()), consent.getIssuedAtEpochMs(),
                     consent.getExpiresAtEpochMs(),
+                    requiredSha256(FederationDocuments.signedAssertionSha256(grant),
+                            "signed assertion hash"),
                     requiredSha256(consent.getSourceKeyIdSha256().toByteArray(), "source key id"),
                     requiredSha256(consent.getTargetKeyIdSha256().toByteArray(), "target key id"));
         }
