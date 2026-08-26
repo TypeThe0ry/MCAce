@@ -32,11 +32,17 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 | `vulcan_genuine_event` | 已审查 licensed Vulcan JAR、真实非合成外部 provider event、精确发布产物绑定，以及仓库外已批准 supervisor 签名的 Vulcan V3 receipt/index | **PENDING** |
 | `production_server_confirmed_authority` | Authority V4 raw package，包含真实 Grim/Vulcan provider events、实际签名 grant/observation frames、进程与 journal ledgers、精确 V4 服务端 JAR、已批准外部 Ed25519 supervisor receipt 和 native release index | **PENDING** |
 | `protected_exact_release_bundle` | 受保护 `main` 或 `v0.0.1` tag-push CI 校验精确 `MCACE_RELEASE_BUNDLE_V4`、兼容性报告、canonical artifact-source marker、最终 HEAD 和八项发布内容 | **PENDING** |
-| `clean_worktree` | 最终精确发布 checkout 的 `git status --porcelain` 为空 | **当前集成工作树仍脏，BLOCKED** |
+| `clean_worktree` | 最终精确发布 checkout 的 `git status --porcelain` 为空 | **当前 checkout 已通过；发布 commit 仍需复核** |
 
 Matrix V4、Federation V5、Vulcan V3 和 Authority V4 的 validator/contract 正在当前
 开发工作树中集成，但 `docs/evidence/` 下尚未保留对应的 release-grade index。因此无论本地
 测试是否通过，这些门都继续保持 PENDING。
+
+### 当前验证快照（8c0dd095）
+
+当前集成 commit 工作树干净，定向反作弊/兼容性 smoke 集合与 runtime network integration
+测试均已通过。这些结果仍只是诊断证据，不能替代上面列出的外部 GUI、federation、Vulcan、
+Authority、Matrix supervisor 或受保护发布门。
 
 ## MCAce 是什么、又不是什么
 

@@ -35,12 +35,20 @@ historical PASS, a caller Boolean, or an unsigned report cannot promote any gate
 | `vulcan_genuine_event` | Licensed reviewed Vulcan JAR, genuine non-synthetic external provider event, exact release-artifact binding, and an externally pinned supervisor-signed Vulcan V3 receipt/index | **PENDING** |
 | `production_server_confirmed_authority` | Authority V4 raw package with genuine Grim/Vulcan provider events, actual signed grant/observation frames, process and journal ledgers, exact V4 server JARs, approved external Ed25519 supervisor receipt, and native release index | **PENDING** |
 | `protected_exact_release_bundle` | Protected `main` or `v0.0.1` tag-push CI validates the exact `MCACE_RELEASE_BUNDLE_V4`, compatibility report, canonical artifact-source marker, final HEAD, and all eight release entries | **PENDING** |
-| `clean_worktree` | `git status --porcelain` is empty for the final exact release checkout | **BLOCKED while the current integration worktree is dirty** |
+| `clean_worktree` | `git status --porcelain` is empty for the final exact release checkout | **PASS for current checkout; re-checked at release commit** |
 
 Matrix V4, Federation V5, Vulcan V3, and Authority V4 validators/contracts are
 under active integration, but no corresponding release-grade index is retained
 under `docs/evidence/`. They therefore remain PENDING regardless of local test
 success.
+
+### Current verification snapshot (8c0dd095)
+
+The current integration commit has a clean worktree and passes the targeted
+anti-cheat/compatibility smoke set plus the runtime network integration test.
+Those results are diagnostic evidence only: they do not replace the external
+GUI, federation, Vulcan, Authority, Matrix-supervisor, or protected-release
+gates listed above.
 
 ## What MCAce is — and is not
 
