@@ -1226,8 +1226,16 @@ try {
         } catch {
             if ($_.Exception.Message -like '*WRONG_FAILURE*' -or
                     $_.Exception.Message -like '*EXPECTED_FAILURE_NOT_THROWN*') { throw }
-            # Some locked-down Windows hosts forbid junction creation; all other dynamic
-            # negatives and the static no-reparse contract remain authoritative.
+            # Some locked-down Windows hosts either forbid junction creation or deny the
+            # publisher's no-follow/atomic staging operation before it can emit the
+            # contract-specific rejection. Keep that host capability gap explicit while
+            # retaining every other dynamic negative and the static no-reparse contract.
+            if ($_.Exception -is [UnauthorizedAccessException] -or
+                    $_.Exception.Message -match '(?i)access to the path|access is denied|unauthorized') {
+                Write-Output 'MCACE_SERVER_VERSION_MATRIX_REPARSE_COVERAGE_UNAVAILABLE|host privilege or policy denied junction/no-follow operation'
+            } else {
+                throw
+            }
         }
     }
 
