@@ -55,6 +55,7 @@ function Set-PrivateDirectoryAcl([string]$Path) {
     $system = New-Object Security.Principal.SecurityIdentifier('S-1-5-18')
     $acl = New-Object Security.AccessControl.DirectorySecurity
     $acl.SetAccessRuleProtection($true, $false)
+    $acl.SetOwner($current)
     $inheritance = [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor `
         [Security.AccessControl.InheritanceFlags]::ObjectInherit
     foreach ($sid in @($current,$system)) {
