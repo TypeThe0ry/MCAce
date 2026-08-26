@@ -22,6 +22,10 @@ Assert-True ($parseErrors.Count -eq 0) 'target script does not parse'
 $source = [IO.File]::ReadAllText($target, [Text.Encoding]::UTF8)
 Assert-Contains $source 'return ,$set' `
     'raw run directory set must remain a single HashSet object when empty'
+Assert-Contains $source 'function ConvertTo-CommitmentJsonBytes' `
+    'cross-process commitment canonicalizer is missing'
+Assert-Contains $source 'Get-BytesSha256 (ConvertTo-CommitmentJsonBytes' `
+    'set commitments must use the supervisor-compatible no-newline canonicalizer'
 
 # The wrapper is an explicit gate, never an accidental default execution path.
 $noMode = $null

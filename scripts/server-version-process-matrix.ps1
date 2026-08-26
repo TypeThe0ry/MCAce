@@ -910,6 +910,15 @@ function ConvertTo-CompactJsonBytes([object]$Value, [int]$Depth = 30) {
     return [Text.UTF8Encoding]::new($false).GetBytes($json)
 }
 
+# Set commitments are hashed over the compact JSON object without a trailing
+# newline.  The external supervisor signer uses the same canonical form in
+# D:\MCAceReleaseAuthority\bin\Common.ps1.  Keep file/evidence JSON newline
+# terminated while making the cross-process commitment contract stable.
+function ConvertTo-CommitmentJsonBytes([object]$Value, [int]$Depth = 30) {
+    $json = $Value | ConvertTo-Json -Depth $Depth -Compress
+    return [Text.UTF8Encoding]::new($false).GetBytes($json)
+}
+
 function Get-OrderedRawReportSetSha256([object[]]$Descriptors) {
     $records = @($Descriptors | ForEach-Object {
         [pscustomobject][ordered]@{
@@ -928,7 +937,7 @@ function Get-OrderedRawReportSetSha256([object[]]$Descriptors) {
 }
 
 function Get-SetSha256([string]$Domain, [object]$Value) {
-    return Get-BytesSha256 (ConvertTo-CompactJsonBytes ([pscustomobject][ordered]@{
+    return Get-BytesSha256 (ConvertTo-CommitmentJsonBytes ([pscustomobject][ordered]@{
         domain=$Domain; value=$Value
     }))
 }
