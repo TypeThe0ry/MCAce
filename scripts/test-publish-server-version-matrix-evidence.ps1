@@ -547,7 +547,7 @@ function Write-MatrixTriplet([object]$Fixture) {
     $Fixture.report.supervisor_challenge_nonce=$Fixture.challenge_nonce
     $Fixture.report.supervisor_challenge_issued_at=$Fixture.report.generated_at
     $Fixture.report.supervisor_receipt_expires_at=(
-        [DateTimeOffset]::Parse([string]$Fixture.report.generated_at,[Globalization.CultureInfo]::InvariantCulture).AddMinutes(15).ToString('o'))
+        [DateTimeOffset]::Parse([string]$Fixture.report.generated_at,[Globalization.CultureInfo]::InvariantCulture,[Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal).AddMinutes(15).ToString('o'))
     $Fixture.report.supervisor_trust_root_sha256=$trustRootSha256
     $Fixture.report.supervisor_signer_key_id='matrix-supervisor-test-key-01'
     $Fixture.report.supervisor_signature_algorithm='RSA_PKCS1_SHA256'
@@ -603,7 +603,7 @@ function Write-MatrixTriplet([object]$Fixture) {
     $requestBytes=ConvertTo-CompactJsonBytes $request
     [IO.File]::WriteAllBytes((Join-Path $tripletRoot 'supervisor-signing-request.json'),$requestBytes)
     $now=[DateTimeOffset]::UtcNow
-    $expires=[DateTimeOffset]::Parse([string]$request.receipt_not_after,[Globalization.CultureInfo]::InvariantCulture)
+    $expires=[DateTimeOffset]::Parse([string]$request.receipt_not_after,[Globalization.CultureInfo]::InvariantCulture,[Globalization.DateTimeStyles]::AssumeUniversal -bor [Globalization.DateTimeStyles]::AdjustToUniversal)
     $signed=if($now -lt $expires){$now}else{$expires.AddSeconds(-1)}
     $receipt=[ordered]@{
         schema='MCACE_SERVER_VERSION_PROCESS_MATRIX_SUPERVISOR_RECEIPT_V1'
