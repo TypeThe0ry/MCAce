@@ -2069,7 +2069,11 @@ function Wait-AuthoritySupervisorReceipt([string]$ReceiptPath, [int]$WaitSeconds
                 Assert-AuthoritySigningRequestStable $SigningRequest
                 return $receipt
             } catch {
-                if (-not (Test-AuthoritySharingViolation $_.Exception)) { throw }
+                $message = [string]$_.Exception.Message
+                $sharing = Test-AuthoritySharingViolation $_.Exception -or
+                    $_.Exception -is [IO.IOException] -or
+                    $message -match '(?i)used by another process|being used by another process|sharing violation'
+                if (-not $sharing) { throw }
             }
         }
         Start-Sleep -Milliseconds 250
@@ -2126,6 +2130,27 @@ function Write-JsonFile([string]$Path, [object]$Value) {
     [IO.File]::WriteAllBytes($Path,$bytes)
     return [pscustomobject]@{ absolute=$Path; bytes=$bytes; sha256=(Get-BytesSha256 $bytes);
         size_bytes=[long]$bytes.Length; value=$Value }
+}
+
+function Move-AuthorityPackageAtomic([string]$Stage, [string]$Final) {
+    $last = $null
+    for ($attempt = 1; $attempt -le 20; $attempt++) {
+        try {
+            [IO.Directory]::Move($Stage,$Final)
+            return
+        } catch {
+            $last = $_
+            $exception = $_.Exception
+            while ($null -ne $exception -and
+                    $exception -isnot [IO.IOException] -and
+                    $exception -isnot [UnauthorizedAccessException]) {
+                $exception = $exception.InnerException
+            }
+            if ($null -eq $exception -or $attempt -eq 20) { throw }
+            Start-Sleep -Milliseconds 250
+        }
+    }
+    if ($null -ne $last) { throw $last }
 }
 
 function New-RawEvidenceBinding([object]$Facts) {
@@ -2248,7 +2273,7 @@ function Write-AuthorityPackage([object]$Facts, [string]$Destination, [bool]$For
                 }).Count -ne 0) {
             Throw-Authority 'PRODUCTION_AUTHORITY_STAGED_ARTIFACT_SET_INVALID'
         }
-        [IO.Directory]::Move($stage,$final)
+        Move-AuthorityPackageAtomic $stage $final
         $committed = $true
         return $final
     } finally {
