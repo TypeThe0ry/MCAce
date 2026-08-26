@@ -32,7 +32,11 @@ $targets = @(
         artifact_mode = 'FINAL_REMAP_JAR'
         expected_nested = @(
             'META-INF/jars/mcace-client-common-{VERSION}.jar'
-            'META-INF/jars/mcace-core-{VERSION}.jar'
+            # The Fabric client embeds the allowlisted client-safe core artifact,
+            # whose Gradle classifier is part of the deployable name.  Keeping the
+            # classifier in the contract prevents a full server core JAR from being
+            # accepted as a client dependency by accident.
+            'META-INF/jars/mcace-core-{VERSION}-client-safe.jar'
             'META-INF/jars/mcace-protocol-{VERSION}.jar'
             'META-INF/jars/mcace-sdk-{VERSION}.jar'
             'META-INF/jars/protobuf-java-4.32.1.jar'
@@ -158,8 +162,13 @@ function Assert-NestedZipEntries([string]$ZipPath, [string[]]$ExpectedNested) {
             }
             $counts[$name] = 1
         }
+        # Loom writes an explicit META-INF/jars/ directory entry in the final
+        # remap JAR.  The dependency contract is about nested JAR files, not
+        # that directory marker, so ignore directory entries here while still
+        # validating every file entry and rejecting duplicate names.
         $actualNested = @($counts.Keys | Where-Object {
-            $_.StartsWith('META-INF/jars/', [StringComparison]::Ordinal)
+            $_.StartsWith('META-INF/jars/', [StringComparison]::Ordinal) -and
+                -not $_.EndsWith('/', [StringComparison]::Ordinal)
         } | Sort-Object)
         if (($actualNested -join '|') -cne (@($ExpectedNested | Sort-Object) -join '|')) {
             throw 'MCACE_COMPATIBILITY_NESTED_JAR_ENTRY_SET_INVALID'

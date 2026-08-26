@@ -90,7 +90,7 @@ function New-CompatibilityFixture {
             version='1.21.11'; loader='0.19.3'; api='0.141.6+1.21.11'; java=21
             nested=@(
                 'META-INF/jars/mcace-client-common-0.0.1.jar',
-                'META-INF/jars/mcace-core-0.0.1.jar',
+                'META-INF/jars/mcace-core-0.0.1-client-safe.jar',
                 'META-INF/jars/mcace-protocol-0.0.1.jar',
                 'META-INF/jars/mcace-sdk-0.0.1.jar',
                 'META-INF/jars/protobuf-java-4.32.1.jar'
