@@ -36,7 +36,7 @@ param(
     [string]$ExpectedOpenSslRuntimeManifestSha256
 )
 
-Set-StrictMode -Version Lates
+Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 if (Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue) {
     $script:PSNativeCommandUseErrorActionPreference=$false
@@ -73,11 +73,11 @@ function Test-ExactProperties([object]$Value,[string[]]$Expected) {
 function Get-JsonGraphPropertyCount([object]$Value) {
     if($null -eq $Value -or $Value -is [string] -or $Value -is [ValueType]){return 0}
     if($Value -is [Management.Automation.PSCustomObject]){
-        $properties=@($Value.PSObject.Properties);$count=$properties.Coun
-        foreach($property in $properties){$count+=Get-JsonGraphPropertyCount $property.Value};return $coun
+        $properties=@($Value.PSObject.Properties);$count=$properties.Count
+        foreach($property in $properties){$count+=Get-JsonGraphPropertyCount $property.Value};return $count
     }
     if($Value -is [Collections.IDictionary]){
-        $count=@($Value.Keys).Count;foreach($key in @($Value.Keys)){$count+=Get-JsonGraphPropertyCount $Value[$key]};return $coun
+        $count=@($Value.Keys).Count;foreach($key in @($Value.Keys)){$count+=Get-JsonGraphPropertyCount $Value[$key]};return $count
     }
     if($Value -is [Collections.IEnumerable]){$count=0;foreach($item in $Value){$count+=Get-JsonGraphPropertyCount $item};return $count}
     return 0
@@ -128,7 +128,7 @@ function Assert-NoReparseChain([string]$Path,[bool]$LeafMustExist) {
     if([string]::IsNullOrWhiteSpace($root)){Throw-Provision 'PRODUCTION_AUTHORITY_PATH_ROOT_INVALID'}
     [char[]]$separators=@([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar)
     $segments=@($full.Substring($root.Length).Split($separators,[StringSplitOptions]::RemoveEmptyEntries))
-    $cursor=$roo
+    $cursor=$root
     for($i=0;$i -lt $segments.Count;$i++){
         $cursor=Join-Path $cursor $segments[$i]
         if(-not(Test-Path -LiteralPath $cursor)){
@@ -174,9 +174,9 @@ function Read-LockedFile([string]$Path,[long]$Maximum,[string]$Role,[long]$Minim
 function ConvertFrom-StrictJson([byte[]]$Bytes,[string]$Role) {
     if($Bytes.Length-ge 3 -and $Bytes[0]-eq 0xef -and $Bytes[1]-eq 0xbb -and $Bytes[2]-eq 0xbf){Throw-Provision "PRODUCTION_AUTHORITY_UTF8_BOM_REJECTED|$Role"}
     $raw=$script:Utf8Strict.GetString($Bytes);if($raw.Contains("`r")){Throw-Provision "PRODUCTION_AUTHORITY_NONCANONICAL_NEWLINE|$Role"}
-    $command=Get-Command ConvertFrom-Json -CommandType Cmdle
+    $command=Get-Command ConvertFrom-Json -CommandType Cmdlet
     if($command.Parameters.ContainsKey('DateKind')){$value=ConvertFrom-Json -InputObject $raw -DateKind String}else{$value=ConvertFrom-Json -InputObject $raw}
-    $tokens=[regex]::Matches($raw,'(?:\{|,)\s*"(?:\\["\\/bfnrt]|\\u[0-9a-fA-F]{4}|[^"\\])*"\s*:').Coun
+    $tokens=[regex]::Matches($raw,'(?:\{|,)\s*"(?:\\["\\/bfnrt]|\\u[0-9a-fA-F]{4}|[^"\\])*"\s*:').Count
     if($tokens-ne(Get-JsonGraphPropertyCount $value)){Throw-Provision "PRODUCTION_AUTHORITY_DUPLICATE_OR_AMBIGUOUS_PROPERTY|$Role"};return $value
 }
 
@@ -213,7 +213,7 @@ function Get-DirectoryComponents([string]$DirectoryPath) {
     $full=[IO.Path]::GetFullPath($DirectoryPath).TrimEnd('\','/');$root=[IO.Path]::GetPathRoot($full)
     $components=New-Object Collections.Generic.List[string]
     $components.Add($root.TrimEnd('\','/')+[IO.Path]::DirectorySeparatorChar)
-    [char[]]$separators=@([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar);$cursor=$roo
+    [char[]]$separators=@([IO.Path]::DirectorySeparatorChar,[IO.Path]::AltDirectorySeparatorChar);$cursor=$root
     foreach($segment in @($full.Substring($root.Length).Split($separators,[StringSplitOptions]::RemoveEmptyEntries))){$cursor=Join-Path $cursor $segment;$components.Add([IO.Path]::GetFullPath($cursor))}
     return @($components)
 }
@@ -251,7 +251,7 @@ function Get-RuntimeRelativePath([string]$Root,[string]$Path) {
 }
 
 function Sort-RuntimeItemsOrdinal([object[]]$Items) {
-    $sorted=New-Object Collections.ArrayLis
+    $sorted=New-Object Collections.ArrayList
     foreach($item in @($Items)){$at=0;while($at-lt$sorted.Count-and[StringComparer]::Ordinal.Compare([string]$sorted[$at].relative_path,[string]$item.relative_path)-lt 0){$at++};$sorted.Insert($at,$item)}
     return @($sorted.ToArray())
 }
@@ -336,7 +336,7 @@ function Add-Text([IO.Stream]$Stream,[string]$Value){[byte[]]$b=[Text.Encoding]:
 function Get-ProfileHash([object[]]$Providers,[long]$Domains,[long]$Window,[long]$Cooldown){
     $stream=New-Object IO.MemoryStream
     try{Add-Text $stream 'mcace/backend-authority/profile/v1';Add-BE64 $stream $Domains;Add-BE64 $stream $Window;Add-BE64 $stream $Cooldown
-        $ordered=@($Providers|Sort-Object provider_id);Add-BE64 $stream $ordered.Coun
+        $ordered=@($Providers|Sort-Object provider_id);Add-BE64 $stream $ordered.Count
         foreach($p in $ordered){Add-Text $stream ([string]$p.provider_id);Add-Text $stream ([string]$p.trust_domain_id);Add-Text $stream ([string]$p.version);Add-Text $stream ([string]$p.stable_check_family);Add-BE64 $stream ([long]$p.threshold)}
         return Get-BytesSha256 $stream.ToArray()}finally{$stream.Dispose()}
 }
@@ -364,7 +364,7 @@ function Convert-WindowsArgument([string]$Value) {
 function Invoke-OpenSsl([object]$Tool,[string[]]$Arguments,[string]$Operation){
     Assert-RuntimeLocked $Tool $Tool.runtime_locks "pre-$Operation";$process=$null
     try{
-        $start=New-Object Diagnostics.ProcessStartInfo;$start.FileName=[string]$Tool.path;$start.WorkingDirectory=[string]$Tool.roo
+        $start=New-Object Diagnostics.ProcessStartInfo;$start.FileName=[string]$Tool.path;$start.WorkingDirectory=[string]$Tool.root
         $start.UseShellExecute=$false;$start.CreateNoWindow=$true;$start.RedirectStandardOutput=$true;$start.RedirectStandardError=$true
         $start.Arguments=(@($Arguments|ForEach-Object{Convert-WindowsArgument ([string]$_)})-join' ')
         $start.EnvironmentVariables.Clear()
@@ -372,7 +372,7 @@ function Invoke-OpenSsl([object]$Tool,[string[]]$Arguments,[string]$Operation){
         $start.EnvironmentVariables['PATH']=[string]$Tool.root+';'+(Join-Path $env:SystemRoot 'System32')
         $start.EnvironmentVariables['OPENSSL_CONF']=[string]$Tool.config_path
         $start.EnvironmentVariables['OPENSSL_MODULES']=[string]$Tool.providers_path
-        $process=New-Object Diagnostics.Process;$process.StartInfo=$star
+        $process=New-Object Diagnostics.Process;$process.StartInfo=$start
         if(-not$process.Start()){Throw-Provision "PRODUCTION_AUTHORITY_OPENSSL_START_FAILED|$Operation"}
         $stdoutTask=$process.StandardOutput.ReadToEndAsync();$stderrTask=$process.StandardError.ReadToEndAsync()
         if(-not$process.WaitForExit(60000)){try{$process.Kill()}catch{};Throw-Provision "PRODUCTION_AUTHORITY_OPENSSL_TIMEOUT|$Operation"}
@@ -404,8 +404,8 @@ function Protect-PrivateDirectory([string]$Path){
         $system=New-Object Security.Principal.SecurityIdentifier('S-1-5-18')
         $acl=New-Object Security.AccessControl.DirectorySecurity
         $acl.SetAccessRuleProtection($true,$false)
-        $inheritance=[Security.AccessControl.InheritanceFlags]::ContainerInherit-bor
-            [Security.AccessControl.InheritanceFlags]::ObjectInheri
+        $inheritance=[Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+            [Security.AccessControl.InheritanceFlags]::ObjectInherit
         foreach($sid in @($current,$system)){
             $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule(
                 $sid,[Security.AccessControl.FileSystemRights]::FullControl,$inheritance,
@@ -477,8 +477,7 @@ try{[byte[]]$supervisorPublic=[Convert]::FromBase64String([string]$descriptor.pu
 if($supervisorPublic.Length-lt 32 -or $supervisorPublic.Length-gt 256 -or [Convert]::ToBase64String($supervisorPublic)-cne [string]$descriptor.public_key_der_base64 -or
         (Get-BytesSha256 $supervisorPublic)-cne [string]$descriptor.key_id_sha256){Throw-Provision 'PRODUCTION_AUTHORITY_SUPERVISOR_KEY_ID_MISMATCH'}
 
-$tool=Resolve-OpenSslRuntime $OpenSslRuntimeManifestPath
-    $ExpectedOpenSslRuntimeManifestSha256 $OpenSslPath $ExpectedOpenSslSha256
+$tool=Resolve-OpenSslRuntime $OpenSslRuntimeManifestPath $ExpectedOpenSslRuntimeManifestSha256 $OpenSslPath $ExpectedOpenSslSha256
 $runtimeLocks=$null
 try{
     $runtimeLocks=Open-RuntimeLocks $tool
@@ -495,15 +494,15 @@ try{
     $proxy=New-Ed25519Material $tool (Join-Path $stage 'paper/authority') 'proxy'
     if($backend.key_id_sha256-ceq $proxy.key_id_sha256){Throw-Provision 'PRODUCTION_AUTHORITY_SOURCE_TARGET_KEYS_NOT_DISTINCT'}
     $backendText=[Convert]::ToBase64String($backend.public_der)+"`n";$proxyText=[Convert]::ToBase64String($proxy.public_der)+"`n"
-    Write-Text (Join-Path $stage 'paper/authority/backend-public-key.txt') $backendTex
-    Write-Text (Join-Path $stage 'paper/proxy-public-key.txt') $proxyTex
-    Write-Text (Join-Path $stage 'velocity/authority/backend-public-key.txt') $backendTex
-    Write-Text (Join-Path $stage 'bungeecord/authority/backend-public-key.txt') $backendTex
+    Write-Text (Join-Path $stage 'paper/authority/backend-public-key.txt') $backendText
+    Write-Text (Join-Path $stage 'paper/proxy-public-key.txt') $proxyText
+    Write-Text (Join-Path $stage 'velocity/authority/backend-public-key.txt') $backendText
+    Write-Text (Join-Path $stage 'bungeecord/authority/backend-public-key.txt') $backendText
     Write-Text (Join-Path $stage 'paper/authority/issuance.log') "MCACE_SERVER_AUTHORITY_ISSUANCE_JOURNAL_V3`n"
     Write-Bytes (Join-Path $stage 'evidence-supervisor/capture-supervisor-public-descriptor.json') $descriptorDoc.bytes
     $selected=$ProxyPlatform.ToLowerInvariant();$identity=Join-Path $stage "$selected/identity";[IO.Directory]::CreateDirectory($identity)|Out-Null
     $proxyPrivateFinal=Join-Path $identity 'server-private-key.pk8';[IO.File]::Move($proxy.private_path,$proxyPrivateFinal)
-    Write-Text (Join-Path $identity 'server-public-key.txt') $proxyTex
+    Write-Text (Join-Path $identity 'server-public-key.txt') $proxyText
 
     $providers=@(
         [pscustomobject][ordered]@{provider_id='grim';trust_domain_id=$GrimTrustDomainId;version=$GrimVersion;stable_check_family=$GrimStableCheckFamily;threshold=$GrimThreshold},

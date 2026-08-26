@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param([switch]$PublisherSmoke)
-Set-StrictMode -Version Lates
+Set-StrictMode -Version Latest
 $ErrorActionPreference='Stop'
 $collector=Join-Path $PSScriptRoot 'production-authority-process-evidence.ps1'
 $provisioner=Join-Path $PSScriptRoot 'provision-production-authority.ps1'
@@ -29,7 +29,7 @@ function Set-PrivateDirectoryAcl([string]$Path){
     $system=New-Object Security.Principal.SecurityIdentifier('S-1-5-18')
     $acl=New-Object Security.AccessControl.DirectorySecurity
     $acl.SetAccessRuleProtection($true,$false)
-    $inheritance=[Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInheri
+    $inheritance=[Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit
     foreach($sid in @($current,$system)){
         $acl.AddAccessRule((New-Object Security.AccessControl.FileSystemAccessRule(
             $sid,[Security.AccessControl.FileSystemRights]::FullControl,$inheritance,
@@ -48,7 +48,7 @@ function New-OpenSslRuntimeManifest([string]$Root,[string]$Path){
         $role=if($relative-ceq'openssl.exe'){'EXECUTABLE'}elseif($relative-ceq'openssl.cnf'){'CONFIG'}elseif($relative.StartsWith('providers/',[StringComparison]::Ordinal)){'PROVIDER_MODULE'}else{'APPLICATION_LOCAL_DLL'}
         [pscustomobject][ordered]@{relative_path=$relative;role=$role;size_bytes=[long]$_.Length;sha256=(Hash-File $_.FullName)}
     })
-    $sorted=New-Object Collections.ArrayLis
+    $sorted=New-Object Collections.ArrayList
     foreach($entry in $entries){
         $at=0
         while($at-lt$sorted.Count -and [StringComparer]::Ordinal.Compare([string]$sorted[$at].relative_path,[string]$entry.relative_path)-lt 0){$at++}
@@ -56,7 +56,7 @@ function New-OpenSslRuntimeManifest([string]$Root,[string]$Path){
     }
     $entries=@($sorted.ToArray())
     $document=[ordered]@{schema='MCACE_OPENSSL_RUNTIME_MANIFEST_V1';artifact_class='REVIEWED_OPENSSL_RUNTIME';platform='windows-x64';executable_relative_path='openssl.exe';files=$entries;test_fixture=$false}
-    Write-Json $Path $documen
+    Write-Json $Path $document
     return [pscustomobject]@{path=$Path;sha256=(Hash-File $Path)}
 }
 
@@ -146,7 +146,7 @@ function Set-PackageReceiptTimes([string]$PackageRoot,[DateTimeOffset]$Issued,[D
     $path=Join-Path $PackageRoot 'supervisor-receipt.json';$receipt=Get-Content -LiteralPath $path -Raw|ConvertFrom-Json
     [byte[]]$payloadBytes=[Convert]::FromBase64String([string]$receipt.signed_payload_base64);$payload=$utf8.GetString($payloadBytes)|ConvertFrom-Json
     $payload.issued_at=$Issued.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ');$payload.expires_at=$Expires.ToUniversalTime().ToString('yyyy-MM-ddTHH:mm:ss.fffZ')
-    $payloadBytes=Json-Bytes $payload $false;$sig=Sign-Bytes $PrivateKey $payloadBytes $PackageRoo
+    $payloadBytes=Json-Bytes $payload $false;$sig=Sign-Bytes $PrivateKey $payloadBytes $PackageRoot
     Write-Json $path ([ordered]@{schema='MCACE_PRODUCTION_AUTHORITY_SUPERVISOR_RECEIPT_V1';signed_payload_base64=[Convert]::ToBase64String($payloadBytes);signed_payload_sha256=(Hash-Bytes $payloadBytes);signature_base64=[Convert]::ToBase64String($sig)})
 }
 
@@ -154,7 +154,7 @@ function Set-PackageReceiptPayloadField([string]$PackageRoot,[string]$Name,[obje
         [string]$PrivateKey){
     $path=Join-Path $PackageRoot 'supervisor-receipt.json';$receipt=Get-Content -LiteralPath $path -Raw|ConvertFrom-Json
     [byte[]]$payloadBytes=[Convert]::FromBase64String([string]$receipt.signed_payload_base64);$payload=$utf8.GetString($payloadBytes)|ConvertFrom-Json
-    $payload.$Name=$Value;$payloadBytes=Json-Bytes $payload $false;$sig=Sign-Bytes $PrivateKey $payloadBytes $PackageRoo
+    $payload.$Name=$Value;$payloadBytes=Json-Bytes $payload $false;$sig=Sign-Bytes $PrivateKey $payloadBytes $PackageRoot
     Write-Json $path ([ordered]@{schema='MCACE_PRODUCTION_AUTHORITY_SUPERVISOR_RECEIPT_V1';signed_payload_base64=[Convert]::ToBase64String($payloadBytes);signed_payload_sha256=(Hash-Bytes $payloadBytes);signature_base64=[Convert]::ToBase64String($sig)})
 }
 
@@ -191,7 +191,7 @@ function New-CaptureFixture([string]$Root,[string]$Mutation,[string]$ProvisionRo
     Copy-Item (Join-Path $Bundle 'mcace-server-bungeecord.jar') (Join-Path $Root $artifactPaths.mcace_server_bungeecord)
     $artifact=[ordered]@{schema='MCACE_PRODUCTION_AUTHORITY_ARTIFACT_MANIFEST_V4';source_commit=$sourceCommit;artifact_source_commit=$sourceCommit}
     foreach ($role in $artifactPaths.Keys){$path=Join-Path $Root $artifactPaths[$role];$bundleFile=if($role-ceq'mcace_server_paper'){'mcace-server-paper.jar'}elseif($role-ceq'mcace_server_velocity'){'mcace-server-velocity.jar'}elseif($role-ceq'mcace_server_bungeecord'){'mcace-server-bungeecord.jar'}else{''};$entry=[ordered]@{relative_path=$artifactPaths[$role];sha256=(Hash-File $path);size_bytes=[long](Get-Item $path).Length;version="v4-$role";release_bundle_file=$bundleFile};if($role-ceq'vulcan'){$entry.licensed=$true;$entry.reviewed=$true;$entry.review_sha256=$entry.sha256};$artifact[$role]=$entry}
-    Write-Json (Join-Path $Root 'artifact-manifest.json') $artifac
+    Write-Json (Join-Path $Root 'artifact-manifest.json') $artifact
 
     $session=if($Mutation-ceq'wrong_session'){'session-observation-wrong'}else{'session-authority-v4'};$grantSession='session-authority-v4';$sessionHash=Hash-Bytes $utf8.GetBytes($session);$grantSessionHash=Hash-Bytes $utf8.GetBytes($grantSession)
     $player='11111111-1111-4111-8111-111111111111';$grantId='22222222-2222-4222-8222-222222222222';$attestation='33333333-3333-4333-8333-333333333333';[byte[]]$binding=1..32;[byte[]]$challenge=33..64
@@ -235,7 +235,7 @@ function New-CaptureFixture([string]$Root,[string]$Mutation,[string]$ProvisionRo
     $captureDescriptor=Descriptor (Join-Path $Root 'capture.json') 'capture.json';$rawRoot=Raw-Root $captureDescriptor $fileMap;$frameSet=Frame-Set $frameRecords
     $issued=[DateTimeOffset]::UtcNow.AddSeconds(-20);$expires=if($Mutation-ceq'expired_receipt'){[DateTimeOffset]::UtcNow.AddSeconds(-1)}else{[DateTimeOffset]::UtcNow.AddMinutes(10)}
     $payload=[ordered]@{schema='MCACE_PRODUCTION_AUTHORITY_SUPERVISOR_RECEIPT_PAYLOAD_V1';artifact_class='EXTERNAL_SUPERVISOR_SIGNED_PRODUCTION_CAPTURE';source_commit=$sourceCommit;artifact_source_commit=$sourceCommit;product_version='0.0.1';capture_id=$base.capture_id;operation_attempt_id=$base.operation_attempt_id;supervisor_instance_id='external-supervisor-a';supervisor_run_id='66666666-6666-4666-8666-666666666666';signer_key_id_sha256=(Get-Content $Descriptor -Raw|ConvertFrom-Json).key_id_sha256;challenge_nonce_base64=[Convert]::ToBase64String([byte[]](101..132));issued_at=$issued.ToString('yyyy-MM-ddTHH:mm:ss.fffZ');expires_at=$expires.ToString('yyyy-MM-ddTHH:mm:ss.fffZ');raw_capture_manifest_sha256=$captureDescriptor.sha256;raw_capture_manifest_size_bytes=$captureDescriptor.size_bytes;raw_evidence_root_sha256=$rawRoot;raw_frame_set_sha256=$frameSet;raw_frame_count=2;provider_evidence_commitment_sha256=$providerCommit;event_chain_root_sha256=$prev;event_count=5;process_ledger_sha256=$fileMap.process_ledger.sha256;process_ledger_size_bytes=$fileMap.process_ledger.size_bytes;paper_jar_sha256=(Hash-File(Join-Path $Bundle 'mcace-server-paper.jar'));paper_jar_size_bytes=[long](Get-Item(Join-Path $Bundle 'mcace-server-paper.jar')).Length;velocity_jar_sha256=(Hash-File(Join-Path $Bundle 'mcace-server-velocity.jar'));velocity_jar_size_bytes=[long](Get-Item(Join-Path $Bundle 'mcace-server-velocity.jar')).Length;bungeecord_jar_sha256=(Hash-File(Join-Path $Bundle 'mcace-server-bungeecord.jar'));bungeecord_jar_size_bytes=[long](Get-Item(Join-Path $Bundle 'mcace-server-bungeecord.jar')).Length;selected_proxy='velocity';selected_proxy_jar_sha256=(Hash-File(Join-Path $Bundle 'mcace-server-velocity.jar'));profile_sha256=$profile;topology_sha256=[string]$freeze.topology.sha256;backend_key_id_sha256=$backendKey;proxy_key_id_sha256=$proxyKey;action_ceiling='MONITOR';automatic_action_count=0;cleanup_all_zero=$true;licensed_vulcan_sha256=$artifact.vulcan.sha256;genuine_provider_ids=@('grim','vulcan');test_fixture=$false}
-    [byte[]]$payloadBytes=Json-Bytes $payload $false;[byte[]]$receiptSig=Sign-Bytes $SupervisorPrivate $payloadBytes $Roo
+    [byte[]]$payloadBytes=Json-Bytes $payload $false;[byte[]]$receiptSig=Sign-Bytes $SupervisorPrivate $payloadBytes $Root
     Write-Json (Join-Path $Root 'receipt.json') ([ordered]@{schema='MCACE_PRODUCTION_AUTHORITY_SUPERVISOR_RECEIPT_V1';signed_payload_base64=[Convert]::ToBase64String($payloadBytes);signed_payload_sha256=(Hash-Bytes $payloadBytes);signature_base64=[Convert]::ToBase64String($receiptSig)})
     if($Mutation-ceq'no_raw_frames'){Remove-Item (Join-Path $Root 'raw-frames.jsonl')-Force}
     return [pscustomobject]@{capture=Join-Path $Root 'capture.json';receipt=Join-Path $Root 'receipt.json';provider_commitment=$providerCommit;raw_root=$rawRoot}
