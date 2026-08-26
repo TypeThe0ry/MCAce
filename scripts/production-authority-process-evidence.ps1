@@ -1974,7 +1974,30 @@ function Write-AtomicSigningRequest([string]$Path, [object]$RequestValue) {
             Throw-Authority 'PRODUCTION_AUTHORITY_SIGNING_REQUEST_TARGET_APPEARED'
         }
         [IO.File]::Move($temporary,$Path)
-        $document = Read-JsonDocument $Path 'supervisor-signing-request'
+        # The external supervisor is intentionally allowed to open the
+        # request as soon as it appears.  Our integrity reader takes an
+        # exclusive handle, so a legitimate reader can briefly race the
+        # post-move verification.  Retry only sharing violations; all other
+        # parse/identity failures remain fail-closed.
+        $document = $null
+        $lastReadError = $null
+        for ($attempt = 1; $attempt -le 40 -and $null -eq $document; $attempt++) {
+            try {
+                $document = Read-JsonDocument $Path 'supervisor-signing-request'
+            } catch {
+                $lastReadError = $_
+                $message = [string]$_.Exception.Message
+                if (-not (Test-AuthoritySharingViolation $_.Exception) -and
+                        $_.Exception -isnot [IO.IOException] -and
+                        $message -notmatch '(?i)used by another process|being used by another process|sharing violation') {
+                    throw
+                }
+                Start-Sleep -Milliseconds 25
+            }
+        }
+        if ($null -eq $document) {
+            throw $lastReadError
+        }
         if (-not (Test-BytesEqual $document.bytes $bytes)) {
             Throw-Authority 'PRODUCTION_AUTHORITY_SIGNING_REQUEST_ATOMIC_WRITE_MISMATCH'
         }
