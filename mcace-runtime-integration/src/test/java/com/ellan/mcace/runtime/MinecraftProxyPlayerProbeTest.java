@@ -10,6 +10,7 @@ import com.ellan.mcace.protocol.integrity.IntegrityDigests;
 import com.ellan.mcace.client.integrity.ScopeIntegrityManifest;
 import com.ellan.mcace.client.policy.VerifiedPolicy;
 import com.ellan.mcace.client.policy.VerifiedPolicyCache;
+import com.ellan.mcace.client.observation.LoadedModObservation;
 import com.ellan.mcace.client.session.ClientHandshakeEngine;
 import com.ellan.mcace.core.authority.AuthorityFilePreflight;
 import com.ellan.mcace.protocol.crypto.Ed25519Keys;
@@ -4795,7 +4796,8 @@ final class MinecraftProxyPlayerProbeTest {
                     new VerifiedPolicyCache(harness.runRoot.resolve(cacheName + "-client-cache"),
                             Clock.systemUTC()));
             List<ClientHandshakeEngine.OutboundFrame> frames = candidate.createAuthenticationFrames(
-                    emptyBundle(verifiedPolicy));
+                    emptyBundle(verifiedPolicy), List.of(), List.of(), List.of(),
+                    probeLoadedModGraph());
             for (ClientHandshakeEngine.OutboundFrame outbound : frames) {
                 SignedEnvelope outboundEnvelope = SignedEnvelope.parseFrom(outbound.data());
                 packetTrace.add("OUT:" + outboundEnvelope.getHeader().getPacketType().name()
@@ -4825,7 +4827,8 @@ final class MinecraftProxyPlayerProbeTest {
                         "127.0.0.1:" + harness.proxyPort,
                         new VerifiedPolicyCache(harness.runRoot.resolve("client-cache"), Clock.systemUTC()));
                 List<ClientHandshakeEngine.OutboundFrame> authenticationFrames = engine.createAuthenticationFrames(
-                        authenticationBundle(verifiedPolicy));
+                        authenticationBundle(verifiedPolicy), List.of(), List.of(), List.of(),
+                        probeLoadedModGraph());
                 boolean allAuthenticationFramesDuringConfiguration = !authenticationFrames.isEmpty();
                 for (ClientHandshakeEngine.OutboundFrame frame : authenticationFrames) {
                     allAuthenticationFramesDuringConfiguration &= state == State.CONFIGURATION;
@@ -4964,6 +4967,13 @@ final class MinecraftProxyPlayerProbeTest {
                             IntegrityDigests.scopeRoot(List.of())))
                     .toList();
             return ClientIntegrityBundle.of(manifests);
+        }
+
+        /** The raw peer still advertises Fabric Loader's built-in runtime entry. */
+        private static List<LoadedModObservation> probeLoadedModGraph() {
+            return List.of(new LoadedModObservation(
+                    "fabricloader", "0.0.0-mcace-probe",
+                    LoadedModObservation.OriginKind.BUILTIN_OR_CLASSPATH, "", ""));
         }
 
         private ClientIntegrityBundle authenticationBundle(VerifiedPolicy verifiedPolicy) throws Exception {
