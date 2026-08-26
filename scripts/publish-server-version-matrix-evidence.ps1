@@ -115,6 +115,13 @@ function ConvertTo-CompactJsonBytes([object]$Value, [int]$Depth = 40) {
     return $utf8NoBom.GetBytes(($Value | ConvertTo-Json -Depth $Depth -Compress) + "`n")
 }
 
+# Matrix set commitments are a cross-process contract. The producer and the
+# external supervisor signer use compact UTF-8 JSON at depth 30 without a
+# trailing newline; keep file/evidence JSON newline-terminated separately.
+function ConvertTo-CommitmentJsonBytes([object]$Value, [int]$Depth = 30) {
+    return $utf8NoBom.GetBytes(($Value | ConvertTo-Json -Depth $Depth -Compress))
+}
+
 function Get-ApprovedMatrixSupervisorPin {
     $pin = [Environment]::GetEnvironmentVariable(
         'MCACE_RELEASE_APPROVED_MATRIX_SUPERVISOR_TRUST_ROOT_SHA256', 'Process')
@@ -139,7 +146,7 @@ function Test-FullPathBelow([string]$Root, [string]$Candidate) {
 }
 
 function Get-SetSha256([string]$Domain, [object]$Value) {
-    return Get-BytesSha256 (ConvertTo-CompactJsonBytes ([pscustomobject][ordered]@{
+    return Get-BytesSha256 (ConvertTo-CommitmentJsonBytes ([pscustomobject][ordered]@{
         domain = $Domain
         value = $Value
     }))

@@ -35,6 +35,10 @@ function ConvertTo-CompactJsonBytes([object]$Value) {
     return $utf8NoBom.GetBytes(($Value | ConvertTo-Json -Depth 40 -Compress) + "`n")
 }
 
+function ConvertTo-CommitmentJsonBytes([object]$Value) {
+    return $utf8NoBom.GetBytes(($Value | ConvertTo-Json -Depth 30 -Compress))
+}
+
 function Write-CompactJson([string]$Path, [object]$Value) {
     [IO.File]::WriteAllBytes($Path, (ConvertTo-CompactJsonBytes $Value))
 }
@@ -51,7 +55,7 @@ function Get-RawSetSha256([object[]]$Descriptors) {
 }
 
 function Get-SetSha256([string]$Domain, [object]$Value) {
-    return Get-BytesSha256 (ConvertTo-CompactJsonBytes ([pscustomobject][ordered]@{
+    return Get-BytesSha256 (ConvertTo-CommitmentJsonBytes ([pscustomobject][ordered]@{
         domain=$Domain; value=$Value
     }))
 }
