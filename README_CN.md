@@ -38,10 +38,13 @@ Matrix V4、Federation V5、Vulcan V3 和 Authority V4 的 validator/contract �
 开发工作树中集成，但 `docs/evidence/` 下尚未保留对应的 release-grade index。因此无论本地
 测试是否通过，这些门都继续保持 PENDING。
 
-### 当前验证快照（8c0dd095）
+### 当前验证快照（b931791d）
 
 当前集成 commit 工作树干净，定向反作弊/兼容性 smoke 集合与 runtime network integration
-测试均已通过。这些结果仍只是诊断证据，不能替代上面列出的外部 GUI、federation、Vulcan、
+测试均已通过；严格本地构建也已用根模块 JDK 21 及隔离的 `26.1.2`/`26.2` Fabric 模块
+JDK 25 完成，八项输出保存在 `build/local-verification-bundle/`，但该目录只属于诊断材料，
+因为本地 manifest 明确是 `LOCAL_VERIFICATION`/`release_identity=false`。这些结果仍只是诊断证据，
+不能替代上面列出的外部 GUI、federation、Vulcan、
 Authority、Matrix supervisor 或受保护发布门。
 
 ## MCAce 是什么、又不是什么

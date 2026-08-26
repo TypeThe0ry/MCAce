@@ -42,10 +42,14 @@ under active integration, but no corresponding release-grade index is retained
 under `docs/evidence/`. They therefore remain PENDING regardless of local test
 success.
 
-### Current verification snapshot (8c0dd095)
+### Current verification snapshot (b931791d)
 
 The current integration commit has a clean worktree and passes the targeted
 anti-cheat/compatibility smoke set plus the runtime network integration test.
+The strict local build also completed with JDK 21 for the root modules and JDK 25
+for the isolated `26.1.2`/`26.2` Fabric modules; its eight-file output is kept at
+`build/local-verification-bundle/` as diagnostic material only because the local
+manifest is intentionally `LOCAL_VERIFICATION`/`release_identity=false`.
 Those results are diagnostic evidence only: they do not replace the external
 GUI, federation, Vulcan, Authority, Matrix-supervisor, or protected-release
 gates listed above.
