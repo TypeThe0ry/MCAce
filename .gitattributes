@@ -7,5 +7,8 @@
 *.json text eol=lf
 *.properties text eol=lf
 *.txt text eol=lf
+*.html text eol=lf
+*.css text eol=lf
+*.js text eol=lf
 docs/evidence/** -text
 mcace-server-bungeecord/src/main/resources/META-INF/services/com.ellan.mcace.bungeecord.BungeeSessionBridgeFactory text eol=lf
