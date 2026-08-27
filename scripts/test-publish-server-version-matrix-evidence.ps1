@@ -632,7 +632,10 @@ function Write-MatrixTriplet([object]$Fixture) {
         test_fixture=$false;signature_base64=''
     }
     $receipt.signature_base64=[Convert]::ToBase64String($rsa.SignData((Get-ReceiptSigningPayload ([pscustomobject]$receipt)),'SHA256'))
-    $receiptBytes=ConvertTo-CompactJsonBytes ([pscustomobject]$receipt)
+    # The external supervisor's detached receipt is intentionally compact
+    # JSON without a trailing newline; all other evidence documents remain
+    # newline-terminated.
+    $receiptBytes=ConvertTo-CommitmentJsonBytes ([pscustomobject]$receipt)
     [IO.File]::WriteAllBytes((Join-Path $tripletRoot 'supervisor-receipt.json'),$receiptBytes)
     $commit=[pscustomobject][ordered]@{
         schema='MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V4';generated_at=$Fixture.report.generated_at
@@ -823,8 +826,8 @@ try {
 
     $badSignature = New-Fixture 'bad-supervisor-signature'
     $badSignature.receipt.signature_base64 = [Convert]::ToBase64String((New-ByteArray 256 41))
-    Write-CompactJson (Join-Path $badSignature.triplet_root 'supervisor-receipt.json') `
-        $badSignature.receipt
+    [IO.File]::WriteAllBytes((Join-Path $badSignature.triplet_root 'supervisor-receipt.json'),
+        (ConvertTo-CommitmentJsonBytes $badSignature.receipt))
     $badSignatureArgs = Get-PublisherArguments $badSignature `
         'server-version-process-matrix-bad-supervisor-signature'
     Invoke-ExpectedFailure { & $publisher @badSignatureArgs } `
@@ -832,8 +835,8 @@ try {
 
     $fixtureReceipt = New-Fixture 'fixture-supervisor-receipt'
     $fixtureReceipt.receipt.test_fixture = $true
-    Write-CompactJson (Join-Path $fixtureReceipt.triplet_root 'supervisor-receipt.json') `
-        $fixtureReceipt.receipt
+    [IO.File]::WriteAllBytes((Join-Path $fixtureReceipt.triplet_root 'supervisor-receipt.json'),
+        (ConvertTo-CommitmentJsonBytes $fixtureReceipt.receipt))
     $fixtureReceiptArgs = Get-PublisherArguments $fixtureReceipt `
         'server-version-process-matrix-fixture-supervisor-receipt'
     Invoke-ExpectedFailure { & $publisher @fixtureReceiptArgs } `
@@ -841,8 +844,8 @@ try {
 
     $expiredReceipt = New-Fixture 'expired-supervisor-receipt'
     $expiredReceipt.receipt.expires_at = [DateTimeOffset]::UtcNow.AddMinutes(-1).ToString('o')
-    Write-CompactJson (Join-Path $expiredReceipt.triplet_root 'supervisor-receipt.json') `
-        $expiredReceipt.receipt
+    [IO.File]::WriteAllBytes((Join-Path $expiredReceipt.triplet_root 'supervisor-receipt.json'),
+        (ConvertTo-CommitmentJsonBytes $expiredReceipt.receipt))
     $expiredReceiptArgs = Get-PublisherArguments $expiredReceipt `
         'server-version-process-matrix-expired-supervisor-receipt'
     Invoke-ExpectedFailure { & $publisher @expiredReceiptArgs } `
@@ -951,8 +954,8 @@ try {
 
     $callerPromotion = New-Fixture 'self-supervisor-claim'
     $callerPromotion.receipt.supervisor_independent = $false
-    Write-CompactJson (Join-Path $callerPromotion.triplet_root 'supervisor-receipt.json') `
-        $callerPromotion.receipt
+    [IO.File]::WriteAllBytes((Join-Path $callerPromotion.triplet_root 'supervisor-receipt.json'),
+        (ConvertTo-CommitmentJsonBytes $callerPromotion.receipt))
     $callerPromotionArgs = Get-PublisherArguments $callerPromotion `
         'server-version-process-matrix-self-supervisor-claim'
     Invoke-ExpectedFailure { & $publisher @callerPromotionArgs } `

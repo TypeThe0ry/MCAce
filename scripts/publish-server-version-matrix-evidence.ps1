@@ -326,11 +326,23 @@ function Assert-NoSecretFieldsOrAbsoluteStrings([object]$Value, [string]$Role) {
 }
 
 function ConvertFrom-StrictJson([string]$Raw, [string]$Role) {
+    # Matrix evidence documents are newline-terminated.  The detached receipt
+    # and the out-of-band trust root are deliberate compact-JSON exceptions:
+    # the authority emits those bytes without a trailing LF, and the producer
+    # binds the receipt bytes in commit.json while the trust-root file is
+    # pinned by its raw SHA-256.  Keep the exceptions role-scoped so a caller
+    # cannot weaken the canonical encoding of any other published document.
+    $isCompactAuthorityJson = $Role -in @('supervisor-receipt','supervisor-trust-root')
+    $hasTrailingNewline = $Raw.EndsWith("`n", [StringComparison]::Ordinal)
     if ([string]::IsNullOrWhiteSpace($Raw) -or $Raw.Contains("`r") -or
-            -not $Raw.EndsWith("`n", [StringComparison]::Ordinal)) {
+            (-not $isCompactAuthorityJson -and -not $hasTrailingNewline)) {
         throw "MCACE_MATRIX_PUBLISH_JSON_CANONICAL_ENCODING_INVALID|$Role"
     }
-    $body = $Raw.Substring(0, $Raw.Length - 1)
+    $body = if ($hasTrailingNewline) {
+        $Raw.Substring(0, $Raw.Length - 1)
+    } else {
+        $Raw
+    }
     if ($body.Contains("`n") -or $body.Length -lt 2 -or
             $body[0] -cne '{' -or $body[$body.Length - 1] -cne '}') {
         throw "MCACE_MATRIX_PUBLISH_JSON_CANONICAL_OBJECT_REQUIRED|$Role"
@@ -1890,6 +1902,14 @@ function Assert-SupervisorReceipt(
                 (Get-MatrixReceiptSigningPayload $receipt) $signature `
                 $TrustRoot.modulus $TrustRoot.exponent)) {
         throw 'MCACE_MATRIX_PUBLISH_SUPERVISOR_RECEIPT_SIGNATURE_INVALID'
+    }
+    # The detached receipt is signed and hashed as compact JSON without a
+    # trailing newline.  Verify the exact bytes before copying them into the
+    # published package; this keeps the publisher aligned with the producer's
+    # cross-process commitment contract.
+    if ([string]$Document.sha256 -cne
+            (Get-BytesSha256 (ConvertTo-CommitmentJsonBytes $receipt))) {
+        throw 'MCACE_MATRIX_PUBLISH_SUPERVISOR_RECEIPT_NONCANONICAL'
     }
     return [pscustomobject]@{ value=$receipt; signed_at=$signedAt; expires_at=$expiresAt }
 }
