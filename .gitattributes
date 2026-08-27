@@ -1,4 +1,11 @@
 * text=auto
 *.ps1 text eol=lf
+*.proto text eol=lf
+*.sql text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.properties text eol=lf
+*.txt text eol=lf
 docs/evidence/** -text
 mcace-server-bungeecord/src/main/resources/META-INF/services/com.ellan.mcace.bungeecord.BungeeSessionBridgeFactory text eol=lf
