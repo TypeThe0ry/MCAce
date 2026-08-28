@@ -38,6 +38,7 @@ import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
@@ -3132,10 +3133,41 @@ final class MinecraftProxyPlayerProbeTest {
                 return;
             }
             Path spigot = targetPaperRoot.resolve("spigot.yml");
-            Files.writeString(spigot, """
-                    settings:
-                      bungeecord: true
-                    """, StandardCharsets.UTF_8);
+            Path preparedSpigot = runtimeAssets.preparedRoot().resolve("spigot.yml");
+            // Keep the complete, version-matched Spigot configuration copied from the
+            // prepared runtime tree. A tiny synthetic document can trigger a legacy
+            // config-upgrade path on newer Folia builds and makes cold-start timing noisy.
+            // Mutate only the forwarding switch in-place so the platform sees the same
+            // config shape it would generate itself (including config-version).
+            if (!Files.isRegularFile(preparedSpigot, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException("prepared spigot.yml is missing: " + preparedSpigot);
+            }
+            Files.copy(preparedSpigot, spigot, StandardCopyOption.REPLACE_EXISTING);
+            List<String> lines = Files.readAllLines(spigot, StandardCharsets.UTF_8);
+            int bungeeLine = -1;
+            for (int index = 0; index < lines.size(); index++) {
+                String line = lines.get(index);
+                if (line.matches("^\\s{2}bungeecord:\\s*(?:true|false)\\s*$")) {
+                    if (bungeeLine >= 0) {
+                        throw new IOException("prepared spigot.yml has duplicate settings.bungeecord: "
+                                + spigot);
+                    }
+                    if (!line.trim().equals("bungeecord: false")) {
+                        throw new IOException("prepared spigot.yml is not the immutable default template: "
+                                + spigot);
+                    }
+                    bungeeLine = index;
+                }
+            }
+            if (bungeeLine < 0) {
+                throw new IOException("prepared spigot.yml has no settings.bungeecord: " + spigot);
+            }
+            if (lines.stream().noneMatch(
+                    line -> line.matches("^config-version:\\s+\\d+\\s*$"))) {
+                throw new IOException("prepared spigot.yml has no config-version: " + spigot);
+            }
+            lines.set(bungeeLine, "  bungeecord: true");
+            Files.writeString(spigot, String.join("\n", lines) + "\n", StandardCharsets.UTF_8);
             forwardingConfigured = true;
         }
 
