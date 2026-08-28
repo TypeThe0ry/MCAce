@@ -282,14 +282,17 @@ Assert-True ($invalidTimestampMessage -like '*SERVER_VERSION_MATRIX_TIMESTAMP_IN
 # and must fail with the explicit timeout code.
 $retryFixtureSource = @"
 param([string]`$Path, [int]`$MaxAttempts, [int]`$DelayMilliseconds,
-    [switch]`$ReleaseOnFirstRetry)
+    [switch]`$HoldLock, [switch]`$ReleaseOnFirstRetry)
 Set-StrictMode -Version Latest
 `$ErrorActionPreference = 'Stop'
 $(Get-FunctionText 'Assert-DirectLocalPath')
 $(Get-FunctionText 'Read-FileBytesWithSharingRetry')
-`$script:retryLock = [IO.File]::Open(`$Path, [IO.FileMode]::Open,
-    [IO.FileAccess]::Read, [IO.FileShare]::None)
-if (`$ReleaseOnFirstRetry) {
+`$script:retryLock = `$null
+if (`$HoldLock) {
+    `$script:retryLock = [IO.File]::Open(`$Path, [IO.FileMode]::Open,
+        [IO.FileAccess]::Read, [IO.FileShare]::None)
+}
+if (`$HoldLock -and `$ReleaseOnFirstRetry) {
     `$script:releaseOnSleep = `$true
     function Start-Sleep {
         param([int]`$Milliseconds)
@@ -316,14 +319,19 @@ try {
     $retryBytes = [byte[]](1, 2, 3, 5, 8)
     [IO.File]::WriteAllBytes($retryPath, $retryBytes)
     $expectedRetryBase64 = [Convert]::ToBase64String($retryBytes)
-    $released = [string](& $retryFixtureScript $retryPath 8 10 -ReleaseOnFirstRetry)
+    $released = [string](& $retryFixtureScript $retryPath 8 10 -HoldLock -ReleaseOnFirstRetry)
     Assert-True ($released -ceq $expectedRetryBase64) `
         'sharing retry did not read bytes after the transient lock released'
     $timeoutMessage = $null
-    try { & $retryFixtureScript $retryPath 3 10 | Out-Null }
+    try { & $retryFixtureScript $retryPath 3 10 -HoldLock | Out-Null }
     catch { $timeoutMessage = $_.Exception.Message }
     Assert-True ($timeoutMessage -like '*SERVER_VERSION_MATRIX_FILE_SHARE_TIMEOUT*') `
         'persistent sharing lock did not fail with the bounded timeout code'
+    $emptyPath = Join-Path $retryFixtureRoot 'empty.log'
+    [IO.File]::WriteAllBytes($emptyPath, [byte[]]@())
+    $emptyRead = [string](& $retryFixtureScript $emptyPath 1 10)
+    Assert-True ($emptyRead -ceq '') `
+        'empty file read returned null instead of an empty byte array'
 } finally {
     if (Test-Path -LiteralPath $retryFixtureRoot -PathType Container) {
         $tempPrefix = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd(

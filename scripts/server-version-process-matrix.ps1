@@ -231,7 +231,10 @@ function Read-FileBytesWithSharingRetry {
     $resolved = Assert-DirectLocalPath $Path
     for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
         try {
-            return [IO.File]::ReadAllBytes($resolved)
+            # Unary comma keeps the byte[] as one pipeline object.  Without it,
+            # PowerShell enumerates the array (and an empty file emits nothing),
+            # which turns the caller's `$bytes` into `$null`.
+            return ,([IO.File]::ReadAllBytes($resolved))
         } catch [IO.IOException] {
             # HResult low word carries the Win32 ERROR_* code on Windows.
             $win32Code = $_.Exception.HResult -band 0xffff
