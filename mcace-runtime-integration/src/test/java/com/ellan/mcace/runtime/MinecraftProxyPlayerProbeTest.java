@@ -3783,6 +3783,14 @@ final class MinecraftProxyPlayerProbeTest {
                 send(0, loginStart(playerId));
                 long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(25);
                 while (System.nanoTime() < deadline && socket.isConnected()) {
+                    // Cold Paper/Folia bootstrap can leave the proxy channel quiet for more
+                    // than ten seconds after TCP accept. Recompute the read timeout from the
+                    // same deadline on every frame so an idle scheduling interval is tolerated
+                    // without allowing a single read to outlive the probe budget.
+                    long remainingNanos = deadline - System.nanoTime();
+                    if (remainingNanos <= 0L) break;
+                    long remainingMillis = TimeUnit.NANOSECONDS.toMillis(remainingNanos);
+                    socket.setSoTimeout((int) Math.max(1L, Math.min(45_000L, remainingMillis + 1L)));
                     Packet packet;
                     try {
                         packet = read();
