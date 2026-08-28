@@ -79,6 +79,58 @@ function Assert-Sha256([string]$Path, [string]$Expected, [string]$Label) {
     return $actual
 }
 
+function ConvertTo-ReportTimestamp([object]$Value) {
+    <#
+      ConvertFrom-Json has two materially different timestamp behaviours:
+      PowerShell 7 materializes ISO-8601 values as DateTime, while Windows
+      PowerShell 5.1 leaves them as strings.  Stringifying a DateTime loses
+      its Kind/offset (for example, `...Z` becomes a local-culture value), so
+      dispatch on the runtime type before parsing and normalize every accepted
+      representation to UTC.  An unspecified DateTime or a string without an
+      explicit offset is ambiguous and therefore rejected fail-closed.
+    #>
+    try {
+        if ($null -eq $Value) {
+            throw 'timestamp is null'
+        }
+        if ($Value -is [DateTimeOffset]) {
+            return ([DateTimeOffset]$Value).ToUniversalTime()
+        }
+        if ($Value -is [DateTime]) {
+            $dateTime = [DateTime]$Value
+            if ($dateTime.Kind -eq [DateTimeKind]::Unspecified) {
+                throw 'timestamp DateTime kind is unspecified'
+            }
+            return ([DateTimeOffset]$dateTime).ToUniversalTime()
+        }
+        if ($Value -isnot [string]) {
+            throw 'timestamp value type is unsupported'
+        }
+
+        $text = ([string]$Value).Trim()
+        # Require the canonical ISO shape and an explicit UTC/offset designator
+        # so a host-local culture/time zone can never silently reinterpret it.
+        if ($text -notmatch '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d{1,7})?(?:Z|[+-]\d{2}:\d{2})$') {
+            throw 'timestamp string shape is invalid'
+        }
+        $parsed = [DateTimeOffset]::MinValue
+        if (-not [DateTimeOffset]::TryParse(
+                $text,
+                [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::RoundtripKind,
+                [ref]$parsed)) {
+            throw 'timestamp string is not parseable'
+        }
+        return $parsed.ToUniversalTime()
+    }
+    catch {
+        # Do not leak parser/culture details into the release gate.  Every
+        # malformed or ambiguous representation maps to the same fail-closed
+        # contract marker consumed by CI and ReportOnly callers.
+        throw 'MCACE_COMPATIBILITY_REPORT_AGE_INVALID'
+    }
+}
+
 function Read-Manifest([string]$Path) {
     $values = [ordered]@{}
     $lineNumber = 0
@@ -406,8 +458,12 @@ function Invoke-ReportOnly {
             throw "MCACE_COMPATIBILITY_REPORT_TARGET_INVALID|index=$i"
         }
     }
-    $generated = [DateTimeOffset]::Parse([string]$report.generated_at)
-    if ($generated -lt [DateTimeOffset]::UtcNow.AddMinutes(-$MaximumReportAgeMinutes) -or $generated -gt [DateTimeOffset]::UtcNow.AddMinutes(1)) {
+    # ConvertFrom-Json may return DateTime, DateTimeOffset, or string depending
+    # on PowerShell/.NET version.  The helper preserves the instant and returns
+    # a UTC DateTimeOffset instead of reparsing a localized DateTime string.
+    $generated = (ConvertTo-ReportTimestamp $report.generated_at).ToUniversalTime()
+    $now = [DateTimeOffset]::UtcNow
+    if ($generated -lt $now.AddMinutes(-$MaximumReportAgeMinutes) -or $generated -gt $now.AddMinutes(1)) {
         throw 'MCACE_COMPATIBILITY_REPORT_AGE_INVALID'
     }
     Write-Output 'MCACE_VERSION_COMPATIBILITY_REPORTONLY_PASS'

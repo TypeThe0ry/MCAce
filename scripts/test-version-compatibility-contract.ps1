@@ -28,6 +28,8 @@ foreach ($token in @(
         "MCACE_COMPATIBILITY_REPORT_SOURCE_COMMIT_MISMATCH",
         "MCACE_COMPATIBILITY_REPORT_ARTIFACT_SOURCE_COMMIT_MISMATCH",
         "MCACE_COMPATIBILITY_REPORT_UNSUPPORTED_EXAMPLES_INVALID",
+        "MCACE_COMPATIBILITY_REPORT_AGE_INVALID",
+        "ConvertTo-ReportTimestamp",
         "MCACE_RELEASE_BUNDLE_V4",
         "artifact_source_commit",
         "'1.21.11'",
@@ -197,13 +199,51 @@ try {
     if ('MCACE_VERSION_COMPATIBILITY_EXECUTE_PASS' -notin $executeOutput) {
         throw 'MCACE_VERSION_COMPATIBILITY_EXECUTE_FIXTURE_FAILED'
     }
+    $rawReport = [IO.File]::ReadAllText($valid.report, [Text.Encoding]::UTF8)
+    $generatedAtMatch = [regex]::Match(
+        $rawReport,
+        '"generated_at"\s*:\s*"(?<value>[^"\\]+)"',
+        [Text.RegularExpressions.RegexOptions]::CultureInvariant)
+    if (-not $generatedAtMatch.Success -or
+            $generatedAtMatch.Groups['value'].Value -notmatch 'Z$') {
+        throw 'MCACE_VERSION_COMPATIBILITY_GENERATED_AT_NOT_UTC_Z'
+    }
     $reportHash = Get-TestSha256 $valid.report
     $reportOnlyOutput = @(& $scriptPath -ReportOnly -ReportPath $valid.report `
         -ExpectedReportSha256 $reportHash `
         -ExpectedSourceCommit $valid.source_commit `
-        -ExpectedArtifactSourceCommit $valid.artifact_source_commit)
+        -ExpectedArtifactSourceCommit $valid.artifact_source_commit `
+        -MaximumReportAgeMinutes 60)
     if ('MCACE_VERSION_COMPATIBILITY_REPORTONLY_PASS' -notin $reportOnlyOutput) {
-        throw 'MCACE_VERSION_COMPATIBILITY_REPORTONLY_FIXTURE_FAILED'
+        throw 'MCACE_VERSION_COMPATIBILITY_REPORTONLY_FRESH_Z_FIXTURE_FAILED'
+    }
+
+    $expiredReport = Join-Path $valid.container 'report-expired.json'
+    $expiredTimestamp = '2000-01-01T00:00:00.0000000Z'
+    $timestampStart = $generatedAtMatch.Groups['value'].Index
+    $timestampLength = $generatedAtMatch.Groups['value'].Length
+    $expiredRaw = $rawReport.Substring(0, $timestampStart) +
+        $expiredTimestamp +
+        $rawReport.Substring($timestampStart + $timestampLength)
+    [IO.File]::WriteAllText($expiredReport, $expiredRaw, [Text.UTF8Encoding]::new($false))
+    $expiredHash = Get-TestSha256 $expiredReport
+    Invoke-ExpectedFailure {
+        & $scriptPath -ReportOnly -ReportPath $expiredReport `
+            -ExpectedReportSha256 $expiredHash `
+            -ExpectedSourceCommit $valid.source_commit `
+            -ExpectedArtifactSourceCommit $valid.artifact_source_commit `
+            -MaximumReportAgeMinutes 60
+    } 'MCACE_COMPATIBILITY_REPORT_AGE_INVALID'
+    $negativeCases++
+
+    # Keep a default-age check as a regression for callers that rely on the
+    # script's documented one-day ReportOnly window as well.
+    $defaultAgeOutput = @(& $scriptPath -ReportOnly -ReportPath $valid.report `
+        -ExpectedReportSha256 $reportHash `
+        -ExpectedSourceCommit $valid.source_commit `
+        -ExpectedArtifactSourceCommit $valid.artifact_source_commit)
+    if ('MCACE_VERSION_COMPATIBILITY_REPORTONLY_PASS' -notin $defaultAgeOutput) {
+        throw 'MCACE_VERSION_COMPATIBILITY_REPORTONLY_DEFAULT_AGE_FIXTURE_FAILED'
     }
 
     $duplicateManifest = New-CompatibilityFixture; $fixtures.Add($duplicateManifest)
