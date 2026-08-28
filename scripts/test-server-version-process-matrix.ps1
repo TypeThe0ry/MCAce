@@ -146,7 +146,8 @@ Assert-True ($source -match 'stable_case_count\s*=\s*10' -and
 foreach ($token in @(
     "`$preparedRoots = @('cache', 'libraries', 'versions')",
     'Get-Int32BigEndianBytes','Get-Int64BigEndianBytes','TransformBlock',
-    'Assert-NoSensitiveRunArtifacts','forwarding.secret','private[-_]?key',
+    'Assert-NoSensitiveRunArtifacts','Read-FileBytesWithSharingRetry',
+    'SERVER_VERSION_MATRIX_FILE_SHARE_TIMEOUT','forwarding.secret','private[-_]?key',
     'PRIVATE KEY-----','Assert-RunRootBytes','Get-RunProcesses',
     'remaining_run_processes','cleanup_process_ids','schema -ne 4',
     'Assert-SupervisorEvidencePackage','Read-MatrixSupervisorTrustRoot',
@@ -274,6 +275,68 @@ try { & $timestampFixtureScript 'not-a-timestamp' 'invalid' | Out-Null }
 catch { $invalidTimestampMessage = $_.Exception.Message }
 Assert-True ($invalidTimestampMessage -like '*SERVER_VERSION_MATRIX_TIMESTAMP_INVALID|invalid*') `
     'invalid timestamp was not rejected'
+
+# Exercise the bounded sharing-violation retry without relying on timing or a
+# second process: the fixture shadows Start-Sleep and releases its FileShare.None
+# handle on the first backoff.  A second invocation keeps the handle throughout
+# and must fail with the explicit timeout code.
+$retryFixtureSource = @"
+param([string]`$Path, [int]`$MaxAttempts, [int]`$DelayMilliseconds,
+    [switch]`$ReleaseOnFirstRetry)
+Set-StrictMode -Version Latest
+`$ErrorActionPreference = 'Stop'
+$(Get-FunctionText 'Assert-DirectLocalPath')
+$(Get-FunctionText 'Read-FileBytesWithSharingRetry')
+`$script:retryLock = [IO.File]::Open(`$Path, [IO.FileMode]::Open,
+    [IO.FileAccess]::Read, [IO.FileShare]::None)
+if (`$ReleaseOnFirstRetry) {
+    `$script:releaseOnSleep = `$true
+    function Start-Sleep {
+        param([int]`$Milliseconds)
+        if (`$script:releaseOnSleep) {
+            `$script:releaseOnSleep = `$false
+            `$script:retryLock.Dispose()
+        }
+        Microsoft.PowerShell.Utility\Start-Sleep -Milliseconds 1
+    }
+}
+try {
+    `$bytes = Read-FileBytesWithSharingRetry `$Path `$MaxAttempts `$DelayMilliseconds
+    [Convert]::ToBase64String(`$bytes)
+} finally {
+    if (`$null -ne `$script:retryLock) { `$script:retryLock.Dispose() }
+}
+"@
+$retryFixtureScript = [ScriptBlock]::Create($retryFixtureSource)
+$retryFixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
+    'mcace-server-version-matrix-retry-' + [Guid]::NewGuid().ToString('N'))
+[void][IO.Directory]::CreateDirectory($retryFixtureRoot)
+try {
+    $retryPath = Join-Path $retryFixtureRoot 'locked.bin'
+    $retryBytes = [byte[]](1, 2, 3, 5, 8)
+    [IO.File]::WriteAllBytes($retryPath, $retryBytes)
+    $expectedRetryBase64 = [Convert]::ToBase64String($retryBytes)
+    $released = [string](& $retryFixtureScript $retryPath 8 10 -ReleaseOnFirstRetry)
+    Assert-True ($released -ceq $expectedRetryBase64) `
+        'sharing retry did not read bytes after the transient lock released'
+    $timeoutMessage = $null
+    try { & $retryFixtureScript $retryPath 3 10 | Out-Null }
+    catch { $timeoutMessage = $_.Exception.Message }
+    Assert-True ($timeoutMessage -like '*SERVER_VERSION_MATRIX_FILE_SHARE_TIMEOUT*') `
+        'persistent sharing lock did not fail with the bounded timeout code'
+} finally {
+    if (Test-Path -LiteralPath $retryFixtureRoot -PathType Container) {
+        $tempPrefix = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd(
+            [char[]]@('\','/')) + [IO.Path]::DirectorySeparatorChar
+        $retryFull = [IO.Path]::GetFullPath($retryFixtureRoot)
+        if (-not $retryFull.StartsWith($tempPrefix, [StringComparison]::OrdinalIgnoreCase) -or
+            -not (Split-Path -Leaf $retryFull).StartsWith(
+                'mcace-server-version-matrix-retry-', [StringComparison]::Ordinal)) {
+            throw 'SERVER_VERSION_MATRIX_RETRY_FIXTURE_CLEANUP_PATH_REJECTED'
+        }
+        [IO.Directory]::Delete($retryFull, $true)
+    }
+}
 
 function Get-ReferencePreparedHash([string]$Root) {
     $records = [Collections.Generic.SortedDictionary[string,string]]::new(

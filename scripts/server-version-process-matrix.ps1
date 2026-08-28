@@ -218,6 +218,34 @@ function Get-StableFileDigest([string]$Path) {
     }
 }
 
+# A server JVM can finish its probe while one of its log writers is still
+# closing a handle.  Keep the evidence read fail-closed, but tolerate only the
+# two Windows sharing/lock errors for a short, bounded interval.  All other
+# I/O errors (missing files, ACLs, path races, etc.) remain fatal immediately.
+function Read-FileBytesWithSharingRetry {
+    param(
+        [Parameter(Mandatory)][string]$Path,
+        [ValidateRange(1, 20)][int]$MaxAttempts = 8,
+        [ValidateRange(1, 5000)][int]$DelayMilliseconds = 250
+    )
+    $resolved = Assert-DirectLocalPath $Path
+    for ($attempt = 1; $attempt -le $MaxAttempts; $attempt++) {
+        try {
+            return [IO.File]::ReadAllBytes($resolved)
+        } catch [IO.IOException] {
+            # HResult low word carries the Win32 ERROR_* code on Windows.
+            $win32Code = $_.Exception.HResult -band 0xffff
+            if ($win32Code -ne 32 -and $win32Code -ne 33) { throw }
+            if ($attempt -eq $MaxAttempts) {
+                throw "SERVER_VERSION_MATRIX_FILE_SHARE_TIMEOUT|$resolved|attempts=$MaxAttempts"
+            }
+            $delay = [int][Math]::Min([long]$DelayMilliseconds * $attempt, 1000L)
+            Start-Sleep -Milliseconds $delay
+        }
+    }
+    throw "SERVER_VERSION_MATRIX_FILE_SHARE_TIMEOUT|$resolved|attempts=$MaxAttempts"
+}
+
 function Test-ExactProperties([object]$Value, [string[]]$Names) {
     if ($null -eq $Value) { return $false }
     $actual = [string[]]@($Value.PSObject.Properties | ForEach-Object Name)
@@ -1329,7 +1357,7 @@ function Assert-NoSensitiveRunArtifacts([string]$RunRoot) {
             throw "SERVER_VERSION_MATRIX_SENSITIVE_RUN_ARTIFACT_RETAINED|$name"
         }
         if ([long]$item.Length -le 1048576) {
-            $bytes = [IO.File]::ReadAllBytes((Assert-DirectLocalPath $item.FullName))
+            $bytes = Read-FileBytesWithSharingRetry $item.FullName
             $ascii = [Text.Encoding]::ASCII.GetString($bytes)
             if ($ascii -match '-----BEGIN (?:RSA |EC )?PRIVATE KEY-----') {
                 throw "SERVER_VERSION_MATRIX_PRIVATE_KEY_CONTENT_RETAINED|$name"
