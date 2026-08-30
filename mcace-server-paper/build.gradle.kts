@@ -24,11 +24,14 @@ tasks.shadowJar {
     relocate("com.fasterxml.jackson", "com.ellan.mcace.internal.jackson")
 }
 
+val mcaceProductVersion = project.version.toString()
+
 tasks.processResources {
-    inputs.property("mcaceProductVersion", project.version.toString())
-    filesMatching("plugin.yml") {
-        expand("mcaceVersion" to project.version.toString())
-    }
+    inputs.property("mcaceProductVersion", mcaceProductVersion)
+    filter(
+        org.apache.tools.ant.filters.ReplaceTokens::class,
+        mapOf("tokens" to mapOf("mcaceVersion" to mcaceProductVersion)),
+    )
 }
 
 tasks.jar {

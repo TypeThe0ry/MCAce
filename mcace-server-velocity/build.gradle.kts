@@ -2,26 +2,18 @@ plugins {
     id("com.gradleup.shadow") version "9.2.2"
 }
 
-val generateMCAcePluginVersionSource = tasks.register("generateMCAcePluginVersionSource") {
+val mcaceProductVersion = project.version.toString()
+
+val generateMCAcePluginVersionSource = tasks.register<Copy>("generateMCAcePluginVersionSource") {
     val destination = layout.buildDirectory.dir("generated/sources/mcacePluginVersion")
     outputs.dir(destination)
-    inputs.property("mcaceProductVersion", project.version.toString())
-    doLast {
-        val version = project.version.toString()
-            .replace("\\", "\\\\")
-            .replace("\"", "\\\"")
-        val output = destination.get().file(
-            "com/ellan/mcace/velocity/MCAcePluginVersion.java",
-        ).asFile
-        output.parentFile.mkdirs()
-        output.writeText(
-            "package com.ellan.mcace.velocity;\n\n" +
-                "final class MCAcePluginVersion {\n" +
-                "    static final String VALUE = \"$version\";\n" +
-                "    private MCAcePluginVersion() { }\n" +
-                "}\n",
-        )
-    }
+    inputs.property("mcaceProductVersion", mcaceProductVersion)
+    from(layout.projectDirectory.dir("src/main/templates"))
+    into(destination)
+    filter(
+        org.apache.tools.ant.filters.ReplaceTokens::class,
+        mapOf("tokens" to mapOf("mcaceVersion" to mcaceProductVersion)),
+    )
 }
 
 sourceSets {

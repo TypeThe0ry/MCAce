@@ -26,11 +26,14 @@ tasks.shadowJar {
     relocate("com.google.protobuf", "com.ellan.mcace.internal.protobuf")
 }
 
+val mcaceProductVersion = project.version.toString()
+
 tasks.processResources {
-    inputs.property("mcaceProductVersion", project.version.toString())
-    filesMatching("bungee.yml") {
-        expand("mcaceVersion" to project.version.toString())
-    }
+    inputs.property("mcaceProductVersion", mcaceProductVersion)
+    filter(
+        org.apache.tools.ant.filters.ReplaceTokens::class,
+        mapOf("tokens" to mapOf("mcaceVersion" to mcaceProductVersion)),
+    )
 }
 
 tasks.jar {

@@ -112,7 +112,7 @@ if (-not (Test-Path -LiteralPath $gradle -PathType Leaf)) {
 $testClass = 'com.ellan.mcace.runtime.AntiCheatLiveFixtureIntegrationTest'
 $arguments = @(
     ':mcace-runtime-integration:test', '--tests', $testClass, '--offline', '--no-daemon',
-    '--no-parallel', '--max-workers=1', '--console=plain'
+    '--no-parallel', '--max-workers=1', '--no-configuration-cache', '--console=plain'
 )
 $oldErrorActionPreference = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
