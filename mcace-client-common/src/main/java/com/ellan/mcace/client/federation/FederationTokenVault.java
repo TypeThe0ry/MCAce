@@ -431,15 +431,33 @@ public final class FederationTokenVault implements AutoCloseable {
      * disconnect clears the entry. This never creates storage or a transport of its own.
      */
     public synchronized void onConnectionClosed() {
+        cancelTargetClaims();
         purgeExpired();
         Iterator<Entry> iterator = entries.values().iterator();
         while (iterator.hasNext()) {
             Entry entry = iterator.next();
-            if (entry.boundTargetKeyVerified || entry.sourceConnectionClosed) {
+            if (entry.sourceConnectionClosed) {
                 iterator.remove();
                 entry.clear();
             } else {
                 entry.sourceConnectionClosed = true;
+            }
+        }
+    }
+
+    /**
+     * Clears every target-side claim owned by this vault while preserving an unclaimed source
+     * grant for the one allowed source disconnect. This is the connection-wide counterpart to
+     * {@link #cancelTargetClaim(TargetHandshakeClaim)} and is idempotent for lifecycle cleanup.
+     */
+    public synchronized void cancelTargetClaims() {
+        purgeExpired();
+        Iterator<Entry> iterator = entries.values().iterator();
+        while (iterator.hasNext()) {
+            Entry entry = iterator.next();
+            if (entry.boundTargetKeyVerified) {
+                iterator.remove();
+                entry.clear();
             }
         }
     }

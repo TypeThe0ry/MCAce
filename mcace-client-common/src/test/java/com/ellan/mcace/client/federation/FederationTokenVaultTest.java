@@ -336,6 +336,31 @@ final class FederationTokenVaultTest {
     }
 
     @Test
+    void cancelTargetClaimsClearsBoundClaimsButPreservesUnclaimedDisconnectWindow() throws Exception {
+        AtomicLong monotonic = new AtomicLong(1000L);
+        KeyPair client = key(); KeyPair source = key(); KeyPair target = key();
+        FederationTokenVault vault = new FederationTokenVault(2, monotonic::get);
+
+        vault.store(grant(client, source, target), client, PLAYER, "source-session", CLOCK);
+        vault.onConnectionClosed();
+        FederationTokenVault.TargetHandshakeClaim claim = vault.claimTargetHandshake(
+                "target", PLAYER, "client", "1.21.11", "build", LoaderType.FABRIC,
+                target.getPublic(), CLOCK, new SecureRandom()).orElseThrow();
+
+        vault.cancelTargetClaims();
+        assertEquals(0, vault.size());
+        assertFalse(vault.isTargetClaimLive(claim, CLOCK));
+
+        vault.store(grant(client, source, target), client, PLAYER, "source-session", CLOCK);
+        vault.cancelTargetClaims();
+        assertEquals(1, vault.size(), "an unclaimed source grant remains usable across one disconnect");
+        vault.onConnectionClosed();
+        assertEquals(1, vault.size(), "the first disconnect opens the one-shot handoff window");
+        vault.onConnectionClosed();
+        assertEquals(0, vault.size(), "the subsequent disconnect closes the unclaimed window");
+    }
+
+    @Test
     void staleTargetClaimCannotCancelANewerGenerationForTheSamePlayerAndTarget() throws Exception {
         AtomicLong monotonic = new AtomicLong(1000L);
         KeyPair client = key(); KeyPair source = key(); KeyPair target = key();

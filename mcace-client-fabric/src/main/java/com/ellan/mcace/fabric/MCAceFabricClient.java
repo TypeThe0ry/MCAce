@@ -1005,6 +1005,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
 
     private void cancelAuthentication(String reason) {
         invalidateAndCancelTargetClaim(enablementAuthorization);
+        federationVault.cancelTargetClaims();
         authenticationAttempts.cancel();
         authenticationIntegrityTask.cancel();
         observationIntegrityTask.cancel();
