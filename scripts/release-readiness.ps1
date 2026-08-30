@@ -257,7 +257,7 @@ function Read-ReleaseLockedFileBytes(
     } finally { $stream.Dispose() }
     Assert-ReleasePathChainNoReparse $absolute $true
     return [pscustomobject]@{
-        absolute=$absolute; bytes=$bytes; size=[long]$bytes.Length
+        absolute=$absolute; identity=$before; bytes=$bytes; size=[long]$bytes.Length
         size_bytes=[long]$bytes.Length; sha256=Get-BytesSha256 $bytes
     }
 }
@@ -1420,9 +1420,16 @@ function Read-MatrixJsonDescriptor(
 }
 
 function Get-MatrixSetSha256([string]$Domain, [object]$Value) {
-    return Get-CompactObjectSha256 ([pscustomobject][ordered]@{
+    # Matrix set commitments are a cross-process contract shared with the
+    # producer, external supervisor signer, and publisher.  Those components
+    # hash compact UTF-8 JSON at depth 30 *without* a trailing newline.  Keep
+    # Get-CompactObjectSha256 (newline-terminated) for file/object hashes, but
+    # use the commitment encoding here so a genuine published package is
+    # accepted by readiness instead of failing commitment binding.
+    $json = ([pscustomobject][ordered]@{
         domain=$Domain; value=$Value
-    })
+    } | ConvertTo-Json -Depth 30 -Compress)
+    return Get-BytesSha256 ([Text.UTF8Encoding]::new($false).GetBytes($json))
 }
 
 function Test-MatrixFullPathBelow([string]$Root, [string]$Candidate) {

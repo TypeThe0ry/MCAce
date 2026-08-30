@@ -349,6 +349,27 @@ Assert-True ($matrixText.Contains('$finalManifest.sha256 -cne [string]$manifestD
         -not $matrixText.Contains('$finalManifest.sha256 -cne [string]$Index.release_bundle.manifest_sha256')) `
     'Matrix V4 does not keep current-manifest TOCTOU separate from the historical A manifest'
 
+$matrixSetFunction = @($ast.FindAll({
+    param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -ceq 'Get-MatrixSetSha256'
+}, $true))
+Assert-True ($matrixSetFunction.Count -eq 1) 'Get-MatrixSetSha256 is missing or duplicated'
+$matrixSetText = $matrixSetFunction[0].Extent.Text
+Assert-True ($matrixSetText.Contains('ConvertTo-Json -Depth 30 -Compress') -and
+        $matrixSetText.Contains('Get-BytesSha256') -and
+        -not $matrixSetText.Contains('return Get-CompactObjectSha256')) `
+    'Matrix set commitments must use the shared no-trailing-newline encoding'
+
+$releaseReaderFunction = @($ast.FindAll({
+    param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+        $node.Name -ceq 'Read-ReleaseLockedFileBytes'
+}, $true))
+Assert-True ($releaseReaderFunction.Count -eq 1) 'Read-ReleaseLockedFileBytes is missing or duplicated'
+Assert-True ($releaseReaderFunction[0].Extent.Text.Contains('identity=$before')) `
+    'release locked-file reads must retain the initial identity for final TOCTOU comparison'
+
 $federationFunction = @($ast.FindAll({
     param($node)
     $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
