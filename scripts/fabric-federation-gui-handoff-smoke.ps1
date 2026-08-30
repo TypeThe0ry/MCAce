@@ -3459,10 +3459,18 @@ function Assert-ProductFederationGuiContract {
                 'federationVault.claimTargetHandshake(',
                 'MCAceEnablementController.inheritedFederationFiles(',
                 'federationVault.preparePresentation(',
-                'federationVault.commit(prepared)', 'federationVault.close()')) {
+                'federationVault.close()')) {
             if (-not $content.Contains($call)) {
                 throw "FABRIC_FEDERATION_GUI_PRODUCT_LIFECYCLE_CONTRACT_MISSING: $call"
             }
+        }
+        # FederationTokenVault.commit is clock-bound so expiry is evaluated against the
+        # caller's monotonic/UTC clock.  Match the current two-argument production call
+        # without relying on whitespace or line wrapping.
+        if (-not [regex]::IsMatch($content,
+                'federationVault\.commit\(\s*prepared\s*,\s*Clock\.systemUTC\(\)\s*\)',
+                [Text.RegularExpressions.RegexOptions]::CultureInvariant)) {
+            throw 'FABRIC_FEDERATION_GUI_PRODUCT_LIFECYCLE_CONTRACT_MISSING: federationVault.commit(prepared, Clock.systemUTC())'
         }
         # The grant path carries the connection-scoped authorization introduced by the
         # one-time visible enablement contract.  Match formatting-insensitively so a
@@ -3483,7 +3491,10 @@ function Assert-ProductFederationGuiContract {
             'public synchronized void cancelTargetClaims()',
             'public synchronized Optional<TargetHandshakeClaim> claimTargetHandshake(',
             'Set<String> approvedExplicitFiles',
-            'if (entry.boundTargetKeyVerified || entry.sourceConnectionClosed)',
+            # The disconnect lifecycle is intentionally split: onConnectionClosed() first
+            # removes bound target claims via cancelTargetClaims(), then consumes an already
+            # disconnected unclaimed grant; keep both predicates independently covered.
+            'if (entry.sourceConnectionClosed)',
             'entry.sourceConnectionClosed = true',
             'if (entry.boundTargetKeyVerified)',
             'public synchronized void close()')) {
@@ -3687,8 +3698,19 @@ $smokeBuildProperties = @(
     "-PmcaceSmokeExpectedArtifactSha256=$protectedFabricSha256"
 )
 if ([int]$fabricDescriptor.java_major -eq 25) {
+    # The root stage task evaluates the legacy 1.21.11 Fabric project as part of
+    # the shared dependency graph.  Its artifact-mode contract only accepts a
+    # legacy-valid platform-smoke ID or a 1.21.11 release ID; passing the target
+    # 26.x release ID here makes configuration fail before the modern verifier
+    # runs.  Keep the stage invocation scoped to a synthetic smoke identity,
+    # then pass the protected target release identity to fabric-modern below.
+    $rootStageProperties = @(
+        '-PmcaceSmokeArtifactMode=true',
+        "-PmcaceClientBuildId=platform-smoke-$runId",
+        "-PmcaceSmokeRunToken=$runToken"
+    )
     Invoke-PinnedOfflineGradle $script:RootJavaPath $repoRoot @(':stageModernFabricDeps') `
-        $smokeBuildProperties $true 'FABRIC_FEDERATION_GUI_ROOT_JDK21_BUILD_FAILED'
+        $rootStageProperties $true 'FABRIC_FEDERATION_GUI_ROOT_JDK21_BUILD_FAILED'
     $modernProperties = @($smokeBuildProperties) + @(
         "-PmcaceRootDepsDir=$stagedModernDependencies",
         "-PmcaceProductVersion=$fabricArtifactVersion"

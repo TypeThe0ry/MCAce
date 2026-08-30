@@ -18,6 +18,8 @@ if (@($errors).Count -ne 0 -or @($platformErrors).Count -ne 0) {
 $source = [IO.File]::ReadAllText($target)
 $rootFabricGradle = [IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\mcace-client-fabric\build.gradle.kts'))
 $modernFabricGradle = [IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\fabric-modern\build.gradle.kts'))
+$explicitConsentSource = [IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\fabric-modern\src\main\java\com\ellan\mcace\fabric\ExplicitFileConsentScreen.java'))
+$evidenceConsentSource = [IO.File]::ReadAllText((Join-Path $PSScriptRoot '..\fabric-modern\src\main\java\com\ellan\mcace\fabric\EvidenceConsentScreen.java'))
 
 function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw "FABRIC_FEDERATION_GUI_V5_TEST_FAILED: $Message" }
@@ -240,6 +242,22 @@ foreach ($forbiddenRuntimeSource in @(
 $releaseStarter = Get-FunctionText $ast @('Start-FabricReleaseClient')
 Assert-True (-not $releaseStarter.Contains('Start-FabricClient')) `
     'release client delegates to the development snapshot launcher'
+# The shared root dependency stage evaluates the legacy 1.21.11 project even when the
+# requested runtime is 26.x.  It must therefore use a legacy-valid smoke identity while
+# the isolated modern verification keeps the protected target release identity.
+Assert-True ($source.Contains('$rootStageProperties = @(')) `
+    'modern federation stage does not define a legacy-valid root property set'
+Assert-True ($source.Contains('"-PmcaceClientBuildId=platform-smoke-$runId"')) `
+    'root dependency stage lost its platform-smoke build identity'
+Assert-True ($source.Contains('        $rootStageProperties $true') -and
+    $source.Contains('FABRIC_FEDERATION_GUI_ROOT_JDK21_BUILD_FAILED')) `
+    'root dependency stage is not using the legacy-valid property set'
+Assert-True ($source.Contains('    $modernProperties = @($smokeBuildProperties) + @(')) `
+    'modern verification no longer retains the protected release property set'
+Assert-True ($explicitConsentSource -notmatch '(?m)^\s*extractBackground\s*\(') `
+    'explicit consent screen must not extract the background a second time'
+Assert-True ($evidenceConsentSource -notmatch '(?m)^\s*extractBackground\s*\(') `
+    'evidence consent screen must not extract the background a second time'
 foreach ($contract in @(
         'val smokeRuntimeArtifactPath',
         'runReleaseClient',

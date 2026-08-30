@@ -502,6 +502,41 @@ function New-ExclusiveOwnedDirectory([string]$Path, [string]$ExpectedParent) {
     }
     $null = New-Item -ItemType Directory -Path $full -ErrorAction Stop
     $resolved = Assert-DirectLocalPath $full -Directory
+    # Runtime authority files (for example Paper's proxy-public-key.txt) are
+    # validated by the Java preflight against the Windows DACL of their
+    # containing directory.  A normal New-Item inherits the controller's
+    # broad Users/Authenticated Users write ACEs, so a freshly-created
+    # plugins\MCAce directory would fail closed even though the file bytes are
+    # correct.  Make every exclusive run directory a non-inheriting
+    # current-user+SYSTEM tree; both principals can still create/read the
+    # server's generated files, while untrusted principals cannot write them.
+    if ([System.IO.Path]::DirectorySeparatorChar -eq '\') {
+        try {
+            $current = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+            $system = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')
+            $directorySecurity = New-Object System.Security.AccessControl.DirectorySecurity
+            $directorySecurity.SetAccessRuleProtection($true, $false)
+            $directorySecurity.SetOwner($current)
+            $inheritance = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+                [System.Security.AccessControl.InheritanceFlags]::ObjectInherit
+            foreach ($sid in @($current, $system)) {
+                $directorySecurity.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+                    $sid,
+                    [System.Security.AccessControl.FileSystemRights]::FullControl,
+                    $inheritance,
+                    [System.Security.AccessControl.PropagationFlags]::None,
+                    [System.Security.AccessControl.AccessControlType]::Allow)))
+            }
+            Set-Acl -LiteralPath $resolved -AclObject $directorySecurity -ErrorAction Stop
+            $readbackAcl = Get-Acl -LiteralPath $resolved -ErrorAction Stop
+            if (-not $readbackAcl.AreAccessRulesProtected -or
+                    @($readbackAcl.Access).Count -ne 2) {
+                throw 'exclusive directory DACL readback was not protected current-user+SYSTEM'
+            }
+        } catch {
+            throw "PLATFORM_SMOKE_EXCLUSIVE_DIRECTORY_ACL_HARDENING_FAILED: $($_.Exception.Message)"
+        }
+    }
     if (-not [System.IO.Path]::GetDirectoryName($resolved).Equals(
             $parent, [StringComparison]::OrdinalIgnoreCase)) {
         throw 'PLATFORM_SMOKE_EXCLUSIVE_DIRECTORY_PARENT_CHANGED'
@@ -570,13 +605,32 @@ function Test-LoopbackPortFree([int]$Port) {
 }
 
 function Assert-LoopbackListener($Service, [int]$Port) {
-    $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction Stop |
-        Where-Object { $_.LocalAddress -in @('127.0.0.1', '::1') })
+    # Windows CIM can raise a terminating "no matching objects" error for a
+    # freshly-bound port when the listener table has not caught up with the
+    # server's readiness log.  Query the listen set with a non-terminating
+    # error policy and briefly retry so the readiness check is race-tolerant,
+    # while retaining the loopback-only and owning-process assertions below.
+    $listeners = @()
+    # A second launch in the same isolated runtime can spend tens of seconds
+    # rebuilding plugin state before Netty binds, even after a readiness line
+    # from the prior bootstrap phase is still present in the log directory.
+    # Stay within the surrounding 150/300-second marker budgets while allowing
+    # that real bind to appear instead of rejecting a stale-log race.
+    $deadline = [DateTime]::UtcNow.AddSeconds(60)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $listeners = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+            Where-Object { $_.LocalPort -eq $Port -and
+                $_.LocalAddress -in @('127.0.0.1', '::1') })
+        if ($listeners.Count -gt 0) { break }
+        if ($Service.Process.HasExited) { break }
+        Start-Sleep -Milliseconds 250
+    }
     if ($listeners.Count -eq 0) {
         throw "$($Service.Name) did not expose the expected loopback listener on port $Port"
     }
-    if (@(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction Stop |
-            Where-Object { $_.LocalAddress -notin @('127.0.0.1', '::1') }).Count -ne 0) {
+    if (@(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+            Where-Object { $_.LocalPort -eq $Port -and
+                $_.LocalAddress -notin @('127.0.0.1', '::1') }).Count -ne 0) {
         throw "$($Service.Name) exposed a non-loopback listener on port $Port"
     }
     if (-not @($listeners | Where-Object { $_.OwningProcess -eq $Service.Pid }).Count) {

@@ -85,7 +85,11 @@ final class ExplicitFileConsentScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
-        extractBackground(context, mouseX, mouseY, delta);
+        // Screen.extractRenderStateWithTooltipAndSubtitles() extracts the
+        // background before dispatching here. Calling extractBackground()
+        // again attempts a second blur in the same frame on 26.2 and crashes
+        // with "Can only blur once per frame". Keep this method responsible
+        // only for the consent content and widgets.
         ExplicitLayout layout = layout();
         scrollOffset = ConsentUiSupport.clampScroll(scrollOffset, layout.maxScroll());
         int y = layout.maxScroll() == 0 ? layout.contentTop() : layout.viewportTop() - scrollOffset;
