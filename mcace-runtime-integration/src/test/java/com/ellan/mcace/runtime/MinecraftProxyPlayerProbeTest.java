@@ -2043,12 +2043,25 @@ final class MinecraftProxyPlayerProbeTest {
             Files.copy(identity, paperRoot.resolve("plugins/MCAce/proxy-public-key.txt"));
             OwnedProcess backend = startProcess(backendProcessName(), paperRoot,
                     paperRoot.resolve(backendJarFileName()), "-Xmx1024m");
-            waitFor(backend, "MCAce signed proxy admission channel enabled", 120);
+            int backendStartupTimeoutSeconds = backendStartupTimeoutSeconds();
+            waitFor(backend, "MCAce signed proxy admission channel enabled",
+                    backendStartupTimeoutSeconds);
             if (backendKind == BackendKind.FOLIA) {
-                waitFor(backend, "MCAce task runtime=FOLIA", 120);
+                waitFor(backend, "MCAce task runtime=FOLIA", backendStartupTimeoutSeconds);
             }
-            waitFor(backend, "Done (", 120);
+            waitFor(backend, "Done (", backendStartupTimeoutSeconds);
             verifyBackendBanner(backend);
+        }
+
+        /**
+         * Folia 26.2 performs a first-run data-pack/world bootstrap before Bukkit plugin
+         * enablement.  On a cold Windows checkout behind Bungee this can exceed two minutes;
+         * keep the gate bounded, but do not turn a slow legitimate startup into a false
+         * compatibility failure.
+         */
+        private int backendStartupTimeoutSeconds() {
+            return backendKind == BackendKind.FOLIA && "26.2".equals(backendMinecraftVersion)
+                    ? 300 : 120;
         }
 
         private void startDisposition() throws Exception {
