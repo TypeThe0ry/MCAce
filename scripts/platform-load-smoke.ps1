@@ -1244,8 +1244,8 @@ function Get-SmokeProcessTreeTargets(
 
 function Stop-SmokeProcessTree([int]$RootPid, [string]$RunToken) {
     $snapshot = @(Get-CimInstance Win32_Process -ErrorAction Stop)
-    foreach ($pid in @(Get-SmokeProcessTreeTargets $snapshot $RootPid $RunToken)) {
-        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    foreach ($targetPid in @(Get-SmokeProcessTreeTargets $snapshot $RootPid $RunToken)) {
+        Stop-Process -Id $targetPid -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -1261,14 +1261,14 @@ function Get-RunTokenJavaProcesses([string]$RunToken) {
 function Stop-RunTokenJavaProcesses([string]$RunToken) {
     Assert-SmokeRunToken $RunToken
     foreach ($candidate in @(Get-RunTokenJavaProcesses $RunToken)) {
-        $pid = [int]$candidate.ProcessId
-        $current = @(Get-CimInstance Win32_Process -Filter "ProcessId = $pid" -ErrorAction Stop)
+        $candidatePid = [int]$candidate.ProcessId
+        $current = @(Get-CimInstance Win32_Process -Filter "ProcessId = $candidatePid" -ErrorAction Stop)
         if ($current.Count -ne 1 -or $current[0].Name -notin @('java.exe', 'javaw.exe') -or
                 [string]::IsNullOrWhiteSpace([string]$current[0].CommandLine) -or
                 -not (Test-ExactRunTokenArgument ([string]$current[0].CommandLine) $RunToken)) {
             continue
         }
-        Stop-Process -Id $pid -Force -ErrorAction Stop
+        Stop-Process -Id $candidatePid -Force -ErrorAction Stop
     }
 }
 

@@ -11,6 +11,7 @@ function Assert-True([bool]$Condition, [string]$Message) {
 }
 
 $target = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'platform-load-smoke.ps1'))
+$targetText = Get-Content -LiteralPath $target -Raw
 $tokens = $null
 $parseErrors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -106,6 +107,15 @@ $runTokenStopProcessCalls = @($runTokenStopper.Body.FindAll({
 Assert-True ($stopProcessCalls.Count -eq 2 -and $treeStopProcessCalls.Count -eq 1 -and
         $runTokenStopProcessCalls.Count -eq 1) `
     'PID-based forced stops must remain inside the tree or unique run-token stoppers'
+
+# PowerShell exposes the automatic, read-only `$PID` variable case-insensitively.
+# A loop/local named `$pid` therefore emits a runtime assignment warning and can
+# strand cleanup after a timeout. Keep cleanup locals distinct from that variable.
+$pidAssignmentText = [regex]::Matches(
+    $targetText,
+    '(?im)(?:^|[;{])\s*(?:foreach\s*\(\s*)?\$pid\b\s*(?:=|\bin\b)')
+Assert-True ($pidAssignmentText.Count -eq 0) `
+    'platform smoke must not assign or iterate a local named `$pid` (automatic variable collision)'
 
 $selectorText = $treeSelector.Extent.Text
 foreach ($requiredCleanupBoundary in @(
