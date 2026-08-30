@@ -3457,13 +3457,21 @@ function Assert-ProductFederationGuiContract {
         foreach ($call in @(
                 'federationVault.onConnectionClosed()', 'federationVault.cancelTargetClaims()',
                 'federationVault.claimTargetHandshake(',
-                'candidate.receiveFederationGrant(payload.data(), federationVault, authorization.files())',
                 'MCAceEnablementController.inheritedFederationFiles(',
                 'federationVault.preparePresentation(',
                 'federationVault.commit(prepared)', 'federationVault.close()')) {
             if (-not $content.Contains($call)) {
                 throw "FABRIC_FEDERATION_GUI_PRODUCT_LIFECYCLE_CONTRACT_MISSING: $call"
             }
+        }
+        # The grant path carries the connection-scoped authorization introduced by the
+        # one-time visible enablement contract.  Match formatting-insensitively so a
+        # legitimate multiline Java invocation is not rejected by this PowerShell gate.
+        $grantCallPattern = 'candidate\.receiveFederationGrant\(\s*payload\.data\(\),\s*' +
+            'federationVault,\s*authorization\.files\(\),\s*connectionAuthorization\)\s*;'
+        if (-not [regex]::IsMatch($content, $grantCallPattern,
+                [Text.RegularExpressions.RegexOptions]::CultureInvariant)) {
+            throw 'FABRIC_FEDERATION_GUI_PRODUCT_LIFECYCLE_CONTRACT_MISSING: connection-scoped federation grant call'
         }
         if ([regex]::IsMatch($content, '\bfederation(?:Import)?Consent\.request\s*\(')) {
             throw 'FABRIC_FEDERATION_GUI_SECOND_VISIBLE_PROMPT_CALL_FORBIDDEN'
