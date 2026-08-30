@@ -44,15 +44,23 @@ function Get-AuthoritySignerSha256([byte[]]$Bytes) {
     } finally { $sha.Dispose() }
 }
 
+if (-not ('MCAceConstantTimeByteEqualityV1' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+
+public static class MCAceConstantTimeByteEqualityV1 {
+    public static bool Equals(byte[] left, byte[] right) {
+        if (left == null || right == null || left.Length != right.Length) return false;
+        int difference = 0;
+        for (int i = 0; i < left.Length; i++) difference |= left[i] ^ right[i];
+        return difference == 0;
+    }
+}
+'@
+}
+
 function Test-AuthoritySignerBytesEqual([byte[]]$Left, [byte[]]$Right) {
-    if ($null -eq $Left -or $null -eq $Right -or $Left.Length -ne $Right.Length) {
-        return $false
-    }
-    [int]$difference = 0
-    for ($index = 0; $index -lt $Left.Length; $index++) {
-        $difference = $difference -bor ($Left[$index] -bxor $Right[$index])
-    }
-    return $difference -eq 0
+    return [MCAceConstantTimeByteEqualityV1]::Equals($Left, $Right)
 }
 
 function Test-AuthoritySignerExactProperties([object]$Value, [string[]]$Expected) {

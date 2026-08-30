@@ -144,11 +144,23 @@ function Get-BytesSha256([byte[]]$Bytes) {
     finally { $sha.Dispose() }
 }
 
+if (-not ('MCAceConstantTimeByteEqualityV1' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+
+public static class MCAceConstantTimeByteEqualityV1 {
+    public static bool Equals(byte[] left, byte[] right) {
+        if (left == null || right == null || left.Length != right.Length) return false;
+        int difference = 0;
+        for (int i = 0; i < left.Length; i++) difference |= left[i] ^ right[i];
+        return difference == 0;
+    }
+}
+'@
+}
+
 function Test-BytesEqual([byte[]]$Left, [byte[]]$Right) {
-    if ($null -eq $Left -or $null -eq $Right -or $Left.Length -ne $Right.Length) { return $false }
-    [int]$difference = 0
-    for ($i=0; $i -lt $Left.Length; $i++) { $difference = $difference -bor ($Left[$i] -bxor $Right[$i]) }
-    return $difference -eq 0
+    return [MCAceConstantTimeByteEqualityV1]::Equals($Left, $Right)
 }
 
 function Initialize-AuthorityFileIdentityApi {
@@ -271,7 +283,7 @@ function Read-StreamExactly([IO.FileStream]$Stream, [int]$Length, [string]$Role)
         $offset += $count
     }
     if ($Stream.ReadByte() -ne -1) { Throw-Authority "PRODUCTION_AUTHORITY_GROWTH_DURING_READ|$Role" }
-    return $bytes
+    return ,$bytes
 }
 
 function Read-LockedRegularFile([string]$Path, [long]$MaximumBytes, [string]$Role,
@@ -396,7 +408,7 @@ function ConvertFrom-StrictBase64([object]$Value, [int]$Minimum, [int]$Maximum, 
     catch { Throw-Authority $Code }
     if ($bytes.Length -lt $Minimum -or $bytes.Length -gt $Maximum -or
             [Convert]::ToBase64String($bytes) -cne [string]$Value) { Throw-Authority $Code }
-    return $bytes
+    return ,$bytes
 }
 
 function Add-BigEndianInt32([IO.Stream]$Stream, [long]$Value) {

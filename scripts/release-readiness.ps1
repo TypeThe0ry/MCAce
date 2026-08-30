@@ -2955,14 +2955,23 @@ function Assert-VulcanIndex(
     }
 }
 
+if (-not ('MCAceConstantTimeByteEqualityV1' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+
+public static class MCAceConstantTimeByteEqualityV1 {
+    public static bool Equals(byte[] left, byte[] right) {
+        if (left == null || right == null || left.Length != right.Length) return false;
+        int difference = 0;
+        for (int i = 0; i < left.Length; i++) difference |= left[i] ^ right[i];
+        return difference == 0;
+    }
+}
+'@
+}
+
 function Test-ProductionAuthorityBytesEqual([byte[]]$Left, [byte[]]$Right) {
-    if ($null -eq $Left -or $null -eq $Right -or $Left.Length -ne $Right.Length) {
-        return $false
-    }
-    for ($index = 0; $index -lt $Left.Length; $index++) {
-        if ($Left[$index] -ne $Right[$index]) { return $false }
-    }
-    return $true
+    return [MCAceConstantTimeByteEqualityV1]::Equals($Left, $Right)
 }
 
 function Read-ProductionAuthorityStreamExactly(
@@ -2981,7 +2990,7 @@ function Read-ProductionAuthorityStreamExactly(
     if ($Stream.ReadByte() -ne -1) {
         throw "MCACE_RELEASE_PRODUCTION_AUTHORITY_TRAILING_READ|$Role"
     }
-    return $bytes
+    return ,$bytes
 }
 
 function Read-ProductionAuthorityLockedFileBytes(

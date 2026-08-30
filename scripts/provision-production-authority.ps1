@@ -57,11 +57,23 @@ function Get-BytesSha256([byte[]]$Bytes) {
     finally { $sha.Dispose() }
 }
 
+if (-not ('MCAceConstantTimeByteEqualityV1' -as [type])) {
+    Add-Type -TypeDefinition @'
+using System;
+
+public static class MCAceConstantTimeByteEqualityV1 {
+    public static bool Equals(byte[] left, byte[] right) {
+        if (left == null || right == null || left.Length != right.Length) return false;
+        int difference = 0;
+        for (int i = 0; i < left.Length; i++) difference |= left[i] ^ right[i];
+        return difference == 0;
+    }
+}
+'@
+}
+
 function Test-BytesEqual([byte[]]$Left,[byte[]]$Right) {
-    if ($null -eq $Left -or $null -eq $Right -or $Left.Length -ne $Right.Length) { return $false }
-    [int]$difference=0
-    for($i=0;$i -lt $Left.Length;$i++){ $difference=$difference -bor ($Left[$i] -bxor $Right[$i]) }
-    return $difference -eq 0
+    return [MCAceConstantTimeByteEqualityV1]::Equals($Left, $Right)
 }
 
 function Test-ExactProperties([object]$Value,[string[]]$Expected) {
@@ -152,7 +164,7 @@ function Get-NoFollowIdentity([string]$Path,[switch]$Directory) {
 function Read-Exact([IO.FileStream]$Stream,[int]$Length,[string]$Role) {
     [byte[]]$bytes=New-Object byte[] $Length;$offset=0
     while($offset -lt $Length){$read=$Stream.Read($bytes,$offset,$Length-$offset);if($read-le 0){Throw-Provision "PRODUCTION_AUTHORITY_SHORT_READ|$Role"};$offset+=$read}
-    if($Stream.ReadByte()-ne -1){Throw-Provision "PRODUCTION_AUTHORITY_GROWTH_DURING_READ|$Role"};return $bytes
+    if($Stream.ReadByte()-ne -1){Throw-Provision "PRODUCTION_AUTHORITY_GROWTH_DURING_READ|$Role"};return ,$bytes
 }
 
 function Read-LockedFile([string]$Path,[long]$Maximum,[string]$Role,[long]$Minimum=1) {
