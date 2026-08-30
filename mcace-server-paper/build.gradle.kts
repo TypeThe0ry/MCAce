@@ -24,6 +24,13 @@ tasks.shadowJar {
     relocate("com.fasterxml.jackson", "com.ellan.mcace.internal.jackson")
 }
 
+tasks.processResources {
+    inputs.property("mcaceProductVersion", project.version.toString())
+    filesMatching("plugin.yml") {
+        expand("mcaceVersion" to project.version.toString())
+    }
+}
+
 tasks.jar {
     archiveClassifier.set("plain")
 }

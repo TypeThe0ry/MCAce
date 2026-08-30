@@ -153,6 +153,9 @@ final class SdkCompatibilityContractTest {
                         () -> adapter.name() + " must be inspected as the actual deployed shadow jar");
                 assertTrue(jar.getEntry(adapter.descriptor()) != null,
                         () -> adapter.name() + " deployment descriptor missing");
+                assertEquals(adapter.expectedVersion(), descriptorVersion(
+                                adapter.descriptor(), readUtf8(jar, adapter.descriptor())),
+                        () -> adapter.name() + " deployment descriptor version must match the artifact version");
                 if (adapter.serviceResource() != null) {
                     // Git/Gradle may preserve the platform line ending when the adapter is
                     // packaged on Windows.  ServiceLoader accepts either form; compare the
@@ -224,7 +227,13 @@ final class SdkCompatibilityContractTest {
                     })
                     .findFirst()
                     .orElseThrow(() -> new IllegalStateException(name + " shadow jar was not built"));
-            return new AdapterJar(name, jar, descriptor, serviceResource, serviceProvider);
+            String file = jar.getFileName().toString();
+            String prefix = project + "-";
+            if (!file.startsWith(prefix) || !file.endsWith(".jar")) {
+                throw new IllegalStateException(name + " artifact has an unexpected filename: " + file);
+            }
+            String expectedVersion = file.substring(prefix.length(), file.length() - ".jar".length());
+            return new AdapterJar(name, jar, descriptor, serviceResource, serviceProvider, expectedVersion);
         }
     }
 
@@ -247,6 +256,31 @@ final class SdkCompatibilityContractTest {
         try (InputStream input = jar.getInputStream(entry)) {
             return new String(input.readAllBytes(), StandardCharsets.UTF_8);
         }
+    }
+
+    private static String descriptorVersion(String descriptor, String text) {
+        if (descriptor.endsWith(".json")) {
+            String key = "\"version\"";
+            int keyStart = text.indexOf(key);
+            if (keyStart < 0) {
+                throw new IllegalStateException("descriptor has no version field: " + descriptor);
+            }
+            int colon = text.indexOf(':', keyStart + key.length());
+            int openQuote = text.indexOf('"', colon + 1);
+            int closeQuote = text.indexOf('"', openQuote + 1);
+            if (colon < 0 || openQuote < 0 || closeQuote < 0) {
+                throw new IllegalStateException("descriptor version field is malformed: " + descriptor);
+            }
+            return text.substring(openQuote + 1, closeQuote);
+        }
+        for (String line : text.split("\\R")) {
+            String trimmed = line.trim();
+            if (!trimmed.startsWith("version:")) {
+                continue;
+            }
+            return trimmed.substring("version:".length()).trim().replace("'", "").replace("\"", "");
+        }
+        throw new IllegalStateException("descriptor has no version field: " + descriptor);
     }
 
     /** Mimics the future public provider method without sharing any MCAce type across it. */
@@ -273,5 +307,11 @@ final class SdkCompatibilityContractTest {
         }
     }
 
-    private record AdapterJar(String name, Path path, String descriptor, String serviceResource, String serviceProvider) { }
+    private record AdapterJar(
+            String name,
+            Path path,
+            String descriptor,
+            String serviceResource,
+            String serviceProvider,
+            String expectedVersion) { }
 }

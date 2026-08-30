@@ -102,7 +102,7 @@ import org.slf4j.Logger;
 @Plugin(
         id = "mcace",
         name = "MCAce",
-        version = "0.1.0-SNAPSHOT",
+        version = MCAcePluginVersion.VALUE,
         description = "MCAce trusted-client admission layer",
         authors = {"EllanServer"})
 public final class MCAceVelocityPlugin {

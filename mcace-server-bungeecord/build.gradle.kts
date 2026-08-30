@@ -26,6 +26,13 @@ tasks.shadowJar {
     relocate("com.google.protobuf", "com.ellan.mcace.internal.protobuf")
 }
 
+tasks.processResources {
+    inputs.property("mcaceProductVersion", project.version.toString())
+    filesMatching("bungee.yml") {
+        expand("mcaceVersion" to project.version.toString())
+    }
+}
+
 tasks.jar {
     archiveClassifier.set("plain")
 }
