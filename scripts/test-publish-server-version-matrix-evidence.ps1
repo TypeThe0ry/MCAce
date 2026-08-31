@@ -828,6 +828,24 @@ try {
     Assert-True ($forcedResult.Count -eq 1) 'identical force publication failed'
     Invoke-ExpectedFailure { & $publisher @arguments } 'MCACE_MATRIX_PUBLISH_DESTINATION_EXISTS'
 
+    # Historical V1 durable evidence may be compact JSON without a trailing
+    # LF.  It is not a V4 replay index and must not prevent a new V4 package
+    # from being published into the same evidence root.
+    $legacyIndexPath = Join-Path $positive.output_root `
+        'server-version-process-matrix-legacy-v1.json'
+    [IO.File]::WriteAllText($legacyIndexPath,
+        '{"schema":"MCACE_SERVER_VERSION_PROCESS_MATRIX_DURABLE_EVIDENCE_V1"}',
+        $utf8NoBom)
+    $legacyCompatible = New-Fixture 'legacy-index-compat'
+    $legacyCompatible.output_root = $positive.output_root
+    $legacyCompatibleArgs = Get-PublisherArguments $legacyCompatible `
+        'server-version-process-matrix-legacy-index-compat'
+    $legacyCompatibleResult = @(& $publisher @legacyCompatibleArgs)
+    Assert-True ($legacyCompatibleResult.Count -eq 1 -and
+        [string]$legacyCompatibleResult[0] -like
+            'MCACE_SERVER_VERSION_MATRIX_EVIDENCE_PUBLISHED*') `
+        'valid legacy V1 index blocked V4 publication'
+
     $replayArgs = Get-PublisherArguments $positive `
         'server-version-process-matrix-replayed-supervisor-receipt'
     Invoke-ExpectedFailure { & $publisher @replayArgs } `

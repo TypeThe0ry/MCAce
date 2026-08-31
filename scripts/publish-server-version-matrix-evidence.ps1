@@ -1919,8 +1919,25 @@ function Assert-NoPublishedSupervisorReplay([object]$Receipt, [string]$EvidenceI
     foreach ($file in @(Get-ChildItem -LiteralPath $outputRootFull -File `
             -Filter 'server-version-process-matrix-*.json' -ErrorAction Stop)) {
         if ([string]$file.BaseName -ceq $EvidenceId) { continue }
+
+        # The repository contains historical durable evidence documents whose
+        # schemas predate the V4 publisher and whose byte-level canonical form
+        # is intentionally different (some are compact JSON without a final
+        # LF).  Identify the schema before applying the V4 strict parser so a
+        # valid legacy document cannot block publication of a new V4 index.
+        # Malformed JSON still fails closed; only a valid non-V4 schema is
+        # ignored for replay purposes.
+        $legacyRaw = [IO.File]::ReadAllText($file.FullName, $utf8Strict)
+        try {
+            $legacyValue = ConvertFrom-Json -InputObject $legacyRaw -ErrorAction Stop
+        } catch {
+            throw "MCACE_MATRIX_PUBLISH_REPLAY_INDEX_JSON_INVALID|$($file.Name)"
+        }
+        if ($null -eq $legacyValue -or
+                [string]$legacyValue.schema -cne $indexSchema) {
+            continue
+        }
         $existing = Read-StrictJsonDocument $file.FullName 'replay-index'
-        if ([string]$existing.value.schema -cne $indexSchema) { continue }
         if ([string]$existing.value.supervisor.operation_attempt_id -ceq
                 [string]$Receipt.operation_attempt_id -or
                 [string]$existing.value.supervisor.challenge_nonce -ceq
