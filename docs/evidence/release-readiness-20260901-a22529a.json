@@ -1,0 +1,59 @@
+{
+  "schema": "MCACE_RELEASE_READINESS_V2",
+  "generated_at": "2026-09-01T03:43:49.6593595+08:00",
+  "source_commit": "a22529a8e0ce1f5d875e25f359483e517e055b57",
+  "observed_head": "a22529a8e0ce1f5d875e25f359483e517e055b57",
+  "release_ready": false,
+  "gates": [
+    {
+      "name": "server_matrix_exact_source",
+      "passed": true,
+      "evidence": "docs/evidence/server-version-process-matrix-20260901-83378d7-e42996268582.json",
+      "detail": "Matrix V4 tracked seven-root-entry package, 12/12 raw/process commitments, protected V4 bundle and three server JAR bindings, externally pinned RSA supervisor receipt, freshness, replay, no-follow, and final stable re-reads verified"
+    },
+    {
+      "name": "fabric_gui_single_enablement_confirmation",
+      "passed": false,
+      "evidence": "docs/evidence/federation-gui-handoff-*.json plus tracked native V5 eight-file evidence set, two independently approved out-of-band signer roots, and protected V4 release bundle",
+      "detail": "Federation V5 externally signed computer-use receipt, distinct external post-run receipt, fully decoded PNG, and signed-bound runtime ledger are missing"
+    },
+    {
+      "name": "fabric_federation_real_handoff",
+      "passed": false,
+      "evidence": "docs/evidence/federation-gui-handoff-*.json plus tracked native V5 eight-file evidence set, two independently approved out-of-band signer roots, and protected V4 release bundle",
+      "detail": "strict Federation V5 index and native eight-file evidence set are missing"
+    },
+    {
+      "name": "vulcan_genuine_event",
+      "passed": false,
+      "evidence": "future externally pinned supervisor-signed Vulcan V3 evidence; V2 remains diagnostic-only",
+      "detail": "Vulcan V2 diagnostics cannot satisfy release; externally pinned supervisor-signed V3 evidence is missing"
+    },
+    {
+      "name": "production_server_confirmed_authority",
+      "passed": false,
+      "evidence": "docs/evidence/server-confirmed-production-*.json plus tracked V4 14-document raw package, 10 packaged artifacts, external supervisor receipt, and exact V4 release bundle",
+      "detail": "Authority V4 publisher index and its complete externally signed raw package are missing; V1/V3 narratives and prepublication booleans are terminally non-release"
+    },
+    {
+      "name": "protected_exact_release_bundle",
+      "passed": false,
+      "evidence": ".\\build\\release-bundle + build/compatibility-contract/report.json + docs/evidence/release-artifact-source.txt in protected CI",
+      "detail": "protected main/tag push CI context with exact V4 bundle, V2 compatibility report, and artifact-source marker is required; summary JSON is never accepted"
+    },
+    {
+      "name": "clean_worktree",
+      "passed": true,
+      "evidence": "git status --porcelain",
+      "detail": "worktree is clean"
+    }
+  ],
+  "blockers": [
+    "fabric_gui_single_enablement_confirmation",
+    "fabric_federation_real_handoff",
+    "vulcan_genuine_event",
+    "production_server_confirmed_authority",
+    "protected_exact_release_bundle"
+  ],
+  "interpretation": "Fail-closed: one or more strict native evidence gates are missing, malformed, tampered, or not source-bound."
+}
