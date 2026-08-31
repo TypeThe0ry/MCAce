@@ -112,8 +112,28 @@ function Sign-Bytes([string]$Private,[byte[]]$Content,[string]$Scratch){$inputPa
 function Start-ExternalRequestSigner([string]$RequestPath,[string]$ReceiptPath,
         [string]$PrivateKeyPath,[string]$Mode='valid',[string]$ReplayReceiptPath=''){
     $signerRoot=Join-Path $temp ('external-signer-'+[guid]::NewGuid().ToString('N'));[IO.Directory]::CreateDirectory($signerRoot)|Out-Null
+    # The collector deliberately opens the pinned executable with FileShare.None
+    # before every verification.  Keep the signer process on an independent
+    # byte-identical runtime copy so Windows loader handles cannot race the
+    # collector's fail-closed identity read.  This preserves the external
+    # signer boundary while removing a scheduling-dependent test failure.
+    $signerRuntimeRoot=Join-Path $signerRoot 'openssl-runtime';[IO.Directory]::CreateDirectory($signerRuntimeRoot)|Out-Null
+    Copy-Item -LiteralPath $openssl -Destination (Join-Path $signerRuntimeRoot 'openssl.exe')
+    $opensslDirectory=[IO.Path]::GetDirectoryName($openssl)
+    foreach($runtimeDll in @(Get-ChildItem -LiteralPath $opensslDirectory -File -Filter '*.dll')){
+        Copy-Item -LiteralPath $runtimeDll.FullName -Destination (Join-Path $signerRuntimeRoot $runtimeDll.Name)
+    }
+    $providerSource=Join-Path $opensslDirectory 'providers'
+    if(Test-Path -LiteralPath $providerSource -PathType Container){
+        Copy-Item -LiteralPath $providerSource -Destination (Join-Path $signerRuntimeRoot 'providers') -Recurse
+    }
+    $configSource=Join-Path $opensslDirectory 'openssl.cnf'
+    if(Test-Path -LiteralPath $configSource -PathType Leaf){
+        Copy-Item -LiteralPath $configSource -Destination (Join-Path $signerRuntimeRoot 'openssl.cnf')
+    }
+    $signerOpenSsl=Join-Path $signerRuntimeRoot 'openssl.exe'
     $configPath=Join-Path $signerRoot 'config.json';$scriptPath=Join-Path $signerRoot 'signer.ps1'
-    Write-Json $configPath ([ordered]@{request=$RequestPath;receipt=$ReceiptPath;private_key=$PrivateKeyPath;openssl=$openssl;mode=$Mode;replay_receipt=$ReplayReceiptPath})
+    Write-Json $configPath ([ordered]@{request=$RequestPath;receipt=$ReceiptPath;private_key=$PrivateKeyPath;openssl=$signerOpenSsl;mode=$Mode;replay_receipt=$ReplayReceiptPath})
     $signerSource=@'
 param([Parameter(Mandatory=$true)][string]$ConfigPath)
 $ErrorActionPreference='Stop';$utf8=New-Object Text.UTF8Encoding($false)
