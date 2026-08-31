@@ -28,7 +28,15 @@ val clientSafeJar = tasks.register<org.gradle.api.tasks.bundling.Jar>("clientSaf
     includeEmptyDirs = false
     duplicatesStrategy = DuplicatesStrategy.FAIL
 
+    // Keep the verification action configuration-cache serializable: do not capture
+    // Kotlin DSL script locals in the task action closure.
     doLast {
+        val expectedCoreClasses = setOf(
+            "com/ellan/mcace/core/disposition/ArtifactObservation.class",
+            "com/ellan/mcace/core/disposition/ArtifactType.class",
+            "com/ellan/mcace/core/disposition/Confidence.class",
+            "com/ellan/mcace/core/disposition/ObservationOrigin.class",
+        )
         val artifact = archiveFile.get().asFile
         val actualCoreClasses = JarFile(artifact).use { jar ->
             jar.entries().asSequence()
@@ -39,9 +47,9 @@ val clientSafeJar = tasks.register<org.gradle.api.tasks.bundling.Jar>("clientSaf
                 .map { it.name }
                 .toSet()
         }
-        check(actualCoreClasses == clientSafeCoreClassEntries) {
+        check(actualCoreClasses == expectedCoreClasses) {
             "client-safe core classes differ from the reviewed allowlist; " +
-                "expected=$clientSafeCoreClassEntries actual=$actualCoreClasses"
+                "expected=$expectedCoreClasses actual=$actualCoreClasses"
         }
     }
 }
