@@ -286,6 +286,39 @@ function Read-StreamExactly([IO.FileStream]$Stream, [int]$Length, [string]$Role)
     return ,$bytes
 }
 
+function Open-AuthorityExclusiveReadStream([string]$Path, [string]$Role) {
+    # Windows security products can briefly retain an image-section handle
+    # after OpenSSL exits.  The exclusive read is still mandatory; retry only
+    # the bounded, transient sharing violation so the identity check remains
+    # fail-closed for mutations and all non-sharing errors.
+    $last = $null
+    for ($attempt = 1; $attempt -le 80; $attempt++) {
+        try {
+            return [IO.FileStream]::new(
+                $Path, [IO.FileMode]::Open, [IO.FileAccess]::Read, [IO.FileShare]::None)
+        } catch {
+            $last = $_
+            $message = [string]$_.Exception.Message
+            # Keep each predicate inside an explicit conditional.  In
+            # PowerShell, a bare function call followed by a line-broken
+            # -or can leak the trailing predicate into the pipeline, which
+            # would make the caller receive a Boolean instead of a stream.
+            $sharing = $false
+            if ((Test-AuthoritySharingViolation $_.Exception)) {
+                $sharing = $true
+            } elseif ($_.Exception -is [IO.IOException]) {
+                $sharing = $true
+            } elseif ($message -match '(?i)used by another process|being used by another process|sharing violation') {
+                $sharing = $true
+            }
+            if (-not $sharing -or $attempt -eq 80) { throw }
+            Start-Sleep -Milliseconds 25
+        }
+    }
+    if ($null -ne $last) { throw $last }
+    Throw-Authority "PRODUCTION_AUTHORITY_EXCLUSIVE_OPEN_FAILED|$Role"
+}
+
 function Read-LockedRegularFile([string]$Path, [long]$MaximumBytes, [string]$Role,
         [long]$MinimumBytes = 1L) {
     if ([string]::IsNullOrWhiteSpace($Path)) { Throw-Authority "PRODUCTION_AUTHORITY_FILE_PATH_REQUIRED|$Role" }
@@ -296,7 +329,7 @@ function Read-LockedRegularFile([string]$Path, [long]$MaximumBytes, [string]$Rol
         Throw-Authority "PRODUCTION_AUTHORITY_REGULAR_FILE_REQUIRED|$Role"
     }
     $before = Get-NoFollowIdentity $absolute
-    $stream = New-Object IO.FileStream($absolute,[IO.FileMode]::Open,[IO.FileAccess]::Read,[IO.FileShare]::None)
+    $stream = Open-AuthorityExclusiveReadStream $absolute $Role
     try {
         $length = [long]$stream.Length
         if ($length -lt $MinimumBytes -or $length -gt $MaximumBytes -or $length -gt [int]::MaxValue) {
