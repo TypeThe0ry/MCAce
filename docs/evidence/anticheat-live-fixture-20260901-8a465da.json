@@ -1,0 +1,39 @@
+{
+  "schema": "MCACE_ANTICHEAT_LIVE_FIXTURE_EVIDENCE_V2",
+  "generated_at": "2026-09-01T11:22:27.152Z",
+  "source_commit": "8a465da5c992b61bf8349101a8deff142c177b2a",
+  "report_path": "build/anticheat-live-fixtures/evidence-runs/20260901T032227152Z/report.json",
+  "report_sha256": "851a8758a7ac25f26377b9f2c6a32a0558269c6bc4c16c8cb21da1c7cab41d5d",
+  "versions": [
+    "1.21.11",
+    "26.1.2",
+    "26.2"
+  ],
+  "fixture_mode": "CONTROLLED_EXECUTABLE_CLIENT_AND_SERVER_CORRELATION",
+  "passed": true,
+  "client_executable_code_loaded": true,
+  "client_modlist_reported": true,
+  "server_behavior_signal_independent": true,
+  "correlated_same_session": true,
+  "server_confirmed_count": 3,
+  "server_confirmed_action": "QUARANTINE",
+  "clean_false_positive_count": 0,
+  "negative_boundary": {
+    "clean_client_no_mod_observation": true,
+    "clean_client_no_impossible_movement": true,
+    "clean_client_no_server_confirmed_event": true
+  },
+  "fixture_code_is_project_owned": true,
+  "third_party_code_loaded": false,
+  "third_party_network_access": false,
+  "actual_fabric_client": false,
+  "public_server": false,
+  "interpretation": "Fresh exact-head controlled fixture rerun. It proves the implemented client observation, independent server behavior signal, same-session correlation, SERVER_CONFIRMED, and signed lab-policy QUARANTINE path across all three target versions. It does not claim third-party cheat execution, public-server enforcement, or Tencent ACE kernel/DMA coverage.",
+  "sanitization": {
+    "absolute_paths_copied": false,
+    "pids_copied": false,
+    "ports_copied": false,
+    "uuids_copied": false,
+    "fixture_bytes_copied": false
+  }
+}
