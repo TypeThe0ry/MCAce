@@ -39,7 +39,11 @@
     "path": "D:/MCAce-gui-client-26.2/.minecraft/versions/EllanTOP-26.2/logs/latest.log",
     "sha256": "97277574152D2BFFB633B38C0356E5DB76E921AB38347AC31B392654284E4A94",
     "size_bytes": 113218,
-    "target_processes_after_cleanup": 0
+    "target_processes_after_cleanup": 0,
+    "markers": [
+      "MCACE_FABRIC_ARTIFACT_LOADED version=0.0.1 build_id=fabric-26.2-df5504cd9ba04535040c2e368dbbb0a6859beb87",
+      "MCAce Fabric client initialized; no server key pin(s) available"
+    ]
   },
   "limitations": [
     "This run proves automatic 26.2 client provisioning, MCAce mod insertion, visible GUI startup, and Fabric-side artifact loading.",
