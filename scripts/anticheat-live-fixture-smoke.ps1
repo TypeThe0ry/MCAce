@@ -6,7 +6,9 @@ param(
     [Parameter(ParameterSetName = 'Report', Mandatory)]
     [ValidatePattern('^[0-9a-fA-F]{64}$')] [string]$ExpectedReportSha256,
     [Parameter(ParameterSetName = 'Report')]
-    [ValidateRange(1, 1440)] [int]$MaximumReportAgeMinutes = 60
+    [ValidateRange(1, 1440)] [int]$MaximumReportAgeMinutes = 60,
+    [Parameter(ParameterSetName = 'Execute')]
+    [string]$JavaHome
 )
 
 Set-StrictMode -Version Latest
@@ -62,6 +64,56 @@ function ConvertTo-ReportTimestamp([object]$Value) {
     return $parsed
 }
 
+function Get-JavaMajorVersion([string]$JavaHomePath) {
+    if ([string]::IsNullOrWhiteSpace($JavaHomePath)) { return 0 }
+    $java = Join-Path ([IO.Path]::GetFullPath($JavaHomePath)) 'bin\java.exe'
+    if (-not (Test-Path -LiteralPath $java -PathType Leaf)) { return 0 }
+    $versionText = (& $java -version 2>&1 | Out-String)
+    if ($versionText -match '(?i)version\s+"(?<major>[0-9]+)') {
+        return [int]$Matches.major
+    }
+    return 0
+}
+
+function Resolve-JavaHome {
+    $candidates = [Collections.Generic.List[string]]::new()
+    if (-not [string]::IsNullOrWhiteSpace($JavaHome)) {
+        $candidates.Add($JavaHome)
+    }
+    foreach ($environmentName in @('MCACE_JAVA21_HOME', 'JAVA_HOME')) {
+        $value = [Environment]::GetEnvironmentVariable($environmentName)
+        if (-not [string]::IsNullOrWhiteSpace($value)) { $candidates.Add($value) }
+    }
+    if ($IsWindows) {
+        $gradleJdks = Join-Path $env:USERPROFILE '.gradle\jdks'
+        if (Test-Path -LiteralPath $gradleJdks -PathType Container) {
+            foreach ($candidate in @(Get-ChildItem -LiteralPath $gradleJdks -Directory -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -match '(?i)(21|jdk-21|temurin-21|adoptium-21)' } |
+                    Sort-Object Name -Descending)) {
+                $candidates.Add($candidate.FullName)
+            }
+        }
+        $programJava = 'C:\Program Files\Java'
+        if (Test-Path -LiteralPath $programJava -PathType Container) {
+            foreach ($candidate in @(Get-ChildItem -LiteralPath $programJava -Directory -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Name -match '^(?i:jdk-21|openjdk-21)' } |
+                    Sort-Object Name -Descending)) {
+                $candidates.Add($candidate.FullName)
+            }
+        }
+    }
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($candidate in $candidates) {
+        try { $resolved = [IO.Path]::GetFullPath($candidate) } catch { continue }
+        if (-not $seen.Add($resolved)) { continue }
+        $major = Get-JavaMajorVersion $resolved
+        if ($major -ge 21) {
+            return [pscustomobject]@{ home=$resolved; major=$major }
+        }
+    }
+    throw 'ANTICHEAT_LIVE_FIXTURE_JAVA21_REQUIRED: set -JavaHome or MCACE_JAVA21_HOME to a JDK 21+ home'
+}
+
 function Write-SanitizedReport([hashtable]$Report) {
     $null = New-Item -ItemType Directory -Path $reportRoot -Force
     $runId = [DateTimeOffset]::UtcNow.ToString('yyyyMMddTHHmmssfffZ')
@@ -114,6 +166,9 @@ $arguments = @(
     ':mcace-runtime-integration:test', '--tests', $testClass, '--offline', '--no-daemon',
     '--no-parallel', '--max-workers=1', '--no-configuration-cache', '--console=plain'
 )
+$resolvedJava = Resolve-JavaHome
+$oldJavaHome = [Environment]::GetEnvironmentVariable('JAVA_HOME')
+$env:JAVA_HOME = $resolvedJava.home
 $oldErrorActionPreference = $ErrorActionPreference
 $ErrorActionPreference = 'Continue'
 Push-Location -LiteralPath $repoRoot
@@ -122,6 +177,11 @@ try {
 }
 finally {
     Pop-Location
+    if ($null -eq $oldJavaHome) {
+        Remove-Item Env:JAVA_HOME -ErrorAction SilentlyContinue
+    } else {
+        $env:JAVA_HOME = $oldJavaHome
+    }
 }
 $exitCode = $LASTEXITCODE
 $ErrorActionPreference = $oldErrorActionPreference

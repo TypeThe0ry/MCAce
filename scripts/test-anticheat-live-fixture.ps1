@@ -24,6 +24,9 @@ foreach ($required in @(
         'QUARANTINE',
         'third_party_code_loaded',
         'ConvertTo-ReportTimestamp',
+        'Resolve-JavaHome',
+        'MCACE_JAVA21_HOME',
+        'ANTICHEAT_LIVE_FIXTURE_JAVA21_REQUIRED',
         'ReportOnly',
         ':mcace-runtime-integration:test')) {
     if (-not $source.Contains($required)) {
