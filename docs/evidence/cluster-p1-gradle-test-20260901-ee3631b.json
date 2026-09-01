@@ -26,7 +26,7 @@
     "stderr_bytes": 0,
     "result_sha256": "ce67f9e4fbf864b2f3cc1083340a8045c340435e8a9c2866d6597f24e31f1d6e",
     "test_stdout_sha256": "36427f905916afe7413e515b3d93bad4306f581145e4baa7d5f79f351a6441db",
-    "test_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca4959911b7852b855",
+    "test_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
     "checksums_sha256": "01e191d0194941a0155cc3ccfd4689d6afcef88ccfcbc044b12ab7e71308fad6"
   },
   "artifacts": {
