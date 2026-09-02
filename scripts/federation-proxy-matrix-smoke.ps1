@@ -1201,21 +1201,25 @@ try {
     foreach ($case in $allCases) {
         $startedAt = [DateTimeOffset]::UtcNow
         Write-Host "MCAce federation proxy matrix: $($case.Test)"
-        $runtimeArguments = @(
-            '-Dmcace.runtime.backend-kind=' + $federationRuntime.backend_kind,
-            '-Dmcace.runtime.minecraft-version=' + $federationRuntime.minecraft_version,
-            '-Dmcace.runtime.minecraft-protocol=' + $federationRuntime.minecraft_protocol,
-            '-Dmcace.runtime.server-java-feature=' + $federationRuntime.server_java_feature,
-            '-Dmcace.runtime.backend.jar=' + $platformPaths.paper,
-            '-Dmcace.runtime.backend.jar.sha256=' + $expectedPlatformSha256.paper,
-            '-Dmcace.runtime.backend.prepared-root=' + $platformPaths.paper_prepared,
-            '-Dmcace.runtime.backend.prepared-root.sha256=' + $federationRuntime.prepared_tree_sha256,
-            '-Dmcace.runtime.server-java=' + $currentBefore.java_path,
-            '-Dmcace.runtime.server-java.sha256=' + $currentBefore.java_executable_sha256,
-            '-Dmcace.runtime.velocity.jar=' + $platformPaths.velocity,
-            '-Dmcace.runtime.velocity.jar.sha256=' + $expectedPlatformSha256.velocity,
-            '-Dmcace.runtime.bungee.jar=' + $platformPaths.bungee,
-            '-Dmcace.runtime.bungee.jar.sha256=' + $expectedPlatformSha256.bungee
+        # Parenthesize each concatenation: in PowerShell, a comma inside an
+        # unparenthesized expression list is consumed by the same pipeline
+        # expression, yielding one space-joined string instead of individual
+        # JVM arguments.  ArgumentList must receive one -D property per item.
+        $runtimeArguments = [string[]]@(
+            ('-Dmcace.runtime.backend-kind=' + $federationRuntime.backend_kind),
+            ('-Dmcace.runtime.minecraft-version=' + $federationRuntime.minecraft_version),
+            ('-Dmcace.runtime.minecraft-protocol=' + $federationRuntime.minecraft_protocol),
+            ('-Dmcace.runtime.server-java-feature=' + $federationRuntime.server_java_feature),
+            ('-Dmcace.runtime.backend.jar=' + $platformPaths.paper),
+            ('-Dmcace.runtime.backend.jar.sha256=' + $expectedPlatformSha256.paper),
+            ('-Dmcace.runtime.backend.prepared-root=' + $platformPaths.paper_prepared),
+            ('-Dmcace.runtime.backend.prepared-root.sha256=' + $federationRuntime.prepared_tree_sha256),
+            ('-Dmcace.runtime.server-java=' + $currentBefore.java_path),
+            ('-Dmcace.runtime.server-java.sha256=' + $currentBefore.java_executable_sha256),
+            ('-Dmcace.runtime.velocity.jar=' + $platformPaths.velocity),
+            ('-Dmcace.runtime.velocity.jar.sha256=' + $expectedPlatformSha256.velocity),
+            ('-Dmcace.runtime.bungee.jar=' + $platformPaths.bungee),
+            ('-Dmcace.runtime.bungee.jar.sha256=' + $expectedPlatformSha256.bungee)
         )
         # Keep runtime bindings as JVM properties and pass every token through
         # ProcessStartInfo.ArgumentList.  This avoids the Windows .bat/native
