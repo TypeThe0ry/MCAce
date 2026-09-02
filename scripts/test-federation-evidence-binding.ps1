@@ -143,18 +143,33 @@ function Assert-GradleProjectDirectoryPinned {
         $node -is [System.Management.Automation.Language.CommandAst] -and
             $node.Extent.Text.Contains('org.gradle.launcher.GradleMain')
     }, $true))
-    Assert-True ($commands.Count -eq 1) "$Kind must have exactly one GradleMain command"
-    $elements = @($commands[0].CommandElements)
-    $pins = 0
-    for ($index = 0; $index -lt ($elements.Count - 1); $index++) {
-        if ($elements[$index] -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
-                $elements[$index].Value -ceq '--project-dir' -and
-                $elements[$index + 1] -is [System.Management.Automation.Language.VariableExpressionAst] -and
-                $elements[$index + 1].VariablePath.UserPath -ceq 'repoRoot') {
-            $pins++
+    if ($commands.Count -eq 1) {
+        # Legacy direct invocation: keep the AST-level argument-boundary check.
+        $elements = @($commands[0].CommandElements)
+        $pins = 0
+        for ($index = 0; $index -lt ($elements.Count - 1); $index++) {
+            if ($elements[$index] -is [System.Management.Automation.Language.StringConstantExpressionAst] -and
+                    $elements[$index].Value -ceq '--project-dir' -and
+                    $elements[$index + 1] -is [System.Management.Automation.Language.VariableExpressionAst] -and
+                    $elements[$index + 1].VariablePath.UserPath -ceq 'repoRoot') {
+                $pins++
+            }
         }
+        Assert-True ($pins -eq 1) "$Kind GradleMain is not pinned exactly once to --project-dir repoRoot"
+    } else {
+        # ProcessStartInfo.ArgumentList keeps JVM/Gradle tokens separated on
+        # Windows, so GradleMain is an ArgumentList item rather than a
+        # PowerShell CommandAst.  Assert its exact token path instead of
+        # weakening the project-directory pin.
+        Assert-True ($commands.Count -eq 0) "$Kind has an unexpected GradleMain command count: $($commands.Count)"
+        Assert-True ($Parse.source -match "ArgumentList\.Add\('org\.gradle\.launcher\.GradleMain'\)") `
+            "$Kind ProcessStartInfo is missing the GradleMain token"
+        Assert-True ($Parse.source.Contains("'--project-dir', `$repoRoot")) `
+            "$Kind GradleArguments is missing the --project-dir token"
+        Assert-True ($Parse.source -match 'ArgumentList\.Add\(\[string\]\$argument\)') `
+            "$Kind ProcessStartInfo does not preserve each Gradle argument boundary"
     }
-    Assert-True ($pins -eq 1) "$Kind GradleMain is not pinned exactly once to --project-dir repoRoot"
+    
     Assert-True ($Parse.source -match '\$repoRoot\s*=.*\$PSScriptRoot') `
         "$Kind repository root depends on the caller working directory"
 }
@@ -366,9 +381,16 @@ function Invoke-StaticChecks {
         Assert-True ($parse.source -match 'mcace-server-velocity\\build\\libs') 'current Velocity JAR binding missing'
         Assert-True ($parse.source -match 'mcace-server-bungeecord\\build\\libs') 'current Bungee JAR binding missing'
         Assert-True ($parse.source -match 'mcace-server-paper\\build\\libs') 'current Paper JAR binding missing'
-        Assert-True ($parse.source -match 'paper-1\.21\.1-133-prepared') 'prepared Paper binding missing'
         Assert-True ($parse.source -notmatch 'UtcNow\.AddSeconds\(-2\)') 'two-second pre-run freshness window remains'
     }
+    # The proxy matrix is release-bound to the immutable Paper 1.21.11/132
+    # asset tree.  The restart-residual probe keeps its independently prepared
+    # 1.21.1/133 fixture until that gate is migrated, so assert each contract
+    # against the script that owns it instead of applying one path to both.
+    Assert-True ($Matrix.source -match 'runtime-assets\\paper\\1\.21\.11\\132\\prepared') `
+        'release-bound prepared Paper binding missing'
+    Assert-True ($Restart.source -match 'paper-1\.21\.1-133-prepared') `
+        'restart prepared Paper fixture binding missing'
     Assert-True ($Matrix.source -match 'velocity_server_sha256') 'matrix Velocity server binding missing'
     Assert-True ($Matrix.source -match 'bungee_server_sha256') 'matrix Bungee server binding missing'
     Assert-True ($Restart.source -match 'velocity_server_sha256') 'restart Velocity server binding missing'
