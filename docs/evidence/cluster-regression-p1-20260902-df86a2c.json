@@ -1,0 +1,22 @@
+{
+  "schema": "MCACE_CLUSTER_REGRESSION_EVIDENCE_V1",
+  "generated_at": "2026-09-02T18:20:12+08:00",
+  "repository": "TypeThe0ry/MCAce",
+  "source_commit": "df86a2cc52507fe3e3a8e350691887d2ed32acef",
+  "node": "p1",
+  "profile": "linux",
+  "job_id": "20260902-mcace-df86a2c-regression",
+  "worker_workspace": "/srv/codex-worker/jobs/20260902-mcace-df86a2c-regression",
+  "container_image": "eclipse-temurin:21-jdk",
+  "command": "bash ./gradlew test --no-daemon --no-configuration-cache --stacktrace",
+  "exit_code": 0,
+  "result": "BUILD_SUCCESSFUL",
+  "actionable_tasks": 71,
+  "log": {
+    "path": "/srv/codex-worker/jobs/20260902-mcace-df86a2c-regression/test.log",
+    "size_bytes": 10689,
+    "sha256": "ae4326dedc9bb799007a753d6f367c042c0be7b22a68e0508892f28951b22645"
+  },
+  "coverage_note": "This is an isolated Linux/Temurin 21 Gradle regression on p1. Project-design skipped cases for real Folia/proxy/Postgres/GUI/Vulcan/production environments remain skipped and are not represented as acceptance.",
+  "artifact_source_marker_at_run": "43f5a661dc2ec21696ecba42cf42187720b01b91"
+}
