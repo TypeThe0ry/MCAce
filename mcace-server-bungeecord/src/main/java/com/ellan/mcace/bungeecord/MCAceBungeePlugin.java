@@ -627,6 +627,21 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
                                 challengedPlayers, configurationStartAttempts, terminalConfigurationTickets,
                                 snapshot.playerId(), ticket.orElseThrow());
                     }
+                    if (ticket.isPresent()
+                            && current.requiresClient()
+                            && isMissingClientSnapshot(snapshot)
+                            && isCurrentPhysicalLogin(player, ticket.orElseThrow())
+                            && routes.markDeniedPhysical(
+                                    snapshot.playerId(), player, ticket.orElseThrow())) {
+                        // A strict built-in bridge treats the absence of the MCAce client as an
+                        // admission failure.  Mark the physical ticket before disconnecting so a
+                        // delayed configuration callback or route retry cannot reuse it.
+                        player.disconnect(new TextComponent(
+                                "MCAce: a client with MCAce installed is required to join this server."));
+                        getLogger().info("MCAce denied a connection without a completed client handshake for "
+                                + player.getName() + " (client.requirement=REQUIRE_CLIENT)");
+                        continue;
+                    }
                     if (binding != null && player == binding.playerIdentity() && routes != null
                             && routes.isCurrent(snapshot.playerId(), player, binding.loginTicket())
                             && current.isCurrentAuthenticatedSession(snapshot.playerId(), binding.sessionId())) {
@@ -1537,6 +1552,12 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
                 + " risk=" + snapshot.riskScore()
                 + " observedAt=" + snapshot.evaluatedAt() + suffix
                 + " (observational; no automatic punishment)");
+    }
+
+    static boolean isMissingClientSnapshot(PlayerSecuritySnapshot snapshot) {
+        Objects.requireNonNull(snapshot, "snapshot");
+        return snapshot.admissionStatus() == AdmissionStatus.LIMITED
+                && snapshot.reasons().stream().anyMatch(reason -> "MISSING_MCACE".equals(reason.code()));
     }
 
     /** Call only under {@link #connectionLifecycleLock}. */

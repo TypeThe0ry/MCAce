@@ -167,7 +167,8 @@ public final class LocalBungeeSessionBridgeFactory implements BungeeSessionBridg
                     evidenceStorage.contentStore(), evidenceStorage.adminService(),
                     configuration.dispositionExecutionMode(),
                     configuration.limitedServer().orElse(""), configuration.quarantineServer().orElse(""),
-                    configuration.heartbeatMissingPolicy(), federation.runtime(), federation);
+                    configuration.heartbeatMissingPolicy(), federation.runtime(), federation,
+                    configuration.requireClient());
         } catch (RuntimeException exception) {
             backendContextRuntime.close();
             federation.close();

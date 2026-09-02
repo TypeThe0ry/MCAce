@@ -73,6 +73,13 @@ public interface BungeeSessionBridge extends AutoCloseable {
     default List<HeartbeatMissingTransition> pollHeartbeatMissingTransitions() { return List.of(); }
     default HeartbeatMissingPolicy heartbeatMissingPolicy() { return HeartbeatMissingPolicy.disabled(); }
 
+    /**
+     * Returns whether a missing or incomplete MCAce client handshake is a hard admission failure
+     * for this bridge.  Third-party bridge implementations retain the historical optional
+     * behaviour unless they explicitly opt in.
+     */
+    default boolean requiresClient() { return false; }
+
     void remove(UUID playerId);
 
     MCAceApi api();

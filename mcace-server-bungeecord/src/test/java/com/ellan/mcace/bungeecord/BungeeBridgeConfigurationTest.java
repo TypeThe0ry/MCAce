@@ -1,11 +1,21 @@
 package com.ellan.mcace.bungeecord;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.ellan.mcace.protocol.generated.TrustLevel;
+import com.ellan.mcace.sdk.AdmissionStatus;
+import com.ellan.mcace.sdk.PlayerSecuritySnapshot;
+import com.ellan.mcace.sdk.RiskBand;
+import com.ellan.mcace.sdk.RiskReason;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -90,6 +100,21 @@ class BungeeBridgeConfigurationTest {
         Path unknown = directory.resolve("unknown-client-profile.properties");
         Files.writeString(unknown, "client.requirement=ENFORCE_EVERYTHING\n");
         assertThrows(java.io.IOException.class, () -> BungeeBridgeConfiguration.loadOrCreate(unknown));
+    }
+
+    @Test
+    void missingClientSignalIsRecognizedWithoutTreatingOtherLimitedStatesAsMissingClient() {
+        PlayerSecuritySnapshot missing = new PlayerSecuritySnapshot(
+                UUID.randomUUID(), TrustLevel.UNKNOWN, AdmissionStatus.LIMITED, 20, RiskBand.WATCH,
+                "test-policy", Instant.EPOCH,
+                List.of(new RiskReason("MISSING_MCACE", 20, "timeout", Instant.EPOCH, true)));
+        PlayerSecuritySnapshot otherLimited = new PlayerSecuritySnapshot(
+                UUID.randomUUID(), TrustLevel.UNKNOWN, AdmissionStatus.LIMITED, 20, RiskBand.WATCH,
+                "test-policy", Instant.EPOCH,
+                List.of(new RiskReason("PROTOCOL_VIOLATION", 20, "protocol", Instant.EPOCH, true)));
+
+        assertTrue(MCAceBungeePlugin.isMissingClientSnapshot(missing));
+        assertFalse(MCAceBungeePlugin.isMissingClientSnapshot(otherLimited));
     }
 
     @Test

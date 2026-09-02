@@ -776,6 +776,9 @@ public final class MCAceVelocityPlugin {
             if (login.isPresent() && api.snapshot(snapshot.playerId()).filter(snapshot::equals).isPresent()) {
                 PhysicalLogin current = login.orElseThrow();
                 logger.info("MCAce timed out for {}; session is LIMITED", player.getUsername());
+                if (denyMissingClientIfRequired(player, current.ticket(), snapshot)) {
+                    continue;
+                }
                 applyAdmission(player, current.ticket(), snapshot);
                 forwardSnapshot(player, current.ticket(), snapshot);
             }
@@ -1695,6 +1698,38 @@ public final class MCAceVelocityPlugin {
     private static String redactJdbcUrl(String jdbcUrl) {
         int query = jdbcUrl.indexOf('?');
         return query < 0 ? jdbcUrl : jdbcUrl.substring(0, query) + "?<redacted>";
+    }
+
+    static boolean isMissingClientSnapshot(PlayerSecuritySnapshot snapshot) {
+        Objects.requireNonNull(snapshot, "snapshot");
+        return snapshot.admissionStatus() == AdmissionStatus.LIMITED
+                && snapshot.reasons().stream().anyMatch(reason -> "MISSING_MCACE".equals(reason.code()));
+    }
+
+    private boolean denyMissingClientIfRequired(
+            Player player, VelocityLoginLifecycle.LoginTicket ticket, PlayerSecuritySnapshot snapshot) {
+        if (!admissionConfig.requireClient() || !isMissingClientSnapshot(snapshot)) {
+            return false;
+        }
+        synchronized (connectionLifecycleLock) {
+            if (!isCurrentPhysicalLoginLocked(player, ticket)) {
+                return false;
+            }
+            if (deferredDispositionRoutes != null) {
+                deferredDispositionRoutes.markDeniedPhysical(
+                        player.getUniqueId(), ticket, player, "missing-client");
+            }
+            if (deferredAdmissionRoutes != null) {
+                deferredAdmissionRoutes.clear(player.getUniqueId());
+            }
+            backendReadyBarrier.clear(player.getUniqueId());
+            player.disconnect(Component.text(
+                    "MCAce: a client with MCAce installed is required to join this server."));
+        }
+        logger.info("MCAce denied a connection without a completed client handshake for {} "
+                        + "(client.requirement=REQUIRE_CLIENT)",
+                player.getUsername());
+        return true;
     }
 
     private void applyAdmission(
