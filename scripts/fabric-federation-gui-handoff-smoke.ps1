@@ -4035,11 +4035,11 @@ try {
     $validatedVisibleGuiSigningRequest = Assert-VisibleGuiSigningRequest `
         $visibleGuiSigningRequestEvidence $visibleGuiScreenshotEvidence `
         $visibleGuiSigningRequestExpected ([DateTimeOffset]::UtcNow)
-    Write-Host ("FABRIC_FEDERATION_GUI_SIGNING_REQUEST_READY|request_path={0}|receipt_path={1}|" +
+    Write-Host (("FABRIC_FEDERATION_GUI_SIGNING_REQUEST_READY|request_path={0}|receipt_path={1}|" +
         "screenshot_path={2}|request_sha256={3}|attempt_id={4}|expires_at={5}") -f `
         $visibleGuiSigningRequestOutput, $visibleGuiAttestationInput, $visibleGuiScreenshotInput,
         $visibleGuiSigningRequestEvidence.sha256, $guiAttemptId,
-        $guiRequestExpiresAt.ToUniversalTime().ToString('o')
+        $guiRequestExpiresAt.ToUniversalTime().ToString('o'))
     $attestationWaitSeconds = [Math]::Max(1, [Math]::Min(
         $HumanTransitionTimeoutSeconds,
         [Math]::Floor(($guiRequestExpiresAt - [DateTimeOffset]::UtcNow).TotalSeconds)))
@@ -4597,9 +4597,9 @@ try {
     }
     $postRunRequestBytes = Write-NewUtf8File $postRunSigningRequestOutput `
         ($postRunSigningRequest | ConvertTo-Json -Depth 5 -Compress)
-    Write-Host ("FABRIC_FEDERATION_GUI_POSTRUN_SIGNING_REQUEST_READY|path={0}|sha256={1}|" +
+    Write-Host (("FABRIC_FEDERATION_GUI_POSTRUN_SIGNING_REQUEST_READY|path={0}|sha256={1}|" +
         "operation_attempt_id={2}|challenge_nonce={3}") -f $postRunSigningRequestOutput,
-        (Get-BytesSha256 $postRunRequestBytes), $postRunOperationAttemptId, $postRunChallengeNonce
+        (Get-BytesSha256 $postRunRequestBytes), $postRunOperationAttemptId, $postRunChallengeNonce)
     Write-Host 'The external post-run supervisor must set signed_at, sign Get-PostRunReceiptSigningPayload with its out-of-band private key, and atomically create the requested receipt.'
     Wait-ExternalEvidenceLeaf $postRunReceiptInput $PostRunReceiptTimeoutSeconds 'POSTRUN_RECEIPT'
     $postRunReceiptEvidence = Open-LockedEvidence $postRunReceiptInput
