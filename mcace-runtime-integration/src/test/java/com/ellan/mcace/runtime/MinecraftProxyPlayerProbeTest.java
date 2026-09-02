@@ -1843,7 +1843,7 @@ final class MinecraftProxyPlayerProbeTest {
                     StandardCharsets.UTF_8);
             configurePaperForwarding();
             Path data = proxyDataDirectory();
-            Files.createDirectories(data);
+            createPrivateProxyDataDirectory(data);
             // Velocity creates both the root identity and its delegated policy signing key on first
             // start. Register both before launch so normal, disposition and Folia probes cannot
             // retain either private key. The delegated path is harmlessly absent for Bungee.
@@ -1901,7 +1901,7 @@ final class MinecraftProxyPlayerProbeTest {
             }
 
             Path data = proxyDataDirectory();
-            Files.createDirectories(data);
+            createPrivateProxyDataDirectory(data);
             Files.writeString(data.resolve("mcace.properties"),
                     kind == ProxyKind.VELOCITY ? """
                             enforcement.mode=%s
@@ -1960,6 +1960,11 @@ final class MinecraftProxyPlayerProbeTest {
                     paperRoot.resolve("plugins/MCAce"), "test Paper MCAce data directory");
         }
 
+        private void createPrivateProxyDataDirectory(Path data) throws IOException {
+            AuthorityFilePreflight.createPrivateDirectoriesWithoutLinks(
+                    data, "test proxy MCAce data directory");
+        }
+
         private void installVelocityDisconnectObserver() throws IOException {
             String configured = System.getProperty(VELOCITY_OBSERVER_JAR_PROPERTY);
             if (configured == null || configured.isBlank()) {
@@ -1989,16 +1994,26 @@ final class MinecraftProxyPlayerProbeTest {
             prepare();
             Path data = proxyDataDirectory();
             Path identityDirectory = data.resolve("identity");
-            Files.createDirectories(identityDirectory);
+            AuthorityFilePreflight.createPrivateDirectoriesWithoutLinks(
+                    identityDirectory, "test proxy identity directory");
             Path temporaryPrivateKey = identityDirectory.resolve("server-private-key.pk8");
-            Files.write(temporaryPrivateKey,
-                    identity.getPrivate().getEncoded());
+            byte[] privateBytes = identity.getPrivate().getEncoded();
+            try {
+                AuthorityFilePreflight.writePrivateFileAtomically(
+                        identityDirectory, temporaryPrivateKey, privateBytes,
+                        "test proxy private identity key");
+            } finally {
+                java.util.Arrays.fill(privateBytes, (byte) 0);
+            }
             if (!temporaryProxyPrivateKeys.contains(temporaryPrivateKey)) {
                 temporaryProxyPrivateKeys.add(temporaryPrivateKey);
             }
-            Files.writeString(identityDirectory.resolve("server-public-key.txt"),
-                    Base64.getEncoder().encodeToString(identity.getPublic().getEncoded()) + "\n",
-                    StandardCharsets.US_ASCII);
+            AuthorityFilePreflight.writePrivateFileAtomically(
+                    identityDirectory,
+                    identityDirectory.resolve("server-public-key.txt"),
+                    (Base64.getEncoder().encodeToString(identity.getPublic().getEncoded()) + "\n")
+                            .getBytes(StandardCharsets.US_ASCII),
+                    "test proxy public identity key");
             String localConfiguration = federationLocalConfiguration(
                     kind, localNetworkId, backendMinecraftVersion);
             Files.writeString(data.resolve("mcace.properties"), localConfiguration,
