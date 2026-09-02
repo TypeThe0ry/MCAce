@@ -45,6 +45,7 @@ import java.nio.file.attribute.BasicFileAttributes;
 import java.security.PublicKey;
 import java.security.KeyPair;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
@@ -4833,7 +4834,8 @@ final class MinecraftProxyPlayerProbeTest {
                         engine = new ClientHandshakeEngine(playerId, "mcace-test-peer",
                                 harness.wireProfile.minecraftVersion(),
                                 BUILD_ID, LoaderType.FABRIC, harness.proxyPublicKey, Clock.systemUTC(),
-                                new SecureRandom(), retainedGrant.sourceSessionKeyPair());
+                                new SecureRandom(), retainedGrant.sourceSessionKeyPair(),
+                                retainedGrant.signedAssertionSha256());
                     }
                     authenticateEngine(engine, frame, "target");
                 }
@@ -5156,6 +5158,12 @@ final class MinecraftProxyPlayerProbeTest {
                 throw new IllegalStateException("test-only retained source key was cleared");
             }
             return sourceSessionKeyPair;
+        }
+
+        private byte[] signedAssertionSha256() throws NoSuchAlgorithmException {
+            if (grant == null) throw new IllegalStateException("test-only retained grant was cleared");
+            return MessageDigest.getInstance("SHA-256")
+                    .digest(grant.getSignedAssertion().toByteArray());
         }
 
         private void requireExactTarget(String networkId, PublicKey targetIdentity) throws Exception {

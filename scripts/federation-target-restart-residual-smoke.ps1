@@ -13,6 +13,8 @@ $ErrorActionPreference = 'Stop'
 $reportSchema = 'MCACE_FEDERATION_TARGET_RESTART_EXECUTED_V2'
 $bindingSchema = 'MCACE_FEDERATION_TARGET_RESTART_BINDING_V1'
 $commitSchema = 'MCACE_FEDERATION_TARGET_RESTART_COMMIT_V1'
+$preparedTreeDomain = "MCACE_PREPARED_TREE_SHA256_V1`0"
+$preparedRoots = @('cache', 'libraries', 'versions')
 $fileTimestampLowerBoundTolerance = [TimeSpan]::FromSeconds(2)
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $runsRoot = Join-Path $repoRoot 'build\runtime-federation-target-restart\runs'
@@ -304,6 +306,90 @@ function Get-TreeManifestBinding {
     return [pscustomobject]@{ sha256 = Get-BytesSha256 $bytes; file_count = [int]$ordered.Count }
 }
 
+function Get-PreparedTreeManifestBinding {
+    param([Parameter(Mandatory)][string]$RootPath)
+
+    $root = Assert-DirectLocalPath $RootPath -Directory
+    $rootPrefix = $root.TrimEnd([char[]]@('\', '/')) + [IO.Path]::DirectorySeparatorChar
+    $records = [Collections.Generic.SortedDictionary[string,object]]::new([StringComparer]::Ordinal)
+    $caseFolded = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+
+    # Keep this byte-for-byte compatible with RuntimeProcessAssets.preparedTreeSha256:
+    # only immutable cache/libraries/versions are bound; generated world/config/log state
+    # is intentionally outside the restart asset contract.
+    foreach ($preparedRootName in $preparedRoots) {
+        $treeRoot = Assert-DirectLocalPath (Join-Path $root $preparedRootName) -Directory
+        foreach ($item in @(Get-ChildItem -LiteralPath $treeRoot -Recurse -Force -ErrorAction Stop)) {
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "FEDERATION_RESTART_PREPARED_REPARSE|$preparedRootName/$($item.Name)"
+            }
+            if ($item.PSIsContainer) { continue }
+            if (-not ($item -is [IO.FileInfo])) {
+                throw "FEDERATION_RESTART_PREPARED_ENTRY_INVALID|$preparedRootName/$($item.Name)"
+            }
+            $full = [IO.Path]::GetFullPath($item.FullName)
+            if (-not $full.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                throw "FEDERATION_RESTART_PREPARED_ESCAPE|$preparedRootName/$($item.Name)"
+            }
+            $relative = $full.Substring($rootPrefix.Length).Replace('\', '/')
+            if ([string]::IsNullOrWhiteSpace($relative) -or $relative.Contains('//') -or
+                    $relative.StartsWith('/') -or $relative -match '(^|/)\.{1,2}($|/)') {
+                throw "FEDERATION_RESTART_PREPARED_RELATIVE_INVALID|$relative"
+            }
+            if (-not $caseFolded.Add($relative) -or $records.ContainsKey($relative)) {
+                throw "FEDERATION_RESTART_PREPARED_DUPLICATE|$relative"
+            }
+            $records.Add($relative, [pscustomobject]@{
+                    path = $full
+                    size = [long]$item.Length
+                })
+        }
+    }
+    if ($records.Count -eq 0) { throw 'FEDERATION_RESTART_PREPARED_EMPTY' }
+
+    $treeDigest = [Security.Cryptography.SHA256]::Create()
+    $domain = [Text.Encoding]::ASCII.GetBytes($preparedTreeDomain)
+    $treeDigest.TransformBlock($domain, 0, $domain.Length, $domain, 0) | Out-Null
+    try {
+        foreach ($pair in $records.GetEnumerator()) {
+            $relativeBytes = [Text.UTF8Encoding]::new($false).GetBytes($pair.Key)
+            $lengthBytes = [byte[]]@(
+                (($relativeBytes.Length -shr 24) -band 0xff),
+                (($relativeBytes.Length -shr 16) -band 0xff),
+                (($relativeBytes.Length -shr 8) -band 0xff),
+                ($relativeBytes.Length -band 0xff))
+            $treeDigest.TransformBlock($lengthBytes, 0, $lengthBytes.Length, $lengthBytes, 0) | Out-Null
+            $treeDigest.TransformBlock($relativeBytes, 0, $relativeBytes.Length,
+                    $relativeBytes, 0) | Out-Null
+            $size = [long]$pair.Value.size
+            $sizeBytes = [byte[]]@(
+                (($size -shr 56) -band 0xff), (($size -shr 48) -band 0xff),
+                (($size -shr 40) -band 0xff), (($size -shr 32) -band 0xff),
+                (($size -shr 24) -band 0xff), (($size -shr 16) -band 0xff),
+                (($size -shr 8) -band 0xff), ($size -band 0xff))
+            $treeDigest.TransformBlock($sizeBytes, 0, $sizeBytes.Length, $sizeBytes, 0) | Out-Null
+
+            $stream = [IO.File]::Open($pair.Value.path, [IO.FileMode]::Open,
+                    [IO.FileAccess]::Read, [IO.FileShare]::Read)
+            try {
+                $buffer = [byte[]]::new(65536)
+                while (($read = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+                    $treeDigest.TransformBlock($buffer, 0, $read, $buffer, 0) | Out-Null
+                }
+            } finally { $stream.Dispose() }
+            $after = Get-Item -LiteralPath $pair.Value.path -Force -ErrorAction Stop
+            if ([long]$after.Length -ne $size) {
+                throw "FEDERATION_RESTART_PREPARED_CHANGED_DURING_HASH|$($pair.Key)"
+            }
+        }
+        $treeDigest.TransformFinalBlock([byte[]]::new(0), 0, 0) | Out-Null
+        return [pscustomobject]@{
+            sha256 = ([BitConverter]::ToString($treeDigest.Hash)).Replace('-', '').ToLowerInvariant()
+            file_count = [int]$records.Count
+        }
+    } finally { $treeDigest.Dispose() }
+}
+
 function Get-PlatformBinding {
     $hashes = [ordered]@{}
     foreach ($name in @('velocity', 'paper')) {
@@ -314,7 +400,7 @@ function Get-PlatformBinding {
         }
         $hashes[$name] = $hash
     }
-    $prepared = Get-TreeManifestBinding $platformPaths.paper_prepared
+    $prepared = Get-PreparedTreeManifestBinding $platformPaths.paper_prepared
     if ($prepared.file_count -le 0) { throw 'FEDERATION_RESTART_PREPARED_PAPER_EMPTY' }
     return [pscustomobject]@{
         velocity_server_sha256 = $hashes.velocity
