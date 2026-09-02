@@ -383,14 +383,13 @@ function Invoke-StaticChecks {
         Assert-True ($parse.source -match 'mcace-server-paper\\build\\libs') 'current Paper JAR binding missing'
         Assert-True ($parse.source -notmatch 'UtcNow\.AddSeconds\(-2\)') 'two-second pre-run freshness window remains'
     }
-    # The proxy matrix is release-bound to the immutable Paper 1.21.11/132
-    # asset tree.  The restart-residual probe keeps its independently prepared
-    # 1.21.1/133 fixture until that gate is migrated, so assert each contract
-    # against the script that owns it instead of applying one path to both.
+    # Both federation probes are release-bound to the immutable Paper
+    # 1.21.11/132 asset tree; assert each owner explicitly so a future fixture
+    # split cannot silently weaken the release contract.
     Assert-True ($Matrix.source -match 'runtime-assets\\paper\\1\.21\.11\\132\\prepared') `
         'release-bound prepared Paper binding missing'
-    Assert-True ($Restart.source -match 'paper-1\.21\.1-133-prepared') `
-        'restart prepared Paper fixture binding missing'
+    Assert-True ($Restart.source -match 'runtime-assets\\paper\\1\.21\.11\\132\\prepared') `
+        'restart release-bound prepared Paper binding missing'
     Assert-True ($Matrix.source -match 'velocity_server_sha256') 'matrix Velocity server binding missing'
     Assert-True ($Matrix.source -match 'bungee_server_sha256') 'matrix Bungee server binding missing'
     Assert-True ($Restart.source -match 'velocity_server_sha256') 'restart Velocity server binding missing'
