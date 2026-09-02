@@ -46,7 +46,7 @@
     "server_handshake_observed": false
   },
   "enablement": {
-    "single_visible_enable_mcase_decision_required": true,
+    "single_visible_enable_mcace_decision_required": true,
     "human_enablement_click": false,
     "connection_bound_attestation": false,
     "client_enablement_state": "OFF_UNTIL_EXPLICIT_CONFIRMATION"
