@@ -577,6 +577,7 @@ function Get-CurrentBinding {
         gradle_installation_file_count = $gradle.installation_file_count
         java_path = $java.path
         gradle_user_home = $gradle.user_home
+        gradle_command_path = $gradle.command_path
         gradle_launcher_path = $gradle.launcher_path
     }
 }
@@ -1185,7 +1186,7 @@ try {
             '--console=plain', '--gradle-user-home', $currentBefore.gradle_user_home,
             '--project-dir', $repoRoot
         )
-        & $currentBefore.command_path @gradleArguments
+        & $currentBefore.gradle_command_path @gradleArguments
         $finishedAt = [DateTimeOffset]::UtcNow
         if ($LASTEXITCODE -ne 0) { throw "FEDERATION_MATRIX_GRADLE_FAILED: $($case.Pair)" }
         $caseEvidence.Add((Get-FreshCaseEvidence -Definition $case -NotBefore $startedAt -NotAfter $finishedAt))
