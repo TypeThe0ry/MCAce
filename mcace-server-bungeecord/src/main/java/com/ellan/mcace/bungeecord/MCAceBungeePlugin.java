@@ -547,7 +547,12 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
     private void startHandshake(ProxiedPlayer player, BungeeDeferredDispositionRoutes.LoginTicket ticket) {
         Objects.requireNonNull(player, "player");
         Objects.requireNonNull(ticket, "ticket");
+        BungeeSessionBridge current = bridge;
+        if (current == null) {
+            return;
+        }
         Optional<String> departingSession = Optional.empty();
+        boolean disconnect = false;
         synchronized (connectionLifecycleLock) {
             UUID playerId = player.getUniqueId();
             if (!isCurrentPhysicalLogin(player, ticket)
@@ -560,36 +565,91 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
             // begin() supplies a real hello frame.
             configurationStartAttempts.put(playerId, ticket);
             try {
-                Optional<byte[]> initialFrame = activeBridge().begin(playerId);
+                Optional<byte[]> initialFrame = current.begin(playerId);
                 if (initialFrame.isEmpty()) {
-                    // A bridge that cannot produce hello has not begun a usable protocol session.
-                    // Keep only the one-shot attempt marker, revoke inbound permission, and
-                    // retire the exact bridge state before any duplicate callback can arrive.
-                    departingSession = retireUnsentConfigurationHandshake(
-                            challengedPlayers, bridge, playerId, ticket);
+                    if (current.requiresClient() && isCurrentPhysicalLogin(player, ticket)) {
+                        departingSession = retireFailedConfigurationHandshake(
+                                challengedPlayers, configurationStartAttempts, terminalConfigurationTickets,
+                                current, playerId, ticket);
+                        if (deferredDispositionRoutes != null) {
+                            deferredDispositionRoutes.markDeniedPhysical(playerId, player, ticket);
+                        }
+                        disconnect = true;
+                    } else {
+                        // A bridge that cannot produce hello has not begun a usable protocol session.
+                        // Keep only the one-shot attempt marker, revoke inbound permission, and
+                        // retire the exact bridge state before any duplicate callback can arrive.
+                        departingSession = retireUnsentConfigurationHandshake(
+                                challengedPlayers, current, playerId, ticket);
+                    }
                 } else if (installTicketBoundChallenge(challengedPlayers, playerId, ticket)) {
-                    player.sendData(BungeeMCAceChannels.HANDSHAKE, initialFrame.orElseThrow());
+                    try {
+                        player.sendData(BungeeMCAceChannels.HANDSHAKE, initialFrame.orElseThrow());
+                    } catch (RuntimeException exception) {
+                        if (current.requiresClient() && isCurrentPhysicalLogin(player, ticket)) {
+                            departingSession = retireFailedConfigurationHandshake(
+                                    challengedPlayers, configurationStartAttempts, terminalConfigurationTickets,
+                                    current, playerId, ticket);
+                            if (deferredDispositionRoutes != null) {
+                                deferredDispositionRoutes.markDeniedPhysical(playerId, player, ticket);
+                            }
+                            disconnect = true;
+                        } else {
+                            throw exception;
+                        }
+                    }
                 } else {
                     // A configuration challenge must never be overwritten. This is fail-closed
                     // even though the lifecycle lock makes it an internal consistency failure.
-                    departingSession = removeBridgeSessionForReplacement(bridge, playerId);
+                    if (current.requiresClient() && isCurrentPhysicalLogin(player, ticket)) {
+                        departingSession = retireFailedConfigurationHandshake(
+                                challengedPlayers, configurationStartAttempts, terminalConfigurationTickets,
+                                current, playerId, ticket);
+                        if (deferredDispositionRoutes != null) {
+                            deferredDispositionRoutes.markDeniedPhysical(playerId, player, ticket);
+                        }
+                        disconnect = true;
+                    } else {
+                        departingSession = removeBridgeSessionForReplacement(current, playerId);
+                    }
                 }
             } catch (RuntimeException exception) {
-                removeTicketBoundChallenge(challengedPlayers, playerId, ticket);
-                // Keep configurationStartAttempts: a duplicate event after a failed send must
-                // remain inert. The ticket is retired by an exact disconnect or replacement.
-                AuthenticatedPhysicalSession binding = authenticatedPhysicalSessions.get(playerId);
-                if (binding != null && binding.playerIdentity() == player && binding.loginTicket().equals(ticket)) {
-                    authenticatedPhysicalSessions.remove(playerId);
+                if (current.requiresClient() && isCurrentPhysicalLogin(player, ticket)) {
+                    departingSession = retireFailedConfigurationHandshake(
+                            challengedPlayers, configurationStartAttempts, terminalConfigurationTickets,
+                            current, playerId, ticket);
+                    if (deferredDispositionRoutes != null) {
+                        deferredDispositionRoutes.markDeniedPhysical(playerId, player, ticket);
+                    }
+                    disconnect = true;
+                    getLogger().warning("MCAce strict handshake failed for " + player.getName()
+                            + ": " + safeMessage(exception));
+                } else {
+                    removeTicketBoundChallenge(challengedPlayers, playerId, ticket);
+                    // Keep configurationStartAttempts: a duplicate event after a failed send must
+                    // remain inert. The ticket is retired by an exact disconnect or replacement.
+                    AuthenticatedPhysicalSession binding = authenticatedPhysicalSessions.get(playerId);
+                    if (binding != null && binding.playerIdentity() == player && binding.loginTicket().equals(ticket)) {
+                        authenticatedPhysicalSessions.remove(playerId);
+                    }
+                    departingSession = removeBridgeSessionForReplacement(current, playerId);
+                    getLogger().warning("MCAce could not begin a handshake for " + player.getName()
+                            + ": " + safeMessage(exception));
                 }
-                departingSession = removeBridgeSessionForReplacement(bridge, playerId);
-                getLogger().warning("MCAce could not begin a handshake for " + player.getName()
-                        + ": " + safeMessage(exception));
             }
         }
         // The bridge/session state was retired while holding the lifecycle lock; the executor is
         // intentionally cleared only after releasing it to preserve the established lock order.
         clearDepartingDispositionSession(player.getUniqueId(), departingSession);
+        if (disconnect) {
+            try {
+                player.disconnect(new TextComponent(
+                        "MCAce: a client with MCAce installed is required to join this server."));
+            } catch (RuntimeException exception) {
+                getLogger().warning("MCAce strict handshake denial could not disconnect "
+                        + player.getName() + ": " + safeMessage(exception));
+            }
+        }
     }
 
     private void expireSessions() {
@@ -1182,6 +1242,34 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
             return true;
         }
         return false;
+    }
+
+    /**
+     * Retires a failed initial handshake as a terminal exact-ticket state. Unlike the legacy
+     * optional path, strict failure removes the one-shot attempt marker as well as the challenge,
+     * records no-retry state, and retires the bridge session before the caller disconnects the
+     * physical player.
+     */
+    static Optional<String> retireFailedConfigurationHandshake(
+            Map<UUID, BungeeDeferredDispositionRoutes.LoginTicket> challenges,
+            Map<UUID, BungeeDeferredDispositionRoutes.LoginTicket> attempts,
+            Map<UUID, BungeeDeferredDispositionRoutes.LoginTicket> terminalTickets,
+            BungeeSessionBridge current,
+            UUID playerId,
+            BungeeDeferredDispositionRoutes.LoginTicket ticket) {
+        Objects.requireNonNull(challenges, "challenges");
+        Objects.requireNonNull(attempts, "attempts");
+        Objects.requireNonNull(terminalTickets, "terminalTickets");
+        Objects.requireNonNull(current, "current");
+        Objects.requireNonNull(playerId, "playerId");
+        Objects.requireNonNull(ticket, "ticket");
+        boolean challengeRemoved = removeTicketBoundChallenge(challenges, playerId, ticket);
+        boolean attemptRemoved = removeTicketBoundChallenge(attempts, playerId, ticket);
+        boolean terminalAdded = terminalTickets.putIfAbsent(playerId, ticket) == null;
+        if (!challengeRemoved && !attemptRemoved && !terminalAdded) {
+            return Optional.empty();
+        }
+        return removeBridgeSessionForReplacement(current, playerId);
     }
 
     /**

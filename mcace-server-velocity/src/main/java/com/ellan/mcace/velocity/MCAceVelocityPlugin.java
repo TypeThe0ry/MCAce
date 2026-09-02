@@ -118,6 +118,12 @@ public final class MCAceVelocityPlugin {
     private final VelocityLoginLifecycle loginLifecycle = new VelocityLoginLifecycle();
     /** Guarded by {@link #connectionLifecycleLock}. */
     private final Map<UUID, VelocityLoginLifecycle.LoginTicket> challengedPlayers = new HashMap<>();
+    /**
+     * Guarded by {@link #connectionLifecycleLock}. A terminal marker prevents a delayed channel
+     * registration or scheduler callback from reopening the exact physical login after a strict
+     * handshake failure/timeout has already revoked its coordinator state.
+     */
+    private final Map<UUID, VelocityLoginLifecycle.LoginTicket> terminalHandshakeTickets = new HashMap<>();
     private final ConcurrentMap<UUID, Instant> lastBackendPublish = new ConcurrentHashMap<>();
     private ServerHandshakeCoordinator handshakes;
     private VelocityAdmissionConfig admissionConfig;
@@ -515,6 +521,7 @@ public final class MCAceVelocityPlugin {
     public void onProxyShutdown(ProxyShutdownEvent event) {
         synchronized (connectionLifecycleLock) {
             challengedPlayers.clear();
+            terminalHandshakeTickets.clear();
             loginLifecycle.clearAll();
             if (serverAuthorityRuntime != null) serverAuthorityRuntime.clear();
         }
@@ -577,6 +584,7 @@ public final class MCAceVelocityPlugin {
             // before the replacement ticket becomes visible to any callback.
             retiredSession = removeCoordinatorStateForReplacementLocked(playerId);
             challengedPlayers.remove(playerId);
+            terminalHandshakeTickets.remove(playerId);
             ticket = loginLifecycle.beginLogin(playerId, player);
             lastBackendPublish.remove(playerId);
             if (backendContextRuntime != null) backendContextRuntime.clear(playerId);
@@ -744,6 +752,7 @@ public final class MCAceVelocityPlugin {
             ticket = captured.orElseThrow();
             retiredSession = removeCoordinatorStateForReplacementLocked(playerId);
             removeTicketBoundChallenge(challengedPlayers, playerId, ticket);
+            removeTicketBoundTerminal(terminalHandshakeTickets, playerId, ticket);
             if (!loginLifecycle.clear(playerId, player, ticket)) return;
             lastBackendPublish.remove(playerId);
             if (backendContextRuntime != null) backendContextRuntime.clear(playerId);
@@ -771,16 +780,20 @@ public final class MCAceVelocityPlugin {
     private void expireHandshakes() {
         if (backendContextRuntime != null) backendContextRuntime.expire();
         for (PlayerSecuritySnapshot snapshot : coordinator().expireTimedOut()) {
-            Player player = server.getPlayer(snapshot.playerId()).orElse(null);
-            Optional<PhysicalLogin> login = player == null ? Optional.empty() : currentPhysicalLogin(player);
-            if (login.isPresent() && api.snapshot(snapshot.playerId()).filter(snapshot::equals).isPresent()) {
-                PhysicalLogin current = login.orElseThrow();
-                logger.info("MCAce timed out for {}; session is LIMITED", player.getUsername());
-                if (denyMissingClientIfRequired(player, current.ticket(), snapshot)) {
-                    continue;
+            try {
+                Player player = server.getPlayer(snapshot.playerId()).orElse(null);
+                Optional<PhysicalLogin> login = player == null ? Optional.empty() : currentPhysicalLogin(player);
+                if (login.isPresent() && api.snapshot(snapshot.playerId()).filter(snapshot::equals).isPresent()) {
+                    PhysicalLogin current = login.orElseThrow();
+                    logger.info("MCAce timed out for {}; session is LIMITED", player.getUsername());
+                    if (denyMissingClientIfRequired(player, current.ticket(), snapshot)) {
+                        continue;
+                    }
+                    applyAdmission(player, current.ticket(), snapshot);
+                    forwardSnapshot(player, current.ticket(), snapshot);
                 }
-                applyAdmission(player, current.ticket(), snapshot);
-                forwardSnapshot(player, current.ticket(), snapshot);
+            } catch (RuntimeException exception) {
+                logger.error("MCAce timeout enforcement failed for player {}", snapshot.playerId(), exception);
             }
         }
     }
@@ -1489,9 +1502,11 @@ public final class MCAceVelocityPlugin {
     }
 
     private void startHandshake(Player player, VelocityLoginLifecycle.LoginTicket ticket) {
+        boolean disconnect = false;
         synchronized (connectionLifecycleLock) {
             UUID playerId = player.getUniqueId();
             if (!isCurrentPhysicalLoginLocked(player, ticket)
+                    || isTicketTerminalLocked(playerId, ticket)
                     || !installTicketBoundChallenge(challengedPlayers, playerId, ticket)) return;
             try {
                 byte[] challenge = coordinator().begin(playerId);
@@ -1500,14 +1515,32 @@ public final class MCAceVelocityPlugin {
                 logger.info("MCAce challenge dispatch player={} bytes={} sent={}",
                         player.getUsername(), challenge.length, sent);
                 if (!sent) {
-                    removeTicketBoundChallenge(challengedPlayers, playerId, ticket);
-                    coordinator().remove(playerId);
-                    logger.debug("MCAce challenge channel is not available for {}", player.getUsername());
+                    if (isCurrentPhysicalLoginLocked(player, ticket) && requiresClientLocked()) {
+                        retireTerminalHandshakeLocked(player, ticket, "handshake-failure");
+                        disconnect = true;
+                        logger.warn("MCAce strict handshake channel is unavailable for {}", player.getUsername());
+                    } else {
+                        retireFailedHandshakeLocked(playerId, ticket);
+                        logger.debug("MCAce challenge channel is not available for {}", player.getUsername());
+                    }
                 }
-            } catch (EnvelopeException | PolicyException exception) {
-                removeTicketBoundChallenge(challengedPlayers, playerId, ticket);
-                coordinator().remove(playerId);
-                logger.error("Could not create MCAce challenge for {}", player.getUsername(), exception);
+            } catch (EnvelopeException | PolicyException | RuntimeException exception) {
+                if (isCurrentPhysicalLoginLocked(player, ticket) && requiresClientLocked()) {
+                    retireTerminalHandshakeLocked(player, ticket, "handshake-failure");
+                    disconnect = true;
+                    logger.error("MCAce strict handshake could not start for {}", player.getUsername(), exception);
+                } else {
+                    retireFailedHandshakeLocked(playerId, ticket);
+                    logger.error("Could not create MCAce challenge for {}", player.getUsername(), exception);
+                }
+            }
+        }
+        if (disconnect) {
+            try {
+                player.disconnect(Component.text(
+                        "MCAce: a client with MCAce installed is required to join this server."));
+            } catch (RuntimeException exception) {
+                logger.error("MCAce strict handshake denial could not disconnect {}", player.getUsername(), exception);
             }
         }
     }
@@ -1585,7 +1618,60 @@ public final class MCAceVelocityPlugin {
 
     private boolean isTicketChallengedLocked(
             UUID playerId, VelocityLoginLifecycle.LoginTicket ticket) {
-        return ticket.equals(challengedPlayers.get(playerId));
+        return !isTicketTerminalLocked(playerId, ticket) && ticket.equals(challengedPlayers.get(playerId));
+    }
+
+    private boolean isTicketTerminalLocked(
+            UUID playerId, VelocityLoginLifecycle.LoginTicket ticket) {
+        return ticket.equals(terminalHandshakeTickets.get(playerId));
+    }
+
+    private boolean requiresClientLocked() {
+        return admissionConfig != null && admissionConfig.requireClient();
+    }
+
+    /**
+     * Clears a failed non-strict handshake. The coordinator is removed only when the physical
+     * ticket is still current; a reentrant replacement must retain the replacement's coordinator.
+     */
+    private void retireFailedHandshakeLocked(
+            UUID playerId, VelocityLoginLifecycle.LoginTicket ticket) {
+        removeTicketBoundChallenge(challengedPlayers, playerId, ticket);
+        if (isTicketCurrentByTicketLocked(playerId, ticket)) {
+            coordinator().remove(playerId);
+        }
+    }
+
+    /**
+     * Makes an exact physical login terminal before a strict failure/timeout is delivered to the
+     * proxy. No cheat or Xray evidence is synthesized here; the route marker records only the
+     * admission outcome for this login ticket.
+     */
+    private void retireTerminalHandshakeLocked(
+            Player player, VelocityLoginLifecycle.LoginTicket ticket, String markerSessionId) {
+        UUID playerId = player.getUniqueId();
+        if (deferredDispositionRoutes != null) {
+            deferredDispositionRoutes.markDeniedPhysical(
+                    playerId, ticket, player, markerSessionId);
+        }
+        if (deferredAdmissionRoutes != null) {
+            deferredAdmissionRoutes.clear(playerId);
+        }
+        backendReadyBarrier.clear(playerId);
+        retireTicketBoundHandshake(
+                challengedPlayers, terminalHandshakeTickets, playerId, ticket, () -> {
+                    try {
+                        coordinator().remove(playerId);
+                    } catch (RuntimeException exception) {
+                        logger.error("MCAce could not retire coordinator state for strict ticket {}",
+                                playerId, exception);
+                    }
+                });
+    }
+
+    private boolean isTicketCurrentByTicketLocked(
+            UUID playerId, VelocityLoginLifecycle.LoginTicket ticket) {
+        return loginLifecycle.current(playerId).map(active -> active.ticket().equals(ticket)).orElse(false);
     }
 
     static boolean installTicketBoundChallenge(
@@ -1604,12 +1690,77 @@ public final class MCAceVelocityPlugin {
                 Objects.requireNonNull(playerId, "playerId"), Objects.requireNonNull(ticket, "ticket"));
     }
 
+    static boolean isTicketBoundTerminal(
+            Map<UUID, VelocityLoginLifecycle.LoginTicket> terminalTickets,
+            UUID playerId,
+            VelocityLoginLifecycle.LoginTicket ticket) {
+        return Objects.requireNonNull(ticket, "ticket").equals(
+                Objects.requireNonNull(terminalTickets, "terminalTickets")
+                        .get(Objects.requireNonNull(playerId, "playerId")));
+    }
+
+    static boolean retireTicketBoundHandshake(
+            Map<UUID, VelocityLoginLifecycle.LoginTicket> challenges,
+            Map<UUID, VelocityLoginLifecycle.LoginTicket> terminalTickets,
+            UUID playerId,
+            VelocityLoginLifecycle.LoginTicket ticket,
+            Runnable removeCoordinator) {
+        Objects.requireNonNull(challenges, "challenges");
+        Objects.requireNonNull(terminalTickets, "terminalTickets");
+        Objects.requireNonNull(removeCoordinator, "removeCoordinator");
+        boolean challengeRemoved = removeTicketBoundChallenge(challenges, playerId, ticket);
+        boolean terminalAdded = markTicketBoundTerminal(terminalTickets, playerId, ticket);
+        if (!challengeRemoved && !terminalAdded) {
+            return false;
+        }
+        removeCoordinator.run();
+        return true;
+    }
+
+    static boolean markTicketBoundTerminal(
+            Map<UUID, VelocityLoginLifecycle.LoginTicket> terminalTickets,
+            UUID playerId,
+            VelocityLoginLifecycle.LoginTicket ticket) {
+        return Objects.requireNonNull(terminalTickets, "terminalTickets").putIfAbsent(
+                Objects.requireNonNull(playerId, "playerId"), Objects.requireNonNull(ticket, "ticket")) == null;
+    }
+
+    static boolean removeTicketBoundTerminal(
+            Map<UUID, VelocityLoginLifecycle.LoginTicket> terminalTickets,
+            UUID playerId,
+            VelocityLoginLifecycle.LoginTicket ticket) {
+        return Objects.requireNonNull(terminalTickets, "terminalTickets").remove(
+                Objects.requireNonNull(playerId, "playerId"), Objects.requireNonNull(ticket, "ticket"));
+    }
+
     private boolean sendHandshakeFrameIfCurrent(
             Player player, VelocityLoginLifecycle.LoginTicket ticket, byte[] frame) {
+        boolean sent = false;
+        boolean disconnect = false;
         synchronized (connectionLifecycleLock) {
-            return isCurrentPhysicalLoginLocked(player, ticket)
-                    && player.sendPluginMessage(MCAceVelocityChannels.HANDSHAKE, frame);
+            if (!isCurrentPhysicalLoginLocked(player, ticket)
+                    || !isTicketChallengedLocked(player.getUniqueId(), ticket)) {
+                return false;
+            }
+            try {
+                sent = player.sendPluginMessage(MCAceVelocityChannels.HANDSHAKE, frame);
+            } catch (RuntimeException exception) {
+                logger.error("MCAce handshake response could not be sent to {}", player.getUsername(), exception);
+            }
+            if (!sent && isCurrentPhysicalLoginLocked(player, ticket) && requiresClientLocked()) {
+                retireTerminalHandshakeLocked(player, ticket, "handshake-failure");
+                disconnect = true;
+            }
         }
+        if (disconnect) {
+            try {
+                player.disconnect(Component.text(
+                        "MCAce: a client with MCAce installed is required to join this server."));
+            } catch (RuntimeException exception) {
+                logger.error("MCAce strict handshake denial could not disconnect {}", player.getUsername(), exception);
+            }
+        }
+        return sent;
     }
 
     /** Callers hold the lifecycle lock; this always drops a pre-auth coordinator as well. */
@@ -1708,23 +1859,20 @@ public final class MCAceVelocityPlugin {
 
     private boolean denyMissingClientIfRequired(
             Player player, VelocityLoginLifecycle.LoginTicket ticket, PlayerSecuritySnapshot snapshot) {
-        if (!admissionConfig.requireClient() || !isMissingClientSnapshot(snapshot)) {
+        if (!requiresClientLocked() || !isMissingClientSnapshot(snapshot)) {
             return false;
         }
         synchronized (connectionLifecycleLock) {
             if (!isCurrentPhysicalLoginLocked(player, ticket)) {
                 return false;
             }
-            if (deferredDispositionRoutes != null) {
-                deferredDispositionRoutes.markDeniedPhysical(
-                        player.getUniqueId(), ticket, player, "missing-client");
-            }
-            if (deferredAdmissionRoutes != null) {
-                deferredAdmissionRoutes.clear(player.getUniqueId());
-            }
-            backendReadyBarrier.clear(player.getUniqueId());
+            retireTerminalHandshakeLocked(player, ticket, "missing-client");
+        }
+        try {
             player.disconnect(Component.text(
                     "MCAce: a client with MCAce installed is required to join this server."));
+        } catch (RuntimeException exception) {
+            logger.error("MCAce strict timeout denial could not disconnect {}", player.getUsername(), exception);
         }
         logger.info("MCAce denied a connection without a completed client handshake for {} "
                         + "(client.requirement=REQUIRE_CLIENT)",
