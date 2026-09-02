@@ -18,6 +18,9 @@ class BungeeBridgeConfigurationTest {
         assertEquals("mcace-bungeecord", configuration.serverId());
         assertEquals("1.21.11", configuration.minecraftVersion());
         assertEquals(Duration.ofSeconds(5), configuration.handshakeTimeout());
+        assertEquals(BungeeBridgeConfiguration.ClientRequirement.REQUIRE_CLIENT,
+                configuration.clientRequirement());
+        assertEquals(true, configuration.requireClient());
         assertEquals(false, configuration.heartbeatMissingPolicy().enabled());
         assertEquals(java.util.Optional.empty(), configuration.limitedServer());
         assertEquals(java.util.Optional.empty(), configuration.quarantineServer());
@@ -49,6 +52,44 @@ class BungeeBridgeConfigurationTest {
         assertEquals(BungeeDispositionExecutionMode.LIMITED_ROUTE, configuration.dispositionExecutionMode());
         assertEquals(java.util.Optional.of("limited-eu"), configuration.limitedServer());
         assertEquals(java.util.Optional.of("quarantine-eu"), configuration.quarantineServer());
+    }
+
+    @Test
+    void existingConfigurationWithoutClientRequirementRetainsLegacyOptionalProfile(@TempDir Path directory)
+            throws Exception {
+        Path path = directory.resolve("legacy-client-profile.properties");
+        Files.writeString(path, "disposition.enforcement.mode=MONITOR\n");
+
+        BungeeBridgeConfiguration configuration = BungeeBridgeConfiguration.loadOrCreate(path);
+
+        assertEquals(BungeeBridgeConfiguration.ClientRequirement.OPTIONAL,
+                configuration.clientRequirement());
+        assertEquals(false, configuration.requireClient());
+    }
+
+    @Test
+    void parsesExplicitOptionalAndStrictClientRequirementProfiles(@TempDir Path directory) throws Exception {
+        Path optionalPath = directory.resolve("optional-client-profile.properties");
+        Files.writeString(optionalPath, "client.requirement=OPTIONAL\n");
+        assertEquals(BungeeBridgeConfiguration.ClientRequirement.OPTIONAL,
+                BungeeBridgeConfiguration.loadOrCreate(optionalPath).clientRequirement());
+
+        Path strictPath = directory.resolve("strict-client-profile.properties");
+        Files.writeString(strictPath, "client.requirement=STRICT\n");
+        BungeeBridgeConfiguration strict = BungeeBridgeConfiguration.loadOrCreate(strictPath);
+        assertEquals(BungeeBridgeConfiguration.ClientRequirement.REQUIRE_CLIENT, strict.clientRequirement());
+        assertEquals(true, strict.requireClient());
+    }
+
+    @Test
+    void rejectsInvalidClientRequirementProfile(@TempDir Path directory) throws Exception {
+        Path blank = directory.resolve("blank-client-profile.properties");
+        Files.writeString(blank, "client.requirement=   \n");
+        assertThrows(java.io.IOException.class, () -> BungeeBridgeConfiguration.loadOrCreate(blank));
+
+        Path unknown = directory.resolve("unknown-client-profile.properties");
+        Files.writeString(unknown, "client.requirement=ENFORCE_EVERYTHING\n");
+        assertThrows(java.io.IOException.class, () -> BungeeBridgeConfiguration.loadOrCreate(unknown));
     }
 
     @Test

@@ -20,7 +20,8 @@ record BungeeBridgeConfiguration(
         BungeeDispositionExecutionMode dispositionExecutionMode,
         Optional<String> limitedServer,
         Optional<String> quarantineServer,
-        com.ellan.mcace.core.session.HeartbeatMissingPolicy heartbeatMissingPolicy) {
+        com.ellan.mcace.core.session.HeartbeatMissingPolicy heartbeatMissingPolicy,
+        ClientRequirement clientRequirement) {
     static final String DEFAULT_CONTENT = """
             # MCAce BungeeCord session bridge. Keep private keys in identity/, never in this file.
             # The built-in policy is Fabric-first. A custom bridge provider may be packaged when
@@ -34,6 +35,9 @@ record BungeeBridgeConfiguration(
             # disposition.restricted.server key is read only as a temporary LIMIT migration.
             # disposition.limited.server=limited
             # disposition.quarantine.server=quarantine
+            # A newly generated configuration requires a live MCAce client. Existing files that
+            # predate this key retain the legacy OPTIONAL profile until an operator opts in.
+            client.requirement=REQUIRE_CLIENT
             heartbeat.missing.enabled=false
             heartbeat.missing.consecutive-polls=3
             heartbeat.missing.action=NOTICE
@@ -43,21 +47,24 @@ record BungeeBridgeConfiguration(
             String serverId, String minecraftVersion, String clientBuildId, Duration handshakeTimeout) {
         this(serverId, minecraftVersion, clientBuildId, handshakeTimeout,
                 BungeeDispositionExecutionMode.MONITOR, Optional.empty(), Optional.empty(),
-                com.ellan.mcace.core.session.HeartbeatMissingPolicy.disabled());
+                com.ellan.mcace.core.session.HeartbeatMissingPolicy.disabled(),
+                ClientRequirement.OPTIONAL);
     }
 
     BungeeBridgeConfiguration(String serverId, String minecraftVersion, String clientBuildId, Duration handshakeTimeout,
             BungeeDispositionExecutionMode dispositionExecutionMode, String restrictedServer) {
         this(serverId, minecraftVersion, clientBuildId, handshakeTimeout, dispositionExecutionMode,
                 optionalServer(restrictedServer), Optional.empty(),
-                com.ellan.mcace.core.session.HeartbeatMissingPolicy.disabled());
+                com.ellan.mcace.core.session.HeartbeatMissingPolicy.disabled(),
+                ClientRequirement.OPTIONAL);
     }
 
     BungeeBridgeConfiguration(String serverId, String minecraftVersion, String clientBuildId, Duration handshakeTimeout,
             BungeeDispositionExecutionMode dispositionExecutionMode, String limitedServer, String quarantineServer) {
         this(serverId, minecraftVersion, clientBuildId, handshakeTimeout, dispositionExecutionMode,
                 optionalServer(limitedServer), optionalServer(quarantineServer),
-                com.ellan.mcace.core.session.HeartbeatMissingPolicy.disabled());
+                com.ellan.mcace.core.session.HeartbeatMissingPolicy.disabled(),
+                ClientRequirement.OPTIONAL);
     }
 
     BungeeBridgeConfiguration {
@@ -69,6 +76,7 @@ record BungeeBridgeConfiguration(
         Objects.requireNonNull(limitedServer, "limitedServer");
         Objects.requireNonNull(quarantineServer, "quarantineServer");
         Objects.requireNonNull(heartbeatMissingPolicy, "heartbeatMissingPolicy");
+        Objects.requireNonNull(clientRequirement, "clientRequirement");
         if (!serverId.matches("[a-z0-9][a-z0-9._-]{0,63}")
                 || minecraftVersion.isBlank()
                 || clientBuildId.isBlank()
@@ -105,6 +113,7 @@ record BungeeBridgeConfiguration(
             throw new IOException("invalid MCAce disposition.enforcement.mode", exception);
         }
         try {
+            ClientRequirement clientRequirement = parseClientRequirement(properties);
             return new BungeeBridgeConfiguration(
                     properties.getProperty("server.id", "mcace-bungeecord").trim(),
                     properties.getProperty("minecraft.version", "1.21.11").trim(),
@@ -115,12 +124,30 @@ record BungeeBridgeConfiguration(
                     optionalProperty(properties, "disposition.quarantine.server"),
                     new com.ellan.mcace.core.session.HeartbeatMissingPolicy(
                             parseBoolean(properties.getProperty("heartbeat.missing.enabled", "false"), "heartbeat.missing.enabled"),
-                            Integer.parseInt(properties.getProperty("heartbeat.missing.consecutive-polls", "3").trim()),
-                            com.ellan.mcace.core.session.HeartbeatMissingPolicy.Action.valueOf(
-                                    properties.getProperty("heartbeat.missing.action", "NOTICE").trim().toUpperCase(Locale.ROOT))));
+                             Integer.parseInt(properties.getProperty("heartbeat.missing.consecutive-polls", "3").trim()),
+                             com.ellan.mcace.core.session.HeartbeatMissingPolicy.Action.valueOf(
+                                     properties.getProperty("heartbeat.missing.action", "NOTICE").trim().toUpperCase(Locale.ROOT))),
+                     clientRequirement);
         } catch (IllegalArgumentException exception) {
             throw new IOException("invalid MCAce Bungee bridge configuration", exception);
         }
+    }
+
+    /**
+     * The generated configuration is strict, while files written before the profile existed are
+     * intentionally left on the legacy optional behavior until the operator changes them.
+     * STRICT is accepted as a readable alias for REQUIRE_CLIENT.
+     */
+    private static ClientRequirement parseClientRequirement(Properties properties) throws IOException {
+        String configured = properties.getProperty("client.requirement", "OPTIONAL");
+        if (configured == null || configured.isBlank()) {
+            throw new IOException("invalid MCAce client.requirement");
+        }
+        return switch (configured.trim().toUpperCase(Locale.ROOT)) {
+            case "OPTIONAL", "MONITOR" -> ClientRequirement.OPTIONAL;
+            case "REQUIRE_CLIENT", "STRICT" -> ClientRequirement.REQUIRE_CLIENT;
+            default -> throw new IOException("invalid MCAce client.requirement: " + configured);
+        };
     }
 
     private static boolean parseBoolean(String value, String name) throws IOException {
@@ -149,5 +176,15 @@ record BungeeBridgeConfiguration(
 
     private static boolean validOptionalServer(Optional<String> server) {
         return server.isEmpty() || server.orElseThrow().matches("[a-z0-9][a-z0-9._-]{0,63}");
+    }
+
+    /** Controls whether a player without a completed MCAce client handshake is safe to admit. */
+    enum ClientRequirement {
+        OPTIONAL,
+        REQUIRE_CLIENT
+    }
+
+    boolean requireClient() {
+        return clientRequirement == ClientRequirement.REQUIRE_CLIENT;
     }
 }
