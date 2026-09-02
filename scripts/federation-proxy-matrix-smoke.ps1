@@ -498,6 +498,52 @@ function Resolve-OfflineGradle961 {
     return $valid[0]
 }
 
+function Invoke-VerifiedGradle {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$JavaPath,
+        [Parameter(Mandatory)][string]$LauncherPath,
+        [Parameter(Mandatory)][string[]]$JvmArguments,
+        [Parameter(Mandatory)][string[]]$GradleArguments
+    )
+
+    # Native PowerShell invocation of a .bat can collapse an array of -D
+    # arguments into one quoted token on Windows.  ProcessStartInfo.ArgumentList
+    # gives each JVM/Gradle argument an explicit boundary and keeps the
+    # forked Test Executor properties independent and auditable.
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = Assert-DirectLocalPath $JavaPath
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    foreach ($argument in @($JvmArguments)) {
+        $startInfo.ArgumentList.Add([string]$argument)
+    }
+    $startInfo.ArgumentList.Add('-classpath')
+    $startInfo.ArgumentList.Add((Assert-DirectLocalPath $LauncherPath))
+    $startInfo.ArgumentList.Add('org.gradle.launcher.GradleMain')
+    foreach ($argument in @($GradleArguments)) {
+        $startInfo.ArgumentList.Add([string]$argument)
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) { throw 'FEDERATION_MATRIX_GRADLE_PROCESS_START_FAILED' }
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $process.WaitForExit()
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+        if (-not [string]::IsNullOrEmpty($stdout)) { [Console]::Out.Write($stdout) }
+        if (-not [string]::IsNullOrEmpty($stderr)) { [Console]::Error.Write($stderr) }
+        return [int]$process.ExitCode
+    } finally {
+        $process.Dispose()
+    }
+}
+
 function Get-GateSourceInputPaths {
     $paths = New-Object 'System.Collections.Generic.List[string]'
     foreach ($relative in @('build.gradle.kts', 'settings.gradle.kts', 'gradle.properties',
@@ -1171,13 +1217,14 @@ try {
             '-Dmcace.runtime.bungee.jar=' + $platformPaths.bungee,
             '-Dmcace.runtime.bungee.jar.sha256=' + $expectedPlatformSha256.bungee
         )
-        # Invoke the verified Gradle distribution directly.  Supplying each
-        # binding as its own Gradle CLI -D argument preserves the property
-        # boundaries all the way into the forked Test Executor (the previous
-        # direct GradleMain invocation collapsed the values on Windows).
-        $gradleArguments = [string[]]@(
+        # Keep runtime bindings as JVM properties and pass every token through
+        # ProcessStartInfo.ArgumentList.  This avoids the Windows .bat/native
+        # argument collapse that previously appended every -D option to the
+        # backend-kind value.
+        $javaRuntimeArguments = [string[]]@(
             '-Dmcace.runtime.federation.enabled=true'
-        ) + [string[]]$runtimeArguments + [string[]]@(
+        ) + [string[]]$runtimeArguments
+        $gradleArguments = [string[]]@(
             ':mcace-runtime-integration:test',
             '--tests', $case.Test,
             '--rerun-tasks',
@@ -1186,9 +1233,11 @@ try {
             '--console=plain', '--gradle-user-home', $currentBefore.gradle_user_home,
             '--project-dir', $repoRoot
         )
-        & $currentBefore.gradle_command_path @gradleArguments
+        $gradleExitCode = Invoke-VerifiedGradle -JavaPath $currentBefore.java_path `
+            -LauncherPath $currentBefore.gradle_launcher_path -JvmArguments $javaRuntimeArguments `
+            -GradleArguments $gradleArguments
         $finishedAt = [DateTimeOffset]::UtcNow
-        if ($LASTEXITCODE -ne 0) { throw "FEDERATION_MATRIX_GRADLE_FAILED: $($case.Pair)" }
+        if ($gradleExitCode -ne 0) { throw "FEDERATION_MATRIX_GRADLE_FAILED: $($case.Pair)" }
         $caseEvidence.Add((Get-FreshCaseEvidence -Definition $case -NotBefore $startedAt -NotAfter $finishedAt))
     }
     if ($caseEvidence.Count -ne 4) { throw 'FEDERATION_MATRIX_COMPLETE_4_OF_4_EXECUTION_REQUIRED' }
