@@ -3936,8 +3936,13 @@ try {
     Wait-FileLiteralCount $fabricClient $fabricLog $fabricExpectedArtifactMarker 1 300
     Assert-FabricArtifactMarker $fabricLog $fabricExpectedArtifactMarker
     Wait-FileLiteralCount $fabricClient $fabricLog 'MCAce Fabric client initialized' 1 300
+    # A release client can need the full human-transition window to finish its
+    # first signed hello/authentication after the native GUI has been created.
+    # Keep the historical 60-second floor, but do not let a slower interactive
+    # desktop fail closed before the configured transition window expires.
     Wait-FileLiteralCount $fabricClient $fabricLog `
-        'MCAce session verified at trust level VERIFIED with risk score 0' 1 60
+        'MCAce session verified at trust level VERIFIED with risk score 0' 1 `
+        ([Math]::Max(60, [int]$HumanTransitionTimeoutSeconds))
     $sourceLocalAuthVerified = $true
     $sourcePaperLog = Join-Path $sourcePaperRoot 'logs\latest.log'
     $uuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-' +
