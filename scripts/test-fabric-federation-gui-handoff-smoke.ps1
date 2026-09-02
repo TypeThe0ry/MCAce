@@ -738,7 +738,6 @@ try {
         Add 'PROCESS_STARTED' '' 'SOURCE_PAPER' 41003 'mcace-source' $sourceConnection $session ('0' * 64) 'source paper'
         Add 'PROCESS_STARTED' '' 'TARGET_PAPER' 41004 'mcace-target' $targetConnection $session ('0' * 64) 'target paper'
         Add 'PROCESS_STARTED' '' 'FABRIC_CLIENT' 41005 'mcace-source' $sourceConnection $session ('0' * 64) 'fabric client'
-        Add 'SOURCE_CONNECTION_VERIFIED' '' 'FABRIC_CLIENT' 41005 'mcace-source' $sourceConnection $session $subject 'source verified'
         Add 'GUI_PROMPT_RENDERED' '' 'FABRIC_CLIENT' 41005 'mcace-source' $sourceConnection $session $subject 'prompt rendered'
         $null = & $validator {
             param($Ledger,$ProcessId,$Started,$Connection,$Session,$Subject,$Marker)
@@ -747,6 +746,7 @@ try {
         } $ledger ([int]$ledger.supervisor_process_id) ([string]$ledger.supervisor_process_started_at) `
             $sourceConnection $session $subject ([string]$attestationDoc.sha256)
         Add 'GUI_ACCEPTED' '' 'FABRIC_CLIENT' 41005 'mcace-source' $sourceConnection $session $subject 'accepted'
+        Add 'SOURCE_CONNECTION_VERIFIED' '' 'FABRIC_CLIENT' 41005 'mcace-source' $sourceConnection $session $subject 'source verified'
         Add 'SOURCE_SECOND_EXPORT_REQUESTED' $sourceOperation 'SOURCE_PROXY' 41001 'mcace-target' $sourceConnection $session $subject 'source request'
         $sourceRejectOperation = if ($BadSourceCorrelation) { '8a' * 16 } else { $sourceOperation }
         Add 'SOURCE_SECOND_EXPORT_REJECTED' $sourceRejectOperation 'FABRIC_CLIENT' 41005 'mcace-target' $sourceConnection $session $subject 'source rejected'

@@ -1581,11 +1581,20 @@ function Add-RuntimeLedgerEvent(
         [string]$SessionId,
         [string]$SubjectCommitmentSha256,
         [string]$EvidenceMarkerSha256,
-        [string]$SupervisorSealSha256 = '') {
+        [string]$SupervisorSealSha256 = '',
+        [string]$ObservedAt = '') {
     $incarnation = Get-ProcessIncarnationId $ActorRole $ProcessId $ProcessStartedAt
+    $observed = [DateTimeOffset]::UtcNow
+    if (-not [string]::IsNullOrWhiteSpace($ObservedAt)) {
+        if (-not [DateTimeOffset]::TryParseExact(
+                $ObservedAt, 'o', [Globalization.CultureInfo]::InvariantCulture,
+                [Globalization.DateTimeStyles]::None, [ref]$observed)) {
+            throw 'FABRIC_FEDERATION_GUI_RUNTIME_EVENT_OBSERVED_AT_INVALID'
+        }
+    }
     $event = [ordered]@{
         schema=$runtimeEventSchema; sequence=[int]($Ledger.sequence + 1)
-        observed_at=[DateTimeOffset]::UtcNow.ToString('o'); event_type=$EventType
+        observed_at=$observed.ToUniversalTime().ToString('o'); event_type=$EventType
         run_attempt_id=[string]$Ledger.run_attempt_id; operation_attempt_id=$OperationAttemptId
         source_commit=[string]$Ledger.source_commit; fabric_target=[string]$Ledger.fabric_target
         supervisor_process_id=[int]$Ledger.supervisor_process_id
@@ -1625,12 +1634,13 @@ function Add-ServiceRuntimeEvent(
         [string]$ConnectionId,
         [string]$SessionId,
         [string]$SubjectCommitmentSha256,
-        [string]$EvidenceMarker) {
+        [string]$EvidenceMarker,
+        [string]$ObservedAt = '') {
     $started = Get-ProcessStartTimeString $Process
     $markerHash = Get-BytesSha256 ([Text.UTF8Encoding]::new($false).GetBytes($EvidenceMarker))
     return Add-RuntimeLedgerEvent $Ledger $EventType $OperationAttemptId $ActorRole `
         ([int]$Process.Id) $started $Peer $ConnectionId $SessionId `
-        $SubjectCommitmentSha256 $markerHash
+        $SubjectCommitmentSha256 $markerHash '' $ObservedAt
 }
 
 function Complete-RuntimeLedger([object]$Ledger, [string]$ChallengeNonce) {
@@ -1670,14 +1680,18 @@ function Assert-RuntimeLedgerBytes(
     $expectedTypes = @(
         'RUN_STARTED',
         'PROCESS_STARTED','PROCESS_STARTED','PROCESS_STARTED','PROCESS_STARTED','PROCESS_STARTED',
-        'SOURCE_CONNECTION_VERIFIED','GUI_PROMPT_RENDERED','GUI_SIGNED_RECEIPT_VERIFIED','GUI_ACCEPTED',
+        # The client must receive and approve the connection-level policy before it can
+        # send the first authenticated hello.  Keep the ledger in the same order as
+        # that real protocol transition; SOURCE_CONNECTION_VERIFIED is emitted only
+        # after the accepted consent has produced a verified session/admission.
+        'GUI_PROMPT_RENDERED','GUI_SIGNED_RECEIPT_VERIFIED','GUI_ACCEPTED','SOURCE_CONNECTION_VERIFIED',
         'SOURCE_SECOND_EXPORT_REQUESTED','SOURCE_SECOND_EXPORT_REJECTED',
         'SOURCE_SECOND_EXPORT_NO_GRANT_CONFIRMED','TARGET_CONNECTION_VERIFIED',
         'TARGET_INHERITED_EXPORT_REQUESTED','TARGET_INHERITED_EXPORT_REJECTED',
         'TARGET_INHERITED_EXPORT_NO_GRANT_CONFIRMED','SUPERVISOR_SEALED')
     $expectedActors = @(
         'SUPERVISOR','SOURCE_PROXY','TARGET_PROXY','SOURCE_PAPER','TARGET_PAPER','FABRIC_CLIENT',
-        'FABRIC_CLIENT','FABRIC_CLIENT','SUPERVISOR','FABRIC_CLIENT',
+        'FABRIC_CLIENT','SUPERVISOR','FABRIC_CLIENT','FABRIC_CLIENT',
         'SOURCE_PROXY','FABRIC_CLIENT','SOURCE_PROXY','FABRIC_CLIENT',
         'TARGET_PROXY','FABRIC_CLIENT','TARGET_PROXY','SUPERVISOR')
     if ($lines.Count -ne $expectedTypes.Count) {
@@ -3936,46 +3950,13 @@ try {
     Wait-FileLiteralCount $fabricClient $fabricLog $fabricExpectedArtifactMarker 1 300
     Assert-FabricArtifactMarker $fabricLog $fabricExpectedArtifactMarker
     Wait-FileLiteralCount $fabricClient $fabricLog 'MCAce Fabric client initialized' 1 300
-    # A release client can need the full human-transition window to finish its
-    # first signed hello/authentication after the native GUI has been created.
-    # Keep the historical 60-second floor, but do not let a slower interactive
-    # desktop fail closed before the configured transition window expires.
-    Wait-FileLiteralCount $fabricClient $fabricLog `
-        'MCAce session verified at trust level VERIFIED with risk score 0' 1 `
-        ([Math]::Max(60, [int]$HumanTransitionTimeoutSeconds))
-    $sourceLocalAuthVerified = $true
-    $sourcePaperLog = Join-Path $sourcePaperRoot 'logs\latest.log'
-    $uuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-' +
-        '[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
-    $verifiedPaperAdmissionPattern = 'Accepted signed MCAce admission state for ' +
-        "(?<subject>$uuidPattern): admission=VERIFIED, trust=VERIFIED, risk=0"
-    $sourcePaperAdmission = Wait-FileRegexMatch `
-        $sourcePaperService $sourcePaperLog $verifiedPaperAdmissionPattern 30
-    $sourceSubjectId = [string]$sourcePaperAdmission.Groups['subject'].Value
-    $sourceSubjectCommitmentSha256 = Get-BytesSha256 ([Text.UTF8Encoding]::new($false).GetBytes(
-        "MCACE_SUBJECT_COMMITMENT_V1`nsubject=$sourceSubjectId`nchallenge=$guiChallengeNonce`n"))
-    $sourcePaperAdmissionVerified = $true
-    $null = Add-ServiceRuntimeEvent $runtimeLedger 'SOURCE_CONNECTION_VERIFIED' '' 'FABRIC_CLIENT' `
-        $fabricClient.Process 'mcace-source' $sourceConnectionId $federationSessionId `
-        $sourceSubjectCommitmentSha256 'source signed session and paper admission verified'
-    $playerName = Get-FabricDevelopmentPlayerName $fabricLog
-
-    $issuePattern = 'MCAce: federation issue status=CONSENT_ISSUED'
-    $issueBaseline = Get-FileRegexCount $sourceService.StdoutPath $issuePattern
-    $consentIssuedAt = [DateTimeOffset]::UtcNow
-    $earliestAssertionExpiry = $consentIssuedAt.AddSeconds($FederationAssertionTtlSeconds)
-    $targetEvidenceDeadline = $earliestAssertionExpiry.AddSeconds(-15)
-    $preExpiryProbeAt = $earliestAssertionExpiry.AddSeconds(-8)
-    Send-ServiceCommand $sourceService "mcacefederation issue $playerName mcace-target"
-    Wait-NewFileRegex $sourceService $sourceService.StdoutPath $issuePattern $issueBaseline 30
-    $consentIssueObservedAt = [DateTimeOffset]::UtcNow
-    $latestAssertionExpiry = $consentIssueObservedAt.AddSeconds($FederationAssertionTtlSeconds)
+    # The connection-level policy is presented before the client can send its
+    # first authenticated hello.  Capture and approve that single visible prompt
+    # first; waiting for an authenticated session here would deadlock the real
+    # protocol because authentication is enabled by this decision.
     Wait-FileLiteralCount $fabricClient $fabricLog $requiredHumanGuiMarkers[0] 1 30
     Wait-FileLiteralCount $fabricClient $fabricLog $requiredHumanGuiMarkers[1] 1 30
     $guiPromptRenderedAt = [DateTimeOffset]::UtcNow
-    $null = Add-ServiceRuntimeEvent $runtimeLedger 'GUI_PROMPT_RENDERED' '' 'FABRIC_CLIENT' `
-        $fabricClient.Process 'mcace-source' $sourceConnectionId $federationSessionId `
-        $sourceSubjectCommitmentSha256 $requiredHumanGuiMarkers[1]
     Wait-ExternalEvidenceLeaf $visibleGuiScreenshotInput $HumanTransitionTimeoutSeconds 'SCREENSHOT'
     $visibleGuiScreenshotEvidence = Open-LockedBinaryEvidence $visibleGuiScreenshotInput
     $visibleGuiPng = Assert-PngEvidence $visibleGuiScreenshotEvidence.bytes
@@ -4080,9 +4061,6 @@ try {
         $visibleGuiSigningRequestEvidence.stream $visibleGuiSigningRequestEvidence.file_identity
     Assert-LockedFileIdentity $visibleGuiScreenshotInput `
         $visibleGuiScreenshotEvidence.stream $visibleGuiScreenshotEvidence.file_identity
-    $null = Add-ServiceRuntimeEvent $runtimeLedger 'GUI_SIGNED_RECEIPT_VERIFIED' '' 'SUPERVISOR' `
-        (Get-Process -Id $PID) 'mcace-source' $sourceConnectionId $federationSessionId `
-        $sourceSubjectCommitmentSha256 ([string]$visibleGuiAttestationEvidence.sha256)
     Wait-FileLiteralCount $fabricClient $fabricLog `
         $requiredHumanGuiMarkers[2] 1 $HumanTransitionTimeoutSeconds
     $enablementAcceptedAt = [DateTimeOffset]::UtcNow
@@ -4095,9 +4073,55 @@ try {
         $runAttemptId $guiAttemptId $guiChallengeNonce $guiChallengeIssuedAt `
         ([int]$fabricClient.Process.Id) $fabricClientProcessStartedAt `
         $approvedVisibleGuiTrustRootSha256
+
+    # The initial Enable MCAce decision unlocks the authenticated hello.  Only
+    # after that result is accepted can Paper produce the verified subject
+    # commitment used by every ledger event and federation assertion.
+    Wait-FileLiteralCount $fabricClient $fabricLog `
+        'MCAce session verified at trust level VERIFIED with risk score 0' 1 `
+        ([Math]::Max(60, [int]$HumanTransitionTimeoutSeconds))
+    $sourceLocalAuthVerified = $true
+    $sourcePaperLog = Join-Path $sourcePaperRoot 'logs\latest.log'
+    $uuidPattern = '[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-' +
+        '[0-9a-fA-F]{4}-[0-9a-fA-F]{12}'
+    $verifiedPaperAdmissionPattern = 'Accepted signed MCAce admission state for ' +
+        "(?<subject>$uuidPattern): admission=VERIFIED, trust=VERIFIED, risk=0"
+    $sourcePaperAdmission = Wait-FileRegexMatch `
+        $sourcePaperService $sourcePaperLog $verifiedPaperAdmissionPattern 30
+    $sourceSubjectId = [string]$sourcePaperAdmission.Groups['subject'].Value
+    $sourceSubjectCommitmentSha256 = Get-BytesSha256 ([Text.UTF8Encoding]::new($false).GetBytes(
+        "MCACE_SUBJECT_COMMITMENT_V1`nsubject=$sourceSubjectId`nchallenge=$guiChallengeNonce`n"))
+    $sourcePaperAdmissionVerified = $true
+
+    # Preserve the real prompt/sign/accept chronology in the append-only ledger,
+    # even though the subject commitment becomes available only after auth.
+    $null = Add-ServiceRuntimeEvent $runtimeLedger 'GUI_PROMPT_RENDERED' '' 'FABRIC_CLIENT' `
+        $fabricClient.Process 'mcace-source' $sourceConnectionId $federationSessionId `
+        $sourceSubjectCommitmentSha256 $requiredHumanGuiMarkers[1] `
+        $guiPromptRenderedAt.ToUniversalTime().ToString('o')
+    $null = Add-ServiceRuntimeEvent $runtimeLedger 'GUI_SIGNED_RECEIPT_VERIFIED' '' 'SUPERVISOR' `
+        (Get-Process -Id $PID) 'mcace-source' $sourceConnectionId $federationSessionId `
+        $sourceSubjectCommitmentSha256 ([string]$visibleGuiAttestationEvidence.sha256) `
+        $validatedVisibleGuiAttestation.value.signed_at
     $null = Add-ServiceRuntimeEvent $runtimeLedger 'GUI_ACCEPTED' '' 'FABRIC_CLIENT' `
         $fabricClient.Process 'mcace-source' $sourceConnectionId $federationSessionId `
-        $sourceSubjectCommitmentSha256 $requiredHumanGuiMarkers[2]
+        $sourceSubjectCommitmentSha256 $requiredHumanGuiMarkers[2] `
+        $enablementAcceptedAt.ToUniversalTime().ToString('o')
+    $null = Add-ServiceRuntimeEvent $runtimeLedger 'SOURCE_CONNECTION_VERIFIED' '' 'FABRIC_CLIENT' `
+        $fabricClient.Process 'mcace-source' $sourceConnectionId $federationSessionId `
+        $sourceSubjectCommitmentSha256 'source signed session and paper admission verified'
+
+    $playerName = Get-FabricDevelopmentPlayerName $fabricLog
+    $issuePattern = 'MCAce: federation issue status=CONSENT_ISSUED'
+    $issueBaseline = Get-FileRegexCount $sourceService.StdoutPath $issuePattern
+    $consentIssuedAt = [DateTimeOffset]::UtcNow
+    $earliestAssertionExpiry = $consentIssuedAt.AddSeconds($FederationAssertionTtlSeconds)
+    $targetEvidenceDeadline = $earliestAssertionExpiry.AddSeconds(-15)
+    $preExpiryProbeAt = $earliestAssertionExpiry.AddSeconds(-8)
+    Send-ServiceCommand $sourceService "mcacefederation issue $playerName mcace-target"
+    Wait-NewFileRegex $sourceService $sourceService.StdoutPath $issuePattern $issueBaseline 30
+    $consentIssueObservedAt = [DateTimeOffset]::UtcNow
+    $latestAssertionExpiry = $consentIssueObservedAt.AddSeconds($FederationAssertionTtlSeconds)
     Wait-FileLiteralCount $fabricClient $fabricLog $requiredHumanGuiMarkers[3] 1 30
     $grantReadyPattern = 'MCAce federation consent response status=GRANT_READY player=' +
         [regex]::Escape($sourceSubjectId)
