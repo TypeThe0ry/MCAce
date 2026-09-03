@@ -3277,7 +3277,13 @@ function Probe-FederationReady(
         [regex]::Escape($NetworkId)
     $baseline = Get-ServiceRegexCount $Service $pattern
     Send-ServiceCommand $Service 'mcacefederation status'
-    Wait-NewServiceRegex $Service $pattern $baseline 30
+    # Proxy bootstrap and the first federation status task can take longer on a
+    # loaded workstation (especially while the visible client is also starting).
+    # Keep the probe bounded, but align it with the same human-transition budget
+    # used by the GUI handshake instead of dropping a valid run at 30 seconds.
+    $probeTimeoutSeconds = [Math]::Min(
+        120, [Math]::Max(30, [int]$HumanTransitionTimeoutSeconds))
+    Wait-NewServiceRegex $Service $pattern $baseline $probeTimeoutSeconds
 }
 
 function Initialize-PaperRuntime(
