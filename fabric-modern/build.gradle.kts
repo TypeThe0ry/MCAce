@@ -63,6 +63,16 @@ val smokeRuntimeArtifactPath = providers.gradleProperty("mcaceSmokeRuntimeArtifa
 val smokeRunDirectory = providers.gradleProperty("mcaceSmokeRunDirectory")
 val smokeServerAddress = providers.gradleProperty("mcaceSmokeServerAddress")
 val smokeEvidence = providers.gradleProperty("mcaceSmokeEvidence")
+val smokeConsentTimeoutSeconds = providers.gradleProperty("mcaceSmokeConsentTimeoutSeconds")
+    .map { configured ->
+        val seconds = configured.toIntOrNull()
+            ?: throw GradleException("mcaceSmokeConsentTimeoutSeconds must be an integer")
+        require(seconds in 30..300) {
+            "mcaceSmokeConsentTimeoutSeconds must be between 30 and 300 seconds"
+        }
+        seconds
+    }
+    .orElse(30)
 val dependencyVerificationMetadata = layout.projectDirectory.file(
     "gradle/verification-metadata.xml")
 val dependencyLockFiles = targetVersions.keys.map { target ->
@@ -341,6 +351,10 @@ subprojects {
                     expectedArtifactSha256,
                 )
                 systemProperty("mcace.smoke.run-token", runToken)
+                systemProperty(
+                    "mcace.client.enablement-decision-timeout-seconds",
+                    smokeConsentTimeoutSeconds.get().toString(),
+                )
             }
         }
     }

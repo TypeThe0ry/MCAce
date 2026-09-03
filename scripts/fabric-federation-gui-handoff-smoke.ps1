@@ -84,7 +84,7 @@ param(
     [int]$FederationAssertionTtlSeconds = 120,
     [Parameter(ParameterSetName = 'Execute')]
     [ValidateRange(30, 180)]
-    [int]$HumanTransitionTimeoutSeconds = 90,
+    [int]$HumanTransitionTimeoutSeconds = 180,
     [Parameter(ParameterSetName = 'Execute')]
     [ValidateRange(30, 300)]
     [int]$PostRunReceiptTimeoutSeconds = 120,
@@ -3709,7 +3709,8 @@ $smokeBuildProperties = @(
     "-PmcaceClientBuildId=$fabricSmokeBuildId",
     "-PmcaceSmokeRunToken=$runToken",
     "-PmcaceSmokeRuntimeArtifactPath=$fabricArtifactJar",
-    "-PmcaceSmokeExpectedArtifactSha256=$protectedFabricSha256"
+    "-PmcaceSmokeExpectedArtifactSha256=$protectedFabricSha256",
+    "-PmcaceSmokeConsentTimeoutSeconds=$([Math]::Min(300, [Math]::Max(30, [int]$HumanTransitionTimeoutSeconds)))"
 )
 if ([int]$fabricDescriptor.java_major -eq 25) {
     # The root stage task evaluates the legacy 1.21.11 Fabric project as part of
