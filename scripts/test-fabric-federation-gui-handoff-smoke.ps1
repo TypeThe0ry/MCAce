@@ -275,6 +275,7 @@ foreach ($contract in @(
         'val exactReleaseRuntimeMode',
         'modFiles.setFrom(smokeRuntimeArtifact)',
         'plus(files(smokeRuntimeArtifact))',
+        'mcace.client.enablement-decision-timeout-seconds',
         'sha256(artifact) == expectedArtifactSha256')) {
     Assert-True $modernFabricGradle.Contains($contract) `
         "modern exact named runtime contract missing: $contract"

@@ -375,6 +375,13 @@ subprojects {
                 smokeEvidence.isPresent.toString(),
             )
             systemProperties.put("mcace.platform-smoke.server-address", smokeServerAddress.get())
+            // Loom launches the configured run directly; JavaExec.doFirst above does not
+            // reliably propagate this property into the actual client JVM. Keep the
+            // human-visible consent window bound to the same smoke configuration here.
+            systemProperties.put(
+                "mcace.client.enablement-decision-timeout-seconds",
+                smokeConsentTimeoutSeconds.get().toString(),
+            )
         }
     }
 
