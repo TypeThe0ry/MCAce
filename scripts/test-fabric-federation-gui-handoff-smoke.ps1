@@ -242,6 +242,8 @@ foreach ($forbiddenRuntimeSource in @(
 $releaseStarter = Get-FunctionText $ast @('Start-FabricReleaseClient')
 Assert-True (-not $releaseStarter.Contains('Start-FabricClient')) `
     'release client delegates to the development snapshot launcher'
+Assert-True ($releaseStarter.Contains('-PmcaceSmokeConsentTimeoutSeconds=')) `
+    'release client did not propagate the configured human consent timeout to Loom'
 # The shared root dependency stage evaluates the legacy 1.21.11 project even when the
 # requested runtime is 26.x.  It must therefore use a legacy-valid smoke identity while
 # the isolated modern verification keeps the protected target release identity.

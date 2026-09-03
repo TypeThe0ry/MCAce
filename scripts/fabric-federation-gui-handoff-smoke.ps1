@@ -2090,6 +2090,7 @@ function Start-FabricReleaseClient(
             "-PmcaceSmokeExpectedArtifactSha256=$ExpectedArtifactSha256",
             "-PmcaceSmokeRuntimeArtifactPath=$fabricArtifactJar",
             "-PmcaceSmokeRunToken=$runToken",
+            "-PmcaceSmokeConsentTimeoutSeconds=$([Math]::Min(300, [Math]::Max(30, [int]$HumanTransitionTimeoutSeconds)))",
             '--rerun-tasks', '--offline', '--dependency-verification=strict',
             '--no-build-cache', '--no-configuration-cache', '--no-daemon',
             '--no-parallel', '--max-workers=1')) {
