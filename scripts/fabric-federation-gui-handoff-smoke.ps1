@@ -3220,10 +3220,16 @@ function Configure-ProxyProduct(
         [string]$NetworkId,
         [string]$BuildId) {
     $config = Assert-DirectLocalPath (Join-Path $Runtime.DataDirectory 'mcace.properties')
+    # Keep the proxy admission window aligned with the visible GUI consent
+    # window.  The previous hard-coded 30-second value could expire while the
+    # Computer Use capture was still being delivered, causing a valid client
+    # to be disconnected before the single human decision was possible.
+    $handshakeTimeoutSeconds = [string]([Math]::Min(
+        180, [Math]::Max(30, [int]$HumanTransitionTimeoutSeconds)))
     if ($Runtime.Kind -ceq 'VELOCITY') {
         Set-ExactConfigProperties $config ([ordered]@{
             'enforcement.mode' = 'MONITOR'
-            'handshake.timeout.seconds' = '30'
+            'handshake.timeout.seconds' = $handshakeTimeoutSeconds
             'policy.server-id' = $NetworkId
             'policy.minecraft-versions' = [string]$fabricDescriptor.minecraft_version
             'policy.client-build-ids' = $BuildId
@@ -3233,7 +3239,7 @@ function Configure-ProxyProduct(
             'server.id' = $NetworkId
             'minecraft.version' = [string]$fabricDescriptor.minecraft_version
             'client.build-id' = $BuildId
-            'handshake.timeout.seconds' = '30'
+            'handshake.timeout.seconds' = $handshakeTimeoutSeconds
             'disposition.enforcement.mode' = 'MONITOR'
         })
     }
