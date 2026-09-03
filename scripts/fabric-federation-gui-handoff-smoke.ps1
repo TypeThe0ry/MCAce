@@ -4139,7 +4139,7 @@ try {
     Wait-FileLiteralCount $fabricClient $fabricLog $requiredHumanGuiMarkers[3] 1 30
     $grantReadyPattern = 'MCAce federation consent response status=GRANT_READY player=' +
         [regex]::Escape($sourceSubjectId)
-    $null = Wait-FileRegexMatch $sourceService $sourceService.StdoutPath $grantReadyPattern 30
+    Wait-ServiceRegex $sourceService $grantReadyPattern 30
     $sourceGrantReadyObserved = $true
     Wait-FileLiteralCount $fabricClient $fabricLog `
         'MCAce stored a one-time federation grant in memory only' 1 30
@@ -4171,7 +4171,7 @@ try {
         $sourceConnectionId $federationSessionId $sourceSubjectCommitmentSha256 $sourceRejectionMarker
     Start-Sleep -Seconds 2
     $sourceSecondAssertionGrantReadyDelta =
-        (Get-FileRegexCount $sourceService.StdoutPath $grantReadyPattern) - $sourceGrantReadyBaseline
+        (Get-ServiceRegexCount $sourceService $grantReadyPattern) - $sourceGrantReadyBaseline
     if ($sourceSecondAssertionGrantReadyDelta -ne 0) {
         throw 'FABRIC_FEDERATION_GUI_SOURCE_SECOND_ASSERTION_UNEXPECTED_GRANT_READY'
     }
@@ -4230,7 +4230,7 @@ try {
             'FABRIC_FEDERATION_GUI_TARGET_AUTHORIZATION_PROMOTION_WINDOW_EXPIRED')
     $targetObservationPattern = 'MCAce federation presentation status=OBSERVED player=' +
         [regex]::Escape($targetSubjectId) + ' \(observation-only\)'
-    $null = Wait-FileRegexMatch $targetService $targetService.StdoutPath $targetObservationPattern `
+    Wait-ServiceRegex $targetService $targetObservationPattern `
         (Get-SecondsUntilDeadline $targetEvidenceDeadline 30 `
             'FABRIC_FEDERATION_GUI_TARGET_OBSERVATION_WINDOW_EXPIRED')
     $targetObservationRecorded = $true
@@ -4286,7 +4286,7 @@ try {
     # accepted only after the lower-bound expiry and while the exact target session remains live.
     $targetZeroPattern = 'MCAce: federation enabled=true configured=true audit=HEALTHY ' +
         'audit_backlog=0 audit_committed=[0-9]+ audit_failures=0 local=mcace-target peers=1 pending=0 observations=0'
-    $targetZeroBaseline = Get-FileRegexCount $targetService.StdoutPath $targetZeroPattern
+    $targetZeroBaseline = Get-ServiceRegexCount $targetService $targetZeroPattern
     $notBefore = $latestAssertionExpiry.AddSeconds(2)
     while ([DateTimeOffset]::UtcNow -lt $notBefore) {
         Assert-TargetSessionStillConnected $fabricClient $targetService $targetPaperService `
@@ -4295,13 +4295,13 @@ try {
     }
     $expiryDeadline = $latestAssertionExpiry.AddSeconds(30)
     while ([DateTimeOffset]::UtcNow -lt $expiryDeadline -and
-            (Get-FileRegexCount $targetService.StdoutPath $targetZeroPattern) -le $targetZeroBaseline) {
+            (Get-ServiceRegexCount $targetService $targetZeroPattern) -le $targetZeroBaseline) {
         Assert-TargetSessionStillConnected $fabricClient $targetService $targetPaperService `
             $targetPaperLog $targetDisconnectMarker $targetDisconnectBaseline
         Send-ServiceCommand $targetService 'mcacefederation status'
         Start-Sleep -Seconds 2
     }
-    if ((Get-FileRegexCount $targetService.StdoutPath $targetZeroPattern) -le $targetZeroBaseline) {
+    if ((Get-ServiceRegexCount $targetService $targetZeroPattern) -le $targetZeroBaseline) {
         throw 'FABRIC_FEDERATION_GUI_TARGET_OBSERVATION_DID_NOT_EXPIRE'
     }
     $observationExpired = $true
@@ -4342,7 +4342,7 @@ try {
         $targetConnectionId $federationSessionId $targetSubjectCommitmentSha256 $sourceRejectionMarker
     Start-Sleep -Seconds 2
     $targetInheritedExportGrantReadyDelta =
-        (Get-FileRegexCount $targetService.StdoutPath $targetGrantReadyPattern) - $targetGrantReadyBaseline
+        (Get-ServiceRegexCount $targetService $targetGrantReadyPattern) - $targetGrantReadyBaseline
     if ($targetInheritedExportGrantReadyDelta -ne 0) {
         throw 'FABRIC_FEDERATION_GUI_TARGET_INHERITED_EXPORT_UNEXPECTED_GRANT_READY'
     }
