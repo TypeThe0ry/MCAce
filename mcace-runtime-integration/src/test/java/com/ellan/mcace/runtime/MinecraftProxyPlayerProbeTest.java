@@ -3843,7 +3843,12 @@ final class MinecraftProxyPlayerProbeTest {
                 output = new DataOutputStream(socket.getOutputStream());
                 send(0, handshake(playerId, harness.wireProfile.protocolVersion()));
                 send(0, loginStart(playerId));
-                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(25);
+                // Folia can complete the backend join before its region scheduler has flushed
+                // the first clientbound login frame through Velocity.  Keep the probe bounded,
+                // but give that real process path a larger, version-independent window.  Paper
+                // retains the original 25-second contract so a stalled proxy still fails fast.
+                int loginDeadlineSeconds = harness.backendKind == BackendKind.FOLIA ? 60 : 25;
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(loginDeadlineSeconds);
                 while (System.nanoTime() < deadline && socket.isConnected()) {
                     // Cold Paper/Folia bootstrap can leave the proxy channel quiet for more
                     // than ten seconds after TCP accept. Recompute the read timeout from the
