@@ -153,6 +153,13 @@ foreach ($name in @('VisibleGuiSigningRequestPath','VisibleGuiAttestationPath','
 }
 Assert-True (((Get-ValidateSet 'FabricTarget') -join ',') -ceq '1.21.11,26.1.2,26.2') `
     'three-version Fabric matrix changed'
+Assert-True ($source -match '(?m)\[int\]\$FederationAssertionTtlSeconds\s*=\s*300,') `
+    'GUI handoff default assertion TTL must cover the human transition window'
+Assert-True ($source.Contains('$federationTransitionSafetyMarginSeconds = 15') -and
+    $source.Contains('FABRIC_FEDERATION_GUI_ASSERTION_TTL_MUST_COVER_HUMAN_TRANSITION')) `
+    'GUI handoff assertion TTL preflight contract is missing'
+Assert-True ($source.Contains('[int]$report.federation_assertion_ttl_seconds -lt 195')) `
+    'ReportOnly must reject assertion TTLs that cannot cover the maximum human transition window'
 foreach ($name in @('SourceProxy','TargetProxy')) {
     Assert-True (((Get-ValidateSet $name) -join ',') -ceq 'VELOCITY,BUNGEE') `
         "$name matrix changed"

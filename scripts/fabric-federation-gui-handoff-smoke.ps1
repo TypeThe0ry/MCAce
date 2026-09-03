@@ -81,7 +81,7 @@ param(
     [string]$ExpectedFabricAssetObjectManifestSha256,
     [Parameter(ParameterSetName = 'Execute')]
     [ValidateRange(60, 300)]
-    [int]$FederationAssertionTtlSeconds = 120,
+    [int]$FederationAssertionTtlSeconds = 300,
     [Parameter(ParameterSetName = 'Execute')]
     [ValidateRange(30, 180)]
     [int]$HumanTransitionTimeoutSeconds = 180,
@@ -100,6 +100,12 @@ if (-not $Execute -and -not $ReportOnly) {
 }
 $SourceProxy = $SourceProxy.ToUpperInvariant()
 $TargetProxy = $TargetProxy.ToUpperInvariant()
+$federationTransitionSafetyMarginSeconds = 15
+if ($Execute -and
+        $FederationAssertionTtlSeconds -lt
+        ([int]$HumanTransitionTimeoutSeconds + $federationTransitionSafetyMarginSeconds)) {
+    throw 'FABRIC_FEDERATION_GUI_ASSERTION_TTL_MUST_COVER_HUMAN_TRANSITION'
+}
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $wrapperPath = [System.IO.Path]::GetFullPath($MyInvocation.MyCommand.Path)
@@ -2353,6 +2359,7 @@ function Assert-PassingReportRaw(
             $report.fabric_codesource_sha256_observed -cne [string]$Current.fabric_artifact_sha256 -or
             $report.source_proxy -cne $ExpectedSource -or $report.target_proxy -cne $ExpectedTarget -or
             [int]$report.federation_assertion_ttl_seconds -lt 60 -or
+            [int]$report.federation_assertion_ttl_seconds -lt 195 -or
             [int]$report.federation_assertion_ttl_seconds -gt 300 -or
             [int]$report.operator_visible_gui_attestation_count -ne 1 -or
             [int]$report.human_visible_federation_consent_count -ne 1 -or
@@ -4130,7 +4137,7 @@ try {
     $issueBaseline = Get-ServiceRegexCount $sourceService $issuePattern
     $consentIssuedAt = [DateTimeOffset]::UtcNow
     $earliestAssertionExpiry = $consentIssuedAt.AddSeconds($FederationAssertionTtlSeconds)
-    $targetEvidenceDeadline = $earliestAssertionExpiry.AddSeconds(-15)
+    $targetEvidenceDeadline = $earliestAssertionExpiry.AddSeconds(-$federationTransitionSafetyMarginSeconds)
     $preExpiryProbeAt = $earliestAssertionExpiry.AddSeconds(-8)
     Send-ServiceCommand $sourceService "mcacefederation issue $playerName mcace-target"
     Wait-NewServiceRegex $sourceService $issuePattern $issueBaseline 30
@@ -4182,7 +4189,7 @@ try {
 
     Write-Host ''
     Write-Host "TARGET HUMAN PHASE: disconnect from source and use Minecraft Direct Connection to join $targetAddress. The accepted connection enablement is inherited; no second prompt is expected."
-    Write-Host "Complete this phase with at least 15 seconds remaining in the conservative $FederationAssertionTtlSeconds-second assertion window."
+    Write-Host "Complete this phase with at least $federationTransitionSafetyMarginSeconds seconds remaining in the conservative $FederationAssertionTtlSeconds-second assertion window."
     $transitionTimeout = Get-SecondsUntilDeadline `
         $targetEvidenceDeadline $HumanTransitionTimeoutSeconds `
         'FABRIC_FEDERATION_GUI_TARGET_TRANSITION_WINDOW_EXPIRED'
