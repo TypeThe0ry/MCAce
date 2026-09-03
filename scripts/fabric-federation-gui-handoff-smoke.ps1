@@ -4127,13 +4127,13 @@ try {
 
     $playerName = Get-FabricDevelopmentPlayerName $fabricLog
     $issuePattern = 'MCAce: federation issue status=CONSENT_ISSUED'
-    $issueBaseline = Get-FileRegexCount $sourceService.StdoutPath $issuePattern
+    $issueBaseline = Get-ServiceRegexCount $sourceService $issuePattern
     $consentIssuedAt = [DateTimeOffset]::UtcNow
     $earliestAssertionExpiry = $consentIssuedAt.AddSeconds($FederationAssertionTtlSeconds)
     $targetEvidenceDeadline = $earliestAssertionExpiry.AddSeconds(-15)
     $preExpiryProbeAt = $earliestAssertionExpiry.AddSeconds(-8)
     Send-ServiceCommand $sourceService "mcacefederation issue $playerName mcace-target"
-    Wait-NewFileRegex $sourceService $sourceService.StdoutPath $issuePattern $issueBaseline 30
+    Wait-NewServiceRegex $sourceService $issuePattern $issueBaseline 30
     $consentIssueObservedAt = [DateTimeOffset]::UtcNow
     $latestAssertionExpiry = $consentIssueObservedAt.AddSeconds($FederationAssertionTtlSeconds)
     Wait-FileLiteralCount $fabricClient $fabricLog $requiredHumanGuiMarkers[3] 1 30
@@ -4149,14 +4149,14 @@ try {
     # must receive no second GRANT_READY response.
     $sourceRejectionMarker = 'MCAce rejected federation source export because its one-shot human approval is absent, consumed, or inherited'
     $sourceRejectionBaseline = Get-FileLiteralCount $fabricLog $sourceRejectionMarker
-    $sourceGrantReadyBaseline = Get-FileRegexCount $sourceService.StdoutPath $grantReadyPattern
-    $sourceSecondIssueBaseline = Get-FileRegexCount $sourceService.StdoutPath $issuePattern
+    $sourceGrantReadyBaseline = Get-ServiceRegexCount $sourceService $grantReadyPattern
+    $sourceSecondIssueBaseline = Get-ServiceRegexCount $sourceService $issuePattern
     $null = Add-ServiceRuntimeEvent $runtimeLedger 'SOURCE_SECOND_EXPORT_REQUESTED' `
         $sourceSecondOperationAttemptId 'SOURCE_PROXY' $sourceService.Process 'mcace-target' `
         $sourceConnectionId $federationSessionId $sourceSubjectCommitmentSha256 `
         "mcacefederation issue subject-commitment mcace-target"
     Send-ServiceCommand $sourceService "mcacefederation issue $playerName mcace-target"
-    Wait-NewFileRegex $sourceService $sourceService.StdoutPath $issuePattern $sourceSecondIssueBaseline 30
+    Wait-NewServiceRegex $sourceService $issuePattern $sourceSecondIssueBaseline 30
     $sourceSecondAssertionRuntimeRequested = $true
     Wait-FileLiteralCount $fabricClient $fabricLog $sourceRejectionMarker `
         ($sourceRejectionBaseline + 1) 30
@@ -4237,9 +4237,9 @@ try {
     $presentationSent = $true
     $targetOnePattern = 'MCAce: federation enabled=true configured=true audit=HEALTHY ' +
         'audit_backlog=0 audit_committed=[0-9]+ audit_failures=0 local=mcace-target peers=1 pending=0 observations=1'
-    $targetOneBaseline = Get-FileRegexCount $targetService.StdoutPath $targetOnePattern
+    $targetOneBaseline = Get-ServiceRegexCount $targetService $targetOnePattern
     Send-ServiceCommand $targetService 'mcacefederation status'
-    Wait-NewFileRegex $targetService $targetService.StdoutPath $targetOnePattern $targetOneBaseline `
+    Wait-NewServiceRegex $targetService $targetOnePattern $targetOneBaseline `
         (Get-SecondsUntilDeadline $targetEvidenceDeadline 10 `
             'FABRIC_FEDERATION_GUI_TARGET_INITIAL_OBSERVATION_WINDOW_EXPIRED')
     $targetObservationCountOne = $true
@@ -4265,9 +4265,9 @@ try {
     while ([DateTimeOffset]::UtcNow -lt $preExpiryStatusCutoff) {
         Assert-TargetSessionStillConnected $fabricClient $targetService $targetPaperService `
             $targetPaperLog $targetDisconnectMarker $targetDisconnectBaseline
-        $preExpiryOneBaseline = Get-FileRegexCount $targetService.StdoutPath $targetOnePattern
+        $preExpiryOneBaseline = Get-ServiceRegexCount $targetService $targetOnePattern
         Send-ServiceCommand $targetService 'mcacefederation status'
-        Wait-NewFileRegex $targetService $targetService.StdoutPath $targetOnePattern $preExpiryOneBaseline `
+        Wait-NewServiceRegex $targetService $targetOnePattern $preExpiryOneBaseline `
             (Get-SecondsUntilDeadline $earliestAssertionExpiry 2 `
                 'FABRIC_FEDERATION_GUI_PRE_EXPIRY_OBSERVATION_PROOF_LATE')
         if ([DateTimeOffset]::UtcNow -ge $earliestAssertionExpiry) {
@@ -4320,14 +4320,14 @@ try {
     $targetGrantReadyPattern = 'MCAce federation consent response status=GRANT_READY player=' +
         [regex]::Escape($targetSubjectId)
     $targetRejectionBaseline = Get-FileLiteralCount $fabricLog $sourceRejectionMarker
-    $targetGrantReadyBaseline = Get-FileRegexCount $targetService.StdoutPath $targetGrantReadyPattern
-    $targetIssueBaseline = Get-FileRegexCount $targetService.StdoutPath $issuePattern
+    $targetGrantReadyBaseline = Get-ServiceRegexCount $targetService $targetGrantReadyPattern
+    $targetIssueBaseline = Get-ServiceRegexCount $targetService $issuePattern
     $null = Add-ServiceRuntimeEvent $runtimeLedger 'TARGET_INHERITED_EXPORT_REQUESTED' `
         $targetInheritedOperationAttemptId 'TARGET_PROXY' $targetService.Process 'mcace-source' `
         $targetConnectionId $federationSessionId $targetSubjectCommitmentSha256 `
         'mcacefederation issue subject-commitment mcace-source'
     Send-ServiceCommand $targetService "mcacefederation issue $playerName mcace-source"
-    Wait-NewFileRegex $targetService $targetService.StdoutPath $issuePattern $targetIssueBaseline 30
+    Wait-NewServiceRegex $targetService $issuePattern $targetIssueBaseline 30
     $targetInheritedExportRuntimeRequested = $true
     Wait-FileLiteralCount $fabricClient $fabricLog $sourceRejectionMarker `
         ($targetRejectionBaseline + 1) 30
