@@ -1314,8 +1314,36 @@ function Stop-JavaService($Service, [string]$Command) {
         }
     }
     Stop-SmokeProcessTree $rootPid $Service.RunToken
-    $stdout = if ($null -eq $Service.Stdout) { '' } else { $Service.Stdout.GetAwaiter().GetResult() }
-    $stderr = if ($null -eq $Service.Stderr) { '' } else { $Service.Stderr.GetAwaiter().GetResult() }
+    # A JVM child can inherit the stdout/stderr pipe after the exact root is
+    # terminated.  An unbounded GetResult() here strands the whole smoke runner
+    # even though all owned processes are already gone.  Bound the drain and
+    # close the readers before giving up; the console log remains a best-effort
+    # capture of the bytes that were actually observed.
+    $stdout = ''
+    $stderr = ''
+    foreach ($output in @(
+            [pscustomobject]@{ Task = $Service.Stdout; Name = 'stdout' },
+            [pscustomobject]@{ Task = $Service.Stderr; Name = 'stderr' })) {
+        if ($null -eq $output.Task) { continue }
+        $task = $output.Task
+        if (-not $task.IsCompleted) {
+            try {
+                if ($output.Name -ceq 'stdout') { $process.StandardOutput.Close() }
+                else { $process.StandardError.Close() }
+            } catch { }
+            if (-not $task.Wait(5000)) {
+                Write-Warning "Timed out draining $($output.Name) for $($Service.Name) after process termination"
+                continue
+            }
+        }
+        try {
+            $text = $task.GetAwaiter().GetResult()
+            if ($output.Name -ceq 'stdout') { $stdout = [string]$text }
+            else { $stderr = [string]$text }
+        } catch {
+            Write-Warning "Could not drain $($output.Name) for $($Service.Name): $($_.Exception.Message)"
+        }
+    }
     [System.IO.File]::WriteAllText(
         $Service.ConsolePath,
         $stdout + [Environment]::NewLine + $stderr,

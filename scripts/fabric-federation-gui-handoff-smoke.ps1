@@ -2889,8 +2889,10 @@ function Get-LatestCompleteEvidenceReport {
     if (-not (Test-Path -LiteralPath $evidenceRunsRoot -PathType Container)) { return $null }
     $root = Assert-DirectLocalPath $evidenceRunsRoot -Directory
     $targetLeaf = $FabricTarget.Replace('.', '_')
-    $leafPattern = '^[0-9]{8}T[0-9]{9}Z-{0}-{1}-to-{2}-[0-9a-f]{{32}}$' -f
-        [regex]::Escape($targetLeaf), [regex]::Escape($SourceProxy), [regex]::Escape($TargetProxy)
+    $leafPattern = '^[0-9]{8}T[0-9]{9}Z-' +
+        [regex]::Escape($targetLeaf) + '-' +
+        [regex]::Escape($SourceProxy) + '-to-' +
+        [regex]::Escape($TargetProxy) + '-[0-9a-f]{32}$'
     $candidate = Get-ChildItem -LiteralPath $root -Directory -Force |
         Where-Object {
             $_.Name -cmatch $leafPattern -and
@@ -3183,8 +3185,27 @@ function Stop-FederationJavaService($Service, [string]$Command) {
             }
         }
         Stop-SmokeProcessTree $rootPid $Service.RunToken
-        $Service.StdoutTask.GetAwaiter().GetResult()
-        $Service.StderrTask.GetAwaiter().GetResult()
+        # A proxy may leave a descendant holding one of the redirected pipes
+        # after the exact JVM root is killed.  Never block the federation
+        # supervisor on an unbounded task result during cleanup.
+        foreach ($output in @(
+                [pscustomobject]@{ Task = $Service.StdoutTask; Name = 'stdout' },
+                [pscustomobject]@{ Task = $Service.StderrTask; Name = 'stderr' })) {
+            $task = $output.Task
+            if ($null -eq $task) { continue }
+            if (-not $task.IsCompleted) {
+                try {
+                    if ($output.Name -ceq 'stdout') { $process.StandardOutput.Close() }
+                    else { $process.StandardError.Close() }
+                } catch { }
+                if (-not $task.Wait(5000)) {
+                    Write-Warning "Timed out draining $($output.Name) for $($Service.Name) after process termination"
+                    continue
+                }
+            }
+            try { $task.GetAwaiter().GetResult() }
+            catch { Write-Warning "Could not drain $($output.Name) for $($Service.Name): $($_.Exception.Message)" }
+        }
     } finally {
         $Service.StdoutStream.Flush()
         $Service.StderrStream.Flush()
