@@ -41,7 +41,15 @@ class BungeeBridgeConfigurationTest {
     @Test
     void rejectsOutOfRangeHandshakeTimeout() {
         assertThrows(IllegalArgumentException.class, () -> new BungeeBridgeConfiguration(
-                "bungee", "1.21.1", "fabric-build", Duration.ofSeconds(31)));
+                "bungee", "1.21.1", "fabric-build", Duration.ofSeconds(301)));
+    }
+
+    @Test
+    void acceptsSupervisedHumanReviewTimeoutWithinBound() {
+        BungeeBridgeConfiguration configuration = new BungeeBridgeConfiguration(
+                "bungee", "1.21.1", "fabric-build", Duration.ofSeconds(300));
+
+        assertEquals(Duration.ofSeconds(300), configuration.handshakeTimeout());
     }
 
     @Test

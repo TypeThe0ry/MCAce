@@ -51,7 +51,7 @@ final class MCAceEnablementContractTest {
     }
 
     @Test
-    void enablementDecisionExpiresAtTheEarlierPolicyOrThirtySecondDeadline() {
+    void enablementDecisionExpiresAtTheEarlierPolicyOrConfiguredDeadline() {
         long now = 1_800_000_000_000L;
         assertEquals(now + 10_000L,
                 MCAceEnablementController.decisionDeadlineEpochMs(
@@ -61,6 +61,17 @@ final class MCAceEnablementContractTest {
                         policy(now + 60_000L), now));
         assertFalse(MCAceEnablementController.decisionStillCurrent(now, now));
         assertFalse(MCAceEnablementController.decisionStillCurrent(now + 30_000L, now + 30_000L));
+    }
+
+    @Test
+    void consentWindowOverrideIsBoundedAndMalformedValuesFailClosedToDefault() {
+        assertEquals(30_000L, MCAceEnablementController.decisionAgeMillis(null));
+        assertEquals(30_000L, MCAceEnablementController.decisionAgeMillis(""));
+        assertEquals(180_000L, MCAceEnablementController.decisionAgeMillis(" 180 "));
+        assertEquals(30_000L, MCAceEnablementController.decisionAgeMillis("29"));
+        assertEquals(300_000L, MCAceEnablementController.decisionAgeMillis("300"));
+        assertEquals(30_000L, MCAceEnablementController.decisionAgeMillis("301"));
+        assertEquals(30_000L, MCAceEnablementController.decisionAgeMillis("not-a-number"));
     }
 
     @Test

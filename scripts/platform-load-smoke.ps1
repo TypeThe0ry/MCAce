@@ -101,10 +101,10 @@ $manualConsentHandshakeTimeoutSeconds = if ($WithFabricEvidence) {
 } else {
     30
 }
-# Velocity enforces a protocol handshake timeout of 2..30 seconds.  Keep the
+# Velocity enforces a protocol handshake timeout of 2..300 seconds. Keep the
 # GUI observation window independently configurable so a longer human-consent
 # window never produces an invalid server configuration.
-$velocityHandshakeTimeoutSeconds = [Math]::Min(30, $manualConsentHandshakeTimeoutSeconds)
+$velocityHandshakeTimeoutSeconds = [Math]::Min(300, $manualConsentHandshakeTimeoutSeconds)
 $gradleVersion = '9.6.1'
 $reportSchema = 8
 $bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6'

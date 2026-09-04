@@ -17,7 +17,11 @@ import net.minecraft.client.MinecraftClient;
  * the exact one-time vault grant rather than by this screen controller.
  */
 final class MCAceEnablementController {
-    private static final long MAX_DECISION_AGE_MILLIS = Duration.ofSeconds(30).toMillis();
+    private static final String DECISION_AGE_SECONDS_PROPERTY =
+            "mcace.client.enablement-decision-timeout-seconds";
+    private static final long DEFAULT_DECISION_AGE_MILLIS = Duration.ofSeconds(30).toMillis();
+    private static final long MIN_DECISION_AGE_MILLIS = Duration.ofSeconds(30).toMillis();
+    private static final long MAX_DECISION_AGE_MILLIS = Duration.ofSeconds(300).toMillis();
     private final Clock clock;
     private final LongSupplier monotonicMillis;
     private Pending pending;
@@ -100,7 +104,7 @@ final class MCAceEnablementController {
         Objects.requireNonNull(policy, "policy");
         long localDeadline;
         try {
-            localDeadline = Math.addExact(nowEpochMs, MAX_DECISION_AGE_MILLIS);
+            localDeadline = Math.addExact(nowEpochMs, decisionAgeMillis());
         } catch (ArithmeticException exception) {
             localDeadline = Long.MAX_VALUE;
         }
@@ -113,7 +117,7 @@ final class MCAceEnablementController {
 
     static long decisionMonotonicDeadlineMillis(long nowMonotonicMillis) {
         try {
-            return Math.addExact(nowMonotonicMillis, MAX_DECISION_AGE_MILLIS);
+            return Math.addExact(nowMonotonicMillis, decisionAgeMillis());
         } catch (ArithmeticException exception) {
             return Long.MAX_VALUE;
         }
@@ -126,6 +130,31 @@ final class MCAceEnablementController {
             long nowMonotonicMillis) {
         return decisionStillCurrent(deadlineEpochMs, nowEpochMs)
                 && nowMonotonicMillis < monotonicDeadlineMillis;
+    }
+
+    /**
+     * Returns the bounded, process-local consent window. The smoke runner uses this to leave
+     * enough time for a human-visible screenshot and signed attestation; malformed or unsafe
+     * values deliberately fall back to the fail-closed 30-second default.
+     */
+    static long decisionAgeMillis() {
+        return decisionAgeMillis(System.getProperty(DECISION_AGE_SECONDS_PROPERTY));
+    }
+
+    static long decisionAgeMillis(String configuredSeconds) {
+        if (configuredSeconds == null || configuredSeconds.isBlank()) {
+            return DEFAULT_DECISION_AGE_MILLIS;
+        }
+        try {
+            long seconds = Long.parseLong(configuredSeconds.trim());
+            long millis = Math.multiplyExact(seconds, 1_000L);
+            if (millis < MIN_DECISION_AGE_MILLIS || millis > MAX_DECISION_AGE_MILLIS) {
+                return DEFAULT_DECISION_AGE_MILLIS;
+            }
+            return millis;
+        } catch (NumberFormatException | ArithmeticException exception) {
+            return DEFAULT_DECISION_AGE_MILLIS;
+        }
     }
 
     static Optional<Set<String>> inheritedFederationFiles(

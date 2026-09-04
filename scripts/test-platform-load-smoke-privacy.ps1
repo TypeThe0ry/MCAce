@@ -387,7 +387,7 @@ foreach ($required in @(
         'PLATFORM_SMOKE_VELOCITY_POLICY_READBACK_COUNT_INVALID',
         'PLATFORM_SMOKE_VELOCITY_POLICY_READBACK_VALUE_INVALID',
         '$velocityPolicyTuple = Set-ExactVelocityPolicyTuple',
-        '$velocityHandshakeTimeoutSeconds = [Math]::Min(30, $manualConsentHandshakeTimeoutSeconds)',
+        '$velocityHandshakeTimeoutSeconds = [Math]::Min(300, $manualConsentHandshakeTimeoutSeconds)',
         'handshake.timeout.seconds=$velocityHandshakeTimeoutSeconds',
         'manual_consent_handshake_timeout_seconds = $manualConsentHandshakeTimeoutSeconds',
         'velocity_policy_minecraft_versions = [string]$VelocityPolicyTuple',

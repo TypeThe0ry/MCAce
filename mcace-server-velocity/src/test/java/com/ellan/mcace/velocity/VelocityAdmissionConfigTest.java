@@ -160,6 +160,24 @@ final class VelocityAdmissionConfigTest {
     }
 
     @Test
+    void acceptsSupervisedHumanReviewTimeoutWithinBound() throws Exception {
+        Path path = temporaryDirectory.resolve("extended-timeout.properties");
+        Files.writeString(path, "handshake.timeout.seconds=300\n");
+
+        VelocityAdmissionConfig config = VelocityAdmissionConfig.loadOrCreate(path);
+
+        assertEquals(Duration.ofSeconds(300), config.handshakeTimeout());
+    }
+
+    @Test
+    void rejectsTimeoutBeyondSupervisedHumanReviewBound() throws Exception {
+        Path path = temporaryDirectory.resolve("too-long-timeout.properties");
+        Files.writeString(path, "handshake.timeout.seconds=301\n");
+
+        assertThrows(IOException.class, () -> VelocityAdmissionConfig.loadOrCreate(path));
+    }
+
+    @Test
     void loadsBoundedOptInHeartbeatMissingControl() throws Exception {
         Path path = temporaryDirectory.resolve("heartbeat.properties");
         Files.writeString(path, """

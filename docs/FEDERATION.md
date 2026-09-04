@@ -377,7 +377,7 @@ counters so operators can distinguish a configured feature from a healthy one.
 | --- | --- | --- |
 | `FED-PROTO-01` | Four distinct packet types and exact directions | Wrong-direction and partial messages rejected |
 | `FED-BIND-01` | Source/target IDs and key IDs, player, client key, source session, assertion ID/nonce, policy, disclosure, issue/expiry | Every one-field mismatch rejected |
-| `FED-CONSENT-01` | One real Fabric connection-level `Enable MCAce` decision, decline, close, policy expiry, and 30-second monotonic timeout | One prompt honestly states that one future source-selected pinned target is not yet known and no second prompt appears; source export is atomic one-shot, inherited export is rejected, and all other outcomes emit no MCAce frame and have no player effect |
+| `FED-CONSENT-01` | One real Fabric connection-level `Enable MCAce` decision, decline, close, policy expiry, and bounded monotonic timeout (30-second default, explicitly configurable up to 300 seconds for supervised human review) | One prompt honestly states that one future source-selected pinned target is not yet known and no second prompt appears; source export is atomic one-shot, inherited export is rejected, and all other outcomes emit no MCAce frame and have no player effect |
 | `FED-GRANT-01` | Valid grant and mixed-consent/assertion, wrong source key, stale, oversized, unknown enum/field | Only exact pinned grant enters Fabric vault |
 | `FED-LOCAL-01` | Target local unknown/failed/missing vs local `VERIFIED` | Presentation accepted only after independent local `VERIFIED`; remote state never changes result |
 | `FED-POP-01` | Wrong target/player/session/challenge/key, tampered proof, stale proof | Rejected; valid presentation still succeeds afterward |

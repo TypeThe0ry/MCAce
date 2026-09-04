@@ -3324,12 +3324,12 @@ function Configure-ProxyProduct(
         [string]$NetworkId,
         [string]$BuildId) {
     $config = Assert-DirectLocalPath (Join-Path $Runtime.DataDirectory 'mcace.properties')
-    # Velocity's admission contract accepts a maximum 30-second handshake
-    # window.  Keep the value inside that product bound; the Computer Use
+    # Velocity/Bungee admission contracts accept a maximum 300-second handshake
+    # window. Keep the value inside that product bound; the Computer Use
     # operator must foreground the client before capture so the single decision
     # lands inside this bounded admission phase.
     $handshakeTimeoutSeconds = [string]([Math]::Min(
-        30, [Math]::Max(2, [int]$HumanTransitionTimeoutSeconds)))
+        300, [Math]::Max(2, [int]$HumanTransitionTimeoutSeconds)))
     if ($Runtime.Kind -ceq 'VELOCITY') {
         Set-ExactConfigProperties $config ([ordered]@{
             'enforcement.mode' = 'MONITOR'

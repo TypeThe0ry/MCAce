@@ -21,6 +21,8 @@ record VelocityAdmissionConfig(
         StorageConfig storage,
         PolicyConfig policy,
         ClientRequirement clientRequirement) {
+    private static final int MIN_HANDSHAKE_TIMEOUT_SECONDS = 2;
+    private static final int MAX_HANDSHAKE_TIMEOUT_SECONDS = 300;
     private static final String DEFAULT_CONTENT = """
             # MONITOR records state only. LIMITED_ROUTE is enabled only when both distinct targets
             # below are explicitly configured and registered with this Velocity proxy.
@@ -60,9 +62,9 @@ record VelocityAdmissionConfig(
         Objects.requireNonNull(storage, "storage");
         Objects.requireNonNull(policy, "policy");
         Objects.requireNonNull(clientRequirement, "clientRequirement");
-        if (handshakeTimeout.compareTo(Duration.ofSeconds(2)) < 0
-                || handshakeTimeout.compareTo(Duration.ofSeconds(30)) > 0) {
-            throw new IllegalArgumentException("handshake timeout must be between 2 and 30 seconds");
+        if (handshakeTimeout.compareTo(Duration.ofSeconds(MIN_HANDSHAKE_TIMEOUT_SECONDS)) < 0
+                || handshakeTimeout.compareTo(Duration.ofSeconds(MAX_HANDSHAKE_TIMEOUT_SECONDS)) > 0) {
+            throw new IllegalArgumentException("handshake timeout must be between 2 and 300 seconds");
         }
     }
 

@@ -22,6 +22,8 @@ record BungeeBridgeConfiguration(
         Optional<String> quarantineServer,
         com.ellan.mcace.core.session.HeartbeatMissingPolicy heartbeatMissingPolicy,
         ClientRequirement clientRequirement) {
+    private static final int MIN_HANDSHAKE_TIMEOUT_SECONDS = 2;
+    private static final int MAX_HANDSHAKE_TIMEOUT_SECONDS = 300;
     static final String DEFAULT_CONTENT = """
             # MCAce BungeeCord session bridge. Keep private keys in identity/, never in this file.
             # The built-in policy is Fabric-first. A custom bridge provider may be packaged when
@@ -82,8 +84,8 @@ record BungeeBridgeConfiguration(
                 || clientBuildId.isBlank()
                 || !validOptionalServer(limitedServer)
                 || !validOptionalServer(quarantineServer)
-                || handshakeTimeout.compareTo(Duration.ofSeconds(2)) < 0
-                || handshakeTimeout.compareTo(Duration.ofSeconds(30)) > 0) {
+                || handshakeTimeout.compareTo(Duration.ofSeconds(MIN_HANDSHAKE_TIMEOUT_SECONDS)) < 0
+                || handshakeTimeout.compareTo(Duration.ofSeconds(MAX_HANDSHAKE_TIMEOUT_SECONDS)) > 0) {
             throw new IllegalArgumentException("invalid MCAce Bungee bridge configuration");
         }
     }
