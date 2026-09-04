@@ -4053,6 +4053,14 @@ try {
         "$sourcePropertyAddress=$sourcePinValue`n$targetPropertyAddress=$targetPinValue`n"
     Write-Utf8 (Join-Path $fabricRoot 'options.txt') "fov:0.5`nrenderDistance:8`n"
 
+    # The first Windows no-follow identity call compiles the small native
+    # identity helper through Add-Type.  Warm it before the client is started
+    # so that publishing the GUI signing request cannot consume the proxy's
+    # short admission window after the visible prompt is rendered.
+    if (Test-IsWindowsPlatform) {
+        Initialize-WindowsFileIdentityApi
+    }
+
     Write-Host ''
     Write-Host "SOURCE HUMAN PHASE ($sourceAddress): approve the single visible connection-level Enable MCAce prompt exactly once."
     Write-Host 'This runner does not click, focus, type into, or automate the Fabric window.'
