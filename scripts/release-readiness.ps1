@@ -2591,6 +2591,13 @@ function Assert-FederationIndex(
             if ($null -eq $script:fabricDescriptor) {
                 throw 'MCACE_RELEASE_FEDERATION_TARGET_DESCRIPTOR_MISSING'
             }
+            # Assert-PassingReportRaw is imported from the federation runner and
+            # compares the captured report against the runner's runtime-mode
+            # identity.  The standalone readiness module has its own scope, so
+            # initialise the same value explicitly before invoking that validator.
+            $script:fabricRuntimeMode = if ([int]$script:fabricDescriptor.java_major -eq 21) {
+                'PRODUCTION_FINAL_REMAP_RELEASE_JAR'
+            } else { 'LOOM_FINAL_NAMED_RELEASE_JAR' }
         } $target $pin $postRunPin $MaximumEvidenceAgeMinutes
         $report = & $validator {
             param($Raw,$Current,$Source,$TargetProxy)
