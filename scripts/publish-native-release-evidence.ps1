@@ -1292,6 +1292,9 @@ switch ($Gate) {
             if ($null -eq $script:fabricDescriptor) {
                 throw 'MCACE_NATIVE_EVIDENCE_FEDERATION_TARGET_DESCRIPTOR_MISSING'
             }
+            $script:fabricRuntimeMode = if ([int]$script:fabricDescriptor.java_major -eq 21) {
+                'PRODUCTION_FINAL_REMAP_RELEASE_JAR'
+            } else { 'LOOM_FINAL_NAMED_RELEASE_JAR' }
         } $target $pin $postRunPin
         $validatedSignerRoots = & $federationValidator {
             param($GuiRoot,$GuiPin,$ApprovedGuiPin,$PostRoot,$PostPin,$ApprovedPostPin)
