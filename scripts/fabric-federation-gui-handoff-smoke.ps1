@@ -101,6 +101,16 @@ if (-not $Execute -and -not $ReportOnly) {
 $SourceProxy = $SourceProxy.ToUpperInvariant()
 $TargetProxy = $TargetProxy.ToUpperInvariant()
 $federationTransitionSafetyMarginSeconds = 15
+$clientConsentTimeoutSeconds = [Math]::Min(
+    300, [Math]::Max(30, [int]$HumanTransitionTimeoutSeconds))
+# The proxy starts its admission clock before the client can render and accept
+# the visible prompt, exchange attestation, scan the manifest, and send AUTH.
+# Keep a bounded pre-auth margin without ever exceeding the proxy's 300-second
+# contract.  The client and server budgets are recorded separately by their
+# respective runtime reports; they are intentionally not the same clock.
+$serverHandshakeSafetyMarginSeconds = 30
+$serverHandshakeTimeoutSeconds = [Math]::Min(
+    300, $clientConsentTimeoutSeconds + $serverHandshakeSafetyMarginSeconds)
 if ($Execute -and
         $FederationAssertionTtlSeconds -lt
         ([int]$HumanTransitionTimeoutSeconds + $federationTransitionSafetyMarginSeconds)) {
@@ -2126,7 +2136,7 @@ function Start-FabricReleaseClient(
             "-PmcaceSmokeExpectedArtifactSha256=$ExpectedArtifactSha256",
             "-PmcaceSmokeRuntimeArtifactPath=$fabricArtifactJar",
             "-PmcaceSmokeRunToken=$runToken",
-            "-PmcaceSmokeConsentTimeoutSeconds=$([Math]::Min(300, [Math]::Max(30, [int]$HumanTransitionTimeoutSeconds)))",
+            "-PmcaceSmokeConsentTimeoutSeconds=$clientConsentTimeoutSeconds",
             '--rerun-tasks', '--offline', '--dependency-verification=strict',
             '--no-build-cache', '--no-configuration-cache', '--no-daemon',
             '--no-parallel', '--max-workers=1')) {
@@ -3325,11 +3335,10 @@ function Configure-ProxyProduct(
         [string]$BuildId) {
     $config = Assert-DirectLocalPath (Join-Path $Runtime.DataDirectory 'mcace.properties')
     # Velocity/Bungee admission contracts accept a maximum 300-second handshake
-    # window. Keep the value inside that product bound; the Computer Use
-    # operator must foreground the client before capture so the single decision
-    # lands inside this bounded admission phase.
-    $handshakeTimeoutSeconds = [string]([Math]::Min(
-        300, [Math]::Max(2, [int]$HumanTransitionTimeoutSeconds)))
+    # window.  The server budget includes a bounded pre-auth margin over the
+    # client GUI decision budget so prompt rendering, attestation exchange, and
+    # AUTH transmission cannot race the server expiry.
+    $handshakeTimeoutSeconds = [string]$serverHandshakeTimeoutSeconds
     if ($Runtime.Kind -ceq 'VELOCITY') {
         Set-ExactConfigProperties $config ([ordered]@{
             'enforcement.mode' = 'MONITOR'
@@ -3829,7 +3838,7 @@ $smokeBuildProperties = @(
     "-PmcaceSmokeRunToken=$runToken",
     "-PmcaceSmokeRuntimeArtifactPath=$fabricArtifactJar",
     "-PmcaceSmokeExpectedArtifactSha256=$protectedFabricSha256",
-    "-PmcaceSmokeConsentTimeoutSeconds=$([Math]::Min(300, [Math]::Max(30, [int]$HumanTransitionTimeoutSeconds)))"
+    "-PmcaceSmokeConsentTimeoutSeconds=$clientConsentTimeoutSeconds"
 )
 if ([int]$fabricDescriptor.java_major -eq 25) {
     # The root stage task evaluates the legacy 1.21.11 Fabric project as part of

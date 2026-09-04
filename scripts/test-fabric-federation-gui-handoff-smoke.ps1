@@ -257,6 +257,18 @@ Assert-True (-not $releaseStarter.Contains('Start-FabricClient')) `
     'release client delegates to the development snapshot launcher'
 Assert-True ($releaseStarter.Contains('-PmcaceSmokeConsentTimeoutSeconds=')) `
     'release client did not propagate the configured human consent timeout to Loom'
+foreach ($contract in @(
+        '$clientConsentTimeoutSeconds = [Math]::Min(',
+        '$serverHandshakeSafetyMarginSeconds = 30',
+        '$serverHandshakeTimeoutSeconds = [Math]::Min(',
+        '300, $clientConsentTimeoutSeconds + $serverHandshakeSafetyMarginSeconds)',
+        '$handshakeTimeoutSeconds = [string]$serverHandshakeTimeoutSeconds',
+        '"-PmcaceSmokeConsentTimeoutSeconds=$clientConsentTimeoutSeconds"')) {
+    Assert-True $source.Contains($contract) `
+        "bounded client/server consent timeout contract missing: $contract"
+}
+Assert-True (-not $source.Contains('[Math]::Min(300, [Math]::Max(2, [int]$HumanTransitionTimeoutSeconds))')) `
+    'server handshake timeout must not be tied directly to the human decision budget'
 # The shared root dependency stage evaluates the legacy 1.21.11 project even when the
 # requested runtime is 26.x.  It must therefore use a legacy-valid smoke identity while
 # the isolated modern verification keeps the protected target release identity.

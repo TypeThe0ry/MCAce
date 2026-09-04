@@ -429,7 +429,11 @@ disposition.quarantine.server=quarantine
   than relying on those legacy names. BungeeCord's former
   `disposition.restricted.server` can migrate only to
   `disposition.limited.server`; it never configures or authorizes QUARANTINE.
-- The timeout is constrained to 2–30 seconds.
+- The server handshake timeout defaults to 5 seconds and is constrained to
+  2–300 seconds. The Fabric GUI consent decision defaults to 30 seconds and a
+  supervised smoke may explicitly configure 30–300 seconds; the proxy may use
+  a bounded pre-auth margin above that client budget while remaining within the
+  300-second server ceiling.
 
 ## Administrator-reviewed high-impact authorization
 

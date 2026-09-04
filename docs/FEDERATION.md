@@ -154,8 +154,12 @@ decision covers at most one later federation handoff and states explicitly that:
 - that the statement is observation-only and cannot replace local verification;
 - equally clear `Enable MCAce` and `Decline` actions;
 - that decline, close, timeout, or failure causes no automatic action. The screen
-  expires at the earlier of signed-policy expiry or 30 seconds; a monotonic
-  deadline prevents wall-clock rollback from extending that window.
+  uses a 30-second default decision budget and may be explicitly extended up to
+  300 seconds for supervised review; it expires at the earlier of signed-policy
+  expiry or the configured budget. A monotonic deadline prevents wall-clock
+  rollback from extending that window. The proxy admission clock may reserve a
+  bounded pre-auth margin separately so prompt rendering, attestation exchange,
+  integrity scanning, and AUTH transmission do not race server expiry.
 
 There is no `Always allow`, preselected approval, gameplay-key shortcut, inferred
 approval, or approval inherited from server terms. Closing the prompt produces

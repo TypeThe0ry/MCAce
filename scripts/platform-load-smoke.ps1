@@ -97,14 +97,21 @@ $runRoot = Join-Path $runsRoot $runLeaf
 $velocityRoot = Join-Path $runRoot 'velocity'
 $paperRoot = Join-Path $runRoot 'paper'
 $manualConsentHandshakeTimeoutSeconds = if ($WithFabricEvidence) {
-    $ManualConsentTimeoutSeconds
+    # The client-side GUI decision budget is deliberately capped at the same
+    # 300-second product ceiling as the proxy contract.  The parameter accepts
+    # a wider range for backwards-compatible callers, but every downstream
+    # wait, report, and Gradle property uses this effective value.
+    [Math]::Min(300, [Math]::Max(30, [int]$ManualConsentTimeoutSeconds))
 } else {
     30
 }
-# Velocity enforces a protocol handshake timeout of 2..300 seconds. Keep the
-# GUI observation window independently configurable so a longer human-consent
-# window never produces an invalid server configuration.
-$velocityHandshakeTimeoutSeconds = [Math]::Min(300, $manualConsentHandshakeTimeoutSeconds)
+# The proxy starts its handshake clock before the client can render the prompt,
+# exchange the screenshot/attestation, scan the local manifest, and send AUTH.
+# Reserve a bounded 30-second pre-auth margin for the evidence path while
+# keeping the server-side value inside the 2..300-second admission contract.
+$serverHandshakeSafetyMarginSeconds = if ($WithFabricEvidence) { 30 } else { 0 }
+$velocityHandshakeTimeoutSeconds = [Math]::Min(
+    300, $manualConsentHandshakeTimeoutSeconds + $serverHandshakeSafetyMarginSeconds)
 $gradleVersion = '9.6.1'
 $reportSchema = 8
 $bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6'
@@ -1175,6 +1182,7 @@ function Start-FabricClient(
             "-PmcaceSmokeRunDirectory=$loomRunDirectory",
             "-PmcaceSmokeServerAddress=$ServerAddress",
             '-PmcaceSmokeArtifactMode=true',
+            "-PmcaceSmokeConsentTimeoutSeconds=$manualConsentHandshakeTimeoutSeconds",
             "-PmcaceClientBuildId=$fabricSmokeBuildId",
             "-PmcaceSmokeExpectedArtifactSha256=$ExpectedArtifactSha256",
             "-PmcaceSmokeRunToken=$runToken",
