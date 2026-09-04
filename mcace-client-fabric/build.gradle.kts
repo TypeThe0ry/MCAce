@@ -51,6 +51,16 @@ val smokeRuntimeArtifactPath = providers.gradleProperty("mcaceSmokeRuntimeArtifa
 val smokeRunDirectory = providers.gradleProperty("mcaceSmokeRunDirectory")
 val smokeServerAddress = providers.gradleProperty("mcaceSmokeServerAddress")
 val smokeEvidence = providers.gradleProperty("mcaceSmokeEvidence")
+val smokeConsentTimeoutSeconds = providers.gradleProperty("mcaceSmokeConsentTimeoutSeconds")
+    .map { configured ->
+        val seconds = configured.toIntOrNull()
+            ?: throw GradleException("mcaceSmokeConsentTimeoutSeconds must be an integer")
+        require(seconds in 30..300) {
+            "mcaceSmokeConsentTimeoutSeconds must be between 30 and 300 seconds"
+        }
+        seconds
+    }
+    .orElse(30)
 val exactReleaseRuntimeMode = smokeArtifactModeEnabled && smokeRuntimeArtifactPath.isPresent
 
 if (smokeArtifactModeEnabled) {
@@ -404,6 +414,13 @@ val runReleaseClient = tasks.register<org.gradle.api.tasks.JavaExec>("runRelease
         systemProperty("fabric.gameVersion", "1.21.11")
         systemProperty("mcace.platform-smoke.expected-artifact-sha256", expectedArtifactSha256)
         systemProperty("mcace.smoke.run-token", runToken)
+        // The release-client task bypasses Loom's named `client` run configuration. Keep the
+        // connection-bound consent window aligned with the smoke runner's human transition
+        // budget instead of silently falling back to the 30-second fail-closed default.
+        systemProperty(
+            "mcace.client.enablement-decision-timeout-seconds",
+            smokeConsentTimeoutSeconds.get().toString(),
+        )
         systemProperty("mcace.platform-smoke.server-address", serverAddress)
         systemProperty("mcace.platform-smoke.exit-on-auth-result", (!smokeEvidence.isPresent).toString())
         systemProperty("mcace.platform-smoke.await-evidence", smokeEvidence.isPresent.toString())
