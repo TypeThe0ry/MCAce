@@ -412,6 +412,63 @@ function Read-NativeBinary([string]$Path, [string]$Role) {
     }
 }
 
+function Get-ReleaseArtifactSourceCommit([string]$DescendantCommit) {
+    # Runtime JARs are captured at immutable artifact source A. Native
+    # evidence and the protected release may be descendants that only add
+    # docs/evidence, so resolve A from the canonical marker rather than
+    # silently treating release source R as the artifact commit.
+    if (-not (Test-Commit $DescendantCommit)) {
+        throw 'MCACE_NATIVE_EVIDENCE_ARTIFACT_SOURCE_DESCENDANT_INVALID'
+    }
+    $markerPath = ConvertTo-InputAbsolutePath (Join-Path $repoRoot `
+        'docs/evidence/release-artifact-source.txt')
+    $identityBefore = Get-NativeNoFollowFileIdentity $markerPath
+    $stream = New-Object IO.FileStream($markerPath, [IO.FileMode]::Open,
+        [IO.FileAccess]::Read, [IO.FileShare]::Read)
+    try {
+        if ($stream.Length -ne 41) {
+            throw 'MCACE_NATIVE_EVIDENCE_ARTIFACT_SOURCE_MARKER_INVALID'
+        }
+        [byte[]]$bytes = New-Object byte[] 41
+        $offset = 0
+        while ($offset -lt $bytes.Length) {
+            $read = $stream.Read($bytes, $offset, $bytes.Length - $offset)
+            if ($read -le 0) {
+                throw 'MCACE_NATIVE_EVIDENCE_ARTIFACT_SOURCE_MARKER_SHORT_READ'
+            }
+            $offset += $read
+        }
+        if ($stream.ReadByte() -ne -1 -or $stream.Length -ne 41) {
+            throw 'MCACE_NATIVE_EVIDENCE_ARTIFACT_SOURCE_MARKER_CHANGED_DURING_READ'
+        }
+        Assert-NativeLockedFileIdentity $markerPath $stream $identityBefore
+    } finally { $stream.Dispose() }
+    Assert-PathChainNoReparse $markerPath $true
+    if ((Get-NativeNoFollowFileIdentity $markerPath) -cne $identityBefore) {
+        throw 'MCACE_NATIVE_EVIDENCE_ARTIFACT_SOURCE_MARKER_IDENTITY_CHANGED'
+    }
+    if ($bytes[40] -ne 0x0A) {
+        throw 'MCACE_NATIVE_EVIDENCE_ARTIFACT_SOURCE_MARKER_INVALID'
+    }
+    for ($index = 0; $index -lt 40; $index++) {
+        $value = [int]$bytes[$index]
+        if (($value -lt 0x30 -or $value -gt 0x39) -and
+                ($value -lt 0x61 -or $value -gt 0x66)) {
+            throw 'MCACE_NATIVE_EVIDENCE_ARTIFACT_SOURCE_MARKER_INVALID'
+        }
+    }
+    $commit = [Text.Encoding]::ASCII.GetString($bytes, 0, 40)
+    & git -C $repoRoot cat-file -e "$commit`^{commit}" 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw 'MCACE_NATIVE_EVIDENCE_ARTIFACT_SOURCE_COMMIT_UNKNOWN'
+    }
+    & git -C $repoRoot merge-base --is-ancestor $commit $DescendantCommit 2>$null
+    if ($LASTEXITCODE -ne 0) {
+        throw 'MCACE_NATIVE_EVIDENCE_ARTIFACT_SOURCE_COMMIT_NOT_ANCESTOR'
+    }
+    return $commit
+}
+
 function Read-AuthorityLockedOpaqueFile(
         [string]$Path,
         [string]$Role,
@@ -1009,6 +1066,7 @@ $visibleGuiTrustRootDoc = $null
 $postRunSupervisorTrustRootDoc = $null
 $federationValidator = $null
 $releaseBundleBinding = $null
+$artifactSourceCommit = $null
 $authorityValidator = $null
 $authorityPackageDocuments = [ordered]@{}
 $authorityPackagedArtifacts = [ordered]@{}
@@ -1019,6 +1077,7 @@ $vulcanValidator = $null
 $vulcanValidated = $null
 $vulcanPackageDocuments = [ordered]@{}
 if ($Gate -ceq 'Federation') {
+    $artifactSourceCommit = Get-ReleaseArtifactSourceCommit $SourceCommit
     $nativeDirectory = [IO.Path]::GetDirectoryName([string]$commitDoc.absolute)
     $expectedInputNames = @('binding.json','commit.json','report.json','runtime-events.jsonl',
         'visible-gui-attestation.json','visible-gui-signing-request.json','visible-gui.png',
@@ -1315,10 +1374,10 @@ switch ($Gate) {
         $releaseBundleBinding = & $federationValidator {
             param($Root,$BundleCommit,$ArtifactCommit,$Target,$SourceProxy,$TargetProxy)
             Get-ReleaseBundleTargetBinding $Root $BundleCommit $ArtifactCommit $Target $SourceProxy $TargetProxy
-        } ([IO.Path]::GetFullPath($ReleaseBundleRoot)) $SourceCommit $SourceCommit `
+        } ([IO.Path]::GetFullPath($ReleaseBundleRoot)) $SourceCommit $artifactSourceCommit `
             $target $sourceProxy $targetProxy
         if ([string]$releaseBundleBinding.bundle_source_commit -cne $SourceCommit -or
-                [string]$releaseBundleBinding.artifact_source_commit -cne $SourceCommit -or
+                [string]$releaseBundleBinding.artifact_source_commit -cne $artifactSourceCommit -or
                 [string]$validatedReport.source_commit -cne $SourceCommit -or
                 [string]$current.fabric_artifact_sha256 -cne
                     [string]$releaseBundleBinding.fabric_jar_sha256 -or

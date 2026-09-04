@@ -2450,10 +2450,10 @@ function Assert-FederationIndex(
             -not (Test-Commit $Index.source_commit) -or
             -not (Test-Commit $Index.artifact_source_commit) -or
             -not (Test-Commit $Index.release_bundle_source_commit) -or
-            -not (Test-StringEqual $Index.source_commit ([string]$Index.artifact_source_commit)) -or
             -not (Test-StringEqual $Index.release_bundle_source_commit `
-                ([string]$Index.artifact_source_commit)) -or
+                ([string]$Index.source_commit)) -or
             -not (Test-SourceProvenance $Index.source_commit $RequestedCommit) -or
+            -not (Test-SourceProvenance $Index.artifact_source_commit $RequestedCommit) -or
             [string]$Index.gui_attempt_id -cnotmatch '^[0-9a-f]{32}$' -or
             [string]$Index.gui_challenge_nonce -cnotmatch '^[0-9a-f]{64}$' -or
             [string]$Index.postrun_operation_attempt_id -cnotmatch '^[0-9a-f]{32}$' -or
@@ -2474,8 +2474,8 @@ function Assert-FederationIndex(
         throw 'MCACE_RELEASE_FEDERATION_INDEX_INVALID'
     }
     $artifactSourceCommit = Get-ReleaseArtifactSourceCommit
-    if (-not (Test-StringEqual $Index.source_commit $artifactSourceCommit) -or
-            -not (Test-StringEqual $Index.artifact_source_commit $artifactSourceCommit)) {
+    if (-not (Test-StringEqual $Index.artifact_source_commit $artifactSourceCommit) -or
+            -not (Test-SourceProvenance $Index.source_commit $RequestedCommit)) {
         throw 'MCACE_RELEASE_FEDERATION_ARTIFACT_SOURCE_MARKER_MISMATCH'
     }
     Assert-FederationNoEvidenceReplay $Index $IndexRelative
@@ -2559,7 +2559,7 @@ function Assert-FederationIndex(
         }
     }
     if (-not $current.Contains('source_commit') -or
-            [string]$current.source_commit -cne $artifactSourceCommit) {
+            [string]$current.source_commit -cne [string]$Index.source_commit) {
         throw 'MCACE_RELEASE_FEDERATION_CURRENT_SOURCE_COMMIT_INVALID'
     }
 
@@ -2628,7 +2628,7 @@ function Assert-FederationIndex(
         # exact equality for every runtime JAR; keep the historical A manifest bound by the
         # signed report/index instead of requiring an impossible tracked-evidence fixed point.
         if ([string]$releaseBinding.bundle_source_commit -cne $RequestedCommit -or
-                [string]$Index.release_bundle_source_commit -cne $artifactSourceCommit -or
+                [string]$Index.release_bundle_source_commit -cne $RequestedCommit -or
                 [string]$releaseBinding.artifact_source_commit -cne $artifactSourceCommit -or
                 [string]$releaseBinding.fabric_jar_file -cne
                     [string]$Index.release_bundle_fabric_jar_file -or
@@ -2692,7 +2692,7 @@ function Assert-FederationIndex(
                     [string]$report.operator_visible_gui_signing_request_schema -or
                 [string]$requestPreview.domain -cne
                     [string]$report.operator_visible_gui_signing_request_domain -or
-                [string]$requestPreview.source_commit -cne $artifactSourceCommit -or
+                [string]$requestPreview.source_commit -cne [string]$Index.source_commit -or
                 [string]$requestPreview.artifact_source_commit -cne $artifactSourceCommit -or
                 [string]$requestPreview.product_version -cne
                     [string]$releaseBinding.product_version -or
@@ -2730,7 +2730,7 @@ function Assert-FederationIndex(
             $trustRootDoc $pin `
             (ConvertTo-EvidenceTime $report.gui_prompt_rendered_at) `
             (ConvertTo-EvidenceTime $report.enablement_consent_accepted_at) `
-            $artifactSourceCommit $target ([string]$releaseBinding.fabric_jar_sha256) `
+            ([string]$Index.source_commit) $target ([string]$releaseBinding.fabric_jar_sha256) `
             ([string]$report.run_attempt_id) ([string]$report.gui_attempt_id) `
             ([string]$report.gui_challenge_nonce) `
             (ConvertTo-EvidenceTime $report.gui_challenge_issued_at) `
@@ -2739,7 +2739,7 @@ function Assert-FederationIndex(
         $ledger = & $validator {
             param($Bytes,$Commit,$Target,$Attempt,$Challenge)
             Assert-RuntimeLedgerBytes $Bytes $Commit $Target $Attempt $Challenge
-        } $ledgerDoc.bytes $artifactSourceCommit $target ([string]$report.run_attempt_id) `
+        } $ledgerDoc.bytes ([string]$Index.source_commit) $target ([string]$report.run_attempt_id) `
             ([string]$report.gui_challenge_nonce)
 
         if ([string]$attestationDoc.sha256 -cne
@@ -2813,7 +2813,7 @@ function Assert-FederationIndex(
         } $commitDoc.raw $reportDoc.sha256 $bindingDoc.sha256 $report `
             $postRunReceiptDoc $postRunReceipt.value
         return [pscustomobject]@{
-            passed=$true; source_commit=$artifactSourceCommit
+            passed=$true; source_commit=[string]$Index.source_commit
             artifact_source_commit=$artifactSourceCommit
             release_bundle_source_commit=[string]$releaseBinding.bundle_source_commit
             fabric_target=$target

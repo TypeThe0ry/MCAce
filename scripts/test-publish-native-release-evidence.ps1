@@ -199,9 +199,11 @@ Assert-True (-not $source.Contains('-AllowTestFixture')) `
     'publisher exposes or invokes the test-fixture acceptance path'
 Assert-True (-not $source.Contains('$sourceProxy -ceq $targetProxy')) `
     'publisher rejects a valid same-family Velocity->Velocity or Bungee->Bungee handoff'
-Assert-True ($source.Contains('$releaseBundleBinding.bundle_source_commit -cne $SourceCommit') -and
-        $source.Contains('$releaseBundleBinding.artifact_source_commit -cne $SourceCommit')) `
-    'publisher does not close the capture A/A release-bundle identity contract'
+Assert-True ($source.Contains('Get-ReleaseArtifactSourceCommit $SourceCommit') -and
+        $source.Contains('$releaseBundleBinding.bundle_source_commit -cne $SourceCommit') -and
+        $source.Contains('$releaseBundleBinding.artifact_source_commit -cne $artifactSourceCommit') -and
+        $source.Contains('Get-ReleaseBundleTargetBinding $Root $BundleCommit $ArtifactCommit')) `
+    'publisher does not preserve the release R/artifact A bundle identity contract'
 
 $replayTestRoot = Join-Path ([IO.Path]::GetTempPath()) ('mcace-federation-publisher-replay-' + $token)
 $replayModule = $null
