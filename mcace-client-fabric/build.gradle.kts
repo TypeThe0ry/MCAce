@@ -198,6 +198,14 @@ if (smokeArtifactModeEnabled) {
                     "artifact-mode runClient requires -PmcaceSmokeRunToken=<32 lowercase hex>")
             systemProperty("mcace.platform-smoke.expected-artifact-sha256", expectedArtifactSha256)
             systemProperty("mcace.smoke.run-token", runToken)
+            // Keep the legacy development run on the same connection-bound consent
+            // budget as the smoke runner.  Without this bridge the Gradle project
+            // property is validated but the client controller silently falls back
+            // to its 30-second default.
+            systemProperty(
+                "mcace.client.enablement-decision-timeout-seconds",
+                smokeConsentTimeoutSeconds.get().toString(),
+            )
         }
     }
 }
@@ -309,6 +317,12 @@ loom {
             property("mcace.platform-smoke.await-evidence", smokeEvidence.isPresent.toString())
             property("mcace.platform-smoke.exit-on-evidence-complete", smokeEvidence.isPresent.toString())
             property("mcace.platform-smoke.server-address", smokeServerAddress.get())
+            // Loom's generated JavaExec path is independent of the task-level
+            // doFirst above; propagate the same budget into the named client run.
+            property(
+                "mcace.client.enablement-decision-timeout-seconds",
+                smokeConsentTimeoutSeconds.get().toString(),
+            )
         }
     }
 }
