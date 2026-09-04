@@ -2005,6 +2005,36 @@ function Get-ImmutableInputBinding {
     }
 }
 
+function Get-ReleaseArtifactSourceCommit {
+    # The six runtime JARs are built at the immutable artifact source A.  GUI/federation
+    # evidence and the eventual protected release may be descendants that only add
+    # docs/evidence, so do not silently substitute the current checkout R for A.
+    $markerPath = Assert-DirectLocalPath (Join-Path $repoRoot 'docs/evidence/release-artifact-source.txt')
+    $marker = Open-LockedFileBytes $markerPath 41 41 'RELEASE_ARTIFACT_SOURCE'
+    try {
+        if ($marker.bytes.Length -ne 41 -or $marker.bytes[40] -ne 0x0A) {
+            throw 'FABRIC_FEDERATION_GUI_ARTIFACT_SOURCE_MARKER_INVALID'
+        }
+        for ($index = 0; $index -lt 40; $index++) {
+            $value = [int]$marker.bytes[$index]
+            if (($value -lt 0x30 -or $value -gt 0x39) -and
+                    ($value -lt 0x61 -or $value -gt 0x66)) {
+                throw 'FABRIC_FEDERATION_GUI_ARTIFACT_SOURCE_MARKER_INVALID'
+            }
+        }
+        $commit = [Text.Encoding]::ASCII.GetString($marker.bytes, 0, 40)
+        & git -C $repoRoot cat-file -e "$commit^{commit}" 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw 'FABRIC_FEDERATION_GUI_ARTIFACT_SOURCE_COMMIT_UNKNOWN'
+        }
+        & git -C $repoRoot merge-base --is-ancestor $commit HEAD 2>$null
+        if ($LASTEXITCODE -ne 0) {
+            throw 'FABRIC_FEDERATION_GUI_ARTIFACT_SOURCE_COMMIT_NOT_ANCESTOR'
+        }
+        return $commit
+    } finally { $marker.stream.Dispose() }
+}
+
 function Get-ReleaseFabricArtifactIdentity(
         [string]$Jar,
         [System.Collections.IDictionary]$Descriptor) {
@@ -2728,7 +2758,7 @@ function Assert-EvidenceSet(
             [pscustomobject]@{ Name='release_bundle_manifest_sha256'; Actual=[string]$ReleaseBinding.manifest_sha256; Expected=[string]$report.release_bundle_manifest_sha256 }
             [pscustomobject]@{ Name='release_bundle_fabric_jar_sha256'; Actual=[string]$ReleaseBinding.fabric_jar_sha256; Expected=[string]$report.release_bundle_fabric_jar_sha256 }
             [pscustomobject]@{ Name='release_bundle_fabric_jar_file'; Actual=[string]$ReleaseBinding.fabric_jar_file; Expected=[string]$report.release_bundle_fabric_jar_file }
-            [pscustomobject]@{ Name='release_bundle_artifact_source_commit'; Actual=[string]$ReleaseBinding.artifact_source_commit; Expected=[string]$report.source_commit }
+            [pscustomobject]@{ Name='release_bundle_artifact_source_commit'; Actual=[string]$ReleaseBinding.artifact_source_commit; Expected=[string]$requestPreview.artifact_source_commit }
             [pscustomobject]@{ Name='release_bundle_fabric_jar_size_bytes'; Actual=[string]$ReleaseBinding.fabric_jar_size_bytes; Expected=[string]$report.release_bundle_fabric_jar_size_bytes }
         )
         $externalAttestationBindingMismatches = @(
@@ -2799,7 +2829,7 @@ function Assert-EvidenceSet(
                 [string]$ReleaseBinding.manifest_sha256 -cne [string]$report.release_bundle_manifest_sha256 -or
                 [string]$ReleaseBinding.fabric_jar_sha256 -cne [string]$report.release_bundle_fabric_jar_sha256 -or
                 [string]$ReleaseBinding.fabric_jar_file -cne [string]$report.release_bundle_fabric_jar_file -or
-                [string]$ReleaseBinding.artifact_source_commit -cne [string]$report.source_commit -or
+                [string]$ReleaseBinding.artifact_source_commit -cne [string]$requestPreview.artifact_source_commit -or
                 [long]$ReleaseBinding.fabric_jar_size_bytes -ne [long]$report.release_bundle_fabric_jar_size_bytes) {
             throw 'FABRIC_FEDERATION_GUI_EXTERNAL_ATTESTATION_REPORT_BINDING_INVALID'
         }
@@ -3696,8 +3726,9 @@ if ($ReportOnly) {
     try {
         $current = Get-CurrentBinding
         Assert-ReportOnlyExpectedBinding $current
+        $artifactSourceCommit = Get-ReleaseArtifactSourceCommit
         $releaseBundleBinding = Get-ReleaseBundleTargetBinding `
-            $ReleaseBundleRoot ([string]$current.source_commit) ([string]$current.source_commit) `
+            $ReleaseBundleRoot ([string]$current.source_commit) $artifactSourceCommit `
             $FabricTarget $SourceProxy $TargetProxy
         if ($releaseBundleBinding.fabric_jar_sha256 -cne [string]$current.fabric_artifact_sha256) {
             throw 'FABRIC_FEDERATION_GUI_FINAL_RELEASE_JAR_RUNTIME_HASH_MISMATCH'
@@ -3786,9 +3817,10 @@ foreach ($externalInput in @($visibleGuiSigningRequestOutput, $visibleGuiAttesta
 
 try {
 $preBuildInput = Get-ImmutableInputBinding
+$artifactSourceCommit = Get-ReleaseArtifactSourceCommit
 $releaseBundleBinding = Get-ReleaseBundleTargetBinding `
     $releaseBundleRuntimeRoot ([string]$preBuildInput.source_commit) `
-    ([string]$preBuildInput.source_commit) $FabricTarget $SourceProxy $TargetProxy
+    $artifactSourceCommit $FabricTarget $SourceProxy $TargetProxy
 $fabricSmokeBuildId = [string]$releaseBundleBinding.client_build_id
 $protectedFabricSha256 = [string]$releaseBundleBinding.fabric_jar_sha256
 $smokeBuildProperties = @(
