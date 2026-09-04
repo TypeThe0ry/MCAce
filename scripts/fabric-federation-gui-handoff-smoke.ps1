@@ -4079,8 +4079,14 @@ try {
     $targetPinValue = (Get-Content -LiteralPath $targetPinPath -Raw -ErrorAction Stop).Trim()
     $sourcePropertyAddress = $sourceAddress.Replace(':', '\:')
     $targetPropertyAddress = $targetAddress.Replace(':', '\:')
+    # The real handoff uses a default-port Direct Connection entry because
+    # Minecraft's text field on this workstation renders a literal ':' as ';'.
+    # Keep the dynamic source/target bindings and add an explicit loopback
+    # default-port binding for the target proxy.  The client still prefers an
+    # exact address match, so the source connection remains pinned to its own
+    # key while the forwarded target connection resolves to the target key.
     Write-Utf8 (Join-Path $fabricMCAceConfig 'server-keys.properties') `
-        "$sourcePropertyAddress=$sourcePinValue`n$targetPropertyAddress=$targetPinValue`n"
+        "$sourcePropertyAddress=$sourcePinValue`n$targetPropertyAddress=$targetPinValue`n127.0.0.1=$targetPinValue`ndefault=$targetPinValue`n"
     Write-Utf8 (Join-Path $fabricRoot 'options.txt') "fov:0.5`nrenderDistance:8`n"
 
     # The first Windows no-follow identity call compiles the small native
