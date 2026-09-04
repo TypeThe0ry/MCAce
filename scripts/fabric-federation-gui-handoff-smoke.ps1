@@ -2676,6 +2676,70 @@ function Assert-EvidenceSet(
             $ApprovedVisibleGuiPin
         $ledger = Assert-RuntimeLedgerBytes $ledgerEvidence.bytes ([string]$Current.source_commit) `
             $FabricTarget ([string]$report.run_attempt_id) ([string]$report.gui_challenge_nonce)
+        # Keep the failure actionable when a freshly generated report diverges from one of the
+        # detached GUI/runtime documents.  The legacy aggregate condition below remains the
+        # authoritative gate; this preflight only names the first mismatched binding fields so a
+        # failed external-evidence run can be repaired without guessing from a single generic code.
+        $externalAttestationBindingChecks = @(
+            [pscustomobject]@{ Name='signing_request_sha256'; Actual=[string]$signingRequestEvidence.sha256; Expected=[string]$report.operator_visible_gui_signing_request_sha256 }
+            [pscustomobject]@{ Name='signing_request_size_bytes'; Actual=[string]$signingRequestEvidence.size_bytes; Expected=[string]$report.operator_visible_gui_signing_request_size_bytes }
+            [pscustomobject]@{ Name='request.schema'; Actual=[string]$requestPreview.schema; Expected=[string]$report.operator_visible_gui_signing_request_schema }
+            [pscustomobject]@{ Name='request.domain'; Actual=[string]$requestPreview.domain; Expected=[string]$report.operator_visible_gui_signing_request_domain }
+            [pscustomobject]@{ Name='request.source_commit'; Actual=[string]$requestPreview.source_commit; Expected=[string]$Current.source_commit }
+            [pscustomobject]@{ Name='request.artifact_source_commit'; Actual=[string]$requestPreview.artifact_source_commit; Expected=[string]$ReleaseBinding.artifact_source_commit }
+            [pscustomobject]@{ Name='request.product_version'; Actual=[string]$requestPreview.product_version; Expected=[string]$ReleaseBinding.product_version }
+            [pscustomobject]@{ Name='request.fabric_target'; Actual=[string]$requestPreview.fabric_target; Expected=[string]$FabricTarget }
+            [pscustomobject]@{ Name='request.source_proxy'; Actual=[string]$requestPreview.source_proxy; Expected=[string]$ExpectedSource }
+            [pscustomobject]@{ Name='request.target_proxy'; Actual=[string]$requestPreview.target_proxy; Expected=[string]$ExpectedTarget }
+            [pscustomobject]@{ Name='request.release_bundle_manifest_sha256'; Actual=[string]$requestPreview.release_bundle_manifest_sha256; Expected=[string]$ReleaseBinding.manifest_sha256 }
+            [pscustomobject]@{ Name='request.final_fabric_jar_sha256'; Actual=[string]$requestPreview.final_fabric_jar_sha256; Expected=[string]$ReleaseBinding.fabric_jar_sha256 }
+            [pscustomobject]@{ Name='request.run_attempt_id'; Actual=[string]$requestPreview.run_attempt_id; Expected=[string]$report.run_attempt_id }
+            [pscustomobject]@{ Name='request.gui_attempt_id'; Actual=[string]$requestPreview.gui_attempt_id; Expected=[string]$report.gui_attempt_id }
+            [pscustomobject]@{ Name='request.challenge_nonce'; Actual=[string]$requestPreview.challenge_nonce; Expected=[string]$report.gui_challenge_nonce }
+            [pscustomobject]@{ Name='request.request_created_at'; Actual=[string]$requestPreview.request_created_at; Expected=[string]$report.gui_signing_request_created_at }
+            [pscustomobject]@{ Name='request.expires_at'; Actual=[string]$requestPreview.expires_at; Expected=[string]$report.gui_signing_request_expires_at }
+            [pscustomobject]@{ Name='request.signing_request_path_sha256'; Actual=[string]$requestPreview.signing_request_path_sha256; Expected=[string]$report.operator_visible_gui_signing_request_path_sha256 }
+            [pscustomobject]@{ Name='request.screenshot_path_sha256'; Actual=[string]$requestPreview.screenshot_path_sha256; Expected=[string]$report.operator_visible_gui_screenshot_path_sha256 }
+            [pscustomobject]@{ Name='request.attestation_output_path_sha256'; Actual=[string]$requestPreview.attestation_output_path_sha256; Expected=[string]$report.operator_visible_gui_attestation_output_path_sha256 }
+            [pscustomobject]@{ Name='attestation.sha256'; Actual=[string]$attestationEvidence.sha256; Expected=[string]$report.operator_visible_gui_attestation_json_sha256 }
+            [pscustomobject]@{ Name='attestation.size_bytes'; Actual=[string]$attestationEvidence.size_bytes; Expected=[string]$report.operator_visible_gui_attestation_json_size_bytes }
+            [pscustomobject]@{ Name='screenshot.sha256'; Actual=[string]$screenshotEvidence.sha256; Expected=[string]$report.operator_visible_gui_screenshot_sha256 }
+            [pscustomobject]@{ Name='screenshot.size_bytes'; Actual=[string]$screenshotEvidence.size_bytes; Expected=[string]$report.operator_visible_gui_screenshot_size_bytes }
+            [pscustomobject]@{ Name='attestation.captured_at'; Actual=[string]$validatedAttestation.captured_at; Expected=[string]$report.operator_visible_gui_captured_at }
+            [pscustomobject]@{ Name='attestation.signed_at'; Actual=[string]$validatedAttestation.signed_at; Expected=[string]$report.operator_visible_gui_signed_at }
+            [pscustomobject]@{ Name='attestation.session_id'; Actual=[string]$validatedAttestation.value.session_id; Expected=[string]$report.operator_visible_gui_session_id }
+            [pscustomobject]@{ Name='attestation.screenshot_decoded_pixel_sha256'; Actual=[string]$validatedAttestation.screenshot_decoded_pixel_sha256; Expected=[string]$report.operator_visible_gui_screenshot_decoded_pixel_sha256 }
+            [pscustomobject]@{ Name='ledger.sha256'; Actual=[string]$ledgerEvidence.sha256; Expected=[string]$report.runtime_ledger_sha256 }
+            [pscustomobject]@{ Name='ledger.size_bytes'; Actual=[string]$ledgerEvidence.size_bytes; Expected=[string]$report.runtime_ledger_size_bytes }
+            [pscustomobject]@{ Name='ledger.event_count'; Actual=[string]$ledger.event_count; Expected=[string]$report.runtime_ledger_event_count }
+            [pscustomobject]@{ Name='ledger.head_sha256'; Actual=[string]$ledger.head_sha256; Expected=[string]$report.runtime_ledger_head_sha256 }
+            [pscustomobject]@{ Name='ledger.supervisor_seal_sha256'; Actual=[string]$ledger.supervisor_seal_sha256; Expected=[string]$report.runtime_ledger_supervisor_seal_sha256 }
+            [pscustomobject]@{ Name='ledger.gui_receipt_attestation_sha256'; Actual=[string]$ledger.gui_receipt_attestation_sha256; Expected=[string]$attestationEvidence.sha256 }
+            [pscustomobject]@{ Name='source_negative_attempt_id'; Actual=[string]$ledger.source_negative_attempt_id; Expected=[string]$report.source_negative_attempt_id }
+            [pscustomobject]@{ Name='source_negative_peer'; Actual=[string]$ledger.source_negative_peer; Expected=[string]$report.source_negative_peer }
+            [pscustomobject]@{ Name='source_negative_connection_id'; Actual=[string]$ledger.source_negative_connection_id; Expected=[string]$report.source_negative_connection_id }
+            [pscustomobject]@{ Name='source_negative_session_id'; Actual=[string]$ledger.source_negative_session_id; Expected=[string]$report.source_negative_session_id }
+            [pscustomobject]@{ Name='source_negative_subject_commitment_sha256'; Actual=[string]$ledger.source_negative_subject_commitment_sha256; Expected=[string]$report.source_negative_subject_commitment_sha256 }
+            [pscustomobject]@{ Name='target_negative_attempt_id'; Actual=[string]$ledger.target_negative_attempt_id; Expected=[string]$report.target_negative_attempt_id }
+            [pscustomobject]@{ Name='target_negative_peer'; Actual=[string]$ledger.target_negative_peer; Expected=[string]$report.target_negative_peer }
+            [pscustomobject]@{ Name='target_negative_connection_id'; Actual=[string]$ledger.target_negative_connection_id; Expected=[string]$report.target_negative_connection_id }
+            [pscustomobject]@{ Name='target_negative_session_id'; Actual=[string]$ledger.target_negative_session_id; Expected=[string]$report.target_negative_session_id }
+            [pscustomobject]@{ Name='target_negative_subject_commitment_sha256'; Actual=[string]$ledger.target_negative_subject_commitment_sha256; Expected=[string]$report.target_negative_subject_commitment_sha256 }
+            [pscustomobject]@{ Name='release_bundle_manifest_sha256'; Actual=[string]$ReleaseBinding.manifest_sha256; Expected=[string]$report.release_bundle_manifest_sha256 }
+            [pscustomobject]@{ Name='release_bundle_fabric_jar_sha256'; Actual=[string]$ReleaseBinding.fabric_jar_sha256; Expected=[string]$report.release_bundle_fabric_jar_sha256 }
+            [pscustomobject]@{ Name='release_bundle_fabric_jar_file'; Actual=[string]$ReleaseBinding.fabric_jar_file; Expected=[string]$report.release_bundle_fabric_jar_file }
+            [pscustomobject]@{ Name='release_bundle_artifact_source_commit'; Actual=[string]$ReleaseBinding.artifact_source_commit; Expected=[string]$report.source_commit }
+            [pscustomobject]@{ Name='release_bundle_fabric_jar_size_bytes'; Actual=[string]$ReleaseBinding.fabric_jar_size_bytes; Expected=[string]$report.release_bundle_fabric_jar_size_bytes }
+        )
+        $externalAttestationBindingMismatches = @(
+            $externalAttestationBindingChecks |
+                Where-Object { $_.Actual -cne $_.Expected } |
+                ForEach-Object { '{0}({1}!={2})' -f $_.Name, $_.Actual, $_.Expected }
+        )
+        if ($externalAttestationBindingMismatches.Count -gt 0) {
+            throw ('FABRIC_FEDERATION_GUI_EXTERNAL_ATTESTATION_REPORT_BINDING_INVALID|fields=' +
+                ($externalAttestationBindingMismatches -join ','))
+        }
         if ($signingRequestEvidence.sha256 -cne
                     $report.operator_visible_gui_signing_request_sha256 -or
                 [long]$signingRequestEvidence.size_bytes -ne
@@ -4123,9 +4187,16 @@ try {
         $fabricClient.Process 'mcace-source' $sourceConnectionId $federationSessionId `
         $sourceSubjectCommitmentSha256 $requiredHumanGuiMarkers[1] `
         $guiPromptRenderedAt.ToUniversalTime().ToString('o')
-    $null = Add-ServiceRuntimeEvent $runtimeLedger 'GUI_SIGNED_RECEIPT_VERIFIED' '' 'SUPERVISOR' `
-        (Get-Process -Id $PID) 'mcace-source' $sourceConnectionId $federationSessionId `
-        $sourceSubjectCommitmentSha256 ([string]$visibleGuiAttestationEvidence.sha256) `
+    # This event binds the detached attestation document itself.  Add-ServiceRuntimeEvent hashes
+    # human-readable markers, which would turn the attestation digest into a digest-of-digest and
+    # break the external evidence binding.  Write the already verified file SHA-256 directly while
+    # retaining the normal runtime event hash-chain semantics.
+    $supervisorProcess = Get-Process -Id $PID
+    $supervisorProcessStartedAt = Get-ProcessStartTimeString $supervisorProcess
+    $null = Add-RuntimeLedgerEvent $runtimeLedger 'GUI_SIGNED_RECEIPT_VERIFIED' '' 'SUPERVISOR' `
+        ([int]$supervisorProcess.Id) $supervisorProcessStartedAt `
+        'mcace-source' $sourceConnectionId $federationSessionId `
+        $sourceSubjectCommitmentSha256 ([string]$visibleGuiAttestationEvidence.sha256) '' `
         $validatedVisibleGuiAttestation.value.signed_at
     $null = Add-ServiceRuntimeEvent $runtimeLedger 'GUI_ACCEPTED' '' 'FABRIC_CLIENT' `
         $fabricClient.Process 'mcace-source' $sourceConnectionId $federationSessionId `
