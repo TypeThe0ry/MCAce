@@ -3037,9 +3037,12 @@ function Assert-NewPaperVerifiedSnapshot(
         [int]$TimeoutSeconds) {
     $pattern = 'MCAce: {0} trust=VERIFIED admission=VERIFIED risk=0 band=NORMAL' -f
         [regex]::Escape($PlayerName)
-    $baseline = Get-FileRegexCount $PaperLogPath $pattern
+    # Paper may route console command replies to stdout rather than the rolling
+    # latest.log file.  Use the same service-wide view as the admission checks,
+    # while retaining a baseline so this probe only accepts a fresh snapshot.
+    $baseline = Get-ServiceRegexCount $PaperService $pattern
     Send-ServiceCommand $PaperService "mcace check $PlayerName"
-    Wait-NewFileRegex $PaperService $PaperLogPath $pattern $baseline $TimeoutSeconds
+    Wait-NewServiceRegex $PaperService $pattern $baseline $TimeoutSeconds
 }
 
 function Assert-TargetSessionStillConnected(

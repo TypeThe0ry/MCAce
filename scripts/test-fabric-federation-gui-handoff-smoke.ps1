@@ -160,6 +160,12 @@ Assert-True ($source.Contains('$federationTransitionSafetyMarginSeconds = 15') -
     'GUI handoff assertion TTL preflight contract is missing'
 Assert-True ($source.Contains('[int]$report.federation_assertion_ttl_seconds -lt 195')) `
     'ReportOnly must reject assertion TTLs that cannot cover the maximum human transition window'
+$paperSnapshot = Get-FunctionText $ast @('Assert-NewPaperVerifiedSnapshot')
+Assert-True ($paperSnapshot.Contains('Get-ServiceRegexCount $PaperService $pattern') -and
+    $paperSnapshot.Contains('Wait-NewServiceRegex $PaperService $pattern $baseline $TimeoutSeconds')) `
+    'Paper status snapshot must observe service output so console command replies are not missed'
+Assert-True (-not $paperSnapshot.Contains('Wait-NewFileRegex $PaperService $PaperLogPath')) `
+    'Paper status snapshot must not require the command reply to be written to latest.log'
 foreach ($name in @('SourceProxy','TargetProxy')) {
     Assert-True (((Get-ValidateSet $name) -join ',') -ceq 'VELOCITY,BUNGEE') `
         "$name matrix changed"
