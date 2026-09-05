@@ -829,6 +829,7 @@ function New-FederationV5ValidatorModule {
         'Assert-PostRunReceipt','Get-PostRunReceiptExpectedBinding',
         'Read-StrictPropertiesBytes','Get-ReleaseBundleTargetBinding',
         'Get-ProcessIncarnationId','Get-RuntimeEventSigningPayload','Assert-RuntimeLedgerBytes',
+        'Get-TelemetryAggregateCommitment','Assert-TelemetryAggregate',
         'Assert-PassingReportRaw','Assert-BindingRaw','Assert-CommitRaw')
     $header = @"
 Set-StrictMode -Version Latest
@@ -844,6 +845,7 @@ Set-StrictMode -Version Latest
 `$reportSchema = 'MCACE_FABRIC_FEDERATION_GUI_HANDOFF_EXECUTED_V5'
 `$bindingSchema = 'MCACE_FABRIC_FEDERATION_GUI_HANDOFF_BINDING_V5'
 `$commitSchema = 'MCACE_FABRIC_FEDERATION_GUI_HANDOFF_COMMIT_V5'
+`$telemetryAggregateSchema = $(Get-NativeAstAssignmentText $wrapperAst '$telemetryAggregateSchema')
 `$artifactClass = 'sanitized-final-fabric-federation-gui-handoff-v5'
 `$visibleGuiAttestationArtifactClass = 'EXTERNAL_OPERATOR_VISIBLE_GUI_ATTESTATION'
 `$visibleGuiAttestationSourceMode = 'EXTERNAL_COMPUTER_USE_CAPTURE'
@@ -856,6 +858,8 @@ Set-StrictMode -Version Latest
 `$postRunTrustRootPropertyNames = $(Get-NativeAstAssignmentText $wrapperAst '$postRunTrustRootPropertyNames')
 `$postRunReceiptPropertyNames = $(Get-NativeAstAssignmentText $wrapperAst '$postRunReceiptPropertyNames')
 `$runtimeEventPropertyNames = $(Get-NativeAstAssignmentText $wrapperAst '$runtimeEventPropertyNames')
+`$legacyReportPropertyNames = $(Get-NativeAstAssignmentText $wrapperAst '$legacyReportPropertyNames')
+`$telemetryAggregatePropertyNames = $(Get-NativeAstAssignmentText $wrapperAst '$telemetryAggregatePropertyNames')
 `$reportPropertyNames = $(Get-NativeAstAssignmentText $wrapperAst '$reportPropertyNames')
 `$fabricTargets = [ordered]@{
     '1.21.11' = [ordered]@{

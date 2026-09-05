@@ -180,6 +180,7 @@ $requiredSchemas = @(
     'MCACE_FABRIC_FEDERATION_GUI_HANDOFF_EXECUTED_V5',
     'MCACE_FABRIC_FEDERATION_GUI_HANDOFF_BINDING_V5',
     'MCACE_FABRIC_FEDERATION_GUI_HANDOFF_COMMIT_V5',
+    'MCACE_FABRIC_FEDERATION_GUI_TELEMETRY_AGGREGATE_V1',
     'MCACE_VISIBLE_GUI_SIGNING_REQUEST_V1','MCACE_VISIBLE_GUI_ATTESTATION_V3',
     'MCACE_VISIBLE_GUI_TRUST_ROOT_V1',
     'MCACE_FABRIC_FEDERATION_POSTRUN_RECEIPT_V1',
@@ -225,7 +226,10 @@ foreach ($token in @(
         'SOURCE_SECOND_EXPORT_NO_GRANT_CONFIRMED','TARGET_INHERITED_EXPORT_REQUESTED',
         'TARGET_INHERITED_EXPORT_REJECTED','TARGET_INHERITED_EXPORT_NO_GRANT_CONFIRMED',
         'MCAceFederationFileIdentityV4','FILE_FLAG_OPEN_REPARSE_POINT',
-        'GetFileInformationByHandle','decoded_pixel_sha256','Get-Crc32','Get-Adler32')) {
+        'GetFileInformationByHandle','decoded_pixel_sha256','Get-Crc32','Get-Adler32',
+        'loaded_mod_count','scoped_manifest_count','explicit_observation_count',
+        'active_pack_count','classification_observe_count',
+        'telemetry_aggregate_commitment_sha256')) {
     Assert-True $source.Contains($token) "security contract token missing: $token"
 }
 
@@ -355,6 +359,8 @@ $wrapperFunctions = Get-FunctionText $ast @(
     'Read-StrictPropertiesBytes','Get-ReleaseBundleTargetBinding',
     'Get-ProcessStartTimeString','Get-ProcessIncarnationId','Get-RuntimeEventSigningPayload',
     'New-RuntimeLedger','Add-RuntimeLedgerEvent','Complete-RuntimeLedger',
+    'Get-ResourcePackCountFromOptions','Convert-ManifestActionCounts',
+    'Get-TelemetryAggregateCommitment','Assert-TelemetryAggregate','Get-TelemetryAggregate',
     'Assert-RuntimeLedgerBytes','Assert-PassingReportRaw','Assert-BindingRaw',
     'Assert-CommitRaw','Assert-ExactFederationEvidenceDirectory')
 $validatorHeader = @"
@@ -363,6 +369,7 @@ Set-StrictMode -Version Latest
 `$reportSchema = $(Get-AssignmentText $ast '$reportSchema')
 `$bindingSchema = $(Get-AssignmentText $ast '$bindingSchema')
 `$commitSchema = $(Get-AssignmentText $ast '$commitSchema')
+`$telemetryAggregateSchema = $(Get-AssignmentText $ast '$telemetryAggregateSchema')
 `$visibleGuiSigningRequestSchema = $(Get-AssignmentText $ast '$visibleGuiSigningRequestSchema')
 `$visibleGuiSigningRequestDomain = $(Get-AssignmentText $ast '$visibleGuiSigningRequestDomain')
 `$visibleGuiAttestationSchema = $(Get-AssignmentText $ast '$visibleGuiAttestationSchema')
@@ -383,6 +390,8 @@ Set-StrictMode -Version Latest
 `$postRunTrustRootPropertyNames = $(Get-AssignmentText $ast '$postRunTrustRootPropertyNames')
 `$postRunReceiptPropertyNames = $(Get-AssignmentText $ast '$postRunReceiptPropertyNames')
 `$runtimeEventPropertyNames = $(Get-AssignmentText $ast '$runtimeEventPropertyNames')
+`$legacyReportPropertyNames = $(Get-AssignmentText $ast '$legacyReportPropertyNames')
+`$telemetryAggregatePropertyNames = $(Get-AssignmentText $ast '$telemetryAggregatePropertyNames')
 `$reportPropertyNames = $(Get-AssignmentText $ast '$reportPropertyNames')
 "@
 $validator = New-Module -ScriptBlock ([scriptblock]::Create(
@@ -426,6 +435,98 @@ try {
         'real PNG did not fully decode'
     Assert-True ([string]$png.decoded_pixel_sha256 -cmatch '^[0-9a-f]{64}$') `
         'decoded pixel hash missing'
+
+    # V5-compatible aggregate extension: derive only counts from raw runtime text, bind them to
+    # the exact GUI/session/subject tuple, and prove that neither mod nor pack names survive.
+    $aggregateSession = '34' * 16
+    $aggregateSubject = '56' * 32
+    $fabricAggregateLog = @"
+[12:00:00] [main/INFO] (FabricLoader) Loading 52 mods:
+[12:00:01] [/INFO] (mcace) MCAce explicit-file manifest prepared entries=1
+[12:00:01] [Render thread/INFO] (mcace) MCAce answered signed policy phase2-v3 sequence 2 with 4 scoped manifests
+"@
+    $optionsAggregate = 'resourcePacks:["file/secret-xray-pack.zip"]'
+    $serviceAggregateLog = '[12:00:02 INFO] [mcace]: MCAce manifest audit: player=11111111-2222-3333-4444-555555555555 observations=54 actions={OBSERVE=53, WARN=1} advisoryBlocks=0 policyVersion=fixture issues=0 status=ACTIVE truncated=false'
+    $aggregate = & $validator {
+        param($Fabric,$Options,$Service,$Attempt,$Session,$Subject,$Challenge)
+        Get-TelemetryAggregate $Fabric $Options $Service `
+            '11111111-2222-3333-4444-555555555555' $Attempt $Session $Subject $Challenge
+    } $fabricAggregateLog $optionsAggregate $serviceAggregateLog $attempt `
+        $aggregateSession $aggregateSubject $challenge
+    Assert-True ([int]$aggregate.loaded_mod_count -eq 52 -and
+        [int]$aggregate.scoped_manifest_count -eq 4 -and
+        [int]$aggregate.explicit_observation_count -eq 1 -and
+        [int]$aggregate.active_pack_count -eq 1 -and
+        [int]$aggregate.classification_total_count -eq 54 -and
+        [int]$aggregate.classification_observe_count -eq 53 -and
+        [int]$aggregate.classification_warn_count -eq 1) `
+        'privacy aggregate counts were not derived from the real marker grammar'
+    $aggregateRaw = $aggregate | ConvertTo-Json -Compress
+    Assert-True (-not $aggregateRaw.Contains('secret-xray-pack') -and
+        -not $aggregateRaw.Contains('11111111-2222-3333-4444-555555555555')) `
+        'privacy aggregate leaked a raw pack or subject identifier'
+    $aggregateValid = & $validator {
+        param($Aggregate,$Attempt,$Session,$Subject,$Challenge)
+        Assert-TelemetryAggregate $Aggregate $Attempt $Session $Subject $Challenge
+    } ([pscustomobject]$aggregate) $attempt $aggregateSession $aggregateSubject $challenge
+    Assert-True $aggregateValid 'valid session-bound telemetry aggregate failed'
+    $bungeeServiceAggregateLog = '[12:00:02 INFO] [mcace]: MCAce authenticated-manifest audit player=11111111-2222-3333-4444-555555555555 observations=53 actions={OBSERVE=53} advisoryBlocks=0 policyVersion=fixture consistencyIssues=0'
+    $bungeeAggregate = & $validator {
+        param($Fabric,$Service,$Attempt,$Session,$Subject,$Challenge)
+        Get-TelemetryAggregate $Fabric 'fov:0.5' $Service `
+            '11111111-2222-3333-4444-555555555555' $Attempt $Session $Subject $Challenge
+    } $fabricAggregateLog $bungeeServiceAggregateLog $attempt `
+        $aggregateSession $aggregateSubject $challenge
+    Assert-True ([int]$bungeeAggregate.active_pack_count -eq 0 -and
+        [int]$bungeeAggregate.classification_total_count -eq 53 -and
+        [int]$bungeeAggregate.classification_observe_count -eq 53) `
+        'Bungee content-free manifest audit grammar was not accepted'
+    $tamperedAggregate = Copy-JsonObject ([pscustomobject]$aggregate)
+    $tamperedAggregate.loaded_mod_count = 51
+    Assert-Throws {
+        $null = & $validator {
+            param($Aggregate,$Attempt,$Session,$Subject,$Challenge)
+            Assert-TelemetryAggregate $Aggregate $Attempt $Session $Subject $Challenge
+        } $tamperedAggregate $attempt $aggregateSession $aggregateSubject $challenge
+    } 'aggregate count tampering passed its session-bound commitment'
+    $tamperedCommitment = Copy-JsonObject ([pscustomobject]$aggregate)
+    $tamperedCommitment.telemetry_aggregate_commitment_sha256 = 'f' * 64
+    Assert-Throws {
+        $null = & $validator {
+            param($Aggregate,$Attempt,$Session,$Subject,$Challenge)
+            Assert-TelemetryAggregate $Aggregate $Attempt $Session $Subject $Challenge
+        } $tamperedCommitment $attempt $aggregateSession $aggregateSubject $challenge
+    } 'aggregate commitment tampering passed'
+    Assert-Throws {
+        $null = & $validator {
+            param($Aggregate,$Attempt,$Session,$Subject,$Challenge)
+            Assert-TelemetryAggregate $Aggregate $Attempt $Session $Subject $Challenge
+        } ([pscustomobject]$aggregate) $attempt ('78' * 16) $aggregateSubject $challenge
+    } 'aggregate session-binding tampering passed'
+    $invalidActionSum = Copy-JsonObject ([pscustomobject]$aggregate)
+    $invalidActionSum.classification_total_count = 55
+    $invalidActionSumMap = [ordered]@{}
+    foreach ($property in $invalidActionSum.PSObject.Properties) {
+        $invalidActionSumMap[$property.Name] = $property.Value
+    }
+    $invalidActionSum.telemetry_aggregate_commitment_sha256 = & $validator {
+        param($Aggregate,$Attempt,$Session,$Subject,$Challenge)
+        Get-TelemetryAggregateCommitment $Aggregate $Attempt $Session $Subject $Challenge
+    } $invalidActionSumMap $attempt $aggregateSession $aggregateSubject $challenge
+    Assert-Throws {
+        $null = & $validator {
+            param($Aggregate,$Attempt,$Session,$Subject,$Challenge)
+            Assert-TelemetryAggregate $Aggregate $Attempt $Session $Subject $Challenge
+        } $invalidActionSum $attempt $aggregateSession $aggregateSubject $challenge
+    } 'aggregate with a valid commitment but inconsistent action total passed'
+    Assert-Throws {
+        $null = & $validator {
+            param($Fabric,$Options,$Service,$Attempt,$Session,$Subject,$Challenge)
+            Get-TelemetryAggregate ($Fabric + $Fabric) $Options $Service `
+                '11111111-2222-3333-4444-555555555555' $Attempt $Session $Subject $Challenge
+        } $fabricAggregateLog $optionsAggregate $serviceAggregateLog $attempt `
+            $aggregateSession $aggregateSubject $challenge
+    } 'duplicate client marker chain passed'
     $crcTampered = [byte[]]$pngBytes.Clone(); $crcTampered[40] = $crcTampered[40] -bxor 1
     Assert-Throws { $null = & $validator { param($Bytes) Assert-PngEvidence $Bytes } $crcTampered } `
         'CRC-tampered PNG passed'

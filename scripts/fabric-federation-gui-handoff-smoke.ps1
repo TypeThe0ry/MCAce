@@ -136,6 +136,7 @@ $fabricArtifactVersion = '0.0.1'
 $reportSchema = 'MCACE_FABRIC_FEDERATION_GUI_HANDOFF_EXECUTED_V5'
 $bindingSchema = 'MCACE_FABRIC_FEDERATION_GUI_HANDOFF_BINDING_V5'
 $commitSchema = 'MCACE_FABRIC_FEDERATION_GUI_HANDOFF_COMMIT_V5'
+$telemetryAggregateSchema = 'MCACE_FABRIC_FEDERATION_GUI_TELEMETRY_AGGREGATE_V1'
 $visibleGuiSigningRequestSchema = 'MCACE_VISIBLE_GUI_SIGNING_REQUEST_V1'
 $visibleGuiSigningRequestDomain = 'MCACE_VISIBLE_GUI_SIGNING_REQUEST_CANONICAL_V1'
 $visibleGuiAttestationSchema = 'MCACE_VISIBLE_GUI_ATTESTATION_V3'
@@ -2234,7 +2235,7 @@ function Assert-ReportOnlyExpectedBinding([System.Collections.IDictionary]$Curre
     }
 }
 
-$reportPropertyNames = @(
+$legacyReportPropertyNames = @(
     'schema', 'generated_at', 'source_mode', 'status', 'artifact_class',
     'source_commit','run_attempt_id','gui_attempt_id','gui_challenge_nonce','gui_challenge_issued_at',
     'gui_signing_request_created_at','gui_signing_request_expires_at',
@@ -2296,6 +2297,17 @@ $reportPropertyNames = @(
     'target_observation_status_zero_after_expiry', 'client_shutdown_completed',
     'cleanup_ports_free', 'remaining_owned_process_count', 'passed'
 )
+$telemetryAggregatePropertyNames = @(
+    'telemetry_aggregate_schema', 'loaded_mod_count', 'scoped_manifest_count',
+    'explicit_observation_count', 'active_pack_count', 'classification_total_count',
+    'classification_allow_count', 'classification_observe_count',
+    'classification_notice_count', 'classification_warn_count',
+    'classification_challenge_count', 'classification_limit_count',
+    'classification_quarantine_count', 'classification_deny_count',
+    'classification_advisory_block_count', 'classification_issue_count',
+    'telemetry_aggregate_commitment_sha256'
+)
+$reportPropertyNames = @($legacyReportPropertyNames) + @($telemetryAggregatePropertyNames)
 
 function Assert-PassingReportRaw(
         [string]$Raw,
@@ -2304,7 +2316,9 @@ function Assert-PassingReportRaw(
         [string]$ExpectedTarget) {
     try { $report = ConvertFrom-StrictJson $Raw }
     catch { throw 'FABRIC_FEDERATION_GUI_REPORT_JSON_INVALID' }
-    if (-not (Test-ExactJsonProperties $report $reportPropertyNames)) {
+    $hasTelemetryAggregate = Test-ExactJsonProperties $report $reportPropertyNames
+    $isLegacyV5Report = Test-ExactJsonProperties $report $legacyReportPropertyNames
+    if (-not $hasTelemetryAggregate -and -not $isLegacyV5Report) {
         throw 'FABRIC_FEDERATION_GUI_REPORT_SCHEMA_INVALID'
     }
     foreach ($name in @(
@@ -2333,7 +2347,10 @@ function Assert-PassingReportRaw(
             'source_negative_attempt_id','source_negative_peer','source_negative_connection_id',
             'source_negative_session_id','source_negative_subject_commitment_sha256',
             'target_negative_attempt_id','target_negative_peer','target_negative_connection_id',
-            'target_negative_session_id','target_negative_subject_commitment_sha256')) {
+            'target_negative_session_id','target_negative_subject_commitment_sha256') +
+            $(if ($hasTelemetryAggregate) {
+                @('telemetry_aggregate_schema','telemetry_aggregate_commitment_sha256')
+            } else { @() })) {
         if (-not (Test-JsonString $report.$name)) {
             throw "FABRIC_FEDERATION_GUI_REPORT_TYPE_INVALID: $name"
         }
@@ -2377,7 +2394,16 @@ function Assert-PassingReportRaw(
             'source_second_assertion_fabric_rejection_count_delta',
             'target_inherited_export_fabric_rejection_count_delta',
             'target_inherited_export_grant_ready_delta',
-            'remaining_owned_process_count')) {
+            'remaining_owned_process_count') +
+            $(if ($hasTelemetryAggregate) {
+                @('loaded_mod_count','scoped_manifest_count','explicit_observation_count',
+                    'active_pack_count','classification_total_count',
+                    'classification_allow_count','classification_observe_count',
+                    'classification_notice_count','classification_warn_count',
+                    'classification_challenge_count','classification_limit_count',
+                    'classification_quarantine_count','classification_deny_count',
+                    'classification_advisory_block_count','classification_issue_count')
+            } else { @() })) {
         if (-not (Test-JsonInteger $report.$name)) {
             throw "FABRIC_FEDERATION_GUI_REPORT_INTEGER_TYPE_INVALID: $name"
         }
@@ -2487,6 +2513,10 @@ function Assert-PassingReportRaw(
             [bool]$report.raw_peer_evidence_used -or [bool]$report.raw_content_retained -or
             [int]$report.remaining_owned_process_count -ne 0) {
         throw 'FABRIC_FEDERATION_GUI_REPORT_INVALID'
+    }
+    if ($hasTelemetryAggregate) {
+        Assert-TelemetryAggregate $report $report.run_attempt_id $report.source_negative_session_id `
+            $report.source_negative_subject_commitment_sha256 $report.gui_challenge_nonce
     }
     $startedAt = [DateTimeOffset]::MinValue
     $promptRenderedAt = [DateTimeOffset]::MinValue
@@ -3559,6 +3589,193 @@ function Get-FileText([string]$Path) {
     return [string]$content
 }
 
+function Get-ResourcePackCountFromOptions([string]$OptionsText) {
+    $matches = [regex]::Matches(
+        $OptionsText, '(?m)^resourcePacks:(?<value>\[[^\r\n]*\])\s*$',
+        [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+    if ($matches.Count -eq 0) { return 0 }
+    if ($matches.Count -ne 1) {
+        throw 'FABRIC_FEDERATION_GUI_RESOURCE_PACK_OPTIONS_AMBIGUOUS'
+    }
+    try {
+        $decoded = ConvertFrom-Json -InputObject $matches[0].Groups['value'].Value -ErrorAction Stop
+    } catch {
+        throw 'FABRIC_FEDERATION_GUI_RESOURCE_PACK_OPTIONS_INVALID'
+    }
+    $entries = if ($null -eq $decoded) { @() } else { @($decoded) }
+    $entryCount = @($entries).Count
+    if ($entryCount -gt 128 -or @($entries | Where-Object {
+                -not (Test-JsonString $_) -or ([string]$_).Length -gt 512
+            }).Count -ne 0) {
+        throw 'FABRIC_FEDERATION_GUI_RESOURCE_PACK_OPTIONS_INVALID'
+    }
+    return [int]$entryCount
+}
+
+function Convert-ManifestActionCounts([string]$Raw) {
+    $counts = [ordered]@{
+        ALLOW=0; OBSERVE=0; NOTICE=0; WARN=0; CHALLENGE=0; LIMIT=0; QUARANTINE=0; DENY=0
+    }
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+    if (-not [string]::IsNullOrWhiteSpace($Raw)) {
+        foreach ($entry in @($Raw -split ',')) {
+            $match = [regex]::Match(
+                ([string]$entry).Trim(),
+                '^(?<action>ALLOW|OBSERVE|NOTICE|WARN|CHALLENGE|LIMIT|QUARANTINE|DENY)=(?<count>[0-9]+)$',
+                [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+            if (-not $match.Success -or -not $seen.Add($match.Groups['action'].Value)) {
+                throw 'FABRIC_FEDERATION_GUI_CLASSIFICATION_ACTION_COUNTS_INVALID'
+            }
+            $value = [long]$match.Groups['count'].Value
+            if ($value -gt [int]::MaxValue) {
+                throw 'FABRIC_FEDERATION_GUI_CLASSIFICATION_ACTION_COUNTS_INVALID'
+            }
+            $counts[$match.Groups['action'].Value] = [int]$value
+        }
+    }
+    return $counts
+}
+
+function Get-TelemetryAggregateCommitment(
+        [System.Collections.IDictionary]$Aggregate,
+        [string]$RunAttemptId,
+        [string]$SessionId,
+        [string]$SubjectCommitmentSha256,
+        [string]$GuiChallengeNonce) {
+    if ($RunAttemptId -cnotmatch '^[0-9a-f]{32}$' -or
+            $SessionId -cnotmatch '^[0-9a-f]{32}$' -or
+            -not (Test-Sha256 $SubjectCommitmentSha256) -or
+            $GuiChallengeNonce -cnotmatch '^[0-9a-f]{64}$') {
+        throw 'FABRIC_FEDERATION_GUI_TELEMETRY_BINDING_INVALID'
+    }
+    $names = @(
+        'loaded_mod_count','scoped_manifest_count','explicit_observation_count','active_pack_count',
+        'classification_total_count','classification_allow_count','classification_observe_count',
+        'classification_notice_count','classification_warn_count','classification_challenge_count',
+        'classification_limit_count','classification_quarantine_count','classification_deny_count',
+        'classification_advisory_block_count','classification_issue_count'
+    )
+    $lines = [Collections.Generic.List[string]]::new()
+    $lines.Add($telemetryAggregateSchema)
+    $lines.Add("run_attempt_id=$RunAttemptId")
+    $lines.Add("session_id=$SessionId")
+    $lines.Add("subject_commitment_sha256=$SubjectCommitmentSha256")
+    $lines.Add("gui_challenge_nonce=$GuiChallengeNonce")
+    foreach ($name in $names) {
+        if (-not $Aggregate.Contains($name)) {
+            throw "FABRIC_FEDERATION_GUI_TELEMETRY_FIELD_MISSING: $name"
+        }
+        $value = $Aggregate[$name]
+        if (-not (Test-JsonInteger $value) -or [long]$value -lt 0 -or [long]$value -gt [int]::MaxValue) {
+            throw "FABRIC_FEDERATION_GUI_TELEMETRY_FIELD_INVALID: $name"
+        }
+        $lines.Add("$name=$([int]$value)")
+    }
+    $canonical = ($lines -join "`n") + "`n"
+    return Get-BytesSha256 ([Text.UTF8Encoding]::new($false).GetBytes($canonical))
+}
+
+function Assert-TelemetryAggregate(
+        [object]$Aggregate,
+        [string]$RunAttemptId,
+        [string]$SessionId,
+        [string]$SubjectCommitmentSha256,
+        [string]$GuiChallengeNonce) {
+    if ($Aggregate.telemetry_aggregate_schema -cne $telemetryAggregateSchema -or
+            -not (Test-Sha256 $Aggregate.telemetry_aggregate_commitment_sha256)) {
+        throw 'FABRIC_FEDERATION_GUI_TELEMETRY_SCHEMA_INVALID'
+    }
+    $map = [ordered]@{}
+    foreach ($name in $telemetryAggregatePropertyNames) {
+        if ($name -in @('telemetry_aggregate_schema','telemetry_aggregate_commitment_sha256')) { continue }
+        $map[$name] = $Aggregate.$name
+    }
+    $classified = [long]$map.classification_allow_count + [long]$map.classification_observe_count +
+        [long]$map.classification_notice_count + [long]$map.classification_warn_count +
+        [long]$map.classification_challenge_count + [long]$map.classification_limit_count +
+        [long]$map.classification_quarantine_count + [long]$map.classification_deny_count
+    if ([long]$map.loaded_mod_count -le 0 -or [long]$map.scoped_manifest_count -le 0 -or
+            [long]$map.classification_total_count -le 0 -or
+            $classified -ne [long]$map.classification_total_count -or
+            [long]$map.explicit_observation_count -gt [long]$map.classification_total_count -or
+            [long]$map.active_pack_count -gt [long]$map.classification_total_count) {
+        throw 'FABRIC_FEDERATION_GUI_TELEMETRY_COUNTS_INVALID'
+    }
+    $expected = Get-TelemetryAggregateCommitment $map $RunAttemptId $SessionId `
+        $SubjectCommitmentSha256 $GuiChallengeNonce
+    if ($Aggregate.telemetry_aggregate_commitment_sha256 -cne $expected) {
+        throw 'FABRIC_FEDERATION_GUI_TELEMETRY_COMMITMENT_INVALID'
+    }
+    return $true
+}
+
+function Get-TelemetryAggregate(
+        [string]$FabricLogText,
+        [string]$OptionsText,
+        [string]$SourceServiceText,
+        [string]$SourceSubjectId,
+        [string]$RunAttemptId,
+        [string]$SessionId,
+        [string]$SubjectCommitmentSha256,
+        [string]$GuiChallengeNonce) {
+    $loaded = [regex]::Matches(
+        $FabricLogText, '\(FabricLoader\) Loading (?<count>[0-9]+) mods:',
+        [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+    $scoped = [regex]::Matches(
+        $FabricLogText, 'MCAce answered signed policy [^\r\n]+ with (?<count>[0-9]+) scoped manifests',
+        [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+    $explicit = [regex]::Matches(
+        $FabricLogText, 'MCAce explicit-file manifest prepared entries=(?<count>[0-9]+)',
+        [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+    if ($loaded.Count -ne 1 -or $scoped.Count -ne 1 -or $explicit.Count -ne 1) {
+        throw 'FABRIC_FEDERATION_GUI_TELEMETRY_CLIENT_MARKERS_NOT_EXACT'
+    }
+    $subject = [regex]::Escape($SourceSubjectId)
+    $serverPattern = 'MCAce (?:manifest audit:|authenticated-manifest audit) player=' + $subject +
+        ' observations=(?<total>[0-9]+) actions=\{(?<actions>[^}\r\n]*)\}' +
+        ' advisoryBlocks=(?<advisory>[0-9]+)[^\r\n]*?(?:issues|consistencyIssues)=(?<issues>[0-9]+)'
+    $server = [regex]::Matches(
+        $SourceServiceText, $serverPattern,
+        [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
+    if ($server.Count -eq 0) {
+        throw 'FABRIC_FEDERATION_GUI_TELEMETRY_SERVER_MARKER_MISSING'
+    }
+    $summaries = @($server | ForEach-Object {
+        '{0}|{1}|{2}|{3}' -f $_.Groups['total'].Value, $_.Groups['actions'].Value,
+            $_.Groups['advisory'].Value, $_.Groups['issues'].Value
+    } | Select-Object -Unique)
+    if ($summaries.Count -ne 1) {
+        throw 'FABRIC_FEDERATION_GUI_TELEMETRY_SERVER_MARKER_AMBIGUOUS'
+    }
+    $serverMatch = $server[$server.Count - 1]
+    $actions = Convert-ManifestActionCounts $serverMatch.Groups['actions'].Value
+    $aggregate = [ordered]@{
+        loaded_mod_count = [int]$loaded[0].Groups['count'].Value
+        scoped_manifest_count = [int]$scoped[0].Groups['count'].Value
+        explicit_observation_count = [int]$explicit[0].Groups['count'].Value
+        active_pack_count = Get-ResourcePackCountFromOptions $OptionsText
+        classification_total_count = [int]$serverMatch.Groups['total'].Value
+        classification_allow_count = [int]$actions.ALLOW
+        classification_observe_count = [int]$actions.OBSERVE
+        classification_notice_count = [int]$actions.NOTICE
+        classification_warn_count = [int]$actions.WARN
+        classification_challenge_count = [int]$actions.CHALLENGE
+        classification_limit_count = [int]$actions.LIMIT
+        classification_quarantine_count = [int]$actions.QUARANTINE
+        classification_deny_count = [int]$actions.DENY
+        classification_advisory_block_count = [int]$serverMatch.Groups['advisory'].Value
+        classification_issue_count = [int]$serverMatch.Groups['issues'].Value
+    }
+    $commitment = Get-TelemetryAggregateCommitment $aggregate $RunAttemptId $SessionId `
+        $SubjectCommitmentSha256 $GuiChallengeNonce
+    $result = [ordered]@{ telemetry_aggregate_schema=$telemetryAggregateSchema }
+    foreach ($entry in $aggregate.GetEnumerator()) { $result[$entry.Key] = $entry.Value }
+    $result.telemetry_aggregate_commitment_sha256 = $commitment
+    $null = Assert-TelemetryAggregate ([pscustomobject]$result) $RunAttemptId $SessionId `
+        $SubjectCommitmentSha256 $GuiChallengeNonce
+    return $result
+}
+
 function Get-FileLiteralCount([string]$Path, [string]$Marker) {
     return [regex]::Matches(
         (Get-FileText $Path), [regex]::Escape($Marker),
@@ -4034,6 +4251,7 @@ $validatedRuntimeLedger = $null
 $runtimeLedgerSeal = ''
 $sourceSubjectCommitmentSha256 = '0' * 64
 $targetSubjectCommitmentSha256 = '0' * 64
+$telemetryAggregate = $null
 
 try {
     # Create mutable run state only after the pinned build and artifact verification succeeds so a
@@ -4309,6 +4527,18 @@ try {
     $sourceSubjectCommitmentSha256 = Get-BytesSha256 ([Text.UTF8Encoding]::new($false).GetBytes(
         "MCACE_SUBJECT_COMMITMENT_V1`nsubject=$sourceSubjectId`nchallenge=$guiChallengeNonce`n"))
     $sourcePaperAdmissionVerified = $true
+
+    # Seal only content-free counts before the mutable client/proxy trees are destroyed. The
+    # commitment binds those aggregates to this exact GUI challenge, connection session, and
+    # authenticated subject without retaining mod IDs, resource-pack IDs, filenames, or paths.
+    $sourceManifestAuditPattern = 'MCAce (?:manifest audit:|authenticated-manifest audit) player=' +
+        [regex]::Escape($sourceSubjectId) + ' observations=[0-9]+ actions=\{[^}\r\n]*\}' +
+        ' advisoryBlocks=[0-9]+[^\r\n]*?(?:issues|consistencyIssues)=[0-9]+'
+    Wait-ServiceRegex $sourceService $sourceManifestAuditPattern 30
+    $telemetryAggregate = Get-TelemetryAggregate `
+        (Get-FileText $fabricLog) (Get-FileText (Join-Path $fabricRoot 'options.txt')) `
+        (Get-ServiceText $sourceService) $sourceSubjectId $runAttemptId $federationSessionId `
+        $sourceSubjectCommitmentSha256 $guiChallengeNonce
 
     # Preserve the real prompt/sign/accept chronology in the append-only ledger,
     # even though the subject commitment becomes available only after auth.
@@ -4752,6 +4982,12 @@ $report = [ordered]@{
     cleanup_ports_free = $cleanupPortsFree
     remaining_owned_process_count = $remainingOwnedProcessCount
     passed = $true
+}
+if ($null -eq $telemetryAggregate) {
+    throw 'FABRIC_FEDERATION_GUI_TELEMETRY_AGGREGATE_REQUIRED'
+}
+foreach ($entry in $telemetryAggregate.GetEnumerator()) {
+    $report[$entry.Key] = $entry.Value
 }
 try {
     # Delete every mutable runtime artifact before the first passing report byte is created. Report
