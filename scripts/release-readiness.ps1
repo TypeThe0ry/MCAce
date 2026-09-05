@@ -2684,7 +2684,10 @@ function Assert-FederationIndex(
         # exact equality for every runtime JAR; keep the historical A manifest bound by the
         # signed report/index instead of requiring an impossible tracked-evidence fixed point.
         if ([string]$releaseBinding.bundle_source_commit -cne $RequestedCommit -or
-                [string]$Index.release_bundle_source_commit -cne $RequestedCommit -or
+                -not (Test-StringEqual $Index.release_bundle_source_commit `
+                    ([string]$Index.source_commit)) -or
+                -not (Test-SourceProvenance $Index.release_bundle_source_commit `
+                    $RequestedCommit) -or
                 [string]$releaseBinding.artifact_source_commit -cne $artifactSourceCommit -or
                 [string]$releaseBinding.fabric_jar_file -cne
                     [string]$Index.release_bundle_fabric_jar_file -or

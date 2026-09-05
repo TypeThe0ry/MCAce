@@ -29,39 +29,40 @@ historical PASS, a caller Boolean, or an unsigned report cannot promote any gate
 
 | Readiness gate | Required release evidence | State |
 | --- | --- | --- |
-| `server_matrix_exact_source` | Matrix V4 seven-root native package; exactly 12 raw process cases; process-incarnation and cleanup commitments; protected V4 release bundle and three server-JAR cross-bindings; out-of-repository RSA supervisor root, protected pin, fresh detached receipt, replay and TOCTOU validation | **PASS for `67ff44b1…`; re-check at final release commit** |
-| `fabric_gui_single_enablement_confirmation` | One human-origin, visible, connection-bound `Enable MCAce` decision for the entire v0.0.1 release acceptance; signed GUI attestation and decoded PNG inside the Federation V5 evidence set | **PENDING** |
-| `fabric_federation_real_handoff` | Federation V5 source-to-target handoff, inherited consent with no second prompt, subject/route/session binding, expiry and correlated negatives, runtime ledger, zero owned residue, and a distinct post-run supervisor receipt | **PENDING** |
+| `server_matrix_exact_source` | Matrix V4 seven-root native package; exactly 12 raw process cases; process-incarnation and cleanup commitments; protected V4 release bundle and three server-JAR cross-bindings; out-of-repository RSA supervisor root, protected pin, fresh detached receipt, replay and TOCTOU validation | **PENDING for the post-validator-fix source boundary** |
+| `fabric_gui_single_enablement_confirmation` | One human-origin, visible, connection-bound `Enable MCAce` decision for the entire v0.0.1 release acceptance; signed GUI attestation and decoded PNG inside the Federation V5 evidence set | **PENDING for the post-validator-fix source boundary** |
+| `fabric_federation_real_handoff` | Federation V5 source-to-target handoff, inherited consent with no second prompt, subject/route/session binding, expiry and correlated negatives, runtime ledger, zero owned residue, and a distinct post-run supervisor receipt | **PENDING for the post-validator-fix source boundary** |
 | `vulcan_genuine_event` | Licensed reviewed Vulcan JAR, genuine non-synthetic external provider event, exact release-artifact binding, and an externally pinned supervisor-signed Vulcan V3 receipt/index | **PENDING** |
 | `production_server_confirmed_authority` | Authority V4 raw package with genuine Grim/Vulcan provider events, actual signed grant/observation frames, process and journal ledgers, exact V4 server JARs, approved external Ed25519 supervisor receipt, and native release index | **PENDING** |
 | `protected_exact_release_bundle` | Protected `main` or `v0.0.1` tag-push CI validates the exact `MCACE_RELEASE_BUNDLE_V4`, compatibility report, canonical artifact-source marker, final HEAD, and all eight release entries | **PENDING** |
 | `clean_worktree` | `git status --porcelain` is empty for the final exact release checkout | **PASS for current checkout; re-checked at release commit** |
 
-The current readiness report for `67ff44b1e2685bd2bdf1d15a661081c4d76f6cee`
-records `server_matrix_exact_source=PASS` and `clean_worktree=PASS`. The other
-five gates remain fail-closed: the retained Federation package is bound to an
-older release-bundle source commit, no licensed Vulcan V3 genuine-event package
-is retained, no Production Authority V4 raw package/receipt is retained, and
-protected exact-commit release CI has not run. A local or historical PASS never
-promotes any of those gates.
+Before the validator correction, an exact `a175604…` bundle reconstructed on P1
+made Matrix V4 pass. With the impossible Federation tracked-index fixed point
+removed, the retained signed V5 package also made the single-GUI and federation
+gates pass against that exact bundle. The correction changes a release validator,
+so it deliberately starts a new artifact-source boundary: Matrix and Federation
+must be regenerated for that new source before release. No licensed Vulcan V3
+genuine-event package or Production Authority V4 raw package/receipt is retained,
+and protected exact-commit release CI has not run.
 
-### Current verification snapshot (`67ff44b1`)
+### Current verification snapshot (`a175604` pre-validator-fix boundary)
 
 As of 2026-09-05, the authoritative checkout is `D:\Projects\MCAce`, branch
-`feature/active-pack-integrity`. The audited product/evidence baseline is
-`67ff44b1e2685bd2bdf1d15a661081c4d76f6cee`; this README update is an allowed
-documentation-only descendant. GitHub PR
+`feature/active-pack-integrity`. The pre-fix verification bundle was rebuilt for
+`a17560467f7d937864962f692abe85aa6e18e564` with artifact source
+`4bb3b57ba3e6c5653c377903b47de7d569afa90f`. GitHub PR
 [#17](https://github.com/TypeThe0ry/MCAce/pull/17) is open as a draft, based on
 `main`. Commit `25b8b062…` passed all four push/PR `build` and
 `windows-contracts` checks; this evidence-only descendant must pass them again.
 There is still no `v0.0.1` tag or GitHub Release.
 
-The current local readiness report is `build/release-readiness/report.json`:
-Matrix V4 and the clean-worktree gate pass; GUI enablement, Federation handoff,
-Vulcan genuine event, Production Authority, and protected exact release bundle
-remain blocked. The validated exact V4 release bundle is stored outside the Git
-checkout; its source/artifact commits and six SHA-256 values are recorded in the
-progress ledger.
+With the corrected validator and the exact pre-fix bundle, local readiness proved
+Matrix V4, the single visible GUI decision, and Federation V5. That diagnostic is
+not the final release state because committing the validator correction changes
+the source boundary. The next run must rebuild the exact bundle and regenerate
+Matrix/Federation evidence, then complete Vulcan, Production Authority, and
+protected main/tag CI.
 
 A real local Fabric 26.2 client received one visible, human-approved
 `Enable MCAce` decision. It submitted four scoped manifests; Velocity audited

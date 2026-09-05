@@ -26,34 +26,35 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 
 | Readiness gate | 正式发布需要的证据 | 状态 |
 | --- | --- | --- |
-| `server_matrix_exact_source` | Matrix V4 七根条目 native package；精确 12 份 raw 进程 case；进程 incarnation 与清理承诺；受保护 V4 release bundle 和三份服务端 JAR 交叉绑定；仓库外 RSA supervisor root、受保护 pin、新鲜 detached receipt、replay 与 TOCTOU 校验 | **`67ff44b…` 已通过；最终发布 commit 仍需复核** |
-| `fabric_gui_single_enablement_confirmation` | 整个 v0.0.1 发布验收只保留一次真人来源、可见、绑定当前连接的 `Enable MCAce` 决定；签名 GUI attestation 和完整解码 PNG 必须进入 Federation V5 证据集 | **PENDING** |
-| `fabric_federation_real_handoff` | Federation V5 source→target handoff、继承同一次确认且不弹第二次窗口、subject/route/session 绑定、expiry 与关联负例、runtime ledger、零自有残留，以及不同 post-run supervisor 的 receipt | **PENDING** |
+| `server_matrix_exact_source` | Matrix V4 七根条目 native package；精确 12 份 raw 进程 case；进程 incarnation 与清理承诺；受保护 V4 release bundle 和三份服务端 JAR 交叉绑定；仓库外 RSA supervisor root、受保护 pin、新鲜 detached receipt、replay 与 TOCTOU 校验 | **校验器修复后的新源边界 PENDING** |
+| `fabric_gui_single_enablement_confirmation` | 整个 v0.0.1 发布验收只保留一次真人来源、可见、绑定当前连接的 `Enable MCAce` 决定；签名 GUI attestation 和完整解码 PNG 必须进入 Federation V5 证据集 | **校验器修复后的新源边界 PENDING** |
+| `fabric_federation_real_handoff` | Federation V5 source→target handoff、继承同一次确认且不弹第二次窗口、subject/route/session 绑定、expiry 与关联负例、runtime ledger、零自有残留，以及不同 post-run supervisor 的 receipt | **校验器修复后的新源边界 PENDING** |
 | `vulcan_genuine_event` | 已审查 licensed Vulcan JAR、真实非合成外部 provider event、精确发布产物绑定，以及仓库外已批准 supervisor 签名的 Vulcan V3 receipt/index | **PENDING** |
 | `production_server_confirmed_authority` | Authority V4 raw package，包含真实 Grim/Vulcan provider events、实际签名 grant/observation frames、进程与 journal ledgers、精确 V4 服务端 JAR、已批准外部 Ed25519 supervisor receipt 和 native release index | **PENDING** |
 | `protected_exact_release_bundle` | 受保护 `main` 或 `v0.0.1` tag-push CI 校验精确 `MCACE_RELEASE_BUNDLE_V4`、兼容性报告、canonical artifact-source marker、最终 HEAD 和八项发布内容 | **PENDING** |
 | `clean_worktree` | 最终精确发布 checkout 的 `git status --porcelain` 为空 | **当前 checkout 已通过；发布 commit 仍需复核** |
 
-当前 readiness report 针对
-`67ff44b1e2685bd2bdf1d15a661081c4d76f6cee` 记录了
-`server_matrix_exact_source=PASS` 和 `clean_worktree=PASS`。其余五门仍 fail-closed：
-现有 Federation 包绑定旧 release-bundle source commit；没有保留 licensed Vulcan V3
-genuine-event 包；没有保留 Production Authority V4 raw package/receipt；受保护 exact
-release CI 也尚未运行。任何本地或历史 PASS 都不能替代这些门。
+校验器修正前，P1 为 `a175604…` 重建的精确 bundle 使 Matrix V4 通过。
+移除 Federation 不可能的 tracked-index fixed point 后，已保留的签名 V5 包也使
+单次 GUI 和 Federation 两门通过。由于该修正修改了发布校验器，它会创建新的
+artifact-source 边界；正式发布前必须针对新源重生 Matrix 和 Federation。当前仍没有
+licensed Vulcan V3 genuine-event 包、Production Authority V4 raw package/receipt，也没有运行受保护
+exact-commit release CI。
 
-### 当前验证快照（`67ff44b1`）
+### 当前验证快照（`a175604` 校验器修正前边界）
 
 截至 2026-09-05，权威 checkout 是 `D:\Projects\MCAce`，分支为
-`feature/active-pack-integrity`。本次审计的产品/证据基线为
-`67ff44b1e2685bd2bdf1d15a661081c4d76f6cee`；本次 README 更新属于规则允许的纯文档后代。
+`feature/active-pack-integrity`。校验器修正前的验证 bundle 针对
+`a17560467f7d937864962f692abe85aa6e18e564`，artifact source 为
+`4bb3b57ba3e6c5653c377903b47de7d569afa90f`。
 GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) 仍是基于 `main` 的 open draft。
 提交 `25b8b062…` 的 push/PR 两组 `build` 与 `windows-contracts` 共四项检查全部通过；本次
 纯证据后代仍需重新通过。尚未创建 `v0.0.1` tag 或 GitHub Release。
 
-当前本地 readiness report 位于 `build/release-readiness/report.json`：Matrix V4 与
-clean-worktree 通过；GUI enablement、Federation handoff、Vulcan genuine event、
-Production Authority 和 protected exact release bundle 仍阻塞。已验证的精确 V4 release
-bundle 保存在 Git checkout 外；它的 source/artifact commit 与六项 SHA-256 已写入进度台账。
+使用修正后的校验器和精确的修正前 bundle，本地 readiness 已证明 Matrix V4、
+单次可见 GUI 与 Federation V5 通过。这不是最终发布状态，因为提交校验器修正会改变
+源边界。下一轮必须重建精确 bundle、重生 Matrix/Federation 证据，然后完成 Vulcan、
+Production Authority 和受保护 main/tag CI。
 
 真实本地 Fabric 26.2 客户端已经获得一次真人可见的 `Enable MCAce` 批准，并提交 4 组
 scoped manifests；Velocity 实际审计 53 条 observation（52 个 loaded mod 加 1 个显式文件），

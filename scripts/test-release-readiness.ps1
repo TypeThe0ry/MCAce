@@ -382,12 +382,15 @@ Assert-True ($federationText.Contains('$Index.release_bundle_source_commit') -an
         $federationText.Contains('$Index.artifact_source_commit') -and
         $federationText.Contains('Test-SourceProvenance $Index.source_commit $RequestedCommit') -and
         $federationText.Contains('Test-SourceProvenance $Index.artifact_source_commit $RequestedCommit') -and
-        $federationText.Contains('$Index.release_bundle_source_commit -cne $RequestedCommit') -and
+        $federationText.Contains('Test-StringEqual $Index.release_bundle_source_commit') -and
+        $federationText.Contains('([string]$Index.source_commit)') -and
+        $federationText.Contains('Test-SourceProvenance $Index.release_bundle_source_commit') -and
         $federationText.Contains('Test-StringEqual $Index.artifact_source_commit $artifactSourceCommit') -and
         $federationText.Contains('$evidenceReleaseBinding')) `
     'Federation V5 capture-A/current-R release binding is incomplete'
 Assert-True (-not $federationText.Contains('$Index.source_commit $artifactSourceCommit') -and
         -not $federationText.Contains('$Index.release_bundle_source_commit $artifactSourceCommit') -and
+        -not $federationText.Contains('$Index.release_bundle_source_commit -cne $RequestedCommit') -and
         -not $federationText.Contains('$Index.release_bundle_manifest_sha256 -cne' +
             "`n                    [string]`$releaseBinding.manifest_sha256")) `
     'Federation V5 reintroduced the tracked manifest/source fixed point'
