@@ -196,6 +196,41 @@ foreach ($functionName in $platformFunctionNames) {
     }
     Invoke-Expression $matches[0].Extent.Text
 }
+
+# The controller keeps the large generated build tree on the migrated D: volume
+# and exposes it from the canonical checkout through one known junction.  The
+# platform wrapper deliberately rejects reparse points, so resolve this one
+# migration explicitly and keep every other junction/symlink fail-closed.  The
+# resolved target is then treated as the physical parent for all evidence and
+# runtime directories below; no generated data is copied back to C:.
+function Resolve-ApprovedBuildRoot([string]$RepoRoot) {
+    $candidate = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot 'build'))
+    $item = Get-Item -LiteralPath $candidate -Force -ErrorAction Stop
+    if (-not $item.PSIsContainer) {
+        throw 'FABRIC_FEDERATION_GUI_BUILD_DIRECTORY_REQUIRED'
+    }
+    if (($item.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -eq 0) {
+        return Assert-DirectLocalPath $candidate -Directory
+    }
+
+    $approvedTarget = [System.IO.Path]::GetFullPath('D:\Migrated\Projects\MCAce\build')
+    $targetText = [string]$item.Target
+    if ($item.LinkType -cne 'Junction' -or [string]::IsNullOrWhiteSpace($targetText)) {
+        throw 'FABRIC_FEDERATION_GUI_UNAPPROVED_BUILD_REPARSE_PATH'
+    }
+    $target = [System.IO.Path]::GetFullPath($targetText)
+    if (-not $target.Equals($approvedTarget, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'FABRIC_FEDERATION_GUI_UNAPPROVED_BUILD_REPARSE_PATH'
+    }
+
+    $targetItem = Get-Item -LiteralPath $target -Force -ErrorAction Stop
+    if (-not $targetItem.PSIsContainer -or
+            (($targetItem.Attributes -band [System.IO.FileAttributes]::ReparsePoint) -ne 0)) {
+        throw 'FABRIC_FEDERATION_GUI_UNAPPROVED_BUILD_REPARSE_TARGET'
+    }
+    return Assert-DirectLocalPath $target -Directory
+}
+
 $targetAssignments = @($platformAst.FindAll({
     param($node)
     $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
@@ -3815,7 +3850,13 @@ $script:TargetJavaPath = $script:TargetJava.path
 $script:OfflineGradle = Resolve-OfflineGradle961
 
 $repoRoot = Assert-DirectLocalPath $repoRoot -Directory
-$buildRoot = Initialize-SafeOwnedDirectory (Join-Path $repoRoot 'build') $repoRoot
+$buildRoot = Resolve-ApprovedBuildRoot $repoRoot
+$evidenceRoot = Join-Path $buildRoot 'fabric-federation-gui-handoff'
+$evidenceRunsRoot = Join-Path $evidenceRoot 'evidence-runs'
+$serverMatrixRoot = Join-Path $buildRoot 'runtime-assets'
+$serverMatrixManifest = Join-Path $serverMatrixRoot 'manifest.json'
+$serverPreparedManifest = Join-Path $serverMatrixRoot 'prepared-manifest.json'
+$stagedModernDependencies = Join-Path $buildRoot 'fabric-modern-deps'
 $evidenceRoot = Initialize-SafeOwnedDirectory $evidenceRoot $buildRoot
 $evidenceRunsRoot = Initialize-SafeOwnedDirectory $evidenceRunsRoot $evidenceRoot
 $runId = (Get-Date).ToUniversalTime().ToString('yyyyMMddTHHmmssfffZ')
