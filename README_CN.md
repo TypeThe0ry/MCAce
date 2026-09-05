@@ -46,18 +46,23 @@ release CI 也尚未运行。任何本地或历史 PASS 都不能替代这些门
 截至 2026-09-05，权威 checkout 是 `D:\Projects\MCAce`，分支为
 `feature/active-pack-integrity`。本次审计的产品/证据基线为
 `67ff44b1e2685bd2bdf1d15a661081c4d76f6cee`；本次 README 更新属于规则允许的纯文档后代。
-GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) 仍是基于 `main` 的 open draft，
-基线 `build` 与 `windows-contracts` 检查均为绿色。尚未创建 `v0.0.1` tag 或 GitHub Release。
+GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) 仍是基于 `main` 的 open draft。
+提交 `25b8b062…` 的 push/PR 两组 `build` 与 `windows-contracts` 共四项检查全部通过；本次
+纯证据后代仍需重新通过。尚未创建 `v0.0.1` tag 或 GitHub Release。
 
 当前本地 readiness report 位于 `build/release-readiness/report.json`：Matrix V4 与
 clean-worktree 通过；GUI enablement、Federation handoff、Vulcan genuine event、
 Production Authority 和 protected exact release bundle 仍阻塞。已验证的精确 V4 release
 bundle 保存在 Git checkout 外；它的 source/artifact commit 与六项 SHA-256 已写入进度台账。
 
-本地 26.2 客户端确实启动并到达真人可见同意阶段，但当前 Computer Use 只暴露浏览器标签，
-没有 native-window 控制能力。没有点击、合成 attestation 或伪造截图；因此 GUI/Federation 门
-保持阻塞，直到真实 native Computer Use 会话完成唯一一次确认并由外部 signer 返回当前源码收据。
-完整事实台账见 [PROGRESS_2026-09-05.md](docs/evidence/PROGRESS_2026-09-05.md)。
+真实本地 Fabric 26.2 客户端已经获得一次真人可见的 `Enable MCAce` 批准，并提交 4 组
+scoped manifests；Velocity 实际审计 53 条 observation（52 个 loaded mod 加 1 个显式文件），
+Paper 接受签名后的 `VERIFIED/risk=0` admission。该次聚合报告仍是 diagnostic/non-release：
+调用方传入的预期玩家名与实际开发档案 `Player981` 不匹配，事后没有改写或伪造 attestation。
+作弊 Mod/Xray 分类与可执行 `SERVER_CONFIRMED/QUARANTINE` 测试也已通过，但明确属于受控
+fixture，并非在该真实 GUI 会话内执行第三方代码。详见
+[脱敏反作弊验证摘要](docs/evidence/anticheat-validation-20260905-25b8b06.json) 与
+[完整事实台账](docs/evidence/PROGRESS_2026-09-05.md)。
 
 ## MCAce 是什么、又不是什么
 

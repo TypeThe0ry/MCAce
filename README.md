@@ -52,8 +52,9 @@ As of 2026-09-05, the authoritative checkout is `D:\Projects\MCAce`, branch
 `67ff44b1e2685bd2bdf1d15a661081c4d76f6cee`; this README update is an allowed
 documentation-only descendant. GitHub PR
 [#17](https://github.com/TypeThe0ry/MCAce/pull/17) is open as a draft, based on
-`main`, and its baseline `build` and `windows-contracts` checks are green. There
-is still no `v0.0.1` tag or GitHub Release.
+`main`. Commit `25b8b062…` passed all four push/PR `build` and
+`windows-contracts` checks; this evidence-only descendant must pass them again.
+There is still no `v0.0.1` tag or GitHub Release.
 
 The current local readiness report is `build/release-readiness/report.json`:
 Matrix V4 and the clean-worktree gate pass; GUI enablement, Federation handoff,
@@ -62,13 +63,17 @@ remain blocked. The validated exact V4 release bundle is stored outside the Git
 checkout; its source/artifact commits and six SHA-256 values are recorded in the
 progress ledger.
 
-A local 26.2 client was started and reached the real visible consent phase, but
-the active Computer Use surface exposed browser tabs only and no native-window
-control. No click, synthetic attestation, or fabricated screenshot was recorded;
-the GUI/Federation gate therefore remains blocked until a real native Computer
-Use session supplies the one allowed consent and the external signer returns a
-current-source receipt. The complete source-of-truth ledger is kept in
-[PROGRESS_2026-09-05.md](docs/evidence/PROGRESS_2026-09-05.md).
+A real local Fabric 26.2 client received one visible, human-approved
+`Enable MCAce` decision. It submitted four scoped manifests; Velocity audited
+53 observations (52 loaded mods plus one explicit file), and Paper accepted the
+signed `VERIFIED/risk=0` admission state. The aggregate run is still
+diagnostic/non-release because its supplied expected player name did not match
+the observed `Player981` development profile. No attestation was rewritten or
+fabricated after the run. Cheat-Mod/Xray classification and executable
+`SERVER_CONFIRMED/QUARANTINE` tests also pass as explicitly controlled fixtures,
+not as third-party code inside that real GUI session. See the
+[sanitized anti-cheat validation summary](docs/evidence/anticheat-validation-20260905-25b8b06.json)
+and the complete [progress ledger](docs/evidence/PROGRESS_2026-09-05.md).
 
 ## What MCAce is — and is not
 
