@@ -23,6 +23,7 @@ import com.ellan.mcace.protocol.generated.EvidenceCollectionStatus;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.net.Inet6Address;
 import java.nio.file.Path;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -253,7 +254,21 @@ public final class MCAceFabricClient implements ClientModInitializer {
         if (!(remote instanceof InetSocketAddress inet)) {
             return Optional.empty();
         }
-        String host = inet.getHostString();
+        // InetSocketAddress may carry a reverse-resolved hostname even when the
+        // connection was opened to loopback (for example
+        // kubernetes.docker.internal -> 127.0.0.1).  Pin files are endpoint
+        // keyed and the runner writes the numeric loopback endpoint, so use
+        // the address actually bound to the socket rather than reverse DNS.
+        String host;
+        if (inet.getAddress() != null) {
+            if (inet.getAddress().isLoopbackAddress()) {
+                host = inet.getAddress() instanceof Inet6Address ? "::1" : "127.0.0.1";
+            } else {
+                host = inet.getAddress().getHostAddress();
+            }
+        } else {
+            host = inet.getHostString();
+        }
         if (host == null || host.isBlank() || inet.getPort() <= 0) {
             return Optional.empty();
         }
