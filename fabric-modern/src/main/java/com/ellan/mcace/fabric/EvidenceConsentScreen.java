@@ -69,8 +69,8 @@ final class EvidenceConsentScreen extends Screen {
         context.enableScissor(0, layout.viewportTop(), width, layout.viewportBottom());
         for (int paragraphIndex = 0; paragraphIndex < paragraphs.size(); paragraphIndex++) {
             for (FormattedCharSequence line : paragraphs.get(paragraphIndex)) {
-                context.centeredText(font, line, center, y,
-                        paragraphIndex < 3 ? 0xFFFFFF : 0xAAAAAA);
+                context.centeredText(font, line, center, y, ConsentUiSupport.opaqueTextColor(
+                        paragraphIndex < 3 ? 0xFFFFFF : 0xAAAAAA));
                 y += layout.lineStep();
             }
             if (paragraphIndex + 1 < paragraphs.size()) {

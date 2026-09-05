@@ -35,6 +35,13 @@ final class MCAceEnablementContractTest {
     }
 
     @Test
+    void modernConsentDisclosureColorsAreAlwaysOpaqueArgb() {
+        assertEquals(0xFFFFFFFF, ConsentUiSupport.opaqueTextColor(0xFFFFFF));
+        assertEquals(0xFFAAAAAA, ConsentUiSupport.opaqueTextColor(0xAAAAAA));
+        assertEquals(0xFF123456, ConsentUiSupport.opaqueTextColor(0x7F123456));
+    }
+
+    @Test
     void emptyFilePolicyStillRequiresTheSameSingleDecision() {
         String text = String.join("\n", ExplicitFileConsentScreen.enablementParagraphs(policy(), List.of()));
         assertTrue(text.contains("no explicit-file request"));

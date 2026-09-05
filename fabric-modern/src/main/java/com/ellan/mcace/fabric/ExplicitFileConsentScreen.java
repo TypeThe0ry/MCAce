@@ -97,7 +97,8 @@ final class ExplicitFileConsentScreen extends Screen {
         List<List<FormattedCharSequence>> paragraphs = wrappedParagraphs(layout.maxWidth());
         for (int paragraphIndex = 0; paragraphIndex < paragraphs.size(); paragraphIndex++) {
             for (FormattedCharSequence line : paragraphs.get(paragraphIndex)) {
-                context.centeredText(font, line, width / 2, y, 0xFFFFFF);
+                context.centeredText(
+                        font, line, width / 2, y, ConsentUiSupport.opaqueTextColor(0xFFFFFF));
                 y += font.lineHeight + 2;
             }
             if (paragraphIndex + 1 < paragraphs.size()) {
