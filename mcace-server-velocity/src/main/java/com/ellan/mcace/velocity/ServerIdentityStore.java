@@ -12,6 +12,7 @@ import java.security.KeyPair;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
 import java.util.Base64;
@@ -84,9 +85,13 @@ final class ServerIdentityStore {
     }
 
     static String fingerprint(KeyPair keyPair) {
+        return fingerprint(keyPair.getPublic());
+    }
+
+    static String fingerprint(PublicKey publicKey) {
         try {
             return HexFormat.ofDelimiter(":").withUpperCase()
-                    .formatHex(MessageDigest.getInstance("SHA-256").digest(keyPair.getPublic().getEncoded()));
+                    .formatHex(MessageDigest.getInstance("SHA-256").digest(publicKey.getEncoded()));
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is unavailable", exception);
         }

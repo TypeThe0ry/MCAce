@@ -1512,8 +1512,9 @@ public final class MCAceVelocityPlugin {
                 byte[] challenge = coordinator().begin(playerId);
                 boolean sent = isCurrentPhysicalLoginLocked(player, ticket)
                         && player.sendPluginMessage(MCAceVelocityChannels.HANDSHAKE, challenge);
-                logger.info("MCAce challenge dispatch player={} bytes={} sent={}",
-                        player.getUsername(), challenge.length, sent);
+                logger.info("MCAce challenge dispatch player={} bytes={} sent={} signerFingerprint={}",
+                        player.getUsername(), challenge.length, sent,
+                        ServerIdentityStore.fingerprint(coordinator().serverPublicKey()));
                 if (!sent) {
                     if (isCurrentPhysicalLoginLocked(player, ticket) && requiresClientLocked()) {
                         retireTerminalHandshakeLocked(player, ticket, "handshake-failure");

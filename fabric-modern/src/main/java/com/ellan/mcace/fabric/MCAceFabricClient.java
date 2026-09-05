@@ -21,6 +21,8 @@ import com.ellan.mcace.protocol.generated.SignedEnvelope;
 import com.ellan.mcace.protocol.generated.LoaderType;
 import com.ellan.mcace.protocol.generated.EvidenceCollectionStatus;
 import java.io.IOException;
+import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.nio.file.Path;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -215,15 +217,20 @@ public final class MCAceFabricClient implements ClientModInitializer {
         pendingChallenge = null;
         handshake = null;
         ServerData server = context.client().getCurrentServer();
-        String address = server == null
+        String configuredAddress = server == null
                 ? System.getProperty("mcace.platform-smoke.server-address", "default")
                 : server.ip;
+        ClientPacketListener networkHandler = context.client().getConnection();
+        String address = connectedServerAddress(networkHandler).orElse(configuredAddress);
         Optional<PublicKey> pinnedKey = serverKeyPins.find(address);
         if (pinnedKey.isEmpty()) {
             LOGGER.warn("MCAce will not authenticate to {} because no pinned server key is configured", address);
             return;
         }
-        ClientPacketListener networkHandler = context.client().getConnection();
+        LOGGER.info("MCAce server hello endpoint selected connected={} configured={} currentServerPresent={} "
+                        + "pinFingerprint={} payloadBytes={}",
+                address, configuredAddress, server != null,
+                ServerKeyPins.fingerprint(pinnedKey.orElseThrow()), payload.data().length);
         if (networkHandler == null || networkHandler.getLocalGameProfile() == null) {
             pendingChallenge = new PendingChallenge(payload.data(), address, pinnedKey.orElseThrow(), generation);
             LOGGER.info("MCAce deferred the signed challenge until the play network profile is available");
@@ -236,6 +243,21 @@ public final class MCAceFabricClient implements ClientModInitializer {
                 networkHandler.getLocalGameProfile().id(),
                 context.client(),
                 generation);
+    }
+
+    private static Optional<String> connectedServerAddress(ClientPacketListener networkHandler) {
+        if (networkHandler == null || networkHandler.getConnection() == null) {
+            return Optional.empty();
+        }
+        SocketAddress remote = networkHandler.getConnection().getRemoteAddress();
+        if (!(remote instanceof InetSocketAddress inet)) {
+            return Optional.empty();
+        }
+        String host = inet.getHostString();
+        if (host == null || host.isBlank() || inet.getPort() <= 0) {
+            return Optional.empty();
+        }
+        return Optional.of(host + ":" + inet.getPort());
     }
 
     private void resumePendingChallenge(Minecraft client) {
