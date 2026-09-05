@@ -26,7 +26,7 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 
 | Readiness gate | 正式发布需要的证据 | 状态 |
 | --- | --- | --- |
-| `server_matrix_exact_source` | Matrix V4 七根条目 native package；精确 12 份 raw 进程 case；进程 incarnation 与清理承诺；受保护 V4 release bundle 和三份服务端 JAR 交叉绑定；仓库外 RSA supervisor root、受保护 pin、新鲜 detached receipt、replay 与 TOCTOU 校验 | **校验器修复后的新源边界 PENDING** |
+| `server_matrix_exact_source` | Matrix V4 七根条目 native package；精确 12 份 raw 进程 case；进程 incarnation 与清理承诺；受保护 V4 release bundle 和三份服务端 JAR 交叉绑定；仓库外 RSA supervisor root、受保护 pin、新鲜 detached receipt、replay 与 TOCTOU 校验 | **PASS — [当前源码绑定的 Matrix V4 索引](docs/evidence/server-version-process-matrix-20260905-92a49b9.json)** |
 | `fabric_gui_single_enablement_confirmation` | 整个 v0.0.1 发布验收只保留一次真人来源、可见、绑定当前连接的 `Enable MCAce` 决定；签名 GUI attestation 和完整解码 PNG 必须进入 Federation V5 证据集 | **校验器修复后的新源边界 PENDING** |
 | `fabric_federation_real_handoff` | Federation V5 source→target handoff、继承同一次确认且不弹第二次窗口、subject/route/session 绑定、expiry 与关联负例、runtime ledger、零自有残留，以及不同 post-run supervisor 的 receipt | **校验器修复后的新源边界 PENDING** |
 | `vulcan_genuine_event` | 已审查 licensed Vulcan JAR、真实非合成外部 provider event、精确发布产物绑定，以及仓库外已批准 supervisor 签名的 Vulcan V3 receipt/index | **PENDING** |
@@ -34,12 +34,12 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 | `protected_exact_release_bundle` | 受保护 `main` 或 `v0.0.1` tag-push CI 校验精确 `MCACE_RELEASE_BUNDLE_V4`、兼容性报告、canonical artifact-source marker、最终 HEAD 和八项发布内容 | **PENDING** |
 | `clean_worktree` | 最终精确发布 checkout 的 `git status --porcelain` 为空 | **当前 checkout 已通过；发布 commit 仍需复核** |
 
-校验器修正前，P1 为 `a175604…` 重建的精确 bundle 使 Matrix V4 通过。
-移除 Federation 不可能的 tracked-index fixed point 后，已保留的签名 V5 包也使
-单次 GUI 和 Federation 两门通过。由于该修正修改了发布校验器，它会创建新的
-artifact-source 边界；正式发布前必须针对新源重生 Matrix 和 Federation。当前仍没有
-licensed Vulcan V3 genuine-event 包、Production Authority V4 raw package/receipt，也没有运行受保护
-exact-commit release CI。
+校验器修正已冻结为 artifact source `92a49b9…`。P1 使用精确 JDK 21/25 分别重建
+artifact source 与当前证据后代；两套 bundle 的六个可部署 JAR 和 `SHA256SUMS` 字节完全
+一致。随后新的外部 supervisor Matrix V4 运行完成 12 个 Paper/Folia × Velocity/Bungee
+case、24 个进程身份和零自有进程残留。Federation 仍需在该源边界重新捕获。当前仍没有
+licensed Vulcan V3 genuine-event 包、Production Authority V4 raw package/receipt，也没有运行
+受保护 exact-commit release CI。
 
 ### 当前验证快照（`a175604` 校验器修正前边界）
 
@@ -48,13 +48,12 @@ exact-commit release CI。
 `a17560467f7d937864962f692abe85aa6e18e564`，artifact source 为
 `4bb3b57ba3e6c5653c377903b47de7d569afa90f`。
 GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) 仍是基于 `main` 的 open draft。
-提交 `25b8b062…` 的 push/PR 两组 `build` 与 `windows-contracts` 共四项检查全部通过；本次
-纯证据后代仍需重新通过。尚未创建 `v0.0.1` tag 或 GitHub Release。
+提交 `38c5b8c…` 的 push/PR 两组 `build` 与 `windows-contracts` 共四项检查全部通过；本次
+Matrix 证据后代仍需重新通过。尚未创建 `v0.0.1` tag 或 GitHub Release。
 
-使用修正后的校验器和精确的修正前 bundle，本地 readiness 已证明 Matrix V4、
-单次可见 GUI 与 Federation V5 通过。这不是最终发布状态，因为提交校验器修正会改变
-源边界。下一轮必须重建精确 bundle、重生 Matrix/Federation 证据，然后完成 Vulcan、
-Production Authority 和受保护 main/tag CI。
+当前 artifact-source 边界已有新鲜且经过外部 supervisor 签名的 Matrix V4 package。
+单次可见 GUI 与 Federation V5 仍需当前源码的 source→target 捕获；旧的签名 V5 package
+只能作为历史证据。Vulcan、Production Authority 和受保护 main/tag CI 同样仍未完成。
 
 真实本地 Fabric 26.2 客户端已经获得一次真人可见的 `Enable MCAce` 批准，并提交 4 组
 scoped manifests；Velocity 实际审计 53 条 observation（52 个 loaded mod 加 1 个显式文件），
@@ -289,6 +288,11 @@ Matrix V4 是第一个在结构上有资格满足 `server_matrix_exact_source` �
 - Velocity 和 BungeeCord；
 - `3 × 2 × 2 = 12` 个真实进程 case。
 
+当前 [Matrix V4 证据索引](docs/evidence/server-version-process-matrix-20260905-92a49b9.json)
+具备 release eligibility，并绑定 artifact source `92a49b9…`、12/12 个新鲜进程 case、
+24 个进程身份、全部六个发布产物、三份服务端 JAR、精确八项 bundle 和独立 RSA supervisor
+receipt。所有 case 均通过，所有自有进程清理计数均回到零。
+
 producer 冻结全部 raw report、report/binding/raw-manifest 字节、ordered raw root、case 与
 process-incarnation identity、invocation 与 cleanup 事实、精确 V4 bundle、六份发布 JAR，以及
 三份 Matrix 服务端 JAR。仓库外独立 RSA supervisor 必须在受保护 trust-root pin 下返回新鲜
@@ -318,7 +322,7 @@ GUI signer 与 post-run supervisor 必须分别独立批准，使用不同的仓
 fixture、相同 key、自批准、缺 receipt、过期、replay 或篡改 package 全部 fail-closed。
 仓库保留了一套真实外部签名的 Federation V5 package，路径为
 `docs/evidence/federation-gui-handoff-20260905T0659535636601Z-26.2-velocity-to-velocity-28af49d.json`，
-但它绑定的 release source 是 `28af49d…`，而当前精确 release source 是 `67ff44b…`；readiness
+但它绑定的 release source 是 `28af49d…`，而当前 artifact source 是 `92a49b9…`；readiness
 因此拒绝该 cross-gate。它只能作为历史证据，GUI 与 federation 两门仍为 PENDING。
 
 详见 [Federation](docs/FEDERATION.md)。
