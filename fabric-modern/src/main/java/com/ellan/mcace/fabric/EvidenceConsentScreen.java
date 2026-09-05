@@ -58,7 +58,9 @@ final class EvidenceConsentScreen extends Screen {
 
     @Override
     public void extractRenderState(GuiGraphicsExtractor context, int mouseX, int mouseY, float delta) {
-        extractBackground(context, mouseX, mouseY, delta);
+        // The Screen wrapper already extracts the background once per frame.
+        // Repeating it here causes the 26.2 blur extractor to throw when the
+        // evidence prompt is displayed after another screen.
         int center = width / 2;
         ConsentLayout layout = layout();
         scrollOffset = ConsentUiSupport.clampScroll(scrollOffset, layout.maxScroll());

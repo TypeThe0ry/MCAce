@@ -1,12 +1,22 @@
 package com.ellan.mcace.velocity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.ellan.mcace.protocol.generated.TrustLevel;
+import com.ellan.mcace.sdk.AdmissionStatus;
+import com.ellan.mcace.sdk.PlayerSecuritySnapshot;
+import com.ellan.mcace.sdk.RiskBand;
+import com.ellan.mcace.sdk.RiskReason;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Duration;
+import java.time.Instant;
+import java.util.List;
+import java.util.UUID;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -22,6 +32,8 @@ final class VelocityAdmissionConfigTest {
         assertEquals(java.util.Optional.empty(), config.limitedServer());
         assertEquals(java.util.Optional.empty(), config.quarantineServer());
         assertEquals(Duration.ofSeconds(5), config.handshakeTimeout());
+        assertEquals(VelocityAdmissionConfig.ClientRequirement.REQUIRE_CLIENT, config.clientRequirement());
+        assertEquals(true, config.requireClient());
         assertEquals(false, config.storage().enabled());
         assertEquals("mcace-velocity", config.policy().serverId());
         assertEquals(java.util.List.of("1.21.11"), config.policy().minecraftVersions());
@@ -45,6 +57,57 @@ final class VelocityAdmissionConfigTest {
         assertEquals(java.util.Optional.of("limited-backend"), config.limitedServer());
         assertEquals(java.util.Optional.of("quarantine-backend"), config.quarantineServer());
         assertEquals(Duration.ofSeconds(8), config.handshakeTimeout());
+    }
+
+    @Test
+    void existingConfigurationWithoutClientRequirementRetainsLegacyOptionalProfile() throws Exception {
+        Path path = temporaryDirectory.resolve("legacy-client-profile.properties");
+        Files.writeString(path, "enforcement.mode=MONITOR\n");
+
+        VelocityAdmissionConfig config = VelocityAdmissionConfig.loadOrCreate(path);
+
+        assertEquals(VelocityAdmissionConfig.ClientRequirement.OPTIONAL, config.clientRequirement());
+        assertEquals(false, config.requireClient());
+    }
+
+    @Test
+    void parsesExplicitOptionalAndStrictClientRequirementProfiles() throws Exception {
+        Path optionalPath = temporaryDirectory.resolve("optional-client-profile.properties");
+        Files.writeString(optionalPath, "client.requirement=OPTIONAL\n");
+        assertEquals(VelocityAdmissionConfig.ClientRequirement.OPTIONAL,
+                VelocityAdmissionConfig.loadOrCreate(optionalPath).clientRequirement());
+
+        Path strictPath = temporaryDirectory.resolve("strict-client-profile.properties");
+        Files.writeString(strictPath, "client.requirement=STRICT\n");
+        VelocityAdmissionConfig strict = VelocityAdmissionConfig.loadOrCreate(strictPath);
+        assertEquals(VelocityAdmissionConfig.ClientRequirement.REQUIRE_CLIENT, strict.clientRequirement());
+        assertEquals(true, strict.requireClient());
+    }
+
+    @Test
+    void rejectsInvalidClientRequirementProfile() throws Exception {
+        Path blank = temporaryDirectory.resolve("blank-client-profile.properties");
+        Files.writeString(blank, "client.requirement=   \n");
+        assertThrows(IOException.class, () -> VelocityAdmissionConfig.loadOrCreate(blank));
+
+        Path unknown = temporaryDirectory.resolve("unknown-client-profile.properties");
+        Files.writeString(unknown, "client.requirement=ENFORCE_EVERYTHING\n");
+        assertThrows(IOException.class, () -> VelocityAdmissionConfig.loadOrCreate(unknown));
+    }
+
+    @Test
+    void missingClientSignalIsRecognizedWithoutTreatingOtherLimitedStatesAsMissingClient() {
+        PlayerSecuritySnapshot missing = new PlayerSecuritySnapshot(
+                UUID.randomUUID(), TrustLevel.UNKNOWN, AdmissionStatus.LIMITED, 20, RiskBand.WATCH,
+                "test-policy", Instant.EPOCH,
+                List.of(new RiskReason("MISSING_MCACE", 20, "timeout", Instant.EPOCH, true)));
+        PlayerSecuritySnapshot otherLimited = new PlayerSecuritySnapshot(
+                UUID.randomUUID(), TrustLevel.UNKNOWN, AdmissionStatus.LIMITED, 20, RiskBand.WATCH,
+                "test-policy", Instant.EPOCH,
+                List.of(new RiskReason("PROTOCOL_VIOLATION", 20, "protocol", Instant.EPOCH, true)));
+
+        assertTrue(MCAceVelocityPlugin.isMissingClientSnapshot(missing));
+        assertFalse(MCAceVelocityPlugin.isMissingClientSnapshot(otherLimited));
     }
 
     @Test
@@ -92,6 +155,24 @@ final class VelocityAdmissionConfigTest {
     void rejectsUnsafeTimeout() throws Exception {
         Path path = temporaryDirectory.resolve("mcace.properties");
         Files.writeString(path, "handshake.timeout.seconds=0\n");
+
+        assertThrows(IOException.class, () -> VelocityAdmissionConfig.loadOrCreate(path));
+    }
+
+    @Test
+    void acceptsSupervisedHumanReviewTimeoutWithinBound() throws Exception {
+        Path path = temporaryDirectory.resolve("extended-timeout.properties");
+        Files.writeString(path, "handshake.timeout.seconds=300\n");
+
+        VelocityAdmissionConfig config = VelocityAdmissionConfig.loadOrCreate(path);
+
+        assertEquals(Duration.ofSeconds(300), config.handshakeTimeout());
+    }
+
+    @Test
+    void rejectsTimeoutBeyondSupervisedHumanReviewBound() throws Exception {
+        Path path = temporaryDirectory.resolve("too-long-timeout.properties");
+        Files.writeString(path, "handshake.timeout.seconds=301\n");
 
         assertThrows(IOException.class, () -> VelocityAdmissionConfig.loadOrCreate(path));
     }

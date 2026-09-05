@@ -1,6 +1,7 @@
 package com.ellan.mcace.client.session;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -8,6 +9,9 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import com.ellan.mcace.client.integrity.ClientIntegrityBundle;
 import com.ellan.mcace.client.integrity.IntegrityEntry;
 import com.ellan.mcace.client.integrity.ScopeIntegrityManifest;
+import com.ellan.mcace.client.federation.ConnectionEnablementAuthorization;
+import com.ellan.mcace.client.federation.FederationTokenVault;
+import com.ellan.mcace.client.observation.LoadedModObservation;
 import com.ellan.mcace.client.policy.VerifiedPolicyCache;
 import com.ellan.mcace.core.disposition.ArtifactObservation;
 import com.ellan.mcace.core.disposition.ArtifactType;
@@ -18,9 +22,13 @@ import com.ellan.mcace.protocol.crypto.Ed25519Keys;
 import com.ellan.mcace.protocol.crypto.EnvelopeCodec;
 import com.ellan.mcace.protocol.crypto.EnvelopeException;
 import com.ellan.mcace.protocol.crypto.NonceReplayGuard;
+import com.ellan.mcace.protocol.federation.FederationDocuments;
 import com.ellan.mcace.protocol.generated.IntegrityScopeRule;
 import com.ellan.mcace.protocol.generated.AuthRequest;
 import com.ellan.mcace.protocol.generated.AuthResult;
+import com.ellan.mcace.protocol.generated.ArtifactObservationResult;
+import com.ellan.mcace.protocol.generated.ArtifactObservationResultReason;
+import com.ellan.mcace.protocol.generated.ArtifactObservationUpdate;
 import com.ellan.mcace.protocol.generated.EvidenceAck;
 import com.ellan.mcace.protocol.generated.EvidenceAckStatus;
 import com.ellan.mcace.protocol.generated.EvidenceBegin;
@@ -47,6 +55,8 @@ import com.google.protobuf.ByteString;
 import java.nio.file.Path;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.security.MessageDigest;
+import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
@@ -62,6 +72,14 @@ import org.junit.jupiter.api.io.TempDir;
 final class ClientHandshakeEngineBudgetTest {
     private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-08-08T08:00:00Z"), ZoneOffset.UTC);
     @TempDir Path temporaryDirectory;
+
+    @Test
+    void exposesOnlyTheVerifiedHelloSessionForAdapterGenerationGuards() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = readyClient(server);
+
+        assertEquals("budget-session", client.verifiedSessionId());
+    }
 
     @Test
     void rejectsAnAuthenticationManifestThatCannotFitOneSignedFrame() throws Exception {
@@ -109,6 +127,150 @@ final class ClientHandshakeEngineBudgetTest {
     }
 
     @Test
+    void bindsFabricLoadedModOriginToTheExactInstalledManifestEntry() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = readyClient(server);
+        byte[] hash = new byte[32];
+        java.util.Arrays.fill(hash, (byte) 9);
+        ClientIntegrityBundle bundle = ClientIntegrityBundle.of(List.of(new ScopeIntegrityManifest(
+                "mods", "mods", true, CLOCK.instant(),
+                List.of(new IntegrityEntry("example.jar", 4, hash)), new byte[32])));
+        ArtifactObservation metadata = new ArtifactObservation(ArtifactType.MOD, "example.mod", "1.2.3",
+                java.util.HexFormat.of().formatHex(hash),
+                java.util.Map.of("scope", "mods", "artifact_path", "example.jar"),
+                ObservationOrigin.CLIENT_REPORTED, Confidence.LOW, false);
+        LoadedModObservation loaded = new LoadedModObservation("example.mod", "1.2.3",
+                LoadedModObservation.OriginKind.MODS_FILE, "example.jar", "");
+
+        List<ClientHandshakeEngine.OutboundFrame> frames = client.createAuthenticationFrames(
+                bundle, List.of(metadata), List.of(), List.of(), List.of(loaded));
+        AuthRequest authentication = AuthRequest.parseFrom(
+                SignedEnvelope.parseFrom(frames.get(1).data()).getPayload());
+
+        assertEquals(1, authentication.getLoadedModsCount());
+        assertTrue(authentication.getLoadedMods(0).getOriginManifestMatched());
+        assertEquals(4, authentication.getLoadedMods(0).getOriginFileSize());
+        assertEquals(ByteString.copyFrom(hash), authentication.getLoadedMods(0).getOriginSha256());
+    }
+
+    @Test
+    void loadedModBindingStaysUnmatchedWhenLoaderIdentityDisagreesWithJarMetadata() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = readyClient(server);
+        byte[] hash = new byte[32];
+        ClientIntegrityBundle bundle = ClientIntegrityBundle.of(List.of(new ScopeIntegrityManifest(
+                "mods", "mods", true, CLOCK.instant(),
+                List.of(new IntegrityEntry("example.jar", 4, hash)), new byte[32])));
+        ArtifactObservation metadata = new ArtifactObservation(ArtifactType.MOD, "example.mod", "1.2.3",
+                java.util.HexFormat.of().formatHex(hash),
+                java.util.Map.of("scope", "mods", "artifact_path", "example.jar"),
+                ObservationOrigin.CLIENT_REPORTED, Confidence.LOW, false);
+        LoadedModObservation loaded = new LoadedModObservation("different.mod", "9",
+                LoadedModObservation.OriginKind.MODS_FILE, "example.jar", "");
+
+        List<ClientHandshakeEngine.OutboundFrame> frames = client.createAuthenticationFrames(
+                bundle, List.of(metadata), List.of(), List.of(), List.of(loaded));
+        AuthRequest authentication = AuthRequest.parseFrom(
+                SignedEnvelope.parseFrom(frames.get(1).data()).getPayload());
+
+        assertFalse(authentication.getLoadedMods(0).getOriginManifestMatched());
+        assertTrue(authentication.getLoadedMods(0).getOriginSha256().isEmpty());
+    }
+
+    @Test
+    void rejectsDuplicateOrPathLeakingLoadedModOriginsBeforeSigning() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = readyClient(server);
+        ClientIntegrityBundle bundle = ClientIntegrityBundle.of(List.of(new ScopeIntegrityManifest(
+                "mods", "mods", true, CLOCK.instant(), List.of(), new byte[32])));
+        LoadedModObservation first = new LoadedModObservation("duplicate", "1",
+                LoadedModObservation.OriginKind.BUILTIN_OR_CLASSPATH, "", "");
+        LoadedModObservation second = new LoadedModObservation("duplicate", "2",
+                LoadedModObservation.OriginKind.UNKNOWN, "", "");
+        assertThrows(EnvelopeException.class, () -> client.createAuthenticationFrames(
+                bundle, List.of(), List.of(), List.of(), List.of(first, second)));
+
+        LoadedModObservation leaking = new LoadedModObservation("leak", "1",
+                LoadedModObservation.OriginKind.MODS_FILE, "C:\\secret\\cheat.jar", "");
+        assertThrows(EnvelopeException.class, () -> client.createAuthenticationFrames(
+                bundle, List.of(), List.of(), List.of(), List.of(leaking)));
+    }
+
+    @Test
+    void enforcesLoadedGraphCountBoundBeforeSigningAndFitsTheCanonicalMaximum() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        ClientIntegrityBundle bundle = ClientIntegrityBundle.of(List.of(new ScopeIntegrityManifest(
+                "mods", "mods", true, CLOCK.instant(), List.of(), new byte[32])));
+        List<LoadedModObservation> maximum = java.util.stream.IntStream
+                .range(0, ProtocolConstants.MAX_LOADED_MODS)
+                .mapToObj(index -> new LoadedModObservation(
+                        "loaded.mod." + index,
+                        "1.0." + index,
+                        LoadedModObservation.OriginKind.UNKNOWN,
+                        "",
+                        ""))
+                .toList();
+
+        List<ClientHandshakeEngine.OutboundFrame> frames = readyClient(server)
+                .createAuthenticationFrames(bundle, List.of(), List.of(), List.of(), maximum);
+        assertFalse(frames.isEmpty());
+        assertTrue(frames.stream()
+                .allMatch(frame -> frame.data().length <= ProtocolConstants.MAX_PROXY_PLUGIN_FRAME_BYTES));
+
+        List<LoadedModObservation> oversized = new java.util.ArrayList<>(maximum);
+        oversized.add(new LoadedModObservation(
+                "loaded.mod.overflow", "1", LoadedModObservation.OriginKind.UNKNOWN, "", ""));
+        assertThrows(EnvelopeException.class, () -> readyClient(server)
+                .createAuthenticationFrames(bundle, List.of(), List.of(), List.of(), oversized));
+    }
+
+    @Test
+    void rejectsNonCanonicalSelectedPackIdsBeforeSigningTheSnapshot() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = readyClient(server);
+        ClientIntegrityBundle bundle = ClientIntegrityBundle.of(List.of(new ScopeIntegrityManifest(
+                "mods", "mods", true, CLOCK.instant(), List.of(), new byte[32])));
+        assertThrows(EnvelopeException.class, () -> client.createAuthenticationFrames(
+                bundle, List.of(), List.of(" file/xray.zip"), List.of()));
+        assertThrows(EnvelopeException.class, () -> client.createAuthenticationFrames(
+                bundle, List.of(), java.util.Arrays.asList("xray.zip", null), List.of()));
+    }
+
+    @Test
+    void preservesResourcePackPrecedenceAndRejectsDuplicatePackIds() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = readyClient(server);
+        ClientIntegrityBundle bundle = ClientIntegrityBundle.of(List.of(new ScopeIntegrityManifest(
+                "mods", "mods", true, CLOCK.instant(), List.of(), new byte[32])));
+        List<String> encounterOrder = List.of(
+                "file/high-priority.zip", "file/base.zip", "vanilla");
+
+        List<ClientHandshakeEngine.OutboundFrame> frames = client.createAuthenticationFrames(
+                bundle, List.of(), encounterOrder, List.of("shader/active"));
+        AuthRequest request = AuthRequest.parseFrom(
+                SignedEnvelope.parseFrom(frames.get(1).data()).getPayload());
+
+        assertEquals(encounterOrder, request.getSelectedResourcePacksList());
+        assertEquals(List.of("shader/active"), request.getSelectedShaderPacksList());
+        assertThrows(EnvelopeException.class, () -> readyClient(server).createAuthenticationFrames(
+                bundle, List.of(), List.of("file/xray.zip", "file/xray.zip"), List.of()));
+        assertThrows(EnvelopeException.class, () -> readyClient(server).createAuthenticationFrames(
+                bundle, List.of(), List.of(), List.of("shader/xray", "shader/xray")));
+    }
+
+    @Test
+    void rejectsAuthenticationFramesWhenTheAcceptedPolicyExpiresWhileConsentIsPending() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        MutableClock clock = new MutableClock(CLOCK.instant());
+        ClientHandshakeEngine client = readyClient(server, clock);
+        clock.advance(Duration.ofHours(1));
+
+        ClientIntegrityBundle bundle = ClientIntegrityBundle.of(List.of(new ScopeIntegrityManifest(
+                "mods", "mods", true, clock.instant(), List.of(), new byte[32])));
+        assertThrows(EnvelopeException.class, () -> client.createAuthenticationFrames(bundle));
+    }
+
+    @Test
     void fragmentsLargeAuthenticationAndReceiverReassemblesTheSameAuthRequest() throws Exception {
         KeyPair server = Ed25519Keys.generate(new SecureRandom());
         ClientHandshakeEngine client = readyClient(server);
@@ -146,6 +308,9 @@ final class ClientHandshakeEngineBudgetTest {
                 com.ellan.mcace.protocol.generated.ClientHello.parseFrom(
                         SignedEnvelope.parseFrom(authenticationFrames.getFirst()).getPayload());
 
+        assertTrue(clientHello.getFederationSignedAssertionSha256().isEmpty());
+        assertTrue(authentication.getFederationSignedAssertionSha256().isEmpty());
+
         assertFalse(client.heartbeatReady());
         assertThrows(EnvelopeException.class, client::createHeartbeat);
 
@@ -181,6 +346,338 @@ final class ClientHandshakeEngineBudgetTest {
                 Ed25519Keys.decodePublic(clientHello.getPublicKeyX509().toByteArray()),
                 new NonceReplayGuard(CLOCK, ProtocolConstants.DEFAULT_REPLAY_WINDOW));
         assertThrows(EnvelopeException.class, () -> client.receiveAuthResult(authResult(server, true)));
+    }
+
+    @Test
+    void artifactObservationCommitsOnlyAfterExactAuthenticServerResult() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        KeyPair attacker = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = readyClient(server);
+        ClientIntegrityBundle bundle = ClientIntegrityBundle.of(List.of(new ScopeIntegrityManifest(
+                "mods", "mods", true, CLOCK.instant(), List.of(), new byte[32])));
+        client.createAuthentication(bundle);
+        client.receiveAuthResult(authResult(server, true));
+        ClientHandshakeEngine.PreparedArtifactObservationUpdate prepared =
+                client.prepareArtifactObservationUpdate(bundle, List.of());
+        ObservationFixture fixture = observationFixture(prepared, CLOCK);
+        ArtifactObservationResult exact = ArtifactObservationResult.newBuilder()
+                .setSessionId("budget-session")
+                .setUpdateSequence(fixture.update().getUpdateSequence())
+                .setAggregateRootSha256(fixture.update().getAggregateRootSha256())
+                .setAccepted(true)
+                .setReason(ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_ACCEPTED)
+                .setUpdateSha256(ByteString.copyFrom(fixture.updateSha256()))
+                .build();
+        EnvelopeCodec serverCodec = new EnvelopeCodec(
+                CLOCK, new SecureRandom(), ProtocolConstants.MAX_PAYLOAD_BYTES,
+                ProtocolConstants.DEFAULT_CLOCK_SKEW);
+
+        assertThrows(EnvelopeException.class, () -> client.commitArtifactObservationUpdate(prepared));
+        assertThrows(EnvelopeException.class, () -> client.receiveArtifactObservationResult(
+                serverCodec.sign(PacketType.ARTIFACT_OBSERVATION_RESULT, "budget-session",
+                        exact.toByteArray(), attacker.getPrivate()).toByteArray(), prepared));
+        assertThrows(EnvelopeException.class, () -> client.receiveArtifactObservationResult(
+                serverCodec.sign(PacketType.ARTIFACT_OBSERVATION_RESULT, "budget-session",
+                        exact.toBuilder().setUpdateSequence(exact.getUpdateSequence() + 1L).build().toByteArray(),
+                        server.getPrivate()).toByteArray(), prepared));
+        byte[] wrongRoot = exact.getAggregateRootSha256().toByteArray();
+        wrongRoot[0] ^= 1;
+        assertThrows(EnvelopeException.class, () -> client.receiveArtifactObservationResult(
+                serverCodec.sign(PacketType.ARTIFACT_OBSERVATION_RESULT, "budget-session",
+                        exact.toBuilder().setAggregateRootSha256(ByteString.copyFrom(wrongRoot)).build().toByteArray(),
+                        server.getPrivate()).toByteArray(), prepared));
+        byte[] wrongUpdateHash = fixture.updateSha256().clone();
+        wrongUpdateHash[0] ^= 1;
+        assertThrows(EnvelopeException.class, () -> client.receiveArtifactObservationResult(
+                serverCodec.sign(PacketType.ARTIFACT_OBSERVATION_RESULT, "budget-session",
+                        exact.toBuilder().setUpdateSha256(ByteString.copyFrom(wrongUpdateHash)).build().toByteArray(),
+                        server.getPrivate()).toByteArray(), prepared));
+
+        byte[] acceptedFrame = serverCodec.sign(
+                PacketType.ARTIFACT_OBSERVATION_RESULT, "budget-session",
+                exact.toByteArray(), server.getPrivate()).toByteArray();
+        ClientHandshakeEngine.VerifiedArtifactObservationResult verified =
+                client.receiveArtifactObservationResult(acceptedFrame, prepared);
+        assertTrue(verified.accepted());
+        assertEquals(exact.getUpdateSequence(), verified.updateSequence());
+        client.commitArtifactObservationUpdate(prepared);
+        assertThrows(EnvelopeException.class,
+                () -> client.receiveArtifactObservationResult(acceptedFrame, prepared));
+        assertThrows(EnvelopeException.class, () -> client.retryArtifactObservationUpdate(prepared));
+    }
+
+    @Test
+    void negativeResultDoesNotAdvanceSequenceAndFreshPreparationCanRecover() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = readyClient(server);
+        ClientIntegrityBundle bundle = ClientIntegrityBundle.of(List.of(new ScopeIntegrityManifest(
+                "mods", "mods", true, CLOCK.instant(), List.of(), new byte[32])));
+        client.createAuthentication(bundle);
+        client.receiveAuthResult(authResult(server, true));
+        ClientHandshakeEngine.PreparedArtifactObservationUpdate rejected =
+                client.prepareArtifactObservationUpdate(bundle, List.of());
+        ObservationFixture rejectedFixture = observationFixture(rejected, CLOCK);
+        EnvelopeCodec codec = new EnvelopeCodec(
+                CLOCK, new SecureRandom(), ProtocolConstants.MAX_PAYLOAD_BYTES,
+                ProtocolConstants.DEFAULT_CLOCK_SKEW);
+        ArtifactObservationResult negative = ArtifactObservationResult.newBuilder()
+                .setSessionId("budget-session")
+                .setUpdateSequence(rejectedFixture.update().getUpdateSequence())
+                .setAggregateRootSha256(rejectedFixture.update().getAggregateRootSha256())
+                .setAccepted(false)
+                .setReason(ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_RATE_LIMITED)
+                .setRetryAfterEpochMs(CLOCK.millis() + Duration.ofMinutes(5).toMillis())
+                .setUpdateSha256(ByteString.copyFrom(rejectedFixture.updateSha256()))
+                .build();
+        assertFalse(client.receiveArtifactObservationResult(codec.sign(
+                PacketType.ARTIFACT_OBSERVATION_RESULT, "budget-session",
+                negative.toByteArray(), server.getPrivate()).toByteArray(), rejected).accepted());
+        assertThrows(EnvelopeException.class, () -> client.commitArtifactObservationUpdate(rejected));
+        assertThrows(EnvelopeException.class, () -> client.retryArtifactObservationUpdate(rejected));
+
+        ClientHandshakeEngine.PreparedArtifactObservationUpdate replacement =
+                client.prepareArtifactObservationUpdate(bundle, List.of());
+        ObservationFixture replacementFixture = observationFixture(replacement, CLOCK);
+        assertEquals(rejectedFixture.update().getUpdateSequence(),
+                replacementFixture.update().getUpdateSequence());
+        ArtifactObservationResult accepted = negative.toBuilder()
+                .setAggregateRootSha256(replacementFixture.update().getAggregateRootSha256())
+                .setAccepted(true)
+                .setReason(ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_ACCEPTED)
+                .setRetryAfterEpochMs(0L)
+                .setUpdateSha256(ByteString.copyFrom(replacementFixture.updateSha256()))
+                .build();
+        client.receiveArtifactObservationResult(codec.sign(
+                PacketType.ARTIFACT_OBSERVATION_RESULT, "budget-session",
+                accepted.toByteArray(), server.getPrivate()).toByteArray(), replacement);
+        client.commitArtifactObservationUpdate(replacement);
+    }
+
+    @Test
+    void staleResultLeavesExactPayloadRetryableWithFreshTransferNonces() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        MutableClock clock = new MutableClock(CLOCK.instant());
+        ClientHandshakeEngine client = readyClient(server, clock);
+        ClientIntegrityBundle bundle = ClientIntegrityBundle.of(List.of(new ScopeIntegrityManifest(
+                "mods", "mods", true, clock.instant(), List.of(), new byte[32])));
+        client.createAuthentication(bundle);
+        client.receiveAuthResult(authResult(server, true, clock, Duration.ofMinutes(2)));
+        ClientHandshakeEngine.PreparedArtifactObservationUpdate prepared =
+                client.prepareArtifactObservationUpdate(bundle, List.of());
+        ObservationFixture fixture = observationFixture(prepared, clock);
+        ArtifactObservationResult result = ArtifactObservationResult.newBuilder()
+                .setSessionId("budget-session")
+                .setUpdateSequence(fixture.update().getUpdateSequence())
+                .setAggregateRootSha256(fixture.update().getAggregateRootSha256())
+                .setAccepted(true)
+                .setReason(ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_ACCEPTED)
+                .setUpdateSha256(ByteString.copyFrom(fixture.updateSha256()))
+                .build();
+        byte[] stale = new EnvelopeCodec(
+                clock, new SecureRandom(), ProtocolConstants.MAX_PAYLOAD_BYTES,
+                ProtocolConstants.DEFAULT_CLOCK_SKEW).sign(
+                        PacketType.ARTIFACT_OBSERVATION_RESULT, "budget-session",
+                        result.toByteArray(), server.getPrivate()).toByteArray();
+
+        clock.advance(ProtocolConstants.DEFAULT_CLOCK_SKEW.plusMillis(1L));
+        assertThrows(EnvelopeException.class,
+                () -> client.receiveArtifactObservationResult(stale, prepared));
+        byte[] originalFirstFrame = prepared.frames().getFirst().data();
+        prepared.frames().forEach(ClientHandshakeEngine.OutboundFrame::clear);
+        assertTrue(prepared.frames().stream()
+                .flatMapToInt(frame -> java.util.Arrays.stream(toUnsignedInts(frame.data())))
+                .allMatch(value -> value == 0),
+                "the original one-shot transport frames must be clearable before retry");
+        List<ClientHandshakeEngine.OutboundFrame> retry =
+                client.retryArtifactObservationUpdate(prepared);
+        assertFalse(retry.isEmpty());
+        assertFalse(java.util.Arrays.equals(
+                originalFirstFrame, retry.getFirst().data()),
+                "retry fragments must carry fresh transfer identity and envelope nonces");
+        ObservationFixture retryFixture = observationFixture(retry, clock);
+        assertEquals(fixture.update(), retryFixture.update(),
+                "retry must preserve the exact canonical update after original frames are cleared");
+        assertArrayEquals(fixture.updateSha256(), retryFixture.updateSha256(),
+                "retry must preserve the exact update digest after original frames are cleared");
+        byte[] fresh = new EnvelopeCodec(
+                clock, new SecureRandom(), ProtocolConstants.MAX_PAYLOAD_BYTES,
+                ProtocolConstants.DEFAULT_CLOCK_SKEW).sign(
+                        PacketType.ARTIFACT_OBSERVATION_RESULT, "budget-session",
+                        result.toByteArray(), server.getPrivate()).toByteArray();
+        assertTrue(client.receiveArtifactObservationResult(fresh, prepared).accepted());
+        client.commitArtifactObservationUpdate(prepared);
+    }
+
+    @Test
+    void federationAuthTranscriptCarriesExactHashAndRequiresSignedResultEcho() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        KeyPair clientKey = Ed25519Keys.generate(new SecureRandom());
+        byte[] binding = new byte[32];
+        java.util.Arrays.fill(binding, (byte) 0x5a);
+        ClientHandshakeEngine client = new ClientHandshakeEngine(
+                TEST_PLAYER_ID, "test-client", "1.21.1", "test-build", LoaderType.FABRIC,
+                server.getPublic(), CLOCK, new SecureRandom(), clientKey, binding);
+        client.prepareServerHello(serverHello(server), "budget.example:25565",
+                new VerifiedPolicyCache(temporaryDirectory.resolve(UUID.randomUUID().toString()), CLOCK));
+
+        List<byte[]> frames = client.createAuthentication(ClientIntegrityBundle.of(List.of(
+                new ScopeIntegrityManifest("mods", "mods", true, CLOCK.instant(), List.of(), new byte[32]))));
+        com.ellan.mcace.protocol.generated.ClientHello hello =
+                com.ellan.mcace.protocol.generated.ClientHello.parseFrom(
+                        SignedEnvelope.parseFrom(frames.getFirst()).getPayload());
+        AuthRequest request = AuthRequest.parseFrom(
+                SignedEnvelope.parseFrom(frames.get(1)).getPayload());
+        assertEquals(ByteString.copyFrom(binding), hello.getFederationSignedAssertionSha256());
+        assertEquals(ByteString.copyFrom(binding), request.getFederationSignedAssertionSha256());
+
+        assertThrows(EnvelopeException.class,
+                () -> client.receiveAuthResult(authResult(server, true, CLOCK,
+                        Duration.ofMinutes(2), new byte[0])));
+        byte[] wrong = binding.clone();
+        wrong[0] ^= 1;
+        assertThrows(EnvelopeException.class,
+                () -> client.receiveAuthResult(authResult(server, true, CLOCK,
+                        Duration.ofMinutes(2), wrong)));
+        assertTrue(client.receiveAuthResult(authResult(server, true, CLOCK,
+                Duration.ofMinutes(2), binding)).getAccepted());
+    }
+
+    @Test
+    void federationGrantCarriesTheBurnedSourceEvidenceBudgetThroughTheEngine() throws Exception {
+        KeyPair source = Ed25519Keys.generate(new SecureRandom());
+        KeyPair target = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine sourceClient = new ClientHandshakeEngine(
+                TEST_PLAYER_ID,
+                "test-client",
+                "1.21.1",
+                "test-build",
+                LoaderType.FABRIC,
+                source.getPublic(),
+                CLOCK,
+                new SecureRandom());
+        var sourcePolicy = sourceClient.prepareServerHello(
+                serverHello(source),
+                "budget.example:25565",
+                new VerifiedPolicyCache(temporaryDirectory.resolve(UUID.randomUUID().toString()), CLOCK));
+        List<byte[]> authentication = sourceClient.createAuthentication(ClientIntegrityBundle.of(List.of(
+                new ScopeIntegrityManifest(
+                        "mods", "mods", true, CLOCK.instant(), List.of(), new byte[32]))));
+        com.ellan.mcace.protocol.generated.ClientHello clientHello =
+                com.ellan.mcace.protocol.generated.ClientHello.parseFrom(
+                        SignedEnvelope.parseFrom(authentication.getFirst()).getPayload());
+        PublicKey clientSessionPublicKey =
+                Ed25519Keys.decodePublic(clientHello.getPublicKeyX509().toByteArray());
+        assertTrue(sourceClient.receiveAuthResult(authResult(source, true)).getAccepted());
+
+        com.ellan.mcace.protocol.generated.FederationConsentRequest request =
+                FederationDocuments.issueConsentRequest(
+                        "budget-server",
+                        "target",
+                        TEST_PLAYER_ID.toString(),
+                        clientSessionPublicKey,
+                        source.getPublic(),
+                        target.getPublic(),
+                        "budget-session",
+                        sourcePolicy.policy().getPolicyVersion(),
+                        sourcePolicy.policySha256(),
+                        CLOCK,
+                        Duration.ofMinutes(2),
+                        new SecureRandom());
+        byte[] requestFrame = new EnvelopeCodec(
+                CLOCK,
+                new SecureRandom(),
+                ProtocolConstants.MAX_PAYLOAD_BYTES,
+                ProtocolConstants.DEFAULT_CLOCK_SKEW)
+                .sign(
+                        PacketType.FEDERATION_CONSENT_REQUEST,
+                        "budget-session",
+                        request.toByteArray(),
+                        source.getPrivate())
+                .toByteArray();
+        ClientHandshakeEngine.VerifiedFederationConsentRequest verifiedRequest =
+                sourceClient.receiveFederationConsentRequest(requestFrame);
+        ConnectionEnablementAuthorization sourceAuthorization =
+                ConnectionEnablementAuthorization.humanVisible(sourceClient, 81L);
+        assertTrue(sourceAuthorization.tryBeginEvidenceCapture("source-request", "source-frame"));
+        assertTrue(sourceAuthorization.commitEvidenceCapture("source-request", "source-frame"));
+        assertTrue(sourceAuthorization.tryBeginSourceExport(
+                request.getAssertionId(), verifiedRequest.requestPayloadSha256()));
+
+        byte[] consentFrame = sourceClient.createFederationConsentFrame(verifiedRequest);
+        assertTrue(sourceAuthorization.commitSourceExport(
+                request.getAssertionId(), verifiedRequest.requestPayloadSha256()));
+        com.ellan.mcace.protocol.generated.ClientFederationConsent consent =
+                FederationDocuments.parseConsentResponse(
+                        SignedEnvelope.parseFrom(consentFrame).getPayload().toByteArray());
+        com.ellan.mcace.protocol.generated.FederationGrant grant = FederationDocuments.grant(
+                consent,
+                FederationDocuments.signAssertion(
+                        request,
+                        consent,
+                        clientSessionPublicKey,
+                        source.getPrivate(),
+                        source.getPublic(),
+                        CLOCK,
+                        Duration.ZERO),
+                clientSessionPublicKey);
+        byte[] grantFrame = new EnvelopeCodec(
+                CLOCK,
+                new SecureRandom(),
+                ProtocolConstants.MAX_PAYLOAD_BYTES,
+                ProtocolConstants.DEFAULT_CLOCK_SKEW)
+                .sign(
+                        PacketType.FEDERATION_GRANT,
+                        "budget-session",
+                        FederationDocuments.encodeGrant(grant),
+                        source.getPrivate())
+                .toByteArray();
+
+        FederationTokenVault vault = new FederationTokenVault();
+        sourceClient.receiveFederationGrant(
+                grantFrame, vault, java.util.Set.of("options.txt"), sourceAuthorization);
+        FederationTokenVault.TargetHandshakeClaim claim = vault.claimTargetHandshake(
+                "target",
+                TEST_PLAYER_ID,
+                "test-client",
+                "1.21.1",
+                "test-build",
+                LoaderType.FABRIC,
+                target.getPublic(),
+                CLOCK,
+                new SecureRandom()).orElseThrow();
+        ConnectionEnablementAuthorization targetAuthorization =
+                ConnectionEnablementAuthorization.federationInherited(claim.engine(), 82L, claim);
+        FederationTokenVault.PreparedPresentation prepared = vault.preparePresentation(
+                "target", TEST_PLAYER_ID, "target-session", new byte[32], CLOCK).orElseThrow();
+        assertTrue(targetAuthorization.promoteAfterPresentationCommit(
+                vault.commit(prepared, CLOCK).orElseThrow()));
+        assertFalse(targetAuthorization.tryBeginEvidenceCapture("target-request", "target-frame"));
+    }
+
+    @Test
+    void federationConstructorRejectsMissingOrNonSha256Binding() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        KeyPair clientKey = Ed25519Keys.generate(new SecureRandom());
+        for (int length : List.of(0, 31, 33)) {
+            assertThrows(IllegalArgumentException.class, () -> new ClientHandshakeEngine(
+                    TEST_PLAYER_ID, "test-client", "1.21.1", "test-build", LoaderType.FABRIC,
+                    server.getPublic(), CLOCK, new SecureRandom(), clientKey, new byte[length]));
+        }
+    }
+
+    @Test
+    void ordinaryClientRejectsUnexpectedFederationEcho() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = readyClient(server);
+        client.createAuthentication(ClientIntegrityBundle.of(List.of(
+                new ScopeIntegrityManifest("mods", "mods", true, CLOCK.instant(), List.of(), new byte[32]))));
+        byte[] injected = new byte[32];
+        injected[0] = 1;
+
+        assertThrows(EnvelopeException.class,
+                () -> client.receiveAuthResult(authResult(server, true, CLOCK,
+                        Duration.ofMinutes(2), injected)));
+        assertTrue(client.receiveAuthResult(authResult(server, true)).getAccepted());
     }
 
     @Test
@@ -506,6 +1003,44 @@ final class ClientHandshakeEngineBudgetTest {
         assertThrows(EnvelopeException.class, () -> client.receiveEvidenceError(errorFrame));
     }
 
+    private static ObservationFixture observationFixture(
+            ClientHandshakeEngine.PreparedArtifactObservationUpdate prepared, Clock clock) throws Exception {
+        return observationFixture(prepared.frames(), clock);
+    }
+
+    private static ObservationFixture observationFixture(
+            List<ClientHandshakeEngine.OutboundFrame> frames, Clock clock) throws Exception {
+        BoundedPayloadTransferReceiver receiver = new BoundedPayloadTransferReceiver(
+                "budget-session", clock, ProtocolConstants.DEFAULT_BOUNDED_PAYLOAD_TTL);
+        Optional<BoundedPayloadTransferReceiver.CompletedPayload> completed = Optional.empty();
+        for (ClientHandshakeEngine.OutboundFrame frame : frames) {
+            completed = receiver.acceptVerified(SignedEnvelope.parseFrom(frame.data()));
+        }
+        byte[] payload = completed.orElseThrow().content();
+        return new ObservationFixture(
+                ArtifactObservationUpdate.parseFrom(payload),
+                MessageDigest.getInstance("SHA-256").digest(payload));
+    }
+
+    private static int[] toUnsignedInts(byte[] bytes) {
+        int[] values = new int[bytes.length];
+        for (int index = 0; index < bytes.length; index++) {
+            values[index] = Byte.toUnsignedInt(bytes[index]);
+        }
+        return values;
+    }
+
+    private record ObservationFixture(ArtifactObservationUpdate update, byte[] updateSha256) {
+        private ObservationFixture {
+            updateSha256 = updateSha256.clone();
+        }
+
+        @Override
+        public byte[] updateSha256() {
+            return updateSha256.clone();
+        }
+    }
+
     private static String clientPlayerId(ClientHandshakeEngine client) {
         // The test engine intentionally does not expose player identity. Build requests in the
         // same way as the production client by using the UUID retained by the fixture below.
@@ -552,10 +1087,17 @@ final class ClientHandshakeEngineBudgetTest {
     }
 
     private static byte[] authResult(KeyPair server, boolean accepted, Clock clock, Duration lifetime) throws Exception {
+        return authResult(server, accepted, clock, lifetime, new byte[0]);
+    }
+
+    private static byte[] authResult(
+            KeyPair server, boolean accepted, Clock clock, Duration lifetime, byte[] federationBinding)
+            throws Exception {
         AuthResult result = AuthResult.newBuilder()
                 .setAccepted(accepted)
                 .setTrustLevel(accepted ? TrustLevel.VERIFIED : TrustLevel.UNKNOWN)
                 .setExpiresAtEpochMs(accepted ? clock.millis() + lifetime.toMillis() : 0)
+                .setFederationSignedAssertionSha256(ByteString.copyFrom(federationBinding))
                 .build();
         return new EnvelopeCodec(
                 clock, new SecureRandom(), ProtocolConstants.MAX_PAYLOAD_BYTES, ProtocolConstants.DEFAULT_CLOCK_SKEW)

@@ -1,0 +1,27 @@
+{
+  "schema": "MCACE_CLUSTER_STATIC_EVIDENCE_V1",
+  "generated_at": "2026-08-23T18:05:03.8569542Z",
+  "source_commit": "cd3921c58c2742b3219c081f4096c3b5ad9fb473",
+  "execution_node": "helio",
+  "profile": "windows",
+  "job_id": "20260823-helio-cd3921c-static",
+  "command": "PowerShell 5.1: scripts/test-*.ps1 (sorted)",
+  "passed": true,
+  "passed_count": 15,
+  "failed_count": 0,
+  "exit_code": 0,
+  "runtime": {
+    "powershell": "5.1.26100.9168",
+    "os": "Windows"
+  },
+  "log": {
+    "sha256": "1fab373f18da81e44d3d9f5a281c4216b2535c42ea6811793f451d4f4e6b2ced",
+    "worker_path": "C:\\CodexWorker\\jobs\\20260823-helio-cd3921c-static\\static.log"
+  },
+  "changed_script_sha256": "1303000c23bb36ad2b2e70771368c4dd52e8ab81dab744e4c9a4ac12b61993cc",
+  "notes": [
+    "All 15 repository test wrappers passed on the Helio Windows PowerShell 5.1 runtime.",
+    "The run specifically closes the previous GetRelativePath/FromHexString compatibility failure.",
+    "This is static evidence only and does not close GUI, federation, licensed Vulcan, production authority, or protected-main release gates."
+  ]
+}

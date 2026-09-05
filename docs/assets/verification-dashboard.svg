@@ -1,36 +1,48 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="520" viewBox="0 0 1200 520" role="img" aria-labelledby="title desc">
-  <title id="title">MCAce verification dashboard</title>
-  <desc id="desc">Current build, server process matrix, and artifact verification results.</desc>
-  <rect width="1200" height="520" rx="20" fill="#0b1220"/>
-  <text x="50" y="58" fill="#f8fafc" font-family="Segoe UI, sans-serif" font-size="30" font-weight="700">Verification dashboard · source-bound release candidate</text>
-  <g font-family="Segoe UI, sans-serif">
-    <rect x="50" y="105" width="340" height="300" rx="18" fill="#102a1b" stroke="#4ade80" stroke-width="2"/>
-    <text x="80" y="150" fill="#86efac" font-size="23" font-weight="700">Build + tests</text>
-    <text x="80" y="198" fill="#f0fdf4" font-size="34" font-weight="700">171 / 755</text>
-    <text x="80" y="228" fill="#bbf7d0" font-size="17">suites / tests</text>
-    <text x="80" y="270" fill="#f0fdf4" font-size="18">0 failures · 0 errors</text>
-    <text x="80" y="304" fill="#f0fdf4" font-size="18">JDK 21 + JDK 25</text>
-    <text x="80" y="338" fill="#f0fdf4" font-size="18">exact-8 bundle</text>
-    <rect x="80" y="360" width="135" height="34" rx="17" fill="#166534"/>
-    <text x="147" y="383" text-anchor="middle" fill="#dcfce7" font-size="15" font-weight="700">PASS</text>
-    <rect x="430" y="105" width="340" height="300" rx="18" fill="#10243b" stroke="#38bdf8" stroke-width="2"/>
-    <text x="460" y="150" fill="#7dd3fc" font-size="23" font-weight="700">Server matrix</text>
-    <text x="460" y="198" fill="#e0f2fe" font-size="34" font-weight="700">12 / 12</text>
-    <text x="460" y="228" fill="#bae6fd" font-size="17">Paper/Folia × Velocity/Bungee</text>
-    <text x="460" y="270" fill="#e0f2fe" font-size="18">10 stable · 2 beta</text>
-    <text x="460" y="304" fill="#e0f2fe" font-size="18">cleanup residue: 0</text>
-    <text x="460" y="338" fill="#e0f2fe" font-size="18">ReportOnly revalidation</text>
-    <rect x="460" y="360" width="135" height="34" rx="17" fill="#075985"/>
-    <text x="527" y="383" text-anchor="middle" fill="#e0f2fe" font-size="15" font-weight="700">PASS</text>
-    <rect x="810" y="105" width="340" height="300" rx="18" fill="#2a1d12" stroke="#f59e0b" stroke-width="2"/>
-    <text x="840" y="150" fill="#fcd34d" font-size="23" font-weight="700">Anti-cheat smoke</text>
-    <text x="840" y="198" fill="#fffbeb" font-size="34" font-weight="700">31 checks</text>
-    <text x="840" y="228" fill="#fef3c7" font-size="17">fixture + real client load</text>
-    <text x="840" y="270" fill="#fffbeb" font-size="18">Meteor initialized: yes</text>
-    <text x="840" y="304" fill="#fffbeb" font-size="18">Xray pack reloaded: yes</text>
-    <text x="840" y="338" fill="#fde68a" font-size="18">server detection: pending</text>
-    <rect x="840" y="360" width="210" height="34" rx="17" fill="#92400e"/>
-    <text x="945" y="383" text-anchor="middle" fill="#fef3c7" font-size="15" font-weight="700">CLIENT-LOAD ONLY</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="650" viewBox="0 0 1400 650" role="img" aria-labelledby="title desc">
+  <title id="title">MCAce release verification dashboard</title>
+  <desc id="desc">A truthful dashboard separates implemented controls with targeted regression evidence, controlled diagnostics, and external release gates that remain locked.</desc>
+  <rect width="1400" height="650" rx="24" fill="#0b1220"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="52" y="62" fill="#f8fafc" font-size="31" font-weight="700">Release verification dashboard · no synthetic promotion</text>
+    <text x="52" y="94" fill="#94a3b8" font-size="17">Status is evidence-class aware: local tests, controlled execution, and real external acceptance are not interchangeable.</text>
+    <rect x="52" y="137" width="410" height="390" rx="20" fill="#102a1b" stroke="#4ade80" stroke-width="2"/>
+    <text x="82" y="176" fill="#86efac" font-size="22" font-weight="700">Implemented + targeted</text>
+    <text x="82" y="202" fill="#86efac" font-size="22" font-weight="700">regression evidence</text>
+    <g fill="#f0fdf4" font-size="17">
+      <text x="82" y="231">✓ Three-version Fabric packaging contract</text>
+      <text x="82" y="269">✓ Exact four-class client-safe core slice</text>
+      <text x="82" y="307">✓ Federation assertion H_A AUTH binding</text>
+      <text x="82" y="345">✓ Federation V5 dual-signer validators</text>
+      <text x="82" y="383">✓ Provider callback replay deduplication</text>
+      <text x="82" y="421">✓ Controlled executable fixture: 3 / 3</text>
+      <text x="82" y="459">✓ Clean control false positives: 0</text>
+    </g>
+    <rect x="82" y="480" width="225" height="34" rx="17" fill="#166534"/><text x="194" y="503" text-anchor="middle" fill="#dcfce7" font-size="16" font-weight="700">TARGETED EVIDENCE</text>
+    <rect x="495" y="137" width="410" height="390" rx="20" fill="#2a1d12" stroke="#f59e0b" stroke-width="2"/>
+    <text x="525" y="182" fill="#fcd34d" font-size="22" font-weight="700">Executed diagnostic evidence</text>
+    <g fill="#fef3c7" font-size="17">
+      <text x="525" y="231">• Matrix raw process reports: 12 / 12</text>
+      <text x="525" y="269">• Paper/Folia × Velocity/Bungee</text>
+      <text x="525" y="307">• Minecraft 1.21.11 / 26.1.2 / 26.2</text>
+      <text x="525" y="345">• Process cleanup residue: 0</text>
+      <text x="525" y="383">• Raw-set/JAR/source cross-binding</text>
+      <text x="525" y="421">• Independent supervisor receipt required</text>
+      <text x="525" y="459">• Diagnostic evidence cannot self-promote</text>
+    </g>
+    <rect x="525" y="480" width="275" height="34" rx="17" fill="#92400e"/><text x="662" y="503" text-anchor="middle" fill="#fef3c7" font-size="16" font-weight="700">NOT YET RELEASE EVIDENCE</text>
+    <rect x="938" y="137" width="410" height="390" rx="20" fill="#2b1720" stroke="#fb7185" stroke-width="2"/>
+    <text x="968" y="182" fill="#fda4af" font-size="22" font-weight="700">External gates remain locked</text>
+    <g fill="#ffe4e6" font-size="17">
+      <text x="968" y="231">○ One visible GUI confirmation</text>
+      <text x="968" y="269">○ Real source → target handoff receipt</text>
+      <text x="968" y="307">○ Licensed Vulcan genuine event</text>
+      <text x="968" y="345">○ Production authority raw signed frames</text>
+      <text x="968" y="383">○ Approved external public-key pins</text>
+      <text x="968" y="421">○ Protected exact-commit GitHub CI</text>
+      <text x="968" y="459">○ Merge / tag / GitHub Release</text>
+    </g>
+    <rect x="968" y="480" width="200" height="34" rx="17" fill="#9f1239"/><text x="1068" y="503" text-anchor="middle" fill="#fff1f2" font-size="16" font-weight="700">RELEASE LOCKED</text>
+    <text x="700" y="584" text-anchor="middle" fill="#94a3b8" font-size="17">A missing external artifact stays a blocker; a fixture, operator assertion, or caller boolean never becomes PASS.</text>
+    <text x="700" y="613" text-anchor="middle" fill="#64748b" font-size="16">This dashboard is intentionally qualitative until the final exact-commit suite emits stable totals.</text>
   </g>
-  <text x="600" y="470" text-anchor="middle" fill="#94a3b8" font-family="Segoe UI, sans-serif" font-size="16">Green means verified by current evidence; amber means intentionally not claimed.</text>
 </svg>

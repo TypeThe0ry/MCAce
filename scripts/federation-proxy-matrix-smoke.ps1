@@ -24,15 +24,25 @@ $evidenceRunsRoot = Join-Path $repoRoot 'build\runtime-federation-matrix\evidenc
 $wrapperPropertiesPath = Join-Path $repoRoot 'gradle\wrapper\gradle-wrapper.properties'
 $gradleWrapperJarPath = Join-Path $repoRoot 'gradle\wrapper\gradle-wrapper.jar'
 $platformPaths = [ordered]@{
-    velocity = Join-Path $repoRoot 'build\platform-smoke\cache\velocity-3.5.1-615.jar'
-    bungee = Join-Path $repoRoot 'build\platform-smoke-bungee\cache\bungeecord-1.21-build-2028.jar'
-    paper = Join-Path $repoRoot 'build\platform-smoke\cache\paper-1.21.1-133.jar'
-    paper_prepared = Join-Path $repoRoot 'build\platform-smoke\cache\paper-1.21.1-133-prepared'
+    # The raw peer only accepts release wire profiles.  Bind this four-pair
+    # federation run to the same reviewed 1.21.11 assets used by the release
+    # matrix instead of the legacy 1.21.1 smoke cache.
+    velocity = Join-Path $repoRoot 'build\runtime-assets\velocity\3.5.1-615\server.jar'
+    bungee = Join-Path $repoRoot 'build\runtime-assets\bungeecord\2085\server.jar'
+    paper = Join-Path $repoRoot 'build\runtime-assets\paper\1.21.11\132\server.jar'
+    paper_prepared = Join-Path $repoRoot 'build\runtime-assets\paper\1.21.11\132\prepared'
 }
 $expectedPlatformSha256 = [ordered]@{
     velocity = 'b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3'
-    bungee = '45a5aa27b9f2446c320447148913aee5673ec23ddf30c81d6dafa9dd910a91eb'
-    paper = '39bd8c00b9e18de91dcabd3cc3dcfa5328685a53b7187a2f63280c22e2d287b9'
+    bungee = 'e6914a29c0ae04c0ed6335f201e409322b3c67548906a91e92e832d665cd6fce'
+    paper = '5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba'
+}
+$federationRuntime = [ordered]@{
+    backend_kind = 'PAPER'
+    minecraft_version = '1.21.11'
+    minecraft_protocol = 774
+    server_java_feature = 21
+    prepared_tree_sha256 = 'db29ac6443ecef6d633a7576fe003974f6e826cb042cc15752e3b18514ee2922'
 }
 $artifactPaths = [ordered]@{
     velocity = Join-Path $repoRoot 'mcace-server-velocity\build\libs\mcace-server-velocity-0.1.0-SNAPSHOT.jar'
@@ -342,6 +352,59 @@ function Get-TreeManifestBinding {
     return [pscustomobject]@{ sha256 = Get-BytesSha256 $bytes; file_count = [int]$ordered.Count }
 }
 
+function Get-PreparedTreeBinding {
+    param([Parameter(Mandatory)][string]$RootPath)
+
+    # Keep this byte-for-byte compatible with RuntimeProcessAssets.preparedTreeSha256:
+    # domain || big-endian(path-byte-count) || path || big-endian(file-size) || file bytes,
+    # with the cache/libraries/versions files sorted by slash-normalized relative path.
+    $root = Assert-DirectLocalPath $RootPath -Directory
+    $files = New-Object 'System.Collections.Generic.List[object]'
+    foreach ($requiredDirectory in @('cache', 'libraries', 'versions')) {
+        $directory = Assert-DirectLocalPath (Join-Path $root $requiredDirectory) -Directory
+        foreach ($file in @(Get-ChildItem -LiteralPath $directory -Recurse -Force -File -ErrorAction Stop)) {
+            $resolved = Assert-DirectLocalPath $file.FullName
+            $relative = $resolved.Substring($root.Length + 1).Replace('\', '/')
+            $files.Add([pscustomobject]@{ path = $resolved; relative = $relative; size = [long]$file.Length })
+        }
+    }
+    $ordered = @($files | Sort-Object -Property relative)
+    $hash = [System.Security.Cryptography.SHA256]::Create()
+    try {
+        $domain = [Text.Encoding]::ASCII.GetBytes('MCACE_PREPARED_TREE_SHA256_V1' + [char]0)
+        $null = $hash.TransformBlock($domain, 0, $domain.Length, $domain, 0)
+        foreach ($file in $ordered) {
+            $relativeBytes = [Text.Encoding]::UTF8.GetBytes([string]$file.relative)
+            $pathLength = [BitConverter]::GetBytes([int]$relativeBytes.Length)
+            $sizeBytes = [BitConverter]::GetBytes([long]$file.size)
+            if ([BitConverter]::IsLittleEndian) {
+                [Array]::Reverse($pathLength)
+                [Array]::Reverse($sizeBytes)
+            }
+            $null = $hash.TransformBlock($pathLength, 0, $pathLength.Length, $pathLength, 0)
+            $null = $hash.TransformBlock($relativeBytes, 0, $relativeBytes.Length, $relativeBytes, 0)
+            $null = $hash.TransformBlock($sizeBytes, 0, $sizeBytes.Length, $sizeBytes, 0)
+            $stream = [IO.File]::Open([string]$file.path, [IO.FileMode]::Open,
+                [IO.FileAccess]::Read, [IO.FileShare]::Read)
+            try {
+                $buffer = New-Object byte[] (64 * 1024)
+                while (($read = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+                    $null = $hash.TransformBlock($buffer, 0, $read, $buffer, 0)
+                }
+            } finally {
+                $stream.Dispose()
+            }
+        }
+        $null = $hash.TransformFinalBlock([byte[]]::new(0), 0, 0)
+        return [pscustomobject]@{
+            sha256 = ([BitConverter]::ToString($hash.Hash)).Replace('-', '').ToLowerInvariant()
+            file_count = [int]$ordered.Count
+        }
+    } finally {
+        $hash.Dispose()
+    }
+}
+
 function Get-PlatformBinding {
     $hashes = [ordered]@{}
     foreach ($name in @('velocity', 'bungee', 'paper')) {
@@ -352,8 +415,11 @@ function Get-PlatformBinding {
         }
         $hashes[$name] = $hash
     }
-    $prepared = Get-TreeManifestBinding $platformPaths.paper_prepared
+    $prepared = Get-PreparedTreeBinding $platformPaths.paper_prepared
     if ($prepared.file_count -le 0) { throw 'FEDERATION_MATRIX_PREPARED_PAPER_EMPTY' }
+    if ($prepared.sha256 -cne $federationRuntime.prepared_tree_sha256) {
+        throw "FEDERATION_MATRIX_PREPARED_PAPER_SHA256_MISMATCH: expected=$($federationRuntime.prepared_tree_sha256); actual=$($prepared.sha256)"
+    }
     return [pscustomobject]@{
         velocity_server_sha256 = $hashes.velocity
         bungee_server_sha256 = $hashes.bungee
@@ -430,6 +496,52 @@ function Resolve-OfflineGradle961 {
         throw 'FEDERATION_MATRIX_OFFLINE_GRADLE_9_6_1_REQUIRED: expected exactly one verified cached installation'
     }
     return $valid[0]
+}
+
+function Invoke-VerifiedGradle {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$JavaPath,
+        [Parameter(Mandatory)][string]$LauncherPath,
+        [Parameter(Mandatory)][string[]]$JvmArguments,
+        [Parameter(Mandatory)][string[]]$GradleArguments
+    )
+
+    # Native PowerShell invocation of a .bat can collapse an array of -D
+    # arguments into one quoted token on Windows.  ProcessStartInfo.ArgumentList
+    # gives each JVM/Gradle argument an explicit boundary and keeps the
+    # forked Test Executor properties independent and auditable.
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = Assert-DirectLocalPath $JavaPath
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    foreach ($argument in @($JvmArguments)) {
+        $startInfo.ArgumentList.Add([string]$argument)
+    }
+    $startInfo.ArgumentList.Add('-classpath')
+    $startInfo.ArgumentList.Add((Assert-DirectLocalPath $LauncherPath))
+    $startInfo.ArgumentList.Add('org.gradle.launcher.GradleMain')
+    foreach ($argument in @($GradleArguments)) {
+        $startInfo.ArgumentList.Add([string]$argument)
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) { throw 'FEDERATION_MATRIX_GRADLE_PROCESS_START_FAILED' }
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $process.WaitForExit()
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+        if (-not [string]::IsNullOrEmpty($stdout)) { [Console]::Out.Write($stdout) }
+        if (-not [string]::IsNullOrEmpty($stderr)) { [Console]::Error.Write($stderr) }
+        return [int]$process.ExitCode
+    } finally {
+        $process.Dispose()
+    }
 }
 
 function Get-GateSourceInputPaths {
@@ -511,6 +623,7 @@ function Get-CurrentBinding {
         gradle_installation_file_count = $gradle.installation_file_count
         java_path = $java.path
         gradle_user_home = $gradle.user_home
+        gradle_command_path = $gradle.command_path
         gradle_launcher_path = $gradle.launcher_path
     }
 }
@@ -1088,15 +1201,47 @@ try {
     foreach ($case in $allCases) {
         $startedAt = [DateTimeOffset]::UtcNow
         Write-Host "MCAce federation proxy matrix: $($case.Test)"
-        & $currentBefore.java_path '-classpath' $currentBefore.gradle_launcher_path `
-            'org.gradle.launcher.GradleMain' '-Dmcace.runtime.federation.enabled=true' `
-            ':mcace-runtime-integration:test' '--tests' $case.Test '--rerun-tasks' `
-            '--offline' '--dependency-verification=strict' '--no-build-cache' `
-            '--no-configuration-cache' '--no-daemon' '--no-parallel' '--max-workers=1' `
-            '--console=plain' '--gradle-user-home' $currentBefore.gradle_user_home `
-            '--project-dir' $repoRoot
+        # Parenthesize each concatenation: in PowerShell, a comma inside an
+        # unparenthesized expression list is consumed by the same pipeline
+        # expression, yielding one space-joined string instead of individual
+        # JVM arguments.  ArgumentList must receive one -D property per item.
+        $runtimeArguments = [string[]]@(
+            ('-Dmcace.runtime.backend-kind=' + $federationRuntime.backend_kind),
+            ('-Dmcace.runtime.minecraft-version=' + $federationRuntime.minecraft_version),
+            ('-Dmcace.runtime.minecraft-protocol=' + $federationRuntime.minecraft_protocol),
+            ('-Dmcace.runtime.server-java-feature=' + $federationRuntime.server_java_feature),
+            ('-Dmcace.runtime.backend.jar=' + $platformPaths.paper),
+            ('-Dmcace.runtime.backend.jar.sha256=' + $expectedPlatformSha256.paper),
+            ('-Dmcace.runtime.backend.prepared-root=' + $platformPaths.paper_prepared),
+            ('-Dmcace.runtime.backend.prepared-root.sha256=' + $federationRuntime.prepared_tree_sha256),
+            ('-Dmcace.runtime.server-java=' + $currentBefore.java_path),
+            ('-Dmcace.runtime.server-java.sha256=' + $currentBefore.java_executable_sha256),
+            ('-Dmcace.runtime.velocity.jar=' + $platformPaths.velocity),
+            ('-Dmcace.runtime.velocity.jar.sha256=' + $expectedPlatformSha256.velocity),
+            ('-Dmcace.runtime.bungee.jar=' + $platformPaths.bungee),
+            ('-Dmcace.runtime.bungee.jar.sha256=' + $expectedPlatformSha256.bungee)
+        )
+        # Keep runtime bindings as JVM properties and pass every token through
+        # ProcessStartInfo.ArgumentList.  This avoids the Windows .bat/native
+        # argument collapse that previously appended every -D option to the
+        # backend-kind value.
+        $javaRuntimeArguments = [string[]]@(
+            '-Dmcace.runtime.federation.enabled=true'
+        ) + [string[]]$runtimeArguments
+        $gradleArguments = [string[]]@(
+            ':mcace-runtime-integration:test',
+            '--tests', $case.Test,
+            '--rerun-tasks',
+            '--offline', '--dependency-verification=strict', '--no-build-cache',
+            '--no-configuration-cache', '--no-daemon', '--no-parallel', '--max-workers=1',
+            '--console=plain', '--gradle-user-home', $currentBefore.gradle_user_home,
+            '--project-dir', $repoRoot
+        )
+        $gradleExitCode = Invoke-VerifiedGradle -JavaPath $currentBefore.java_path `
+            -LauncherPath $currentBefore.gradle_launcher_path -JvmArguments $javaRuntimeArguments `
+            -GradleArguments $gradleArguments
         $finishedAt = [DateTimeOffset]::UtcNow
-        if ($LASTEXITCODE -ne 0) { throw "FEDERATION_MATRIX_GRADLE_FAILED: $($case.Pair)" }
+        if ($gradleExitCode -ne 0) { throw "FEDERATION_MATRIX_GRADLE_FAILED: $($case.Pair)" }
         $caseEvidence.Add((Get-FreshCaseEvidence -Definition $case -NotBefore $startedAt -NotAfter $finishedAt))
     }
     if ($caseEvidence.Count -ne 4) { throw 'FEDERATION_MATRIX_COMPLETE_4_OF_4_EXECUTION_REQUIRED' }

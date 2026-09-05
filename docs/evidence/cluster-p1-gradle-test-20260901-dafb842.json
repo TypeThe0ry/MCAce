@@ -1,0 +1,59 @@
+{
+  "schema": "MCACE_CLUSTER_TEST_EVIDENCE_V2",
+  "generated_at": "2026-09-01T03:46:45.6655289Z",
+  "source_commit": "dafb8427a51037cc2806ceaf403483c67bf2a837",
+  "job": {
+    "job_id": "20260901-0335-mcace-dafb842-gradle21",
+    "node": "p1",
+    "profile": "linux/build",
+    "host": "tt-ThinkPad-P1-Gen-2",
+    "workspace": "/srv/codex-worker/jobs/20260901-0335-mcace-dafb842-gradle21",
+    "container_image": "eclipse-temurin:21-jdk",
+    "docker_server": "29.1.3",
+    "source_checkout": "detached exact commit; clean worktree"
+  },
+  "command": "bash ./gradlew test --no-daemon --no-configuration-cache --stacktrace --console=plain",
+  "verification": {
+    "initial_attempt": {
+      "status": "failed",
+      "exit_code": 1,
+      "log_path": "/srv/codex-worker/jobs/20260901-0335-mcace-dafb842-gradle21/logs/test-r2.log",
+      "log_size_bytes": 26428,
+      "log_sha256": "2ca0a20fb3f216bcbe9d390cbc9f51277679b3a5d675b9ed3ab76f9d9986bf6d",
+      "failure": "RuntimeNetworkIntegrationTest isolatesConcurrentGoodAndControlledMalformedClientProcesses expected risk 100 but observed 20 for REPLAY_CLIENT_HELLO; the server timed out before the duplicate frame was observed."
+    },
+    "targeted_retries": {
+      "test": "com.ellan.mcace.runtime.RuntimeNetworkIntegrationTest",
+      "runs": 5,
+      "passed": 5,
+      "failed": 0,
+      "log_sha256": [
+        "fd3af3a875512c6d486017ad53a75478e16d3984ebbca04954c515be7fa2339f",
+        "f533c7b8d26f298cf33e26709cb97dd588656f6887ab424fc2d85580e0408481",
+        "24f65c72aa91169f88e742a792fe3cff674a82089063f6766e864c5864e57ac6",
+        "ecc5c8b592d43d73a24af939092fcff450e3702bd051508cb1ad3be23173ec38",
+        "5a1427dcc5a0fe6414f1f2cd5985e03c0cd95b0353c1490668bc32899d57098d"
+      ]
+    },
+    "full_rerun": {
+      "status": "passed",
+      "exit_code": 0,
+      "actionable_tasks": 71,
+      "log_path": "/srv/codex-worker/jobs/20260901-0335-mcace-dafb842-gradle21/logs/test-r3.log",
+      "log_size_bytes": 9687,
+      "log_sha256": "fed1b119d0c1467fdc6cae819e04c9fa6b1553a8e449b568c458befb08a0c54c"
+    }
+  },
+  "interpretation": "P1 exact-head full test rerun passed after one concurrency-sensitive runtime-network failure. Five consecutive targeted retries also passed, so the observed failure is recorded as an environment-sensitive timing flake rather than a confirmed deterministic source regression.",
+  "limitations": [
+    "P1 is Linux and validates the Java/Gradle test suite; it is not a Windows GUI, Paper production server, or protected release CI witness.",
+    "The initial failure log is retained on the worker for audit; no worker-wide processes, locks, or shared caches were removed.",
+    "The suite includes intentionally skipped real-environment tests when Paper/Folia/Proxy/Vulcan/GUI authority inputs are absent."
+  ],
+  "sanitization": {
+    "credentials_copied": false,
+    "pids_copied": false,
+    "ports_copied": false,
+    "absolute_paths_copied": false
+  }
+}

@@ -3,6 +3,7 @@ package com.ellan.mcace.core.authority;
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -79,6 +80,10 @@ final class ServerAuthorityObservationCodecTest {
                 verified.observationSequence());
         assertEquals(AuthorityTestFixtures.PROFILE, verified.authorityProfileSha256());
         assertEquals(AuthorityProtocolSupport.sha256(issued.frame()), verified.signedFrameSha256());
+        assertEquals(AuthorityIssuanceCommitments.providers(request),
+                verified.providerEvidenceCommitmentSha256());
+        assertNotEquals(verified.authorityProfileSha256(),
+                verified.providerEvidenceCommitmentSha256());
         assertEquals(2, verified.providers().size());
         assertEquals(Set.of("grim-domain", "vulcan-domain"),
                 Set.of(verified.providers().get(0).trustDomainId(),

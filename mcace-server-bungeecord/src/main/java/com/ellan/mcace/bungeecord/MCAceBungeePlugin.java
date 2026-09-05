@@ -1,6 +1,10 @@
 package com.ellan.mcace.bungeecord;
 
 import com.ellan.mcace.core.admission.SignedAdmissionSnapshotCodec;
+import com.ellan.mcace.core.authority.AuthorityProtocolException;
+import com.ellan.mcace.core.authority.ProxyServerAuthorityConfiguration;
+import com.ellan.mcace.core.authority.ProxyServerAuthorityRuntime;
+import com.ellan.mcace.core.authority.VerifiedServerAuthorityObservation;
 import com.ellan.mcace.core.evidence.EvidenceReviewEndpointConfiguration;
 import com.ellan.mcace.core.federation.FederationGrantResult;
 import com.ellan.mcace.core.federation.FederationIssueResult;
@@ -28,6 +32,7 @@ import com.ellan.mcace.sdk.AdmissionStatus;
 import com.ellan.mcace.sdk.PlayerSecuritySnapshot;
 import java.nio.file.Path;
 import java.security.PrivateKey;
+import java.security.KeyPair;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
@@ -106,6 +111,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
             BungeeDispositionExecutionMode.MONITOR;
     private EvidenceReviewEndpointConfiguration evidenceReviewConfiguration;
     private ShadowBackendContextRuntime backendContextRuntime;
+    private ProxyServerAuthorityRuntime serverAuthorityRuntime;
 
     @Override
     public void onEnable() {
@@ -115,6 +121,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         deferredDispositionRoutes = new BungeeDeferredDispositionRoutes(clock);
         admissionSnapshotCodec = new SignedAdmissionSnapshotCodec(clock, new SecureRandom());
         admissionSigningKey = bridge.admissionSigningKey().orElse(null);
+        enableServerAuthority();
         backendContextRuntime = bridge.shadowBackendContextRuntime().orElse(null);
         admissionSequence = new AtomicLong(Math.max(1L, clock.millis()));
         dispositionStatus = new AtomicReference<>(BungeeDispositionStatus.unavailable());
@@ -149,6 +156,9 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         getProxy().registerChannel(BungeeMCAceChannels.ADMISSION);
         getProxy().registerChannel(BungeeMCAceChannels.PAYLOAD);
         getProxy().registerChannel(BungeeMCAceChannels.BACKEND_CONTEXT);
+        if (serverAuthorityRuntime != null) {
+            getProxy().registerChannel(BungeeMCAceChannels.BACKEND_AUTHORITY);
+        }
         getProxy().getPluginManager().registerListener(this, this);
         getProxy().getPluginManager().registerCommand(
                 this, new MCAceBungeeCommand(
@@ -221,6 +231,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         terminalConfigurationTickets.clear();
         synchronized (connectionLifecycleLock) {
             authenticatedPhysicalSessions.clear();
+            if (serverAuthorityRuntime != null) serverAuthorityRuntime.clear();
         }
         if (bridge != null) {
             bridge.federationRuntime().ifPresent(runtime -> getProxy().getPlayers().forEach(
@@ -239,6 +250,9 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         getProxy().unregisterChannel(BungeeMCAceChannels.ADMISSION);
         getProxy().unregisterChannel(BungeeMCAceChannels.PAYLOAD);
         getProxy().unregisterChannel(BungeeMCAceChannels.BACKEND_CONTEXT);
+        if (serverAuthorityRuntime != null) {
+            getProxy().unregisterChannel(BungeeMCAceChannels.BACKEND_AUTHORITY);
+        }
         if (bridge != null) {
             try {
                 bridge.close();
@@ -252,6 +266,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         admissionSequence = null;
         backendContextRuntime = null;
         dispositionStatus = null;
+        serverAuthorityRuntime = null;
         clock = null;
     }
 
@@ -333,6 +348,9 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
             // predecessor bridge state while the lifecycle lock prevents either connection from
             // processing a frame, then publish the new physical-login ticket.
             departingSession = removeBridgeSessionForReplacement(bridge, player.getUniqueId());
+            if (serverAuthorityRuntime != null) {
+                serverAuthorityRuntime.invalidate(player.getUniqueId());
+            }
             authenticatedPhysicalSessions.remove(player.getUniqueId());
             replaceTicketBoundChallenge(challengedPlayers, player.getUniqueId());
             replaceTicketBoundChallenge(configurationStartAttempts, player.getUniqueId());
@@ -379,6 +397,11 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
 
     @EventHandler
     public void onPluginMessage(PluginMessageEvent event) {
+        if (BungeeMCAceChannels.BACKEND_AUTHORITY.equals(event.getTag())) {
+            event.setCancelled(true);
+            receiveServerAuthority(event);
+            return;
+        }
         BungeeInboundFrameGate.Decision decision = BungeeInboundFrameGate.decide(
                 event.getTag(), event.getSender() instanceof ProxiedPlayer);
         if (decision == BungeeInboundFrameGate.Decision.IGNORE) {
@@ -443,8 +466,12 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
             if (routes == null || !isCurrentPhysicalLogin(player)) {
                 return;
             }
-            routes.ticketFor(player.getUniqueId(), player).ifPresent(ticket ->
-                    routes.markBackendConnecting(player.getUniqueId(), player, ticket));
+            routes.ticketFor(player.getUniqueId(), player).ifPresent(ticket -> {
+                routes.markBackendConnecting(player.getUniqueId(), player, ticket);
+                if (serverAuthorityRuntime != null) {
+                    serverAuthorityRuntime.invalidate(player.getUniqueId());
+                }
+            });
         }
     }
 
@@ -500,6 +527,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
             removeTicketBoundChallenge(configurationStartAttempts, playerId, ticket.orElseThrow());
             removeTicketBoundChallenge(terminalConfigurationTickets, playerId, ticket.orElseThrow());
             authenticatedPhysicalSessions.remove(playerId);
+            if (serverAuthorityRuntime != null) serverAuthorityRuntime.invalidate(playerId);
             departingSession = removeBridgeSessionForReplacement(bridge, playerId);
         }
         clearDepartingDispositionSession(playerId, departingSession);
@@ -519,7 +547,12 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
     private void startHandshake(ProxiedPlayer player, BungeeDeferredDispositionRoutes.LoginTicket ticket) {
         Objects.requireNonNull(player, "player");
         Objects.requireNonNull(ticket, "ticket");
+        BungeeSessionBridge current = bridge;
+        if (current == null) {
+            return;
+        }
         Optional<String> departingSession = Optional.empty();
+        boolean disconnect = false;
         synchronized (connectionLifecycleLock) {
             UUID playerId = player.getUniqueId();
             if (!isCurrentPhysicalLogin(player, ticket)
@@ -532,36 +565,91 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
             // begin() supplies a real hello frame.
             configurationStartAttempts.put(playerId, ticket);
             try {
-                Optional<byte[]> initialFrame = activeBridge().begin(playerId);
+                Optional<byte[]> initialFrame = current.begin(playerId);
                 if (initialFrame.isEmpty()) {
-                    // A bridge that cannot produce hello has not begun a usable protocol session.
-                    // Keep only the one-shot attempt marker, revoke inbound permission, and
-                    // retire the exact bridge state before any duplicate callback can arrive.
-                    departingSession = retireUnsentConfigurationHandshake(
-                            challengedPlayers, bridge, playerId, ticket);
+                    if (current.requiresClient() && isCurrentPhysicalLogin(player, ticket)) {
+                        departingSession = retireFailedConfigurationHandshake(
+                                challengedPlayers, configurationStartAttempts, terminalConfigurationTickets,
+                                current, playerId, ticket);
+                        if (deferredDispositionRoutes != null) {
+                            deferredDispositionRoutes.markDeniedPhysical(playerId, player, ticket);
+                        }
+                        disconnect = true;
+                    } else {
+                        // A bridge that cannot produce hello has not begun a usable protocol session.
+                        // Keep only the one-shot attempt marker, revoke inbound permission, and
+                        // retire the exact bridge state before any duplicate callback can arrive.
+                        departingSession = retireUnsentConfigurationHandshake(
+                                challengedPlayers, current, playerId, ticket);
+                    }
                 } else if (installTicketBoundChallenge(challengedPlayers, playerId, ticket)) {
-                    player.sendData(BungeeMCAceChannels.HANDSHAKE, initialFrame.orElseThrow());
+                    try {
+                        player.sendData(BungeeMCAceChannels.HANDSHAKE, initialFrame.orElseThrow());
+                    } catch (RuntimeException exception) {
+                        if (current.requiresClient() && isCurrentPhysicalLogin(player, ticket)) {
+                            departingSession = retireFailedConfigurationHandshake(
+                                    challengedPlayers, configurationStartAttempts, terminalConfigurationTickets,
+                                    current, playerId, ticket);
+                            if (deferredDispositionRoutes != null) {
+                                deferredDispositionRoutes.markDeniedPhysical(playerId, player, ticket);
+                            }
+                            disconnect = true;
+                        } else {
+                            throw exception;
+                        }
+                    }
                 } else {
                     // A configuration challenge must never be overwritten. This is fail-closed
                     // even though the lifecycle lock makes it an internal consistency failure.
-                    departingSession = removeBridgeSessionForReplacement(bridge, playerId);
+                    if (current.requiresClient() && isCurrentPhysicalLogin(player, ticket)) {
+                        departingSession = retireFailedConfigurationHandshake(
+                                challengedPlayers, configurationStartAttempts, terminalConfigurationTickets,
+                                current, playerId, ticket);
+                        if (deferredDispositionRoutes != null) {
+                            deferredDispositionRoutes.markDeniedPhysical(playerId, player, ticket);
+                        }
+                        disconnect = true;
+                    } else {
+                        departingSession = removeBridgeSessionForReplacement(current, playerId);
+                    }
                 }
             } catch (RuntimeException exception) {
-                removeTicketBoundChallenge(challengedPlayers, playerId, ticket);
-                // Keep configurationStartAttempts: a duplicate event after a failed send must
-                // remain inert. The ticket is retired by an exact disconnect or replacement.
-                AuthenticatedPhysicalSession binding = authenticatedPhysicalSessions.get(playerId);
-                if (binding != null && binding.playerIdentity() == player && binding.loginTicket().equals(ticket)) {
-                    authenticatedPhysicalSessions.remove(playerId);
+                if (current.requiresClient() && isCurrentPhysicalLogin(player, ticket)) {
+                    departingSession = retireFailedConfigurationHandshake(
+                            challengedPlayers, configurationStartAttempts, terminalConfigurationTickets,
+                            current, playerId, ticket);
+                    if (deferredDispositionRoutes != null) {
+                        deferredDispositionRoutes.markDeniedPhysical(playerId, player, ticket);
+                    }
+                    disconnect = true;
+                    getLogger().warning("MCAce strict handshake failed for " + player.getName()
+                            + ": " + safeMessage(exception));
+                } else {
+                    removeTicketBoundChallenge(challengedPlayers, playerId, ticket);
+                    // Keep configurationStartAttempts: a duplicate event after a failed send must
+                    // remain inert. The ticket is retired by an exact disconnect or replacement.
+                    AuthenticatedPhysicalSession binding = authenticatedPhysicalSessions.get(playerId);
+                    if (binding != null && binding.playerIdentity() == player && binding.loginTicket().equals(ticket)) {
+                        authenticatedPhysicalSessions.remove(playerId);
+                    }
+                    departingSession = removeBridgeSessionForReplacement(current, playerId);
+                    getLogger().warning("MCAce could not begin a handshake for " + player.getName()
+                            + ": " + safeMessage(exception));
                 }
-                departingSession = removeBridgeSessionForReplacement(bridge, playerId);
-                getLogger().warning("MCAce could not begin a handshake for " + player.getName()
-                        + ": " + safeMessage(exception));
             }
         }
         // The bridge/session state was retired while holding the lifecycle lock; the executor is
         // intentionally cleared only after releasing it to preserve the established lock order.
         clearDepartingDispositionSession(player.getUniqueId(), departingSession);
+        if (disconnect) {
+            try {
+                player.disconnect(new TextComponent(
+                        "MCAce: a client with MCAce installed is required to join this server."));
+            } catch (RuntimeException exception) {
+                getLogger().warning("MCAce strict handshake denial could not disconnect "
+                        + player.getName() + ": " + safeMessage(exception));
+            }
+        }
     }
 
     private void expireSessions() {
@@ -598,6 +686,21 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
                         retireTerminalConfigurationTicket(
                                 challengedPlayers, configurationStartAttempts, terminalConfigurationTickets,
                                 snapshot.playerId(), ticket.orElseThrow());
+                    }
+                    if (ticket.isPresent()
+                            && current.requiresClient()
+                            && isMissingClientSnapshot(snapshot)
+                            && isCurrentPhysicalLogin(player, ticket.orElseThrow())
+                            && routes.markDeniedPhysical(
+                                    snapshot.playerId(), player, ticket.orElseThrow())) {
+                        // A strict built-in bridge treats the absence of the MCAce client as an
+                        // admission failure.  Mark the physical ticket before disconnecting so a
+                        // delayed configuration callback or route retry cannot reuse it.
+                        player.disconnect(new TextComponent(
+                                "MCAce: a client with MCAce installed is required to join this server."));
+                        getLogger().info("MCAce denied a connection without a completed client handshake for "
+                                + player.getName() + " (client.requirement=REQUIRE_CLIENT)");
+                        continue;
                     }
                     if (binding != null && player == binding.playerIdentity() && routes != null
                             && routes.isCurrent(snapshot.playerId(), player, binding.loginTicket())
@@ -1142,6 +1245,34 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
     }
 
     /**
+     * Retires a failed initial handshake as a terminal exact-ticket state. Unlike the legacy
+     * optional path, strict failure removes the one-shot attempt marker as well as the challenge,
+     * records no-retry state, and retires the bridge session before the caller disconnects the
+     * physical player.
+     */
+    static Optional<String> retireFailedConfigurationHandshake(
+            Map<UUID, BungeeDeferredDispositionRoutes.LoginTicket> challenges,
+            Map<UUID, BungeeDeferredDispositionRoutes.LoginTicket> attempts,
+            Map<UUID, BungeeDeferredDispositionRoutes.LoginTicket> terminalTickets,
+            BungeeSessionBridge current,
+            UUID playerId,
+            BungeeDeferredDispositionRoutes.LoginTicket ticket) {
+        Objects.requireNonNull(challenges, "challenges");
+        Objects.requireNonNull(attempts, "attempts");
+        Objects.requireNonNull(terminalTickets, "terminalTickets");
+        Objects.requireNonNull(current, "current");
+        Objects.requireNonNull(playerId, "playerId");
+        Objects.requireNonNull(ticket, "ticket");
+        boolean challengeRemoved = removeTicketBoundChallenge(challenges, playerId, ticket);
+        boolean attemptRemoved = removeTicketBoundChallenge(attempts, playerId, ticket);
+        boolean terminalAdded = terminalTickets.putIfAbsent(playerId, ticket) == null;
+        if (!challengeRemoved && !attemptRemoved && !terminalAdded) {
+            return Optional.empty();
+        }
+        return removeBridgeSessionForReplacement(current, playerId);
+    }
+
+    /**
      * A begin() without hello must not authorize inbound frames. The attempt marker is intentionally
      * not accepted here, so duplicate configuration callbacks remain one-shot/inert.
      */
@@ -1511,6 +1642,12 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
                 + " (observational; no automatic punishment)");
     }
 
+    static boolean isMissingClientSnapshot(PlayerSecuritySnapshot snapshot) {
+        Objects.requireNonNull(snapshot, "snapshot");
+        return snapshot.admissionStatus() == AdmissionStatus.LIMITED
+                && snapshot.reasons().stream().anyMatch(reason -> "MISSING_MCACE".equals(reason.code()));
+    }
+
     /** Call only under {@link #connectionLifecycleLock}. */
     private void forwardSnapshot(
             ProxiedPlayer player,
@@ -1539,6 +1676,8 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
                         transportSequence, signed.expiresAt());
             }
             backend.sendData(BungeeMCAceChannels.ADMISSION, signed.encodedFrame());
+            sendServerAuthorityGrantIfCurrent(
+                    player, ticket, sessionId, current, backend, transportSequence);
         } catch (EnvelopeException exception) {
             getLogger().warning("Could not sign MCAce backend admission snapshot for " + player.getName()
                     + ": " + safeMessage(exception));
@@ -1576,6 +1715,122 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         } else {
             getLogger().warning("MCAce rejected backend context for " + player.getName()
                     + " status=" + result.status() + " (admission unchanged)");
+        }
+    }
+
+    /** Call only under {@link #connectionLifecycleLock}. */
+    private void sendServerAuthorityGrantIfCurrent(
+            ProxiedPlayer player,
+            BungeeDeferredDispositionRoutes.LoginTicket ticket,
+            String sessionId,
+            BungeeSessionBridge current,
+            Server backend,
+            long admissionTransportSequence) {
+        ProxyServerAuthorityRuntime runtime = serverAuthorityRuntime;
+        BungeeDeferredDispositionRoutes routes = deferredDispositionRoutes;
+        if (runtime == null || routes == null
+                || player.getServer() != backend
+                || !routes.isReady(player.getUniqueId(), player, ticket)
+                || !isCurrentAuthenticatedPhysicalSession(player, ticket, current, sessionId)) {
+            return;
+        }
+        try {
+            ProxyServerAuthorityRuntime.IssuedGrant grant = runtime.issueGrant(
+                    backend.getInfo().getName(), player.getUniqueId(), sessionId,
+                    admissionTransportSequence);
+            if (!grant.newlyIssued()) {
+                getLogger().fine("MCAce authority grant retained across routine admission refresh player="
+                        + player.getUniqueId() + " backend=" + backend.getInfo().getName()
+                        + " sequence=" + grant.grantSequence() + " mode=MONITOR");
+                return;
+            }
+            backend.sendData(BungeeMCAceChannels.BACKEND_AUTHORITY, grant.frame());
+            // Bungee's sendData API has no delivery acknowledgement. This is an enqueue/send
+            // attempt, not proof that Paper consumed the grant.
+            getLogger().info("MCAce authority grant send attempted player=" + player.getUniqueId()
+                    + " backend=" + backend.getInfo().getName()
+                    + " sequence=" + grant.grantSequence() + " mode=MONITOR");
+        } catch (AuthorityProtocolException | RuntimeException exception) {
+            runtime.invalidate(player.getUniqueId());
+            getLogger().warning("MCAce authority grant send attempt failed for " + player.getName()
+                    + ": " + safeMessage(exception));
+        }
+    }
+
+    private void receiveServerAuthority(PluginMessageEvent event) {
+        ProxyServerAuthorityRuntime runtime = serverAuthorityRuntime;
+        if (runtime == null || !(event.getSender() instanceof Server backend)
+                || !(event.getReceiver() instanceof ProxiedPlayer player)
+                || event.getData().length == 0
+                || event.getData().length
+                > com.ellan.mcace.protocol.ProtocolConstants.MAX_BACKEND_AUTHORITY_FRAME_BYTES) {
+            return;
+        }
+        synchronized (connectionLifecycleLock) {
+            BungeeSessionBridge current = bridge;
+            BungeeDeferredDispositionRoutes routes = deferredDispositionRoutes;
+            Optional<BungeeDeferredDispositionRoutes.LoginTicket> ticket =
+                    current == null || routes == null ? Optional.empty()
+                            : routes.ticketFor(player.getUniqueId(), player);
+            Optional<String> session = current == null ? Optional.empty()
+                    : current.currentAuthenticatedSessionId(player.getUniqueId());
+            Optional<ProxyServerAuthorityRuntime.CurrentGrant> grant =
+                    runtime.currentGrant(player.getUniqueId());
+            String registeredBackend = backend.getInfo().getName();
+            if (ticket.isEmpty() || session.isEmpty() || grant.isEmpty()
+                    || player.getServer() != backend
+                    || !routes.isReady(player.getUniqueId(), player, ticket.orElseThrow())
+                    || !isCurrentAuthenticatedPhysicalSession(
+                    player, ticket.orElseThrow(), current, session.orElseThrow())
+                    || !grant.orElseThrow().registeredBackend().equals(registeredBackend)
+                    || !grant.orElseThrow().authenticatedSessionId().equals(session.orElseThrow())) {
+                return;
+            }
+            try {
+                VerifiedServerAuthorityObservation verified = runtime.acceptObservation(
+                        registeredBackend, player.getUniqueId(), session.orElseThrow(),
+                        grant.orElseThrow().admissionTransportSequence(), event.getData());
+                getLogger().info("MCAce verified signed SERVER_CONFIRMED authority observation in MONITOR mode: "
+                        + "player=" + player.getUniqueId() + " backend=" + registeredBackend
+                        + " attestation=" + verified.attestationId()
+                        + " profile=" + verified.authorityProfileSha256()
+                        + " sequence=" + verified.observationSequence()
+                        + " frame=" + verified.signedFrameSha256()
+                        + " provider_commitment="
+                        + verified.providerEvidenceCommitmentSha256());
+            } catch (AuthorityProtocolException | RuntimeException exception) {
+                getLogger().warning("MCAce rejected backend authority observation for "
+                        + player.getName() + ": " + safeMessage(exception));
+            }
+        }
+    }
+
+    private void enableServerAuthority() {
+        if (admissionSigningKey == null) {
+            getLogger().info("MCAce signed backend authority is disabled because the bridge has no signing key");
+            return;
+        }
+        try {
+            ProxyServerAuthorityConfiguration configuration =
+                    ProxyServerAuthorityConfiguration.loadOrCreate(
+                            getDataFolder().toPath().resolve(
+                                    ProxyServerAuthorityConfiguration.FILE_NAME));
+            if (!configuration.enabled()) {
+                getLogger().info("MCAce signed backend authority is disabled by configuration");
+                return;
+            }
+            KeyPair storedIdentity = BungeeIdentityStore.loadOrCreate(
+                    getDataFolder().toPath().resolve("identity"));
+            serverAuthorityRuntime = new ProxyServerAuthorityRuntime(
+                    configuration, new KeyPair(storedIdentity.getPublic(), admissionSigningKey),
+                    clock, new SecureRandom());
+            getLogger().info("MCAce signed backend authority enabled in MONITOR mode; proxy="
+                    + configuration.proxyInstanceId() + " backends="
+                    + configuration.registry().size());
+        } catch (Exception exception) {
+            serverAuthorityRuntime = null;
+            getLogger().warning("MCAce signed backend authority is disabled because its configuration is invalid: "
+                    + safeMessage(exception));
         }
     }
 

@@ -14,9 +14,11 @@ proxy-plugin initialization, with a passing pure marker unit test. The current
 restart result records
 `residual_reacceptance=true`, `durable_replay_protection=false`, and
 `fabric_gui_coverage=false`.
-The separate V2 graphical handoff wrapper and source-export/target-import screens
-are now implemented for all three targets, with PowerShell 7 and Windows
-PowerShell 5 static contract tests passing. No human-executed V2 PASS exists yet.
+The Federation V5 graphical handoff wrapper is implemented for all three targets,
+with PowerShell 7 and Windows PowerShell 5 parser/static contract tests passing.
+The client renders one connection-level `Enable MCAce` screen at the source; an
+accepted flow may hand off to one exact pinned target with no second prompt. No
+independently signed real visible-session V5 index/receipt exists yet.
 
 ## Components
 
@@ -66,6 +68,15 @@ Ed25519 public key. On success it logs the SHA-256 fingerprint. Compare that val
 with the proxy during provisioning. Changing the proxy root requires updating
 both Fabric address pins and every backend pin.
 
+The Paper pin loader accepts a normal owner-controlled POSIX 0755 directory and
+0644 public file, but rejects any group/world-writable directory or pin, every
+symbolic link/junction/reparse path, a non-regular leaf, a foreign owner, or a file
+larger than 4096 bytes. On Windows, the owner must be the service identity, SYSTEM,
+or local Administrators and every write-capable ACE must belong to one of those
+trusted principals; broader read-only ACEs are allowed. Existing deployments must
+complete the exact POSIX/NTFS migration in
+[MIGRATION.md](MIGRATION.md#mandatory-key-file-permission-migration) before restart.
+
 The proxy publishes a root-signed snapshot after a terminal handshake or server
 switch, then refreshes it every five seconds. The backend expires the local snapshot
 after 15 seconds without a valid refresh and removes it immediately on player
@@ -94,9 +105,10 @@ Operators need `mcace.admin.evidence`. On either supported proxy, use:
 ```
 
 `frame` sends a signed request with a maximum two-minute lifetime. The Fabric
-Mod displays a visible `Allow once` / `Decline` screen containing the case and
-expiry and, when configured, the exact signed retention duration, policy ID, and
-purpose. Old requests explicitly display that raw content is not retained. Only
+Mod reuses the accepted connection-level `Enable MCAce` / `Decline` decision; no
+second frame prompt is rendered. The original enablement disclosure contains the
+case and expiry and, when configured, the exact signed retention duration, policy
+ID, and purpose. Old requests explicitly display that raw content is not retained. Only
 an explicit one-time approval captures one Minecraft-rendered frame. Closing or
 ignoring the prompt declines or expires it. `window` and `desktop` currently
 return a zero-content unavailable/declined outcome; they do not invoke an
@@ -167,6 +179,16 @@ automatically within its final two days. Rotation advances the root trust
 sequence and records the previous key ID in the signed revocation list. Back up
 the entire `identity` and `policy` directories together; never distribute either
 private key.
+
+The delegated-key directory is now created and loaded as a private no-reparse
+store: 0700 with 0600 private **and public** files on POSIX, or a protected
+service-account/SYSTEM-only FullControl DACL on Windows. Rotation writes forced
+same-directory private temporaries and requires atomic replacement; it never
+falls back to a non-atomic move. A legacy 0755/0644 delegated-key directory fails
+closed until the permission migration above is applied. If a host loses power
+between the two per-file atomic replacements, startup detects the mismatched pair
+and requires restoration from the paired backup; it does not silently generate a
+replacement trust root.
 
 For suspected delegated-key exposure, an operator with the
 `mcace.admin.policy` permission can run:
@@ -407,7 +429,11 @@ disposition.quarantine.server=quarantine
   than relying on those legacy names. BungeeCord's former
   `disposition.restricted.server` can migrate only to
   `disposition.limited.server`; it never configures or authorizes QUARANTINE.
-- The timeout is constrained to 2–30 seconds.
+- The server handshake timeout defaults to 5 seconds and is constrained to
+  2–300 seconds. The Fabric GUI consent decision defaults to 30 seconds and a
+  supervised smoke may explicitly configure 30–300 seconds; the proxy may use
+  a bounded pre-auth margin above that client budget while remaining within the
+  300-second server ceiling.
 
 ## Administrator-reviewed high-impact authorization
 
@@ -446,9 +472,10 @@ the proxy to `MONITOR` and restarting it; this does not erase prior audit record
 DENY remains current-connection-only and never creates a permanent ban.
 
 Release evidence for this path must report
-`authorization_contract=UUID_CONTEXT_COMMITMENT_V3`. The current three-target V3
-matrix passed 18/18 administrator-reviewed cases (6/6 per target), with Execute
-and ReportOnly both passing. The sanitized committed chains are recorded in
+`authorization_contract=UUID_CONTEXT_COMMITMENT_V3`. The retained 2026-08-21
+three-target V3 matrix passed 18/18 administrator-reviewed cases (6/6 per
+target), with Execute and ReportOnly both passing. The commit-bound sanitized
+chains are recorded in
 `docs/evidence/disposition-current-2026-08-21.json`; the August 13 aggregate remains
 retained history.
 V2 and contractless reports remain invalid for release evidence.
@@ -515,10 +542,12 @@ The authoritative release wrapper is:
 ```
 
 It executes the complete 3 versions × Paper/Folia × Velocity/Bungee matrix. The
-August 20 run `2026-08-20T12-01-09-3951618Z` passed 12/12 and then passed `-ReportOnly`: Paper
-6/6, Folia 6/6, Velocity 6/6, Bungee 6/6, with 10 STABLE cases and two Folia
-26.2 BETA cases. Current durable evidence is
-[`evidence/server-version-process-matrix-2026-08-20.json`](evidence/server-version-process-matrix-2026-08-20.json).
+retained historical Helio run `2026-08-24T21-33-47-1914356Z` passed 12/12 and then passed
+`-ReportOnly`: Paper 6/6, Folia 6/6, Velocity 6/6, Bungee 6/6, with 10 STABLE
+cases and two Folia 26.2 BETA cases. Retained commit-bound diagnostic evidence is
+[`evidence/server-version-process-matrix-2026-08-25-f404971.json`](evidence/server-version-process-matrix-2026-08-25-f404971.json),
+bound to code commit `f404971…`. It is Matrix V1 history, not current-working-tree
+or Matrix V4 release evidence.
 
 `-ReportOnly` starts no process. It validates only the latest complete committed
 report/binding/commit triplet against current inputs. Any source, wrapper, asset,
@@ -540,20 +569,22 @@ BungeeCord 2028, and Folia 1.21.4-6 ALPHA assets cannot satisfy the current
 .\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2
 .\scripts\platform-load-smoke.ps1 -FabricTarget 26.2
 
-# Visible full evidence gate; run once for every target.
+# Optional local GUI compatibility diagnostic on one selected target. It is not
+# the externally signed Federation V5 release approval.
 .\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence
-.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2 -WithFabricEvidence
-.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2 -WithFabricEvidence
 ```
 
 All target version manifests, asset indexes, and asset objects are already in the
-validated cache. The remaining gate is human input: one visible explicit-file
-approval and one separate visible frame approval per target, six clicks total.
-The wrapper does not automate those decisions or control an existing Minecraft
+validated cache. The release gate uses exactly one human-origin, source-side,
+visible, connection-bound `Enable MCAce` approval in the Federation V5 handoff.
+The target inherits that decision and opens no second prompt. The other two
+Fabric targets may receive optional UI compatibility/visual diagnostics, but
+those runs are not additional release approvals and cannot promote consent.
+The wrappers do not automate the decision or control an existing Minecraft
 process.
 
-A passing pair uses report schema 6 and binding
-`MCACE_FABRIC_GUI_EVIDENCE_BINDING_V4`. It must load only the exact final
+A passing local platform pair uses report schema 8 and binding
+`MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6`. It must load only the exact final
 artifact, bind the entrypoint CodeSource SHA-256, bind current server/JDK/Gradle/
 asset/prepared-tree inputs, bind `velocity_policy_minecraft_versions` and
 `velocity_policy_client_build_ids`, prove both consent chains, and leave zero
@@ -562,7 +593,10 @@ targets use final named JARs.
 
 The GUI pair is LOCAL process evidence, not automatic release identity. Revalidate
 it with `-ReportOnly`, the same `-FabricTarget`, and independently reviewed
-expected hashes. Current output must not act as its own expected value.
+expected hashes. Current output must not act as its own expected value. The
+release-grade GUI record instead belongs to the exact Federation V5 eight-file
+package, uses `MCACE_VISIBLE_GUI_ATTESTATION_V3`, and requires a distinct post-run
+supervisor receipt under a different approved root.
 
 ## Root-key backup and recovery
 

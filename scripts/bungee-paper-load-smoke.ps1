@@ -93,6 +93,45 @@ function Write-Utf8([string]$Path, [string]$Content) {
     [System.IO.File]::WriteAllText($Path, $Content, [System.Text.UTF8Encoding]::new($false))
 }
 
+function Protect-IntegrityDirectory([string]$Path) {
+    # Paper validates the MCAce pin file against the DACL of its containing
+    # directory.  The launcher-created phase tree inherits the controller's
+    # broad Users/Authenticated Users ACEs, so harden this exact runtime data
+    # directory before any authority file is copied into it.  Keep the helper
+    # local to this smoke harness: it does not change the production authority
+    # tree or any user-owned directory outside the run root.
+    if ([System.IO.Path]::DirectorySeparatorChar -ne '\') { return }
+    $resolved = [System.IO.Path]::GetFullPath($Path)
+    if (-not (Test-Path -LiteralPath $resolved -PathType Container)) {
+        throw "BUNGEE_PAPER_SMOKE_ACL_TARGET_MISSING|$resolved"
+    }
+    try {
+        $current = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+        $system = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')
+        $directorySecurity = New-Object System.Security.AccessControl.DirectorySecurity
+        $directorySecurity.SetAccessRuleProtection($true, $false)
+        $directorySecurity.SetOwner($current)
+        $inheritance = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+            [System.Security.AccessControl.InheritanceFlags]::ObjectInherit
+        foreach ($sid in @($current, $system)) {
+            $rule = New-Object System.Security.AccessControl.FileSystemAccessRule(
+                $sid,
+                [System.Security.AccessControl.FileSystemRights]::FullControl,
+                $inheritance,
+                [System.Security.AccessControl.PropagationFlags]::None,
+                [System.Security.AccessControl.AccessControlType]::Allow)
+            $directorySecurity.AddAccessRule($rule)
+        }
+        Set-Acl -LiteralPath $resolved -AclObject $directorySecurity -ErrorAction Stop
+        $readbackAcl = Get-Acl -LiteralPath $resolved -ErrorAction Stop
+        if (-not $readbackAcl.AreAccessRulesProtected -or @($readbackAcl.Access).Count -ne 2) {
+            throw 'readback DACL was not protected current-user+SYSTEM'
+        }
+    } catch {
+        throw "BUNGEE_PAPER_SMOKE_ACL_HARDENING_FAILED|$resolved|$($_.Exception.Message)"
+    }
+}
+
 function Test-TextContains([string]$Content, [string]$Needle) {
     return $null -ne $Content -and $Content.IndexOf($Needle, [StringComparison]::Ordinal) -ge 0
 }
@@ -378,7 +417,9 @@ try {
             Copy-Item -LiteralPath (Join-Path $preparedPaperRoot $preparedDirectoryName) -Destination $phaseRoot -Recurse
         }
         $phasePlugins = Join-Path $phaseRoot 'plugins'
-        New-Item -ItemType Directory -Force -Path $phasePlugins, (Join-Path $phasePlugins 'MCAce') | Out-Null
+        $phaseDataDirectory = Join-Path $phasePlugins 'MCAce'
+        New-Item -ItemType Directory -Force -Path $phasePlugins, $phaseDataDirectory | Out-Null
+        Protect-IntegrityDirectory $phaseDataDirectory
         Copy-Item -LiteralPath $paperPlugin -Destination (Join-Path $phasePlugins 'mcace.jar')
         Copy-Item -LiteralPath $paperServerJar -Destination (Join-Path $phaseRoot 'paper.jar')
         Write-Utf8 (Join-Path $phaseRoot 'eula.txt') "eula=true`n"

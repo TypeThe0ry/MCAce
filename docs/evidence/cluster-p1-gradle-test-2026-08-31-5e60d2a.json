@@ -1,0 +1,33 @@
+{
+  "schema": "MCACE_CLUSTER_GRADLE_TEST_EVIDENCE_V1",
+  "generated_at": "2026-08-31T10:45:00Z",
+  "source_commit": "5e60d2a8d89102ee9b3dbd09e05dfa92cdbbe29d",
+  "artifact_source_commit": "5e60d2a8d89102ee9b3dbd09e05dfa92cdbbe29d",
+  "execution_node": "p1",
+  "profile": "linux",
+  "job_id": "20260831-mcace-5e60d2a-gradle21",
+  "worker_checkout": "/srv/codex-worker/jobs/20260831-mcace-5e60d2a-gradle21/repo",
+  "container": {
+    "image": "eclipse-temurin:21-jdk",
+    "image_digest": "sha256:85f00967bcc624fc19fa9c2cf124ea426a5363898e267141726f31f358c2e14b"
+  },
+  "command": "bash ./gradlew test --no-daemon --no-configuration-cache --stacktrace",
+  "gradle": "BUILD SUCCESSFUL in 5m 16s",
+  "passed": true,
+  "exit_code": 0,
+  "actionable_tasks": 71,
+  "retries": 0,
+  "logs": {
+    "result_json_sha256": "13df8e797ab571361f6a0b6bb131a270fa1119f95e455919be9a02f45fa440e2",
+    "manifest_json_sha256": "8ee5e75885b871caaf22cedca384243aa72d1fe6e426eaceadd0f85bec109f62",
+    "stdout_log_sha256": "4a457e77d69531e2893373866fa6f860ca61c8542f2c968b6957740b89878dd6",
+    "stderr_log_sha256": "19e69ef1b2c3266fb4b946934ccd73c188beb9f03a5f9eb1459dc457959803c6",
+    "test_summary_sha256": "e8ffb97ac6c70d766e2102f09d1f50dac8ce89560cbf0dc02d59dc4932150339",
+    "sha256s_sha256": "76bf030947f30e15b7e17bfbd4e65a579df2e0caaeb19e4023eca5de53335ab5"
+  },
+  "controller_evidence_root": "C:\\CodexCluster\\returns\\20260831-mcace-5e60d2a-gradle21",
+  "notes": [
+    "Independent Linux/Java 21 regression for the exact release source commit.",
+    "This evidence covers the Gradle test suite only; it does not close GUI, federation, licensed Vulcan, production authority, or protected-main release gates."
+  ]
+}

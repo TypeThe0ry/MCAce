@@ -1,0 +1,34 @@
+# Opt-in policy fragment for a selected resource pack observation.
+# This rule matches only the server-derived selected=true metadata and is
+# intentionally capped at WARN because the source is CLIENT_REPORTED.
+# Replace this with an exact content-root or SHA-256 catalog entry after review
+# when a higher-impact action is justified by independent server evidence.
+schema_version: 1
+version: "selected-pack-review-v1"
+rollout_stage: "OBSERVE"
+validity_seconds: 86400
+
+catalog_entries {
+  entry_id: "selected-resource-pack-review"
+  category: XRAY_RESOURCE_PACK
+  selector {
+    artifact_type: DETECTION_ARTIFACT_RESOURCE_PACK
+    match_type: DETECTION_MATCH_METADATA
+    metadata { key: "selected" value: "true" }
+  }
+  confidence: DETECTION_CONFIDENCE_LOW
+  suggested_action: DISPOSITION_WARN
+  player_message_key: "mcace.selected-pack.review"
+  operator_reason: "Selected resource-pack telemetry requires server review."
+  false_positive_notes: "A client report is advisory and may be forged."
+  source_id: "operator-reviewed-resource-pack-policy"
+  source_summary: "Operator-authored selected=true policy template; no artifact bytes included."
+  default_enabled: false
+}
+
+catalog_selections {
+  entry_id: "selected-resource-pack-review"
+  enabled: false
+  final_action: DISPOSITION_WARN
+  priority: 100
+}

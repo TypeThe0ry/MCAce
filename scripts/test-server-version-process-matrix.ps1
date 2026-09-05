@@ -20,6 +20,12 @@ $ast = [Management.Automation.Language.Parser]::ParseFile(
     $target, [ref]$tokens, [ref]$parseErrors)
 Assert-True ($parseErrors.Count -eq 0) 'target script does not parse'
 $source = [IO.File]::ReadAllText($target, [Text.Encoding]::UTF8)
+Assert-Contains $source 'return ,$set' `
+    'raw run directory set must remain a single HashSet object when empty'
+Assert-Contains $source 'function ConvertTo-CommitmentJsonBytes' `
+    'cross-process commitment canonicalizer is missing'
+Assert-Contains $source 'Get-BytesSha256 (ConvertTo-CommitmentJsonBytes' `
+    'set commitments must use the supervisor-compatible no-newline canonicalizer'
 
 # The wrapper is an explicit gate, never an accidental default execution path.
 $noMode = $null
@@ -32,14 +38,24 @@ try { & $target -Execute -ReportOnly 2>&1 | Out-Null }
 catch { $bothModes = $_.Exception.Message }
 Assert-True ($bothModes -like '*SERVER_VERSION_MATRIX_EXPLICIT_MODE_REQUIRED*') `
     'dual-mode invocation did not fail closed'
+$resumeOnly = $null
+try { & $target -Resume -ReportOnly 2>&1 | Out-Null }
+catch { $resumeOnly = $_.Exception.Message }
+Assert-True ($resumeOnly -like '*SERVER_VERSION_MATRIX_RESUME_EXECUTE_REQUIRED*') `
+    'resume without Execute did not fail closed'
+$missingSource = $null
+try { & $target -ReportOnly -ExpectedSourceCommit '' 2>&1 | Out-Null }
+catch { $missingSource = $_.Exception.Message }
+Assert-True ($missingSource -like '*SERVER_VERSION_MATRIX_SOURCE_COMMIT_REQUIRED*') `
+    'ReportOnly without an exact artifact source commit did not fail closed'
 
 $expectedAssets = @(
     @('paper','1.21.11','132','5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba','54846016','STABLE','21'),
     @('paper','26.1.2','74','1d70b1dab9cf4a6de615209a536f3a45a2186240253c428213ce2188ab95e5f7','52893229','STABLE','25'),
-    @('paper','26.2','112','bd3a58cf96874e5ea6643f5f6fe9b4f5bf9e34b795fa078c2f0ee8b98b2f907e','61859678','STABLE','25'),
+    @('paper','26.2','116','17eee738bc0f6b747646be4199672c4efcb2084efd7e291ec5254a45d5ae6f2e','64426830','STABLE','25'),
     @('folia','1.21.11','14','f52c408490a0225611e67907a3ca19f7e6da2c6bc899e715d5f46844e7103c39','55082693','STABLE','21'),
     @('folia','26.1.2','8','607afd1c3320008e1ffd2eaee6780ace4419d5f8c527b75e79f259be79ebf57b','53184326','STABLE','25'),
-    @('folia','26.2','4','19c81c308ba4de4b9fc0a61860c86281836d26ac046f696ea241766eea4b2468','62126906','BETA','25'),
+    @('folia','26.2','6','9a728381da3a3bea6732ee210519f8f6ab7d6affe132a430ee167c44c4603d08','64694365','BETA','25'),
     @('velocity','3.5.1-615','615','b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3','18932366','REVIEWED','21'),
     @('bungeecord','2085','2085','e6914a29c0ae04c0ed6335f201e409322b3c67548906a91e92e832d665cd6fce','25599274','REVIEWED','21')
 )
@@ -54,10 +70,31 @@ foreach ($token in @(
     "'1.21.11'=774", "'26.1.2'=775", "'26.2'=776",
     "'1.21.11'=21", "'26.1.2'=25", "'26.2'=25",
     "'1.21.11'='0x30'", "'26.1.2'='0x31'", "'26.2'='0x31'",
-    'MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V1',
-    'MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V1',
-    'MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V1',
-    'MCACE_PREPARED_TREE_SHA256_V1')) {
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V4',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V4',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V4',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V2',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V2',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V2',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V3',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V3',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V3',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_SUPERVISOR_SIGNING_REQUEST_V1',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_SUPERVISOR_RECEIPT_V1',
+    'MCACE_SERVER_VERSION_MATRIX_SUPERVISOR_TRUST_ROOT_V1',
+    'MCACE_RELEASE_BUNDLE_V4',
+    'MCACE_RELEASE_APPROVED_MATRIX_SUPERVISOR_TRUST_ROOT_SHA256',
+    'OUT_OF_BAND_PINNED_MATRIX_SUPERVISOR_TRUST_ROOT',
+    'EXTERNALLY_SIGNED_MATRIX_SUPERVISOR_RECEIPT',
+    'RSA_PKCS1_SHA256',
+    'MCACE_PREPARED_TREE_SHA256_V1',
+    'MCACE_SERVER_VERSION_PROCESS_MATRIX_CHECKPOINT_V2',
+    'ExpectedSourceCommit', 'ProductVersion',
+    'SERVER_VERSION_MATRIX_SOURCE_COMMIT_REQUIRED',
+    'SERVER_VERSION_MATRIX_SOURCE_WORKTREE_DIRTY',
+    '-PmcaceSourceCommit=', '-PmcaceArtifactSourceCommit=', '-PmcaceProductVersion=',
+    'Read-ExecutionCheckpoint', 'Write-ExecutionCheckpoint',
+    'SERVER_VERSION_MATRIX_RESUME_EXECUTE_REQUIRED')) {
     Assert-Contains $source $token "matrix/protocol/schema token missing: $token"
 }
 
@@ -92,8 +129,14 @@ foreach ($token in @(
     'Resolve-CachedJdk 25','java_executable_sha256','modules_sha256','jvm_sha256',
     'source_manifest_sha256','wrapper_sha256','wrapper_test_sha256',
     'runtime_assets_manifest_sha256','prepared_manifest_sha256','product_jars',
+    'source_commit','product_version','report_bytes','binding_bytes',
     'server_asset_identity','proxy_asset_identity','raw_report_sha256',
-    'raw_report_last_write_at','prepared_tree_sha256','sensitive_artifact_count')) {
+    'raw_report_last_write_at','prepared_tree_sha256','sensitive_artifact_count',
+    'operation_attempt_id','challenge_nonce','challenge_issued_at','receipt_expires_at',
+    'ordered_raw_report_set_sha256','case_runtime_commitment_sha256',
+    'process_incarnation_sha256','process_identity_count',
+    'release_bundle_manifest_sha256','release_bundle_artifact_set_sha256',
+    'matrix_product_jar_set_sha256')) {
     Assert-Contains $source $token "binding token missing: $token"
 }
 Assert-True ($source -match 'stable_case_count\s*=\s*10' -and
@@ -103,9 +146,20 @@ Assert-True ($source -match 'stable_case_count\s*=\s*10' -and
 foreach ($token in @(
     "`$preparedRoots = @('cache', 'libraries', 'versions')",
     'Get-Int32BigEndianBytes','Get-Int64BigEndianBytes','TransformBlock',
-    'Assert-NoSensitiveRunArtifacts','forwarding.secret','private[-_]?key',
+    'Assert-NoSensitiveRunArtifacts','Read-FileBytesWithSharingRetry',
+    'SERVER_VERSION_MATRIX_FILE_SHARE_TIMEOUT','forwarding.secret','private[-_]?key',
     'PRIVATE KEY-----','Assert-RunRootBytes','Get-RunProcesses',
-    'remaining_run_processes','cleanup_process_ids','schema -ne 4')) {
+    'remaining_run_processes','cleanup_process_ids','schema -ne 4',
+    'Assert-SupervisorEvidencePackage','Read-MatrixSupervisorTrustRoot',
+    "[Guid]::NewGuid().ToString('N')",'New-Object byte[] 32','RandomNumberGenerator',
+    'SERVER_VERSION_MATRIX_SIGNING_REQUEST_READY',
+    'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_TIMEOUT',
+    'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_EXPIRED_OR_TIME_INVALID',
+    'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_SIGNATURE_INVALID',
+    'SERVER_VERSION_MATRIX_SUPERVISOR_TRUST_ROOT_MUST_BE_OUT_OF_REPO',
+    'SERVER_VERSION_MATRIX_SELF_SUPERVISOR_TRUST_ROOT_REJECTED',
+    'SERVER_VERSION_MATRIX_SUPERVISOR_TRUST_ROOT_PIN_MISMATCH',
+    'test_fixture')) {
     Assert-Contains $source $token "runtime byte/cleanup token missing: $token"
 }
 
@@ -142,13 +196,30 @@ $reportWrite = $source.IndexOf('Write-NewFileBytes $stagingReport $reportBytes',
     [StringComparison]::Ordinal)
 $bindingWrite = $source.IndexOf("Write-NewFileBytes (Join-Path `$stagingRoot 'binding.json') `$bindingBytes",
     [StringComparison]::Ordinal)
+$signingRequestWrite = $source.IndexOf("Write-NewFileBytes (Join-Path `$stagingRoot 'supervisor-signing-request.json') `$signingRequestBytes",
+    [StringComparison]::Ordinal)
+$externalRequestWrite = $source.IndexOf('Write-NewFileBytes $externalRequest $signingRequestBytes',
+    [StringComparison]::Ordinal)
+$supervisorReceiptWrite = $source.IndexOf("Write-NewFileBytes (Join-Path `$stagingRoot 'supervisor-receipt.json') ([byte[]]`$receiptEvidence.bytes)",
+    [StringComparison]::Ordinal)
 $commitWrite = $source.IndexOf("Write-NewFileBytes (Join-Path `$stagingRoot 'commit.json') `$commitBytes",
     [StringComparison]::Ordinal)
-$publishMove = $source.IndexOf('[IO.Directory]::Move($stagingRoot, $finalRoot)',
+$publishMove = $source.IndexOf('[IO.Directory]::Move($stagingRoot,$finalRoot)',
     [StringComparison]::Ordinal)
 Assert-True ($reportWrite -ge 0 -and $reportWrite -lt $bindingWrite -and
-    $bindingWrite -lt $commitWrite -and $commitWrite -lt $publishMove) `
-    'report/binding/commit/rename publication order is invalid'
+    $bindingWrite -lt $signingRequestWrite -and
+    $signingRequestWrite -lt $externalRequestWrite -and
+    $externalRequestWrite -lt $supervisorReceiptWrite -and
+    $supervisorReceiptWrite -lt $commitWrite -and $commitWrite -lt $publishMove) `
+    'report/binding/signing-request/external-receipt/commit/rename publication order is invalid'
+
+foreach ($forbiddenPrivateKeySurface in @(
+        '$SupervisorPrivateKey', '$SupervisorPrivateKeyPath', '$PrivateKeyPath',
+        'ImportRSAPrivateKey', 'ImportPkcs8PrivateKey', 'SignData(')) {
+    Assert-True ($source.IndexOf($forbiddenPrivateKeySurface,
+            [StringComparison]::OrdinalIgnoreCase) -lt 0) `
+        "producer must not accept or embed a supervisor private key: $forbiddenPrivateKeySurface"
+}
 
 function Get-FunctionText([string]$Name) {
     $matches = @($ast.FindAll({
@@ -204,6 +275,76 @@ try { & $timestampFixtureScript 'not-a-timestamp' 'invalid' | Out-Null }
 catch { $invalidTimestampMessage = $_.Exception.Message }
 Assert-True ($invalidTimestampMessage -like '*SERVER_VERSION_MATRIX_TIMESTAMP_INVALID|invalid*') `
     'invalid timestamp was not rejected'
+
+# Exercise the bounded sharing-violation retry without relying on timing or a
+# second process: the fixture shadows Start-Sleep and releases its FileShare.None
+# handle on the first backoff.  A second invocation keeps the handle throughout
+# and must fail with the explicit timeout code.
+$retryFixtureSource = @"
+param([string]`$Path, [int]`$MaxAttempts, [int]`$DelayMilliseconds,
+    [switch]`$HoldLock, [switch]`$ReleaseOnFirstRetry)
+Set-StrictMode -Version Latest
+`$ErrorActionPreference = 'Stop'
+$(Get-FunctionText 'Assert-DirectLocalPath')
+$(Get-FunctionText 'Read-FileBytesWithSharingRetry')
+`$script:retryLock = `$null
+if (`$HoldLock) {
+    `$script:retryLock = [IO.File]::Open(`$Path, [IO.FileMode]::Open,
+        [IO.FileAccess]::Read, [IO.FileShare]::None)
+}
+if (`$HoldLock -and `$ReleaseOnFirstRetry) {
+    `$script:releaseOnSleep = `$true
+    function Start-Sleep {
+        param([int]`$Milliseconds)
+        if (`$script:releaseOnSleep) {
+            `$script:releaseOnSleep = `$false
+            `$script:retryLock.Dispose()
+        }
+        Microsoft.PowerShell.Utility\Start-Sleep -Milliseconds 1
+    }
+}
+try {
+    `$bytes = Read-FileBytesWithSharingRetry `$Path `$MaxAttempts `$DelayMilliseconds
+    [Convert]::ToBase64String(`$bytes)
+} finally {
+    if (`$null -ne `$script:retryLock) { `$script:retryLock.Dispose() }
+}
+"@
+$retryFixtureScript = [ScriptBlock]::Create($retryFixtureSource)
+$retryFixtureRoot = Join-Path ([IO.Path]::GetTempPath()) (
+    'mcace-server-version-matrix-retry-' + [Guid]::NewGuid().ToString('N'))
+[void][IO.Directory]::CreateDirectory($retryFixtureRoot)
+try {
+    $retryPath = Join-Path $retryFixtureRoot 'locked.bin'
+    $retryBytes = [byte[]](1, 2, 3, 5, 8)
+    [IO.File]::WriteAllBytes($retryPath, $retryBytes)
+    $expectedRetryBase64 = [Convert]::ToBase64String($retryBytes)
+    $released = [string](& $retryFixtureScript $retryPath 8 10 -HoldLock -ReleaseOnFirstRetry)
+    Assert-True ($released -ceq $expectedRetryBase64) `
+        'sharing retry did not read bytes after the transient lock released'
+    $timeoutMessage = $null
+    try { & $retryFixtureScript $retryPath 3 10 -HoldLock | Out-Null }
+    catch { $timeoutMessage = $_.Exception.Message }
+    Assert-True ($timeoutMessage -like '*SERVER_VERSION_MATRIX_FILE_SHARE_TIMEOUT*') `
+        'persistent sharing lock did not fail with the bounded timeout code'
+    $emptyPath = Join-Path $retryFixtureRoot 'empty.log'
+    [IO.File]::WriteAllBytes($emptyPath, [byte[]]@())
+    $emptyRead = [string](& $retryFixtureScript $emptyPath 1 10)
+    Assert-True ($emptyRead -ceq '') `
+        'empty file read returned null instead of an empty byte array'
+} finally {
+    if (Test-Path -LiteralPath $retryFixtureRoot -PathType Container) {
+        $tempPrefix = [IO.Path]::GetFullPath([IO.Path]::GetTempPath()).TrimEnd(
+            [char[]]@('\','/')) + [IO.Path]::DirectorySeparatorChar
+        $retryFull = [IO.Path]::GetFullPath($retryFixtureRoot)
+        if (-not $retryFull.StartsWith($tempPrefix, [StringComparison]::OrdinalIgnoreCase) -or
+            -not (Split-Path -Leaf $retryFull).StartsWith(
+                'mcace-server-version-matrix-retry-', [StringComparison]::Ordinal)) {
+            throw 'SERVER_VERSION_MATRIX_RETRY_FIXTURE_CLEANUP_PATH_REJECTED'
+        }
+        [IO.Directory]::Delete($retryFull, $true)
+    }
+}
 
 function Get-ReferencePreparedHash([string]$Root) {
     $records = [Collections.Generic.SortedDictionary[string,string]]::new(
@@ -359,6 +500,8 @@ Set-StrictMode -Version Latest
 `$ErrorActionPreference = 'Stop'
 `$repoRoot = `$FixtureRepoRoot
 `$invocationRoot = `$FixtureInvocationRoot
+`$ExpectedSourceCommit = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+`$ProductVersion = '0.0.1'
 $($invokeFunctionNames | ForEach-Object { Get-FunctionText $_ } | Out-String)
 `$fixtureCurrent = [pscustomobject]@{
     jdk21 = [pscustomobject]@{ home = `$FixtureJdkHome }
@@ -407,10 +550,10 @@ exit /b 7
     $assetDescriptors = @(
         [ordered]@{ project='paper'; version='1.21.11'; build='132'; channel='STABLE'; java_major=21 },
         [ordered]@{ project='paper'; version='26.1.2'; build='74'; channel='STABLE'; java_major=25 },
-        [ordered]@{ project='paper'; version='26.2'; build='112'; channel='STABLE'; java_major=25 },
+        [ordered]@{ project='paper'; version='26.2'; build='116'; channel='STABLE'; java_major=25 },
         [ordered]@{ project='folia'; version='1.21.11'; build='14'; channel='STABLE'; java_major=21 },
         [ordered]@{ project='folia'; version='26.1.2'; build='8'; channel='STABLE'; java_major=25 },
-        [ordered]@{ project='folia'; version='26.2'; build='4'; channel='BETA'; java_major=25 },
+        [ordered]@{ project='folia'; version='26.2'; build='6'; channel='BETA'; java_major=25 },
         [ordered]@{ project='velocity'; version='3.5.1-615'; build='615'; channel='REVIEWED'; java_major=21 },
         [ordered]@{ project='bungeecord'; version='2085'; build='2085'; channel='REVIEWED'; java_major=21 }
     )
@@ -517,3 +660,4 @@ Assert-AssetManifest
 }
 
 Write-Output 'SERVER_VERSION_PROCESS_MATRIX_STATIC_TEST_PASS'
+exit 0

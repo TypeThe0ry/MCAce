@@ -7,8 +7,11 @@ import java.io.Reader;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.PublicKey;
 import java.util.Base64;
+import java.util.HexFormat;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -53,6 +56,17 @@ public final class ServerKeyPins {
         Objects.requireNonNull(serverAddress, "serverAddress");
         PublicKey exact = pins.get(normalize(serverAddress));
         return Optional.ofNullable(exact != null ? exact : pins.get("default"));
+    }
+
+    /** Returns a stable diagnostic identifier without exposing key material. */
+    public static String fingerprint(PublicKey key) {
+        Objects.requireNonNull(key, "key");
+        try {
+            return HexFormat.of().formatHex(
+                    MessageDigest.getInstance("SHA-256").digest(key.getEncoded()));
+        } catch (NoSuchAlgorithmException exception) {
+            throw new IllegalStateException("SHA-256 is unavailable", exception);
+        }
     }
 
     public boolean empty() {

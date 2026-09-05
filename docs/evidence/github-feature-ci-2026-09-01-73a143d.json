@@ -1,0 +1,63 @@
+{
+  "schema": "MCACE_GITHUB_FEATURE_CI_EVIDENCE_V2",
+  "generated_at": "2026-08-31T19:23:34Z",
+  "repository": "TypeThe0ry/MCAce",
+  "pull_request": 17,
+  "source_commit": "73a143d9c155e7b32cf292e54bccf93f5678ca29",
+  "artifact_source_commit": "83378d7f3144d050b513ce8f234765d31f6cf5f2",
+  "branch": "feature/active-pack-integrity",
+  "runs": [
+    {
+      "run_id": 33428924002,
+      "job_id": 99611408474,
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/33428924002",
+      "job_url": "https://github.com/TypeThe0ry/MCAce/actions/runs/33428924002/job/99611408474",
+      "windows_contracts": "success",
+      "build_and_test": "success",
+      "local_verification_bundle": "success",
+      "exact_eight_local_bundle_upload": "success",
+      "release_bundle": "skipped",
+      "compatibility_contract": "skipped",
+      "fail_closed_release_readiness": "skipped"
+    },
+    {
+      "run_id": 33428927616,
+      "job_id": 99611314225,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/33428927616",
+      "job_url": "https://github.com/TypeThe0ry/MCAce/actions/runs/33428927616/job/99611314225",
+      "windows_contracts": "success",
+      "build_and_test": "success",
+      "local_verification_bundle": "success",
+      "exact_eight_local_bundle_upload": "success",
+      "release_bundle": "skipped",
+      "compatibility_contract": "skipped",
+      "fail_closed_release_readiness": "skipped"
+    }
+  ],
+  "uploaded_artifact": {
+    "name": "mcace-local-verification-bundle-4ec7bc2aee4d23aca7dc3b2e78ed8e30066af1fc",
+    "source_run_id": 33428927616,
+    "artifact_id": 9772307206,
+    "expired": false,
+    "release_identity": false,
+    "bundle_profile": "LOCAL_VERIFICATION",
+    "manifest_source_commit": "LOCAL_UNSPECIFIED",
+    "manifest_artifact_source_commit": "LOCAL_UNSPECIFIED"
+  },
+  "steps": {
+    "windows_contracts": "success",
+    "build_and_test": "success",
+    "local_verification_bundle": "success",
+    "exact_eight_local_bundle_upload": "success",
+    "release_bundle": "skipped_on_feature_branch",
+    "compatibility_contract": "skipped_on_feature_branch",
+    "fail_closed_release_readiness": "skipped_on_feature_branch"
+  },
+  "interpretation": "Both push and pull_request checks passed exact checkout, Windows contract regressions, build/test, local verification bundle, and exact-eight upload for 73a143d. The feature branch intentionally skips the protected-main/tag release bundle, compatibility, and fail-closed readiness path. The downloaded artifact is explicitly LOCAL_VERIFICATION/release_identity=false; it is not a v0.0.1 release artifact. GUI, Federation, Vulcan, Production Authority, and protected exact-commit release evidence remain open."
+}

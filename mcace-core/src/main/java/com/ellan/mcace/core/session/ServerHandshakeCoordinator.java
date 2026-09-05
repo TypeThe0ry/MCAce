@@ -6,6 +6,7 @@ import com.ellan.mcace.core.evidence.EvidenceAuditSink;
 import com.ellan.mcace.core.evidence.EvidenceIngressResult;
 import com.ellan.mcace.core.evidence.EvidenceRequestRuntime;
 import com.ellan.mcace.core.evidence.EvidenceRequestSpec;
+import com.ellan.mcace.core.federation.FederationAuthenticationBinding;
 import com.ellan.mcace.core.federation.FederationSubject;
 import com.ellan.mcace.core.policy.SignedPolicyProvider;
 import com.ellan.mcace.core.persistence.ObservationOrigin;
@@ -24,11 +25,17 @@ import com.ellan.mcace.protocol.crypto.EnvelopeException;
 import com.ellan.mcace.protocol.crypto.NonceReplayGuard;
 import com.ellan.mcace.protocol.generated.AuthRequest;
 import com.ellan.mcace.protocol.generated.AuthResult;
+import com.ellan.mcace.protocol.generated.ArtifactObservationResult;
+import com.ellan.mcace.protocol.generated.ArtifactObservationResultReason;
 import com.ellan.mcace.protocol.generated.ArtifactObservationUpdate;
 import com.ellan.mcace.protocol.generated.BoundedPayloadKind;
 import com.ellan.mcace.protocol.generated.ClientHello;
+import com.ellan.mcace.protocol.generated.ClientCapability;
 import com.ellan.mcace.protocol.generated.FileEntry;
 import com.ellan.mcace.protocol.generated.IntegrityScopeManifest;
+import com.ellan.mcace.protocol.generated.LoadedModEntry;
+import com.ellan.mcace.protocol.generated.LoadedModOriginKind;
+import com.ellan.mcace.protocol.generated.ModEntry;
 import com.ellan.mcace.protocol.generated.IntegrityScopeRule;
 import com.ellan.mcace.protocol.generated.PacketType;
 import com.ellan.mcace.protocol.generated.ServerHello;
@@ -352,7 +359,11 @@ public final class ServerHandshakeCoordinator {
                 context.challenge,
                 context.policy.getPolicyVersion(),
                 context.policyDigest,
-                context.authenticatedAt));
+                context.authenticatedAt,
+                context.federationSignedAssertionSha256.length == 32
+                        ? Optional.of(new FederationAuthenticationBinding(
+                                context.federationSignedAssertionSha256))
+                        : Optional.empty()));
     }
 
     /**
@@ -472,7 +483,9 @@ public final class ServerHandshakeCoordinator {
                 || !MessageDigest.isEqual(context.challenge, hello.getChallengeNonce().toByteArray())
                 || hello.getLoader() == com.ellan.mcace.protocol.generated.LoaderType.LOADER_UNSPECIFIED
                 || hello.getMinecraftVersion().isBlank()
-                || hello.getBuildId().isBlank()) {
+                || hello.getBuildId().isBlank()
+                || (hello.getFederationSignedAssertionSha256().size() != 0
+                    && hello.getFederationSignedAssertionSha256().size() != 32)) {
             return violation(context.session.playerId(), context, RiskEventType.PROTOCOL_VIOLATION);
         }
         if (!context.policy.getAllowedMinecraftVersionsList().contains(hello.getMinecraftVersion())
@@ -487,6 +500,8 @@ public final class ServerHandshakeCoordinator {
         context.clientBuildId = hello.getBuildId();
         context.minecraftVersion = hello.getMinecraftVersion();
         context.loader = hello.getLoader();
+        context.federationSignedAssertionSha256 =
+                hello.getFederationSignedAssertionSha256().toByteArray();
         api.snapshot(context.session.playerId()).ifPresent(snapshot -> auditSession(context, snapshot));
         SignedEnvelope deferred = context.deferredAuthRequest;
         context.deferredAuthRequest = null;
@@ -545,8 +560,8 @@ public final class ServerHandshakeCoordinator {
     }
 
     /**
-     * Receives an optional complete post-auth snapshot. Any invalid input is ignored rather than
-     * becoming a protocol violation: the authentication result and verified admission are fixed.
+     * Receives an optional complete post-auth snapshot. Semantic acceptance or rejection is
+     * returned in a server-signed result while the authentication result remains fixed.
      */
     private HandshakeAction receiveArtifactObservationPayload(
             SessionContext context, SignedEnvelope envelope, byte[] encodedFrame)
@@ -566,19 +581,67 @@ public final class ServerHandshakeCoordinator {
         if (payload.kind() != BoundedPayloadKind.BOUNDED_PAYLOAD_ARTIFACT_OBSERVATION) {
             return HandshakeAction.none();
         }
+        final ArtifactObservationUpdate update;
         try {
-            acceptArtifactObservationUpdate(context, ArtifactObservationUpdate.parseFrom(payload.content()));
-        } catch (InvalidProtocolBufferException | IllegalArgumentException ignored) {
-            // Optional, client-reported telemetry must never penalize a verified session.
+            update = ArtifactObservationUpdate.parseFrom(payload.content());
+        } catch (InvalidProtocolBufferException ignored) {
+            // A malformed protobuf has no trustworthy sequence/root to acknowledge. It remains
+            // inert and cannot change an already verified admission.
+            return HandshakeAction.none();
         }
-        return HandshakeAction.none();
+        byte[] updateSha256 = sha256(payload.content());
+        ArtifactObservationDecision decision = acceptArtifactObservationUpdate(
+                context, update, updateSha256);
+        ArtifactObservationResult result = ArtifactObservationResult.newBuilder()
+                .setSessionId(context.session.id())
+                .setUpdateSequence(update.getUpdateSequence())
+                .setAggregateRootSha256(update.getAggregateRootSha256())
+                .setAccepted(decision.accepted())
+                .setReason(decision.reason())
+                .setRetryAfterEpochMs(decision.retryAfterEpochMs())
+                .setUpdateSha256(ByteString.copyFrom(updateSha256))
+                .build();
+        byte[] response = envelopeCodec.sign(
+                PacketType.ARTIFACT_OBSERVATION_RESULT,
+                context.session.id(),
+                result.toByteArray(),
+                serverKeyPair.getPrivate()).toByteArray();
+        return new HandshakeAction(List.of(response), Optional.empty(), false);
     }
 
-    private void acceptArtifactObservationUpdate(SessionContext context, ArtifactObservationUpdate update) {
+    private ArtifactObservationDecision acceptArtifactObservationUpdate(
+            SessionContext context, ArtifactObservationUpdate update, byte[] updateSha256) {
+        if (update.getUpdateSequence() == context.lastArtifactObservationSequence
+                && update.getAggregateRootSha256().size() == 32
+                && MessageDigest.isEqual(update.getAggregateRootSha256().toByteArray(),
+                        context.lastArtifactObservationRoot)
+                && context.lastArtifactObservationUpdateSha256 != null
+                && MessageDigest.isEqual(updateSha256,
+                        context.lastArtifactObservationUpdateSha256)) {
+            // Idempotent success is required when the semantic result was lost after the server
+            // accepted the exact update. Same sequence/root with changed selected packs or loaded
+            // mods is a different payload and cannot inherit the previous semantic acceptance.
+            return ArtifactObservationDecision.accept();
+        }
         if (update.getUpdateSequence() == 0L
-                || Long.compareUnsigned(update.getUpdateSequence(), context.lastArtifactObservationSequence) <= 0
+                || context.lastArtifactObservationSequence == Long.MAX_VALUE
+                || update.getUpdateSequence() != context.lastArtifactObservationSequence + 1L) {
+            return ArtifactObservationDecision.rejected(
+                    ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_SEQUENCE_MISMATCH, 0L);
+        }
+        long now = clock.millis();
+        long retryAfter = context.lastArtifactObservationSequence == 0L
+                ? 0L
+                : saturatedAdd(context.lastArtifactObservationAcceptedAtEpochMs,
+                        ProtocolConstants.ARTIFACT_OBSERVATION_INTERVAL.toMillis());
+        if (retryAfter > now) {
+            return ArtifactObservationDecision.rejected(
+                    ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_RATE_LIMITED,
+                    retryAfter);
+        }
+        if (!update.getUnknownFields().asMap().isEmpty()
                 || update.getObservedAtEpochMs() <= 0L
-                || ageExceeds(clock.millis(), update.getObservedAtEpochMs(), ProtocolConstants.MAX_ARTIFACT_OBSERVATION_AGE)
+                || ageExceeds(now, update.getObservedAtEpochMs(), ProtocolConstants.MAX_ARTIFACT_OBSERVATION_AGE)
                 || update.getBaseManifestRootSha256().size() != 32
                 || update.getPreviousAggregateRootSha256().size() != 32
                 || update.getAggregateRootSha256().size() != 32
@@ -586,30 +649,86 @@ public final class ServerHandshakeCoordinator {
                 || !MessageDigest.isEqual(update.getPreviousAggregateRootSha256().toByteArray(), context.lastArtifactObservationRoot)
                 || update.getPolicySequence() != context.policy.getSequence()
                 || !MessageDigest.isEqual(update.getPolicySha256().toByteArray(), context.policyDigest)
+                || !validSelectedPackIds(update.getSelectedResourcePacksList())
+                || !validSelectedPackIds(update.getSelectedShaderPacksList())
+                || !validClientCapabilities(update.getClientCapabilitiesList(),
+                        update.getLoadedModsList(), context.policy)
+                || !update.getClientCapabilitiesList().equals(
+                        context.authenticatedRequest.getClientCapabilitiesList())
+                || !validLoadedMods(update.getLoadedModsList(), update.getModsList())
                 || update.getModsCount() > ProtocolConstants.MAX_ARTIFACT_OBSERVATION_COUNT
                 || update.getScopeManifestsList().stream().mapToInt(IntegrityScopeManifest::getEntriesCount).sum()
                         > ProtocolConstants.MAX_ARTIFACT_OBSERVATION_COUNT) {
-            throw new IllegalArgumentException("artifact observation binding or budget is invalid");
+            return ArtifactObservationDecision.rejected(
+                    ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_INVALID_UPDATE, 0L);
         }
         AuthRequest candidate = context.authenticatedRequest.toBuilder()
                 .clearMods().addAllMods(update.getModsList())
                 .clearScopeManifests().addAllScopeManifests(update.getScopeManifestsList())
+                .clearSelectedResourcePacks().addAllSelectedResourcePacks(update.getSelectedResourcePacksList())
+                .clearSelectedShaderPacks().addAllSelectedShaderPacks(update.getSelectedShaderPacksList())
+                .clearLoadedMods().addAllLoadedMods(update.getLoadedModsList())
                 .build();
-        if (!validScopes(candidate, context.policy)) {
-            throw new IllegalArgumentException("artifact observation scopes are invalid");
+        if (!validScopes(candidate, context.policy) || !validModManifestBinding(candidate, false)) {
+            return ArtifactObservationDecision.rejected(
+                    ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_INVALID_UPDATE, 0L);
         }
         try {
             if (!MessageDigest.isEqual(aggregateRoot(candidate), update.getAggregateRootSha256().toByteArray())) {
-                throw new IllegalArgumentException("artifact observation aggregate root does not match its complete snapshot");
+                return ArtifactObservationDecision.rejected(
+                        ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_INVALID_UPDATE, 0L);
             }
         } catch (EnvelopeException exception) {
-            throw new IllegalArgumentException("artifact observation aggregate root cannot be derived", exception);
+            return ArtifactObservationDecision.rejected(
+                    ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_INVALID_UPDATE, 0L);
         }
         context.lastArtifactObservationSequence = update.getUpdateSequence();
         context.lastArtifactObservationRoot = update.getAggregateRootSha256().toByteArray();
+        context.lastArtifactObservationUpdateSha256 = updateSha256.clone();
+        context.lastArtifactObservationAcceptedAtEpochMs = now;
         notifyArtifactObservationUpdate(new AuthenticatedManifest(
                 context.session.playerId(), context.session.id(), context.policy, candidate,
                 Instant.ofEpochMilli(update.getObservedAtEpochMs())));
+        return ArtifactObservationDecision.accept();
+    }
+
+    private static long saturatedAdd(long value, long increment) {
+        if (increment < 0L) throw new IllegalArgumentException("increment must not be negative");
+        return value > Long.MAX_VALUE - increment ? Long.MAX_VALUE : value + increment;
+    }
+
+    private static byte[] sha256(byte[] value) throws EnvelopeException {
+        try {
+            return MessageDigest.getInstance("SHA-256").digest(value);
+        } catch (NoSuchAlgorithmException exception) {
+            throw new EnvelopeException("SHA-256 is unavailable", exception);
+        }
+    }
+
+    private record ArtifactObservationDecision(
+            boolean accepted, ArtifactObservationResultReason reason, long retryAfterEpochMs) {
+        private ArtifactObservationDecision {
+            Objects.requireNonNull(reason, "reason");
+            if (accepted != (reason
+                    == ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_ACCEPTED)) {
+                throw new IllegalArgumentException("artifact observation result reason is inconsistent");
+            }
+            if (retryAfterEpochMs < 0L
+                    || (reason != ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_RATE_LIMITED
+                        && retryAfterEpochMs != 0L)) {
+                throw new IllegalArgumentException("artifact observation retry time is inconsistent");
+            }
+        }
+
+        private static ArtifactObservationDecision accept() {
+            return new ArtifactObservationDecision(true,
+                    ArtifactObservationResultReason.ARTIFACT_OBSERVATION_RESULT_ACCEPTED, 0L);
+        }
+
+        private static ArtifactObservationDecision rejected(
+                ArtifactObservationResultReason reason, long retryAfterEpochMs) {
+            return new ArtifactObservationDecision(false, reason, retryAfterEpochMs);
+        }
     }
 
     private static boolean ageExceeds(long now, long observedAt, Duration maximumAge) {
@@ -626,11 +745,20 @@ public final class ServerHandshakeCoordinator {
                 || request.getManifestRootSha256().size() != 32
                 || request.getEnvironmentSha256().size() != 32
                 || request.getModsCount() > 4096
+                || !validSelectedPackIds(request.getSelectedResourcePacksList())
+                || !validSelectedPackIds(request.getSelectedShaderPacksList())
+                || !validClientCapabilities(request.getClientCapabilitiesList(),
+                        request.getLoadedModsList(), context.policy)
+                || !validLoadedMods(request.getLoadedModsList(), request.getModsList())
+                || (request.getFederationSignedAssertionSha256().size() != 0
+                    && request.getFederationSignedAssertionSha256().size() != 32)
+                || !MessageDigest.isEqual(context.federationSignedAssertionSha256,
+                        request.getFederationSignedAssertionSha256().toByteArray())
                 || request.getPolicySequence() != context.policy.getSequence()
                 || !MessageDigest.isEqual(context.policyDigest, request.getPolicySha256().toByteArray())) {
             return violation(context.session.playerId(), context, RiskEventType.POLICY_MISMATCH);
         }
-        if (!validScopes(request, context.policy)) {
+        if (!validScopes(request, context.policy) || !validModManifestBinding(request, true)) {
             return violation(context.session.playerId(), context, RiskEventType.PROTOCOL_VIOLATION);
         }
         context.session.authenticate(TrustLevel.VERIFIED);
@@ -640,6 +768,8 @@ public final class ServerHandshakeCoordinator {
         context.authenticatedManifestRoot = request.getManifestRootSha256().toByteArray();
         context.lastArtifactObservationRoot = aggregateRoot(request);
         context.lastArtifactObservationSequence = 0L;
+        context.lastArtifactObservationUpdateSha256 = null;
+        context.lastArtifactObservationAcceptedAtEpochMs = 0L;
         context.heartbeat = new HeartbeatSessionStateMachine(
                 context.session.id(),
                 request.getManifestRootSha256().toByteArray(),
@@ -662,6 +792,8 @@ public final class ServerHandshakeCoordinator {
                 // AuthResult expiry is admission-result freshness, not a heartbeat lease.
                 // Heartbeats remain session-bound and independently signed after this TTL.
                 .setExpiresAtEpochMs(clock.instant().plus(ProtocolConstants.AUTH_RESULT_TTL).toEpochMilli())
+                .setFederationSignedAssertionSha256(
+                        ByteString.copyFrom(context.federationSignedAssertionSha256))
                 .build();
         byte[] response = envelopeCodec.sign(
                 PacketType.AUTH_RESULT,
@@ -874,6 +1006,154 @@ public final class ServerHandshakeCoordinator {
         return seenScopes.equals(rules.keySet());
     }
 
+    private static boolean validSelectedPackIds(List<String> ids) {
+        if (ids.size() > ProtocolConstants.MAX_SELECTED_PACKS) return false;
+        Set<String> seen = new HashSet<>();
+        for (String id : ids) {
+            if (id == null || id.isBlank() || !id.equals(id.trim())
+                    || id.length() > ProtocolConstants.MAX_SELECTED_PACK_ID_CHARS
+                    || id.chars().anyMatch(Character::isISOControl) || !seen.add(id)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean validClientCapabilities(
+            List<ClientCapability> capabilities, List<LoadedModEntry> loadedMods, SecurityPolicy policy) {
+        if (capabilities.size() > ProtocolConstants.MAX_CLIENT_CAPABILITIES) return false;
+        Set<ClientCapability> seen = new HashSet<>();
+        int previous = -1;
+        for (ClientCapability capability : capabilities) {
+            if (capability == ClientCapability.CLIENT_CAPABILITY_UNSPECIFIED
+                    || capability == ClientCapability.UNRECOGNIZED
+                    || !seen.add(capability) || capability.getNumber() <= previous) {
+                return false;
+            }
+            previous = capability.getNumber();
+        }
+        boolean loadedGraph = seen.contains(ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1);
+        if (loadedGraph != !loadedMods.isEmpty()) return false;
+        return seen.containsAll(policy.getRequiredClientCapabilitiesList());
+    }
+
+    /**
+     * Closes the complete binding chain: ModEntry is only metadata enrichment for one exact
+     * policy-scoped mods FileEntry.  It may neither add a file nor omit one.
+     */
+    private static boolean validModManifestBinding(AuthRequest request, boolean requireBaseRootMatch) {
+        IntegrityScopeManifest modsScope = null;
+        for (IntegrityScopeManifest manifest : request.getScopeManifestsList()) {
+            if (manifest.getScope().equals("mods")) {
+                if (modsScope != null) return false;
+                modsScope = manifest;
+            }
+        }
+        if (modsScope == null || request.getModsCount() != modsScope.getEntriesCount()) return false;
+        if (requireBaseRootMatch && !MessageDigest.isEqual(
+                request.getManifestRootSha256().toByteArray(), modsScope.getRootSha256().toByteArray())) {
+            return false;
+        }
+        Map<String, FileEntry> scopeEntries = new HashMap<>();
+        for (FileEntry entry : modsScope.getEntriesList()) {
+            if (scopeEntries.putIfAbsent(entry.getRelativePath(), entry) != null) return false;
+        }
+        Set<String> bound = new HashSet<>();
+        for (ModEntry mod : request.getModsList()) {
+            FileEntry entry = scopeEntries.get(mod.getFilename());
+            if (entry == null || !bound.add(mod.getFilename())
+                    || mod.getFileSize() != entry.getFileSize()
+                    || !MessageDigest.isEqual(mod.getSha256().toByteArray(), entry.getSha256().toByteArray())) {
+                return false;
+            }
+        }
+        return bound.size() == scopeEntries.size();
+    }
+
+    /** Validates Fabric Loader runtime telemetry and its optional exact mods-scope binding. */
+    private static boolean validLoadedMods(List<LoadedModEntry> loadedMods, List<ModEntry> mods) {
+        if (loadedMods.size() > ProtocolConstants.MAX_LOADED_MODS) return false;
+        Map<String, ModEntry> modsByFilename = new HashMap<>();
+        for (ModEntry mod : mods) {
+            if (!safeRelativePath(mod.getFilename()) || mod.getFileSize() < 0
+                    || !canonicalLoadedText(mod.getId(), ProtocolConstants.MAX_LOADED_MOD_ID_CHARS)
+                    || !canonicalLoadedText(mod.getVersion(), ProtocolConstants.MAX_LOADED_MOD_VERSION_CHARS)
+                    || mod.getSha256().size() != 32
+                    || modsByFilename.putIfAbsent(mod.getFilename(), mod) != null) {
+                return false;
+            }
+        }
+        Set<String> ids = new HashSet<>();
+        Set<String> directOriginFilenames = new HashSet<>();
+        String previousId = null;
+        for (LoadedModEntry loaded : loadedMods) {
+            String id = loaded.getId();
+            if (!canonicalLoadedText(id, ProtocolConstants.MAX_LOADED_MOD_ID_CHARS)
+                    || !canonicalLoadedText(loaded.getVersion(), ProtocolConstants.MAX_LOADED_MOD_VERSION_CHARS)
+                    || !ids.add(id) || (previousId != null && previousId.compareTo(id) >= 0)) {
+                return false;
+            }
+            previousId = id;
+            LoadedModOriginKind kind = loaded.getOriginKind();
+            if (kind == LoadedModOriginKind.UNRECOGNIZED
+                    || kind == LoadedModOriginKind.LOADED_MOD_ORIGIN_UNSPECIFIED) {
+                return false;
+            }
+            if (kind == LoadedModOriginKind.LOADED_MOD_ORIGIN_MODS_FILE) {
+                if (!safeLoadedModFilename(loaded.getOriginFilename())
+                        || !directOriginFilenames.add(loaded.getOriginFilename())
+                        || !loaded.getParentModId().isEmpty()) {
+                    return false;
+                }
+                ModEntry manifest = modsByFilename.get(loaded.getOriginFilename());
+                boolean exactManifestIdentity = manifest != null
+                        && loaded.getId().equals(manifest.getId())
+                        && loaded.getVersion().equals(manifest.getVersion());
+                if (exactManifestIdentity) {
+                    // The server has every input needed to derive this relation. A client may not
+                    // downgrade an exact direct-file identity to an unbound, hashless observation.
+                    if (!loaded.getOriginManifestMatched() || loaded.getOriginFileSize() < 0
+                            || loaded.getOriginSha256().size() != 32
+                            || loaded.getOriginFileSize() != manifest.getFileSize()
+                            || !MessageDigest.isEqual(loaded.getOriginSha256().toByteArray(),
+                                    manifest.getSha256().toByteArray())) {
+                        return false;
+                    }
+                } else if (loaded.getOriginManifestMatched()
+                        || loaded.getOriginFileSize() != 0L || !loaded.getOriginSha256().isEmpty()) {
+                    // A missing filename or a loader identity that disagrees with the installed
+                    // metadata remains an explicit unmatched runtime observation.
+                    return false;
+                }
+            } else if (kind == LoadedModOriginKind.LOADED_MOD_ORIGIN_NESTED) {
+                if (!loaded.getOriginFilename().isEmpty()
+                        || !canonicalLoadedText(loaded.getParentModId(),
+                                ProtocolConstants.MAX_LOADED_MOD_PARENT_ID_CHARS)
+                        || loaded.getOriginManifestMatched() || loaded.getOriginFileSize() != 0L
+                        || !loaded.getOriginSha256().isEmpty()) {
+                    return false;
+                }
+            } else if (!loaded.getOriginFilename().isEmpty() || !loaded.getParentModId().isEmpty()
+                    || loaded.getOriginManifestMatched() || loaded.getOriginFileSize() != 0L
+                    || !loaded.getOriginSha256().isEmpty()) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private static boolean canonicalLoadedText(String value, int maximumChars) {
+        return value != null && !value.isBlank() && value.equals(value.trim())
+                && value.length() <= maximumChars
+                && value.chars().noneMatch(Character::isISOControl);
+    }
+
+    private static boolean safeLoadedModFilename(String value) {
+        return canonicalLoadedText(value, ProtocolConstants.MAX_LOADED_MOD_FILENAME_CHARS)
+                && !value.equals(".") && !value.equals("..")
+                && !value.contains("/") && !value.contains("\\") && !value.contains(":");
+    }
+
     /** Mirrors the documented client bundle digest so the accepted scope set binds each heartbeat. */
     private static byte[] aggregateRoot(AuthRequest request) throws EnvelopeException {
         try {
@@ -929,6 +1209,10 @@ public final class ServerHandshakeCoordinator {
         private byte[] authenticatedManifestRoot;
         private byte[] lastArtifactObservationRoot;
         private long lastArtifactObservationSequence;
+        private byte[] lastArtifactObservationUpdateSha256;
+        private long lastArtifactObservationAcceptedAtEpochMs;
+        /** Empty for ordinary AUTH; otherwise the exact 32-byte signed-assertion transcript hash. */
+        private byte[] federationSignedAssertionSha256 = new byte[0];
 
         private SessionContext(
                 TrustSession session,

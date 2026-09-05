@@ -14,6 +14,7 @@ repositories {
 dependencies {
     implementation(project(":mcace-core"))
     implementation(project(":mcace-sdk"))
+    testImplementation(project(":mcace-client-common"))
     testImplementation(project(":mcace-protocol"))
     // Build 2028 and later expose PlayerConfigurationEvent on the 1.21-R0.5 API line.
     compileOnly("net.md-5:bungeecord-api:1.21-R0.5-SNAPSHOT")
@@ -23,6 +24,16 @@ dependencies {
 tasks.shadowJar {
     archiveClassifier.set("")
     relocate("com.google.protobuf", "com.ellan.mcace.internal.protobuf")
+}
+
+val mcaceProductVersion = project.version.toString()
+
+tasks.processResources {
+    inputs.property("mcaceProductVersion", mcaceProductVersion)
+    filter(
+        org.apache.tools.ant.filters.ReplaceTokens::class,
+        mapOf("tokens" to mapOf("mcaceVersion" to mcaceProductVersion)),
+    )
 }
 
 tasks.jar {

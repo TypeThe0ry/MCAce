@@ -1,0 +1,34 @@
+{
+  "schema": "MCACE_ANTICHEAT_LIVE_FIXTURE_EVIDENCE_V2",
+  "generated_at": "2026-09-01T10:44:02.282Z",
+  "source_commit": "59f2f2cdd7da66b5558e6c68a4ffda743de948f0",
+  "report_path": "build/anticheat-live-fixtures/evidence-runs/20260901T024402282Z/report.json",
+  "report_sha256": "21b72bbb619ce4cc813e2a21fac45fb27707ac2512cdd4769534334d99ad8e63",
+  "versions": ["1.21.11", "26.1.2", "26.2"],
+  "fixture_mode": "CONTROLLED_EXECUTABLE_CLIENT_AND_SERVER_CORRELATION",
+  "client_executable_code_loaded": true,
+  "client_modlist_reported": true,
+  "server_behavior_signal_independent": true,
+  "correlated_same_session": true,
+  "server_confirmed_count": 3,
+  "server_confirmed_action": "QUARANTINE",
+  "clean_false_positive_count": 0,
+  "negative_boundary": {
+    "clean_client_no_mod_observation": true,
+    "clean_client_no_impossible_movement": true,
+    "clean_client_no_server_confirmed_event": true
+  },
+  "fixture_code_is_project_owned": true,
+  "third_party_code_loaded": false,
+  "third_party_network_access": false,
+  "actual_fabric_client": false,
+  "public_server": false,
+  "interpretation": "Fresh three-version controlled fixture rerun. It proves the implemented correlation and quarantine path, not third-party cheat execution, public-server enforcement, or Tencent ACE kernel/DMA coverage.",
+  "sanitization": {
+    "absolute_paths_copied": false,
+    "pids_copied": false,
+    "ports_copied": false,
+    "uuids_copied": false,
+    "fixture_bytes_copied": false
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "schema": "MCACE_ANTICHEAT_LIVE_FIXTURE_EVIDENCE_V1",
+  "generated_at": "2026-09-02T17:40:51+08:00",
+  "source_commit": "99d634b21ce06db29932ceb364b35734cf079733",
+  "fixture_report": "build/anticheat-live-fixtures/evidence-runs/20260902T094051148Z/report.json",
+  "fixture_report_sha256": "9217db454a647a9db7ffbed0a71ad975cf97ad8f2255d8ef703c9e1da6e64b7c",
+  "versions": ["1.21.11", "26.1.2", "26.2"],
+  "client_executable_code_loaded": true,
+  "client_modlist_reported": true,
+  "server_behavior_signal_independent": true,
+  "correlated_same_session": true,
+  "server_confirmed_count": 3,
+  "server_confirmed_action": "QUARANTINE",
+  "clean_false_positive_count": 0,
+  "third_party_code_loaded": false,
+  "third_party_network_access": false,
+  "public_server": false,
+  "passed": true,
+  "evidence_class": "CONTROLLED_MCACE_OWNED_EXECUTABLE_LOOPBACK_FIXTURE",
+  "coverage_note": "This verifies the MCAce client telemetry/modlist and independent server correlation path. It is not a third-party cheat sample, public server, or production acceptance event."
+}

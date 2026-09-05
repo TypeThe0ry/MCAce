@@ -110,6 +110,21 @@ final class BungeeDeferredDispositionRoutesTest {
     }
 
     @Test
+    void physicalDenyCanBeRecordedBeforeTheHandshakeCreatesAnAuthenticatedSession() {
+        BungeeDeferredDispositionRoutes routes = routes();
+        Object connection = new Object();
+        BungeeDeferredDispositionRoutes.LoginTicket ticket = routes.beginLogin(PLAYER, connection);
+
+        assertTrue(routes.markDeniedPhysical(PLAYER, connection, ticket));
+        assertFalse(routes.permitRoute(PLAYER, "not-yet-authenticated", connection, ticket));
+        assertFalse(routes.markDeniedPhysical(PLAYER, new Object(), ticket));
+
+        Object replacement = new Object();
+        BungeeDeferredDispositionRoutes.LoginTicket replacementTicket = routes.beginLogin(PLAYER, replacement);
+        assertTrue(routes.permitRoute(PLAYER, "replacement", replacement, replacementTicket));
+    }
+
+    @Test
     void generationMismatchCapacityAndHeartbeatRecoveryFailClosed() {
         BungeeDeferredDispositionRoutes routes = routes();
         Object connection = new Object();

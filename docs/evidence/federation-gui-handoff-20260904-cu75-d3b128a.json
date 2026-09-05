@@ -1,0 +1,65 @@
+{
+  "schema": "MCACE_FABRIC_FEDERATION_GUI_HANDOFF_EVIDENCE_INDEX_V5",
+  "generated_at": "2026-09-04T03:55:13.5575449+00:00",
+  "source_commit": "d3b128ae4f82a53c3aa57babc8a9f26e8bc77c1f",
+  "artifact_source_commit": "d3b128ae4f82a53c3aa57babc8a9f26e8bc77c1f",
+  "release_bundle_source_commit": "d3b128ae4f82a53c3aa57babc8a9f26e8bc77c1f",
+  "fabric_target": "26.2",
+  "source_proxy": "VELOCITY",
+  "target_proxy": "VELOCITY",
+  "gui_attempt_id": "1de6b5aaf379873a30521be1830c6e6e",
+  "gui_challenge_nonce": "aa610e847b9047cbb6a3df2557b7a8e04d62242c7348c85692bbf9a46f7eeb09",
+  "postrun_operation_attempt_id": "8466b74ce2d110e2e2809b345e96a666",
+  "postrun_challenge_nonce": "0cab1cd6285e204436bc787379a9664ba9e2d9b0de96ebe2a3d48f4e4334b93a",
+  "visible_gui_trust_root_sha256": "733f5fd7951247c04a061c2499f23601902da55ebc44fab26fc4bce03a4aa10f",
+  "postrun_supervisor_trust_root_sha256": "70850e87eaa2ee8e9c53da91e4403fa36efbd03774ac95019657fec299b5208c",
+  "postrun_signer_key_id": "mcace-federation-postrun-v5-20260826-eb807852a8e3",
+  "release_bundle_manifest_sha256": "93caa8817836147ac750e943655475a805b7c2d3428e3cd67e5b6953715e0cf8",
+  "release_bundle_fabric_jar_file": "mcace-client-fabric-26.2.jar",
+  "release_bundle_fabric_jar_sha256": "71a2b251cdb5fde3e76aaa9e7e142661683e4d4ad152ff9b26fb4e4fb806fa5b",
+  "release_bundle_paper_jar_sha256": "267ab74e7760d344bc154b7ae1051539bb3eeb0c3f17111801aec3142d3156bb",
+  "release_bundle_source_proxy_jar_sha256": "16dc3106cfab81c6262693875202b69e60e26ab2991a3b76b7849d15698718bc",
+  "release_bundle_target_proxy_jar_sha256": "16dc3106cfab81c6262693875202b69e60e26ab2991a3b76b7849d15698718bc",
+  "canonical_evidence": {
+    "report": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260904-cu75-d3b128a/report.json",
+      "sha256": "c37f6257bb7da0ca4de5eda790d184e0c5a3ada4a6d331c9b75a5096c34ad0f7",
+      "size_bytes": 6742
+    },
+    "binding": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260904-cu75-d3b128a/binding.json",
+      "sha256": "62a894e1b90263cb1bb492261316a68048c06a4138313505dd439b1ada144bb9",
+      "size_bytes": 4300
+    },
+    "commit": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260904-cu75-d3b128a/commit.json",
+      "sha256": "16da338e967849c38638212e69addc2092697b209e6c4b7f99e46ed80c1e3da2",
+      "size_bytes": 1718
+    },
+    "visible_gui_attestation": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260904-cu75-d3b128a/visible-gui-attestation.json",
+      "sha256": "05c33d85686a7dbd2917d8b3801df08619d422fe4a300dbd1c53d5140f829038",
+      "size_bytes": 2186
+    },
+    "visible_gui_signing_request": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260904-cu75-d3b128a/visible-gui-signing-request.json",
+      "sha256": "069ae41b439b6368b628f9b7daa4c6814ae27344935cc6feb02cfe367e146f13",
+      "size_bytes": 3646
+    },
+    "visible_gui_screenshot": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260904-cu75-d3b128a/visible-gui.png",
+      "sha256": "9e145edaab14f3bd134c8d7a7fd32796ee626a29b68e4b2fa4462c785ca133a6",
+      "size_bytes": 79051
+    },
+    "runtime_event_ledger": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260904-cu75-d3b128a/runtime-events.jsonl",
+      "sha256": "d532dde4f8688be610d3c5a6c6938f693dfd978692d18aae480d956fe95f6c3c",
+      "size_bytes": 20260
+    },
+    "post_run_receipt": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260904-cu75-d3b128a/post-run-receipt.json",
+      "sha256": "adf712be694654631b41e4a3de803a67e894d7c5cc2fa78b8e9cd65ac8a342aa",
+      "size_bytes": 3611
+    }
+  }
+}

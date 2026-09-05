@@ -8,12 +8,164 @@ permissions:
   contents: read
 
 jobs:
-  build:
-    runs-on: ubuntu-24.04
+  windows-contracts:
+    runs-on: windows-2025
     timeout-minutes: 60
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
         with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Configure JDK 21 for Windows contract fixtures
+        uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
+        with:
+          distribution: temurin
+          java-version: '21.0.7+6.0.LTS'
+          architecture: x64
+      - name: Expose the Git for Windows OpenSSL executable
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $openSsl = Join-Path $env:ProgramFiles 'Git\usr\bin\openssl.exe'
+          if (-not (Test-Path -LiteralPath $openSsl -PathType Leaf)) {
+            throw 'MCACE_WINDOWS_CONTRACT_OPENSSL_REQUIRED'
+          }
+          (Split-Path -Parent $openSsl) | Out-File -LiteralPath $env:GITHUB_PATH -Encoding utf8 -Append
+      - name: Verify exact Windows checkout identity
+        shell: pwsh
+        env:
+          MCACE_SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ((git rev-parse --verify HEAD).Trim() -cne $env:MCACE_SOURCE_COMMIT) {
+            throw 'MCACE_WINDOWS_CONTRACT_CHECKOUT_IDENTITY_MISMATCH'
+          }
+          if (@(git status --porcelain=v1 --untracked-files=all).Count -ne 0) {
+            throw 'MCACE_WINDOWS_CONTRACT_CHECKOUT_DIRTY'
+          }
+      - name: Run fail-closed PowerShell 7 contract regressions
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./scripts/test-fabric-federation-gui-handoff-smoke.ps1
+          ./scripts/test-platform-load-smoke-privacy.ps1
+          ./scripts/test-production-authority-process-evidence.ps1
+          ./scripts/test-sign-production-authority-receipt.ps1
+          ./scripts/test-provision-production-authority.ps1
+          ./scripts/test-vulcan-genuine-event-smoke.ps1
+          ./scripts/test-server-version-process-matrix.ps1
+          ./scripts/test-publish-native-release-evidence.ps1
+          ./scripts/test-publish-server-version-matrix-evidence.ps1
+          ./scripts/test-version-compatibility-contract.ps1
+          ./scripts/test-release-readiness.ps1
+          # Several contract scripts intentionally exercise failing native
+          # commands and leave $LASTEXITCODE set even after their assertions
+          # pass.  The script-level assertions above are the authoritative
+          # result; clear the leaked native status before the GitHub shell
+          # exits so a passing contract run cannot be reported as failed.
+          $global:LASTEXITCODE = 0
+          exit 0
+      - name: Run fail-closed Windows PowerShell 5.1 contract regressions
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          ./scripts/test-fabric-federation-gui-handoff-smoke.ps1
+          ./scripts/test-platform-load-smoke-privacy.ps1
+          ./scripts/test-production-authority-process-evidence.ps1
+          ./scripts/test-sign-production-authority-receipt.ps1
+          ./scripts/test-provision-production-authority.ps1
+          ./scripts/test-vulcan-genuine-event-smoke.ps1
+          ./scripts/test-server-version-process-matrix.ps1
+          ./scripts/test-publish-native-release-evidence.ps1
+          ./scripts/test-publish-server-version-matrix-evidence.ps1
+          ./scripts/test-version-compatibility-contract.ps1
+          ./scripts/test-release-readiness.ps1
+          $global:LASTEXITCODE = 0
+          exit 0
+
+  build:
+    needs: windows-contracts
+    if: ${{ always() }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    environment:
+      name: ${{ github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/tags/v0.0.1') && 'release' || 'ci' }}
+      deployment: false
+    steps:
+      - name: Fail closed unless Windows release contracts succeeded
+        shell: bash
+        env:
+          WINDOWS_CONTRACT_RESULT: ${{ needs['windows-contracts'].result }}
+        run: |
+          set -euo pipefail
+          test "$WINDOWS_CONTRACT_RESULT" = 'success'
+      - name: Emit PR-only Ubuntu OpenSSL pin diagnostic
+        if: ${{ github.event_name == 'pull_request' }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          export LC_ALL=C
+          unset LD_PRELOAD LD_LIBRARY_PATH LD_AUDIT LD_DEBUG LD_DEBUG_OUTPUT \
+            LD_PROFILE LD_ORIGIN_PATH GLIBC_TUNABLES OPENSSL_CONF \
+            OPENSSL_MODULES OPENSSL_ENGINES RANDFILE
+          test "$RUNNER_ENVIRONMENT" = 'github-hosted'
+          test "$RUNNER_OS" = 'Linux'
+          test "$(uname -s)" = 'Linux'
+          test -f /usr/bin/openssl
+          test -x /usr/bin/openssl
+          test ! -L /usr/bin/openssl
+          : "${ImageOS:?GitHub-hosted ImageOS is required}"
+          : "${ImageVersion:?GitHub-hosted ImageVersion is required}"
+          : "${GITHUB_SHA:?GITHUB_SHA is required}"
+          : "${GITHUB_WORKFLOW_SHA:?GITHUB_WORKFLOW_SHA is required}"
+          [[ "$ImageOS" =~ ^[0-9A-Za-z._-]+$ ]]
+          [[ "$ImageVersion" =~ ^[0-9A-Za-z._-]+$ ]]
+          [[ "$GITHUB_SHA" =~ ^[0-9a-f]{40}$ ]]
+          [[ "$GITHUB_WORKFLOW_SHA" =~ ^[0-9a-f]{40}$ ]]
+          runtime_paths="$(mktemp)"
+          runtime_manifest="$(mktemp)"
+          trap 'rm -f "$runtime_paths" "$runtime_manifest"' EXIT
+          ldd_output="$(/usr/bin/ldd /usr/bin/openssl)"
+          ! grep -Fq 'not found' <<<"$ldd_output"
+          {
+            printf '%s\n' /usr/bin/openssl
+            awk '/=> \// { print $3 } /^[[:space:]]*\// { print $1 }' <<<"$ldd_output"
+          } | while IFS= read -r candidate; do
+            /usr/bin/realpath -e -- "$candidate"
+          done | sort -u > "$runtime_paths"
+          test "$(wc -l < "$runtime_paths")" -ge 3
+          {
+            printf 'schema=MCACE_UBUNTU_OPENSSL_RUNTIME_V1\n'
+            printf 'image_os=%s\n' "$ImageOS"
+            printf 'image_version=%s\n' "$ImageVersion"
+            printf 'runner_environment=%s\n' "$RUNNER_ENVIRONMENT"
+            printf 'runner_os=%s\n' "$RUNNER_OS"
+            while IFS= read -r runtime_path; do
+              test -f "$runtime_path"
+              test ! -L "$runtime_path"
+              test "$(/usr/bin/stat -c '%u' -- "$runtime_path")" = 0
+              test -z "$(/usr/bin/find "$runtime_path" -maxdepth 0 -perm /022 -print -quit)"
+              runtime_sha256="$(sha256sum "$runtime_path" | awk '{print $1}')"
+              runtime_size="$(/usr/bin/stat -c '%s' -- "$runtime_path")"
+              package_record="$(dpkg-query -S "$runtime_path" | sort | head -n 1)"
+              package_name="${package_record%%: /*}"
+              package_version="$(dpkg-query -W -f='${Version}' "$package_name")"
+              [[ "$runtime_sha256" =~ ^[0-9a-f]{64}$ ]]
+              [[ "$runtime_size" =~ ^[1-9][0-9]*$ ]]
+              [[ "$package_name" =~ ^[0-9A-Za-z.+:~_-]+$ ]]
+              [[ "$package_version" =~ ^[0-9A-Za-z.+:~_-]+$ ]]
+              printf 'entry=%s|%s|%s|%s|%s\n' "$runtime_path" "$runtime_size" \
+                "$runtime_sha256" "$package_name" "$package_version"
+            done < "$runtime_paths"
+          } > "$runtime_manifest"
+          runtime_manifest_sha256="$(sha256sum "$runtime_manifest" | awk '{print $1}')"
+          [[ "$runtime_manifest_sha256" =~ ^[0-9a-f]{64}$ ]]
+          cat "$runtime_manifest"
+          printf 'MCACE_UBUNTU_OPENSSL_RUNTIME_PIN|manifest_sha256=%s|image_os=%s|image_version=%s|github_sha=%s|workflow_sha=%s\n' \
+            "$runtime_manifest_sha256" "$ImageOS" "$ImageVersion" "$GITHUB_SHA" "$GITHUB_WORKFLOW_SHA"
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          fetch-depth: 0
           persist-credentials: false
       - name: Configure JDK 25 for the isolated modern Fabric build
         uses: actions/setup-java@b6effb05e454b25005698d916606bdc6ffcbf961 # v5.7.0
@@ -73,7 +225,7 @@ jobs:
           --max-workers=1
           --console=plain
       - name: Build the local verification bundle fully offline
-        if: ${{ github.repository != 'TypeThe0ry/MCAce' || github.event_name != 'push' || github.ref != 'refs/heads/main' }}
+        if: ${{ github.repository != 'TypeThe0ry/MCAce' || github.event_name != 'push' || (github.ref != 'refs/heads/main' && github.ref != 'refs/tags/v0.0.1') }}
         shell: bash
         env:
           MCACE_SOURCE_COMMIT: ${{ github.sha }}
@@ -92,21 +244,31 @@ jobs:
             --max-workers=1 \
             --console=plain
       - name: Upload the exact eight-file local verification bundle
-        if: ${{ github.repository != 'TypeThe0ry/MCAce' || github.event_name != 'push' || github.ref != 'refs/heads/main' }}
+        if: ${{ github.repository != 'TypeThe0ry/MCAce' || github.event_name != 'push' || (github.ref != 'refs/heads/main' && github.ref != 'refs/tags/v0.0.1') }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: mcace-local-verification-bundle-${{ github.sha }}
           path: build/local-verification-bundle/
           if-no-files-found: error
       - name: Build the exact release candidate fully offline
-        if: ${{ github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ success() && needs['windows-contracts'].result == 'success' && github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/tags/v0.0.1') }}
         shell: bash
         env:
           MCACE_SOURCE_COMMIT: ${{ github.sha }}
+          MCACE_PRODUCT_VERSION: '0.0.1'
         run: |
           set -euo pipefail
+          test -f docs/evidence/release-artifact-source.txt
+          MCACE_ARTIFACT_SOURCE_COMMIT="$(cat docs/evidence/release-artifact-source.txt)"
+          [[ "$MCACE_ARTIFACT_SOURCE_COMMIT" =~ ^[0-9a-f]{40}$ ]]
+          git cat-file -e "$MCACE_ARTIFACT_SOURCE_COMMIT^{commit}"
+          git merge-base --is-ancestor "$MCACE_ARTIFACT_SOURCE_COMMIT" "$MCACE_SOURCE_COMMIT"
+          export MCACE_ARTIFACT_SOURCE_COMMIT
+          echo "MCACE_ARTIFACT_SOURCE_COMMIT=$MCACE_ARTIFACT_SOURCE_COMMIT" >> "$GITHUB_ENV"
           bash ./gradlew clean build releaseBundle \
             "-PmcaceSourceCommit=$MCACE_SOURCE_COMMIT" \
+            "-PmcaceArtifactSourceCommit=$MCACE_ARTIFACT_SOURCE_COMMIT" \
+            "-PmcaceProductVersion=$MCACE_PRODUCT_VERSION" \
             "-PmcaceModernJavaHome=$MCACE_JAVA25_HOME" \
             --offline \
             --dependency-verification=strict \
@@ -117,8 +279,265 @@ jobs:
             --no-parallel \
             --max-workers=1 \
             --console=plain
+      - name: Verify the release bundle compatibility contract
+        if: ${{ success() && needs['windows-contracts'].result == 'success' && github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/tags/v0.0.1') }}
+        shell: pwsh
+        env:
+          MCACE_SOURCE_COMMIT: ${{ github.sha }}
+        run: >-
+          ./scripts/version-compatibility-contract-smoke.ps1
+          -Execute
+          -BundleRoot build/release-bundle
+          -ReportPath build/compatibility-contract/report.json
+          -ExpectedSourceCommit $env:MCACE_SOURCE_COMMIT
+          -ExpectedArtifactSourceCommit $env:MCACE_ARTIFACT_SOURCE_COMMIT
+      - name: Run fail-closed release readiness gate
+        if: ${{ success() && needs['windows-contracts'].result == 'success' && github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/tags/v0.0.1') }}
+        shell: pwsh
+        env:
+          MCACE_SOURCE_COMMIT: ${{ github.sha }}
+          MCACE_PROTECTED_RELEASE_CI: 'true'
+          MATRIX_TRUST_ROOT_BASE64: ${{ secrets.MCACE_MATRIX_SUPERVISOR_TRUST_ROOT_BASE64 }}
+          MATRIX_TRUST_ROOT_SHA256: ${{ vars.MCACE_MATRIX_SUPERVISOR_TRUST_ROOT_SHA256 }}
+          FEDERATION_GUI_TRUST_ROOT_BASE64: ${{ secrets.MCACE_FEDERATION_GUI_TRUST_ROOT_BASE64 }}
+          FEDERATION_GUI_TRUST_ROOT_SHA256: ${{ vars.MCACE_FEDERATION_GUI_TRUST_ROOT_SHA256 }}
+          FEDERATION_POSTRUN_TRUST_ROOT_BASE64: ${{ secrets.MCACE_FEDERATION_POSTRUN_TRUST_ROOT_BASE64 }}
+          FEDERATION_POSTRUN_TRUST_ROOT_SHA256: ${{ vars.MCACE_FEDERATION_POSTRUN_TRUST_ROOT_SHA256 }}
+          VULCAN_SUPERVISOR_TRUST_ROOT_BASE64: ${{ secrets.MCACE_VULCAN_SUPERVISOR_TRUST_ROOT_BASE64 }}
+          VULCAN_SUPERVISOR_TRUST_ROOT_SHA256: ${{ vars.MCACE_VULCAN_SUPERVISOR_TRUST_ROOT_SHA256 }}
+          PRODUCTION_AUTHORITY_SUPERVISOR_DESCRIPTOR_SHA256: ${{ vars.MCACE_PRODUCTION_AUTHORITY_SUPERVISOR_DESCRIPTOR_SHA256 }}
+          AUTHORITY_OPENSSL_SHA256: ${{ vars.MCACE_AUTHORITY_OPENSSL_SHA256 }}
+          AUTHORITY_OPENSSL_RUNTIME_MANIFEST_SHA256: ${{ vars.MCACE_AUTHORITY_OPENSSL_RUNTIME_MANIFEST_SHA256 }}
+          AUTHORITY_RUNNER_IMAGE_OS: ${{ vars.MCACE_AUTHORITY_RUNNER_IMAGE_OS }}
+          AUTHORITY_RUNNER_IMAGE_VERSION: ${{ vars.MCACE_AUTHORITY_RUNNER_IMAGE_VERSION }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          Set-StrictMode -Version Latest
+
+          function Write-PinnedTrustRoot(
+              [string]$Leaf,
+              [string]$Encoded,
+              [string]$ExpectedSha256) {
+            if ([string]::IsNullOrWhiteSpace($Encoded) -or
+                $ExpectedSha256 -cnotmatch '^[0-9a-f]{64}$') {
+              throw "MCACE_PROTECTED_RELEASE_TRUST_ROOT_SECRET_REQUIRED|$Leaf"
+            }
+            try { [byte[]]$bytes = [Convert]::FromBase64String($Encoded) }
+            catch { throw "MCACE_PROTECTED_RELEASE_TRUST_ROOT_BASE64_INVALID|$Leaf" }
+            if ($bytes.Length -lt 64 -or $bytes.Length -gt 1048576) {
+              throw "MCACE_PROTECTED_RELEASE_TRUST_ROOT_SIZE_INVALID|$Leaf"
+            }
+            $path = Join-Path $env:RUNNER_TEMP $Leaf
+            [IO.File]::WriteAllBytes($path,$bytes)
+            $actual = (Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash.ToLowerInvariant()
+            if ($actual -cne $ExpectedSha256) {
+              throw "MCACE_PROTECTED_RELEASE_TRUST_ROOT_PIN_MISMATCH|$Leaf"
+            }
+            return $path
+          }
+
+          $matrixRoot = Write-PinnedTrustRoot 'matrix-supervisor-trust-root.json' `
+            $env:MATRIX_TRUST_ROOT_BASE64 $env:MATRIX_TRUST_ROOT_SHA256
+          $guiRoot = Write-PinnedTrustRoot 'federation-gui-trust-root.json' `
+            $env:FEDERATION_GUI_TRUST_ROOT_BASE64 $env:FEDERATION_GUI_TRUST_ROOT_SHA256
+          $postRunRoot = Write-PinnedTrustRoot 'federation-postrun-trust-root.json' `
+            $env:FEDERATION_POSTRUN_TRUST_ROOT_BASE64 $env:FEDERATION_POSTRUN_TRUST_ROOT_SHA256
+          $vulcanRoot = Write-PinnedTrustRoot 'vulcan-supervisor-trust-root.json' `
+            $env:VULCAN_SUPERVISOR_TRUST_ROOT_BASE64 $env:VULCAN_SUPERVISOR_TRUST_ROOT_SHA256
+          if ($env:FEDERATION_GUI_TRUST_ROOT_SHA256 -ceq
+              $env:FEDERATION_POSTRUN_TRUST_ROOT_SHA256) {
+            throw 'MCACE_PROTECTED_RELEASE_FEDERATION_SIGNER_ROOTS_MUST_DIFFER'
+          }
+          if ($env:VULCAN_SUPERVISOR_TRUST_ROOT_SHA256 -in @(
+              $env:MATRIX_TRUST_ROOT_SHA256,$env:FEDERATION_GUI_TRUST_ROOT_SHA256,
+              $env:FEDERATION_POSTRUN_TRUST_ROOT_SHA256)) {
+            throw 'MCACE_PROTECTED_RELEASE_VULCAN_SIGNER_ROOT_MUST_BE_INDEPENDENT'
+          }
+          if ($env:PRODUCTION_AUTHORITY_SUPERVISOR_DESCRIPTOR_SHA256 -cnotmatch
+              '^[0-9a-f]{64}$' -or $env:AUTHORITY_OPENSSL_SHA256 -cnotmatch
+              '^[0-9a-f]{64}$') {
+            throw 'MCACE_PROTECTED_RELEASE_AUTHORITY_PIN_REQUIRED'
+          }
+          foreach ($unsafeName in @(
+              'LD_PRELOAD','LD_LIBRARY_PATH','LD_AUDIT','LD_DEBUG','LD_DEBUG_OUTPUT',
+              'LD_PROFILE','LD_ORIGIN_PATH','GLIBC_TUNABLES','OPENSSL_CONF',
+              'OPENSSL_MODULES','OPENSSL_ENGINES','RANDFILE')) {
+            [Environment]::SetEnvironmentVariable($unsafeName,$null,'Process')
+          }
+          $openSsl = '/usr/bin/openssl'
+          function Invoke-PinnedNative(
+              [string]$FileName,
+              [string[]]$Arguments,
+              [string]$FailureCode) {
+            $oldPreference = $ErrorActionPreference
+            try {
+              $ErrorActionPreference = 'Continue'
+              $result = @(& $FileName @Arguments 2>&1)
+              $exitCode = $LASTEXITCODE
+            } finally { $ErrorActionPreference = $oldPreference }
+            if ($exitCode -ne 0) { throw $FailureCode }
+            return @($result | ForEach-Object { [string]$_ })
+          }
+          function Get-SystemOpenSslRuntimeSnapshot([string]$Path) {
+            $ldd = Invoke-PinnedNative '/usr/bin/ldd' @($Path) `
+              'MCACE_PROTECTED_RELEASE_OPENSSL_LDD_FAILED'
+            if (($ldd -join "`n").Contains('not found')) {
+              throw 'MCACE_PROTECTED_RELEASE_OPENSSL_LIBRARY_UNRESOLVED'
+            }
+            $paths = New-Object Collections.Generic.HashSet[string]([StringComparer]::Ordinal)
+            $null = $paths.Add($Path)
+            foreach ($line in $ldd) {
+              if ($line -match '=>\s+(?<path>/\S+)\s+\(' -or
+                  $line -match '^\s*(?<path>/\S+)\s+\(') {
+                $resolved = (Invoke-PinnedNative '/usr/bin/realpath' `
+                  @('-e','--',[string]$Matches.path) `
+                  'MCACE_PROTECTED_RELEASE_OPENSSL_REALPATH_FAILED')[0]
+                $null = $paths.Add($resolved)
+              }
+            }
+            $orderedPaths = @($paths)
+            [Array]::Sort($orderedPaths,[StringComparer]::Ordinal)
+            if ($orderedPaths.Count -lt 3 -or $orderedPaths -cnotcontains $Path) {
+              throw 'MCACE_PROTECTED_RELEASE_OPENSSL_RUNTIME_SET_INVALID'
+            }
+            $lines = New-Object Collections.Generic.List[string]
+            $lines.Add('schema=MCACE_UBUNTU_OPENSSL_RUNTIME_V1')
+            $lines.Add("image_os=$env:ImageOS")
+            $lines.Add("image_version=$env:ImageVersion")
+            $lines.Add("runner_environment=$env:RUNNER_ENVIRONMENT")
+            $lines.Add("runner_os=$env:RUNNER_OS")
+            $openSslHash = $null
+            foreach ($runtimePath in $orderedPaths) {
+              $item = Get-Item -LiteralPath $runtimePath -Force -ErrorAction Stop
+              if ($item.PSIsContainer -or
+                  ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
+                  ($item.PSObject.Properties.Name -contains 'LinkType' -and
+                    $null -ne $item.LinkType) -or $item.FullName -cne $runtimePath -or
+                  $item.PSObject.Properties.Name -notcontains 'UnixFileMode') {
+                throw 'MCACE_PROTECTED_RELEASE_OPENSSL_RUNTIME_REGULAR_FILE_REQUIRED'
+              }
+              $unsafeWrite = [IO.UnixFileMode]::GroupWrite -bor [IO.UnixFileMode]::OtherWrite
+              if (($item.UnixFileMode -band $unsafeWrite) -ne 0) {
+                throw 'MCACE_PROTECTED_RELEASE_OPENSSL_RUNTIME_MODE_UNSAFE'
+              }
+              if ($runtimePath -ceq $Path) {
+                $executeBits = [IO.UnixFileMode]::UserExecute -bor
+                  [IO.UnixFileMode]::GroupExecute -bor [IO.UnixFileMode]::OtherExecute
+                if (($item.UnixFileMode -band $executeBits) -eq 0) {
+                  throw 'MCACE_PROTECTED_RELEASE_SYSTEM_OPENSSL_EXECUTABLE_REQUIRED'
+                }
+              }
+              $ownerUid = (Invoke-PinnedNative '/usr/bin/stat' `
+                @('-c','%u','--',$runtimePath) `
+                'MCACE_PROTECTED_RELEASE_OPENSSL_RUNTIME_STAT_FAILED')[0]
+              if ($ownerUid -cne '0') {
+                throw 'MCACE_PROTECTED_RELEASE_OPENSSL_RUNTIME_OWNER_INVALID'
+              }
+              $stream = [IO.File]::Open($runtimePath,[IO.FileMode]::Open,
+                [IO.FileAccess]::Read,[IO.FileShare]::Read)
+              try {
+                $minimumRuntimeSize = if ($runtimePath -ceq $Path) { 65536 } else { 1 }
+                if ($stream.Length -lt $minimumRuntimeSize -or
+                    $stream.Length -gt 268435456) {
+                  throw 'MCACE_PROTECTED_RELEASE_OPENSSL_RUNTIME_SIZE_INVALID'
+                }
+                $memory = [IO.MemoryStream]::new()
+                try { $stream.CopyTo($memory); [byte[]]$bytes = $memory.ToArray() }
+                finally { $memory.Dispose() }
+              } finally { $stream.Dispose() }
+              $sha = [Security.Cryptography.SHA256]::Create()
+              try {
+                $hash = ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace('-','').ToLowerInvariant()
+              } finally { $sha.Dispose() }
+              $after = Get-Item -LiteralPath $runtimePath -Force -ErrorAction Stop
+              if ($after.Length -ne $bytes.Length -or $after.FullName -cne $runtimePath -or
+                  ($after.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw 'MCACE_PROTECTED_RELEASE_OPENSSL_RUNTIME_IDENTITY_CHANGED'
+              }
+              $packageRecords = Invoke-PinnedNative '/usr/bin/dpkg-query' `
+                @('-S',$runtimePath) 'MCACE_PROTECTED_RELEASE_OPENSSL_PACKAGE_OWNER_REQUIRED'
+              $packageRecord = @($packageRecords | Sort-Object)[0]
+              if ($packageRecord -cnotmatch '^(?<package>[0-9A-Za-z.+:~_-]+):\s+') {
+                throw 'MCACE_PROTECTED_RELEASE_OPENSSL_PACKAGE_RECORD_INVALID'
+              }
+              $packageName = [string]$Matches.package
+              $packageVersion = (Invoke-PinnedNative '/usr/bin/dpkg-query' `
+                @('-W',"-f=`${Version}",$packageName) `
+                'MCACE_PROTECTED_RELEASE_OPENSSL_PACKAGE_VERSION_REQUIRED')[0]
+              if ($packageVersion -cnotmatch '^[0-9A-Za-z.+:~_-]+$') {
+                throw 'MCACE_PROTECTED_RELEASE_OPENSSL_PACKAGE_VERSION_INVALID'
+              }
+              $lines.Add("entry=$runtimePath|$($bytes.Length)|$hash|$packageName|$packageVersion")
+              if ($runtimePath -ceq $Path) { $openSslHash = $hash }
+            }
+            [byte[]]$material = [Text.UTF8Encoding]::new($false).GetBytes(
+              (($lines -join "`n") + "`n"))
+            $manifestSha = [Security.Cryptography.SHA256]::Create()
+            try {
+              $manifestHash = ([BitConverter]::ToString(
+                $manifestSha.ComputeHash($material))).Replace('-','').ToLowerInvariant()
+            } finally { $manifestSha.Dispose() }
+            return [pscustomobject]@{
+              manifest_sha256=$manifestHash
+              openssl_sha256=$openSslHash
+              material=$material
+            }
+          }
+          if ($env:RUNNER_ENVIRONMENT -cne 'github-hosted' -or
+              $env:RUNNER_OS -cne 'Linux' -or
+              $env:ImageOS -cne $env:AUTHORITY_RUNNER_IMAGE_OS -or
+              $env:ImageVersion -cne $env:AUTHORITY_RUNNER_IMAGE_VERSION -or
+              $env:AUTHORITY_OPENSSL_RUNTIME_MANIFEST_SHA256 -cnotmatch '^[0-9a-f]{64}$') {
+            throw 'MCACE_PROTECTED_RELEASE_OPENSSL_RUNTIME_CONTEXT_PIN_REQUIRED'
+          }
+          $firstOpenSslSnapshot = Get-SystemOpenSslRuntimeSnapshot $openSsl
+          $secondOpenSslSnapshot = Get-SystemOpenSslRuntimeSnapshot $openSsl
+          if ($firstOpenSslSnapshot.manifest_sha256 -cne
+                $secondOpenSslSnapshot.manifest_sha256 -or
+              $firstOpenSslSnapshot.manifest_sha256 -cne
+                $env:AUTHORITY_OPENSSL_RUNTIME_MANIFEST_SHA256) {
+            throw 'MCACE_PROTECTED_RELEASE_SYSTEM_OPENSSL_RUNTIME_UNSTABLE_OR_UNAPPROVED'
+          }
+          $actualOpenSslSha256 = [string]$firstOpenSslSnapshot.openssl_sha256
+          if ($actualOpenSslSha256 -cne $env:AUTHORITY_OPENSSL_SHA256) {
+            throw 'MCACE_PROTECTED_RELEASE_OPENSSL_PIN_MISMATCH'
+          }
+
+          $exports = [ordered]@{
+            MCACE_PROTECTED_RELEASE_ENVIRONMENT='release'
+            MCACE_RELEASE_APPROVED_MATRIX_SUPERVISOR_TRUST_ROOT_SHA256=$env:MATRIX_TRUST_ROOT_SHA256
+            MCACE_RELEASE_APPROVED_FEDERATION_GUI_TRUST_ROOT_SHA256=$env:FEDERATION_GUI_TRUST_ROOT_SHA256
+            MCACE_RELEASE_APPROVED_FEDERATION_POSTRUN_TRUST_ROOT_SHA256=$env:FEDERATION_POSTRUN_TRUST_ROOT_SHA256
+            MCACE_VULCAN_SUPERVISOR_TRUST_ROOT_SHA256=$env:VULCAN_SUPERVISOR_TRUST_ROOT_SHA256
+            MCACE_RELEASE_APPROVED_PRODUCTION_AUTHORITY_SUPERVISOR_DESCRIPTOR_SHA256=$env:PRODUCTION_AUTHORITY_SUPERVISOR_DESCRIPTOR_SHA256
+            MCACE_RELEASE_AUTHORITY_OPENSSL_PATH=$openSsl
+            MCACE_RELEASE_AUTHORITY_OPENSSL_SHA256=$env:AUTHORITY_OPENSSL_SHA256
+          }
+          foreach ($entry in $exports.GetEnumerator()) {
+            [Environment]::SetEnvironmentVariable([string]$entry.Key,[string]$entry.Value,'Process')
+            "$($entry.Key)=$($entry.Value)" | Out-File -LiteralPath $env:GITHUB_ENV `
+              -Encoding utf8 -Append
+          }
+
+          ./scripts/release-readiness.ps1 `
+            -SourceCommit $env:MCACE_SOURCE_COMMIT `
+            -MatrixSupervisorTrustRootPath $matrixRoot `
+            -ExpectedMatrixSupervisorTrustRootSha256 $env:MATRIX_TRUST_ROOT_SHA256 `
+            -VisibleGuiTrustRootPath $guiRoot `
+            -ExpectedVisibleGuiTrustRootSha256 $env:FEDERATION_GUI_TRUST_ROOT_SHA256 `
+            -PostRunSupervisorTrustRootPath $postRunRoot `
+            -ExpectedPostRunSupervisorTrustRootSha256 $env:FEDERATION_POSTRUN_TRUST_ROOT_SHA256 `
+            -VulcanSupervisorTrustRootPath $vulcanRoot `
+            -ExpectedVulcanSupervisorTrustRootSha256 $env:VULCAN_SUPERVISOR_TRUST_ROOT_SHA256
+          $finalOpenSslSnapshot = Get-SystemOpenSslRuntimeSnapshot $openSsl
+          if ($finalOpenSslSnapshot.manifest_sha256 -cne
+                $firstOpenSslSnapshot.manifest_sha256 -or
+              $finalOpenSslSnapshot.openssl_sha256 -cne
+                $firstOpenSslSnapshot.openssl_sha256) {
+            throw 'MCACE_PROTECTED_RELEASE_SYSTEM_OPENSSL_RUNTIME_CHANGED_DURING_GATE'
+          }
       - name: Upload the exact eight-file release bundle
-        if: ${{ github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && github.ref == 'refs/heads/main' }}
+        if: ${{ success() && needs['windows-contracts'].result == 'success' && github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/tags/v0.0.1') }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: mcace-release-bundle-${{ github.sha }}

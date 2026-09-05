@@ -2,6 +2,7 @@ package com.ellan.mcace.bungeecord;
 
 import com.ellan.mcace.core.policy.SignedPolicyProvider;
 import com.ellan.mcace.protocol.generated.IntegrityScopeRule;
+import com.ellan.mcace.protocol.generated.ClientCapability;
 import com.ellan.mcace.protocol.generated.LoaderType;
 import com.ellan.mcace.protocol.generated.SecurityPolicy;
 import com.ellan.mcace.protocol.generated.SignedPolicyDocument;
@@ -56,6 +57,8 @@ final class BungeeSignedPolicyProvider implements SignedPolicyProvider {
                 .addAllowedMinecraftVersions(configuration.minecraftVersion())
                 .addAllowedLoaders(LoaderType.FABRIC)
                 .addAllowedBuildIds(configuration.clientBuildId())
+                .addRequiredClientCapabilities(
+                        ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1)
                 .setSignerKeyIdSha256(ByteString.copyFrom(PolicyDocuments.keyId(identity.getPublic())))
                 .addIntegrityScopes(directory("mods", true, "mods", 4096, 512L * 1024 * 1024,
                         List.of(".jar", ".disabled")))

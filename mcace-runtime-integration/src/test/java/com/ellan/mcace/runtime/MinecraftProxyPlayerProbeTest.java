@@ -10,7 +10,9 @@ import com.ellan.mcace.protocol.integrity.IntegrityDigests;
 import com.ellan.mcace.client.integrity.ScopeIntegrityManifest;
 import com.ellan.mcace.client.policy.VerifiedPolicy;
 import com.ellan.mcace.client.policy.VerifiedPolicyCache;
+import com.ellan.mcace.client.observation.LoadedModObservation;
 import com.ellan.mcace.client.session.ClientHandshakeEngine;
+import com.ellan.mcace.core.authority.AuthorityFilePreflight;
 import com.ellan.mcace.protocol.crypto.Ed25519Keys;
 import com.ellan.mcace.protocol.generated.LoaderType;
 import com.ellan.mcace.protocol.generated.AuthResult;
@@ -30,17 +32,20 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetAddress;
+import java.net.InetSocketAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketTimeoutException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.PublicKey;
 import java.security.KeyPair;
 import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.security.SecureRandom;
 import java.time.Clock;
 import java.time.Duration;
@@ -76,6 +81,19 @@ final class MinecraftProxyPlayerProbeTest {
     private static final String PLAYER_NAME = "MCAceProbe";
     private static final String BUILD_ID = "fabric-phase2-dev";
     private static final String PLAYER_ID = "mcace:probe";
+    /**
+     * The integration probe is also used by the exact release/matrix runner.  Resolve the
+     * plugin artifact name from the Gradle-provided test property instead of pinning the
+     * snapshot filename, otherwise a release-versioned build (for example 0.0.1) compiles
+     * successfully but the probe cannot launch its own freshly-built plugin.
+     */
+    private static String productVersion() {
+        return System.getProperty("mcace.test.product-version", "0.1.0-SNAPSHOT");
+    }
+
+    private static Path repositoryArtifact(Path repository, String module) {
+        return repository.resolve(module + "/build/libs/" + module + "-" + productVersion() + ".jar");
+    }
     private static final String VELOCITY_OBSERVER_JAR_PROPERTY =
             "mcace.runtime.velocity-observer.jar";
     private static final String VELOCITY_OBSERVER_READY_MARKER =
@@ -1719,6 +1737,13 @@ final class MinecraftProxyPlayerProbeTest {
         private final List<Integer> cleanupProcessIds = new ArrayList<>();
         private Path proxyRoot;
         private Path paperRoot;
+        /**
+         * Immutable copy of the prepared runtime payload retained separately from the live
+         * backend work tree. Newer Folia bootstrap versions may rewrite the version jar in-place
+         * while starting; the release gate must verify the bytes that were actually handed to the
+         * process, not the post-bootstrap mutable copy.
+         */
+        private Path preparedSnapshotRoot;
         private Path limitedPaperRoot;
         private Path quarantinePaperRoot;
         private int proxyPort;
@@ -1762,10 +1787,10 @@ final class MinecraftProxyPlayerProbeTest {
             Files.createDirectories(proxyRoot.resolve("plugins"));
             Path proxyJar = runtimeAssets.proxyJar();
             Path proxyPlugin = kind == ProxyKind.VELOCITY
-                    ? repository.resolve("mcace-server-velocity/build/libs/mcace-server-velocity-0.1.0-SNAPSHOT.jar")
-                    : repository.resolve("mcace-server-bungeecord/build/libs/mcace-server-bungeecord-0.1.0-SNAPSHOT.jar");
+                    ? repositoryArtifact(repository, "mcace-server-velocity")
+                    : repositoryArtifact(repository, "mcace-server-bungeecord");
             Path backendJar = runtimeAssets.backendJar();
-            Path paperPlugin = repository.resolve("mcace-server-paper/build/libs/mcace-server-paper-0.1.0-SNAPSHOT.jar");
+            Path paperPlugin = repositoryArtifact(repository, "mcace-server-paper");
             Path prepared = runtimeAssets.preparedRoot();
             requireArtifact(proxyJar, "proxy artifact");
             requireArtifact(proxyPlugin, "proxy MCAce plugin");
@@ -1805,8 +1830,10 @@ final class MinecraftProxyPlayerProbeTest {
                 Files.writeString(proxyRoot.resolve("config.yml"), bungeeConfig(), StandardCharsets.UTF_8);
                 forwardingMode = "bungee-ip-forwarding";
             }
+            preparedSnapshotRoot = runRoot.resolve("prepared-snapshot");
+            copyPreparedRuntime(prepared, preparedSnapshotRoot);
             copyPreparedRuntime(prepared, paperRoot);
-            Files.createDirectories(paperRoot.resolve("plugins/MCAce"));
+            createPrivatePaperPluginDirectory(paperRoot);
             Files.copy(backendJar, paperRoot.resolve(backendJarFileName()));
             Files.copy(paperPlugin, paperRoot.resolve("plugins/mcace.jar"));
             Files.writeString(paperRoot.resolve("eula.txt"), "eula=true\n", StandardCharsets.UTF_8);
@@ -1817,7 +1844,7 @@ final class MinecraftProxyPlayerProbeTest {
                     StandardCharsets.UTF_8);
             configurePaperForwarding();
             Path data = proxyDataDirectory();
-            Files.createDirectories(data);
+            createPrivateProxyDataDirectory(data);
             // Velocity creates both the root identity and its delegated policy signing key on first
             // start. Register both before launch so normal, disposition and Folia probes cannot
             // retain either private key. The delegated path is harmlessly absent for Bungee.
@@ -1875,7 +1902,7 @@ final class MinecraftProxyPlayerProbeTest {
             }
 
             Path data = proxyDataDirectory();
-            Files.createDirectories(data);
+            createPrivateProxyDataDirectory(data);
             Files.writeString(data.resolve("mcace.properties"),
                     kind == ProxyKind.VELOCITY ? """
                             enforcement.mode=%s
@@ -1909,10 +1936,9 @@ final class MinecraftProxyPlayerProbeTest {
         private void prepareAdditionalPaper(Path root, int port) throws Exception {
             Path prepared = runtimeAssets.preparedRoot();
             Path paperJar = runtimeAssets.backendJar();
-            Path paperPlugin = repository.resolve(
-                    "mcace-server-paper/build/libs/mcace-server-paper-0.1.0-SNAPSHOT.jar");
+            Path paperPlugin = repositoryArtifact(repository, "mcace-server-paper");
             copyPreparedRuntime(prepared, root);
-            Files.createDirectories(root.resolve("plugins/MCAce"));
+            createPrivatePaperPluginDirectory(root);
             Files.copy(paperJar, root.resolve("paper.jar"));
             Files.copy(paperPlugin, root.resolve("plugins/mcace.jar"));
             Files.writeString(root.resolve("eula.txt"), "eula=true\n", StandardCharsets.UTF_8);
@@ -1921,6 +1947,23 @@ final class MinecraftProxyPlayerProbeTest {
                             + "\nenable-query=false\nmotd=MCAce test-only disposition backend\n",
                     StandardCharsets.UTF_8);
             configurePaperForwarding(root);
+        }
+
+        /**
+         * The production Paper plugin reads the proxy public-key pin through an integrity-
+         * protected authority path.  A plain createDirectories call inherits the workspace
+         * ACL on Windows, which grants write access to Users and is correctly rejected by the
+         * fail-closed preflight.  Create this test-only data directory with the same owner+
+         * SYSTEM private ACL contract used by the runtime.
+         */
+        private void createPrivatePaperPluginDirectory(Path paperRoot) throws IOException {
+            AuthorityFilePreflight.createPrivateDirectoriesWithoutLinks(
+                    paperRoot.resolve("plugins/MCAce"), "test Paper MCAce data directory");
+        }
+
+        private void createPrivateProxyDataDirectory(Path data) throws IOException {
+            AuthorityFilePreflight.createPrivateDirectoriesWithoutLinks(
+                    data, "test proxy MCAce data directory");
         }
 
         private void installVelocityDisconnectObserver() throws IOException {
@@ -1952,16 +1995,26 @@ final class MinecraftProxyPlayerProbeTest {
             prepare();
             Path data = proxyDataDirectory();
             Path identityDirectory = data.resolve("identity");
-            Files.createDirectories(identityDirectory);
+            AuthorityFilePreflight.createPrivateDirectoriesWithoutLinks(
+                    identityDirectory, "test proxy identity directory");
             Path temporaryPrivateKey = identityDirectory.resolve("server-private-key.pk8");
-            Files.write(temporaryPrivateKey,
-                    identity.getPrivate().getEncoded());
+            byte[] privateBytes = identity.getPrivate().getEncoded();
+            try {
+                AuthorityFilePreflight.writePrivateFileAtomically(
+                        identityDirectory, temporaryPrivateKey, privateBytes,
+                        "test proxy private identity key");
+            } finally {
+                java.util.Arrays.fill(privateBytes, (byte) 0);
+            }
             if (!temporaryProxyPrivateKeys.contains(temporaryPrivateKey)) {
                 temporaryProxyPrivateKeys.add(temporaryPrivateKey);
             }
-            Files.writeString(identityDirectory.resolve("server-public-key.txt"),
-                    Base64.getEncoder().encodeToString(identity.getPublic().getEncoded()) + "\n",
-                    StandardCharsets.US_ASCII);
+            AuthorityFilePreflight.writePrivateFileAtomically(
+                    identityDirectory,
+                    identityDirectory.resolve("server-public-key.txt"),
+                    (Base64.getEncoder().encodeToString(identity.getPublic().getEncoded()) + "\n")
+                            .getBytes(StandardCharsets.US_ASCII),
+                    "test proxy public identity key");
             String localConfiguration = federationLocalConfiguration(
                     kind, localNetworkId, backendMinecraftVersion);
             Files.writeString(data.resolve("mcace.properties"), localConfiguration,
@@ -2006,12 +2059,26 @@ final class MinecraftProxyPlayerProbeTest {
             Files.copy(identity, paperRoot.resolve("plugins/MCAce/proxy-public-key.txt"));
             OwnedProcess backend = startProcess(backendProcessName(), paperRoot,
                     paperRoot.resolve(backendJarFileName()), "-Xmx1024m");
-            waitFor(backend, "MCAce signed proxy admission channel enabled", 120);
+            int backendStartupTimeoutSeconds = backendStartupTimeoutSeconds();
+            waitFor(backend, "MCAce signed proxy admission channel enabled",
+                    backendStartupTimeoutSeconds);
             if (backendKind == BackendKind.FOLIA) {
-                waitFor(backend, "MCAce task runtime=FOLIA", 120);
+                waitFor(backend, "MCAce task runtime=FOLIA", backendStartupTimeoutSeconds);
             }
-            waitFor(backend, "Done (", 120);
+            waitFor(backend, "Done (", backendStartupTimeoutSeconds);
             verifyBackendBanner(backend);
+        }
+
+        /**
+         * Minecraft 26.2 performs a first-run data-pack/world bootstrap before Bukkit plugin
+         * enablement.  On a cold Windows checkout behind either proxy this can exceed two
+         * minutes; keep the gate bounded, but do not turn a slow legitimate startup into a
+         * false compatibility failure.  The warmed Velocity case is normally much faster, but
+         * using the same bound keeps the matrix deterministic across proxy orderings.
+         */
+        private int backendStartupTimeoutSeconds() {
+            return "26.2".equals(backendMinecraftVersion)
+                    ? 300 : 120;
         }
 
         private void startDisposition() throws Exception {
@@ -2968,11 +3035,37 @@ final class MinecraftProxyPlayerProbeTest {
                 processes.removeLast();
                 processes.addFirst(proxy);
             }
-            waitFor(proxy, kind == ProxyKind.VELOCITY
-                    ? "MCAce Phase 2 handshake initialized" : "MCAce BungeeCord adapter enabled", 90);
-            // Plugin initialization precedes the platform TCP bind on both proxies. Waiting for
-            // the exact loopback listener prevents a restart probe from racing that small window.
-            waitFor(proxy, proxyListenerReadyMarker(kind, proxyPort), 30);
+            if (kind == ProxyKind.VELOCITY) {
+                // On Windows a live child may buffer or exclusively hold both console and rolling
+                // log files. The identity pin is created by the MCAce plugin after its phase-2
+                // initialization, so it is a stronger startup barrier than a text marker.
+                waitForPath(proxy, proxyDataDirectory().resolve("identity/server-public-key.txt"), 90);
+            } else {
+                waitFor(proxy, "MCAce BungeeCord adapter enabled", 90);
+            }
+            // Do not infer bind readiness from logging. Probe the actual loopback socket so a
+            // restart or a buffered log cannot make the next phase race the listener.
+            waitForLoopbackListener(proxy, proxyPort, 30);
+        }
+
+        private void waitForLoopbackListener(OwnedProcess process, int port, int seconds)
+                throws Exception {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
+            while (System.nanoTime() < deadline) {
+                try (Socket socket = new Socket()) {
+                    socket.connect(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 250);
+                    return;
+                } catch (IOException ignored) {
+                    // The listener is still booting or the port is not bound yet.
+                }
+                if (!process.process().isAlive()) {
+                    throw new IOException(process.name() + " exited before listener " + port
+                            + "\n" + readStartupOutput(process));
+                }
+                Thread.sleep(250L);
+            }
+            throw new IOException(process.name() + " did not bind loopback listener " + port
+                    + "\n" + readStartupOutput(process));
         }
 
         private String bungeeConfig() {
@@ -3070,10 +3163,41 @@ final class MinecraftProxyPlayerProbeTest {
                 return;
             }
             Path spigot = targetPaperRoot.resolve("spigot.yml");
-            Files.writeString(spigot, """
-                    settings:
-                      bungeecord: true
-                    """, StandardCharsets.UTF_8);
+            Path preparedSpigot = runtimeAssets.preparedRoot().resolve("spigot.yml");
+            // Keep the complete, version-matched Spigot configuration copied from the
+            // prepared runtime tree. A tiny synthetic document can trigger a legacy
+            // config-upgrade path on newer Folia builds and makes cold-start timing noisy.
+            // Mutate only the forwarding switch in-place so the platform sees the same
+            // config shape it would generate itself (including config-version).
+            if (!Files.isRegularFile(preparedSpigot, LinkOption.NOFOLLOW_LINKS)) {
+                throw new IOException("prepared spigot.yml is missing: " + preparedSpigot);
+            }
+            Files.copy(preparedSpigot, spigot, StandardCopyOption.REPLACE_EXISTING);
+            List<String> lines = Files.readAllLines(spigot, StandardCharsets.UTF_8);
+            int bungeeLine = -1;
+            for (int index = 0; index < lines.size(); index++) {
+                String line = lines.get(index);
+                if (line.matches("^\\s{2}bungeecord:\\s*(?:true|false)\\s*$")) {
+                    if (bungeeLine >= 0) {
+                        throw new IOException("prepared spigot.yml has duplicate settings.bungeecord: "
+                                + spigot);
+                    }
+                    if (!line.trim().equals("bungeecord: false")) {
+                        throw new IOException("prepared spigot.yml is not the immutable default template: "
+                                + spigot);
+                    }
+                    bungeeLine = index;
+                }
+            }
+            if (bungeeLine < 0) {
+                throw new IOException("prepared spigot.yml has no settings.bungeecord: " + spigot);
+            }
+            if (lines.stream().noneMatch(
+                    line -> line.matches("^config-version:\\s+\\d+\\s*$"))) {
+                throw new IOException("prepared spigot.yml has no config-version: " + spigot);
+            }
+            lines.set(bungeeLine, "  bungeecord: true");
+            Files.writeString(spigot, String.join("\n", lines) + "\n", StandardCharsets.UTF_8);
             forwardingConfigured = true;
         }
 
@@ -3083,6 +3207,15 @@ final class MinecraftProxyPlayerProbeTest {
             Path stderr = runRoot.resolve(name + "-" + generation + ".stderr.log");
             ProcessBuilder builder = new ProcessBuilder(
                     javaExecutable(), heap, "-jar", jar.toString());
+            // The matrix runner may set JAVA_TOOL_OPTIONS/GRADLE_OPTS to keep the
+            // Gradle build deterministic on Helio.  Those build-only flags (notably
+            // TieredStopAtLevel=0) also propagate to the real Paper/Velocity child
+            // and can leave an interpreted server JVM stuck in bootstrap long enough
+            // to trip the startup timeout.  The server process must use the normal
+            // JIT/runtime environment; its executable and all input artifacts remain
+            // explicitly pinned above.
+            builder.environment().remove("JAVA_TOOL_OPTIONS");
+            builder.environment().remove("GRADLE_OPTS");
             if (name.startsWith("paper") || name.startsWith("folia")) {
                 builder.command().add("--nogui");
             }
@@ -3116,6 +3249,20 @@ final class MinecraftProxyPlayerProbeTest {
                 Thread.sleep(250);
             }
             throw new IOException("identity was not created: " + path);
+        }
+
+        private void waitForPath(OwnedProcess process, Path path, int seconds) throws Exception {
+            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
+            while (System.nanoTime() < deadline) {
+                if (Files.isRegularFile(path)) return;
+                if (!process.process().isAlive()) {
+                    throw new IOException(process.name() + " exited before identity was created: " + path
+                            + "\n" + readStartupOutput(process));
+                }
+                Thread.sleep(250L);
+            }
+            throw new IOException(process.name() + " did not create identity within " + seconds
+                    + " seconds: " + path + "\n" + readStartupOutput(process));
         }
 
         private void sendProxyCommand(String command) throws IOException {
@@ -3365,6 +3512,18 @@ final class MinecraftProxyPlayerProbeTest {
 
         private String readStartupOutput(OwnedProcess process) {
             StringBuilder result = new StringBuilder(readProcessOutput(process));
+            // On Windows, ProcessBuilder's redirected stdout may be exclusively held by the
+            // child while it is still booting. Velocity also mirrors its startup messages to
+            // the rolling log, so include that append-only source before waiting for markers.
+            Path platformLog = platformLogFor(process);
+            if (Files.isRegularFile(platformLog)) {
+                try {
+                    result.append(Files.readString(platformLog, StandardCharsets.UTF_8))
+                            .append('\n');
+                } catch (IOException ignored) {
+                    // A log being rotated or temporarily locked is ordinary during startup.
+                }
+            }
             // BungeeCord writes its live bootstrap/plugin output to proxy.log.N before the
             // inherited stdout redirect is reliably flushed. This fallback is only used for
             // Bungee's initial startup; the Velocity restart residual gate uses the exact
@@ -3684,8 +3843,21 @@ final class MinecraftProxyPlayerProbeTest {
                 output = new DataOutputStream(socket.getOutputStream());
                 send(0, handshake(playerId, harness.wireProfile.protocolVersion()));
                 send(0, loginStart(playerId));
-                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(25);
+                // Folia can complete the backend join before its region scheduler has flushed
+                // the first clientbound login frame through Velocity.  Keep the probe bounded,
+                // but give that real process path a larger, version-independent window.  Paper
+                // retains the original 25-second contract so a stalled proxy still fails fast.
+                int loginDeadlineSeconds = harness.backendKind == BackendKind.FOLIA ? 60 : 25;
+                long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(loginDeadlineSeconds);
                 while (System.nanoTime() < deadline && socket.isConnected()) {
+                    // Cold Paper/Folia bootstrap can leave the proxy channel quiet for more
+                    // than ten seconds after TCP accept. Recompute the read timeout from the
+                    // same deadline on every frame so an idle scheduling interval is tolerated
+                    // without allowing a single read to outlive the probe budget.
+                    long remainingNanos = deadline - System.nanoTime();
+                    if (remainingNanos <= 0L) break;
+                    long remainingMillis = TimeUnit.NANOSECONDS.toMillis(remainingNanos);
+                    socket.setSoTimeout((int) Math.max(1L, Math.min(45_000L, remainingMillis + 1L)));
                     Packet packet;
                     try {
                         packet = read();
@@ -4464,7 +4636,9 @@ final class MinecraftProxyPlayerProbeTest {
                                 + firstEnvelope.getPayload().size() + ":nonce="
                                 + firstEnvelope.getHeader().getNonce().size());
                         sendCustomPayload("mcace:handshake", federationFirstOuter);
-                        if (!vault.commit(prepared)) throw new IOException("federation vault commit failed");
+                        if (vault.commit(prepared, Clock.systemUTC()).isEmpty()) {
+                            throw new IOException("federation vault commit failed");
+                        }
                         presentationSent = true;
                     }
                     if (role == FederationPeerRole.RESTART_TARGET && authResult != null
@@ -4665,7 +4839,8 @@ final class MinecraftProxyPlayerProbeTest {
                         engine = new ClientHandshakeEngine(playerId, "mcace-test-peer",
                                 harness.wireProfile.minecraftVersion(),
                                 BUILD_ID, LoaderType.FABRIC, harness.proxyPublicKey, Clock.systemUTC(),
-                                new SecureRandom(), retainedGrant.sourceSessionKeyPair());
+                                new SecureRandom(), retainedGrant.sourceSessionKeyPair(),
+                                retainedGrant.signedAssertionSha256());
                     }
                     authenticateEngine(engine, frame, "target");
                 }
@@ -4697,7 +4872,8 @@ final class MinecraftProxyPlayerProbeTest {
                     new VerifiedPolicyCache(harness.runRoot.resolve(cacheName + "-client-cache"),
                             Clock.systemUTC()));
             List<ClientHandshakeEngine.OutboundFrame> frames = candidate.createAuthenticationFrames(
-                    emptyBundle(verifiedPolicy));
+                    emptyBundle(verifiedPolicy), List.of(), List.of(), List.of(),
+                    probeLoadedModGraph());
             for (ClientHandshakeEngine.OutboundFrame outbound : frames) {
                 SignedEnvelope outboundEnvelope = SignedEnvelope.parseFrom(outbound.data());
                 packetTrace.add("OUT:" + outboundEnvelope.getHeader().getPacketType().name()
@@ -4727,7 +4903,8 @@ final class MinecraftProxyPlayerProbeTest {
                         "127.0.0.1:" + harness.proxyPort,
                         new VerifiedPolicyCache(harness.runRoot.resolve("client-cache"), Clock.systemUTC()));
                 List<ClientHandshakeEngine.OutboundFrame> authenticationFrames = engine.createAuthenticationFrames(
-                        authenticationBundle(verifiedPolicy));
+                        authenticationBundle(verifiedPolicy), List.of(), List.of(), List.of(),
+                        probeLoadedModGraph());
                 boolean allAuthenticationFramesDuringConfiguration = !authenticationFrames.isEmpty();
                 for (ClientHandshakeEngine.OutboundFrame frame : authenticationFrames) {
                     allAuthenticationFramesDuringConfiguration &= state == State.CONFIGURATION;
@@ -4868,6 +5045,13 @@ final class MinecraftProxyPlayerProbeTest {
             return ClientIntegrityBundle.of(manifests);
         }
 
+        /** The raw peer still advertises Fabric Loader's built-in runtime entry. */
+        private static List<LoadedModObservation> probeLoadedModGraph() {
+            return List.of(new LoadedModObservation(
+                    "fabricloader", "0.0.0-mcace-probe",
+                    LoadedModObservation.OriginKind.BUILTIN_OR_CLASSPATH, "", ""));
+        }
+
         private ClientIntegrityBundle authenticationBundle(VerifiedPolicy verifiedPolicy) throws Exception {
             if (!syntheticManifest) return emptyBundle(verifiedPolicy);
             byte[] sha256 = syntheticFixtureSha256();
@@ -4979,6 +5163,12 @@ final class MinecraftProxyPlayerProbeTest {
                 throw new IllegalStateException("test-only retained source key was cleared");
             }
             return sourceSessionKeyPair;
+        }
+
+        private byte[] signedAssertionSha256() throws NoSuchAlgorithmException {
+            if (grant == null) throw new IllegalStateException("test-only retained grant was cleared");
+            return MessageDigest.getInstance("SHA-256")
+                    .digest(grant.getSignedAssertion().toByteArray());
         }
 
         private void requireExactTarget(String networkId, PublicKey targetIdentity) throws Exception {

@@ -97,17 +97,24 @@ $runRoot = Join-Path $runsRoot $runLeaf
 $velocityRoot = Join-Path $runRoot 'velocity'
 $paperRoot = Join-Path $runRoot 'paper'
 $manualConsentHandshakeTimeoutSeconds = if ($WithFabricEvidence) {
-    $ManualConsentTimeoutSeconds
+    # The client-side GUI decision budget is deliberately capped at the same
+    # 300-second product ceiling as the proxy contract.  The parameter accepts
+    # a wider range for backwards-compatible callers, but every downstream
+    # wait, report, and Gradle property uses this effective value.
+    [Math]::Min(300, [Math]::Max(30, [int]$ManualConsentTimeoutSeconds))
 } else {
     30
 }
-# Velocity enforces a protocol handshake timeout of 2..30 seconds.  Keep the
-# GUI observation window independently configurable so a longer human-consent
-# window never produces an invalid server configuration.
-$velocityHandshakeTimeoutSeconds = [Math]::Min(30, $manualConsentHandshakeTimeoutSeconds)
+# The proxy starts its handshake clock before the client can render the prompt,
+# exchange the screenshot/attestation, scan the local manifest, and send AUTH.
+# Reserve a bounded 30-second pre-auth margin for the evidence path while
+# keeping the server-side value inside the 2..300-second admission contract.
+$serverHandshakeSafetyMarginSeconds = if ($WithFabricEvidence) { 30 } else { 0 }
+$velocityHandshakeTimeoutSeconds = [Math]::Min(
+    300, $manualConsentHandshakeTimeoutSeconds + $serverHandshakeSafetyMarginSeconds)
 $gradleVersion = '9.6.1'
-$reportSchema = 7
-$bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V5'
+$reportSchema = 8
+$bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6'
 $fabricArtifactClass = 'sanitized-final-fabric-gui-evidence'
 $fabricArtifactVersion = '0.1.0-SNAPSHOT'
 $fabricSmokeBuildId = "platform-smoke-$runId"
@@ -135,9 +142,9 @@ $fabricTargets = [ordered]@{
         artifact_path = Join-Path $repoRoot 'mcace-client-fabric\build\libs\mcace-client-fabric-0.1.0-SNAPSHOT.jar'
         runtime_artifact_path = Join-Path $repoRoot 'mcace-client-fabric\build\smoke-libs\mcace-client-fabric-0.1.0-SNAPSHOT-smoke-named.jar'
         asset_index = '29'
-        version_info_sha1 = '4b5fd518c8f06ea3f9fdef2895f729c204f0bf5e'
-        version_info_sha256 = 'f6ce577abd648a59766f2236dcaa76b5a3817a8122fc704713976f5cc6895962'
-        asset_index_sha1 = '34c7bef563edad4d5e3ae8157e904690afb1fa50'
+        version_info_sha1 = '6b6c2d7f875539647774da3e334b27d0a67331a4'
+        version_info_sha256 = 'bd39d85072a5bc178f5407a99db783fbe8dfdda85261d25287bb276224c4a47e'
+        asset_index_sha1 = '7c7f5df63dfd676251babde8fd2b05af54ca77dd'
         asset_index_size = 529966L
         paper_build = '132'
         paper_sha256 = '5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba'
@@ -158,9 +165,9 @@ $fabricTargets = [ordered]@{
         artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.1.2\build\libs\mcace-client-fabric-26.1.2-0.1.0-SNAPSHOT.jar'
         runtime_artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.1.2\build\libs\mcace-client-fabric-26.1.2-0.1.0-SNAPSHOT.jar'
         asset_index = '30'
-        version_info_sha1 = 'edcfd100a4856650b6e9797bac8f7fd76821979e'
-        version_info_sha256 = '92dc2a84d8151cf8ff26b4be4c0b1d3b9e88f0c28a860e1cae1a5b3fbdefee9a'
-        asset_index_sha1 = 'aa83698cef26e50089d85218e55bd402f38c7821'
+        version_info_sha1 = '09c3ffc1d9d1182a1083a868595d98f22687e5d5'
+        version_info_sha256 = '2a19d93dc404c4f3d9ebedc437ab3b11c5a272b41c45d74266a64005125b0a72'
+        asset_index_sha1 = '1c325980cb885aabe2602f94993eb2d82dd44a82'
         asset_index_size = 548391L
         paper_build = '74'
         paper_sha256 = '1d70b1dab9cf4a6de615209a536f3a45a2186240253c428213ce2188ab95e5f7'
@@ -181,13 +188,13 @@ $fabricTargets = [ordered]@{
         artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.2\build\libs\mcace-client-fabric-26.2-0.1.0-SNAPSHOT.jar'
         runtime_artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.2\build\libs\mcace-client-fabric-26.2-0.1.0-SNAPSHOT.jar'
         asset_index = '32'
-        version_info_sha1 = 'dc69be58cf16ad99f4b1ae7360c9a29c8c819ca5'
-        version_info_sha256 = 'd4a21bea5568a8e194ff8fc94081489cf2b694a9d04c7bc4e673add58a10955f'
-        asset_index_sha1 = 'cf75b185cb35b32e299b0c8e674fa202d7911a3c'
+        version_info_sha1 = 'ef815ab76bce3f1a4c2d7fe712527304923bbe3a'
+        version_info_sha256 = 'c09c6d5d17181cd1827665946452781668da2d84a98f4bff38a1f63dc332c15d'
+        asset_index_sha1 = 'c12254a593cdebaf8e8102250a71d8f40124a0b5'
         asset_index_size = 586366L
-        paper_build = '112'
-        paper_sha256 = 'bd3a58cf96874e5ea6643f5f6fe9b4f5bf9e34b795fa078c2f0ee8b98b2f907e'
-        paper_size = 61859678L
+        paper_build = '116'
+        paper_sha256 = '17eee738bc0f6b747646be4199672c4efcb2084efd7e291ec5254a45d5ae6f2e'
+        paper_size = 64426830L
     }
 }
 $fabricDescriptor = $fabricTargets[$FabricTarget]
@@ -502,6 +509,41 @@ function New-ExclusiveOwnedDirectory([string]$Path, [string]$ExpectedParent) {
     }
     $null = New-Item -ItemType Directory -Path $full -ErrorAction Stop
     $resolved = Assert-DirectLocalPath $full -Directory
+    # Runtime authority files (for example Paper's proxy-public-key.txt) are
+    # validated by the Java preflight against the Windows DACL of their
+    # containing directory.  A normal New-Item inherits the controller's
+    # broad Users/Authenticated Users write ACEs, so a freshly-created
+    # plugins\MCAce directory would fail closed even though the file bytes are
+    # correct.  Make every exclusive run directory a non-inheriting
+    # current-user+SYSTEM tree; both principals can still create/read the
+    # server's generated files, while untrusted principals cannot write them.
+    if ([System.IO.Path]::DirectorySeparatorChar -eq '\') {
+        try {
+            $current = [System.Security.Principal.WindowsIdentity]::GetCurrent().User
+            $system = New-Object System.Security.Principal.SecurityIdentifier('S-1-5-18')
+            $directorySecurity = New-Object System.Security.AccessControl.DirectorySecurity
+            $directorySecurity.SetAccessRuleProtection($true, $false)
+            $directorySecurity.SetOwner($current)
+            $inheritance = [System.Security.AccessControl.InheritanceFlags]::ContainerInherit -bor
+                [System.Security.AccessControl.InheritanceFlags]::ObjectInherit
+            foreach ($sid in @($current, $system)) {
+                $directorySecurity.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule(
+                    $sid,
+                    [System.Security.AccessControl.FileSystemRights]::FullControl,
+                    $inheritance,
+                    [System.Security.AccessControl.PropagationFlags]::None,
+                    [System.Security.AccessControl.AccessControlType]::Allow)))
+            }
+            Set-Acl -LiteralPath $resolved -AclObject $directorySecurity -ErrorAction Stop
+            $readbackAcl = Get-Acl -LiteralPath $resolved -ErrorAction Stop
+            if (-not $readbackAcl.AreAccessRulesProtected -or
+                    @($readbackAcl.Access).Count -ne 2) {
+                throw 'exclusive directory DACL readback was not protected current-user+SYSTEM'
+            }
+        } catch {
+            throw "PLATFORM_SMOKE_EXCLUSIVE_DIRECTORY_ACL_HARDENING_FAILED: $($_.Exception.Message)"
+        }
+    }
     if (-not [System.IO.Path]::GetDirectoryName($resolved).Equals(
             $parent, [StringComparison]::OrdinalIgnoreCase)) {
         throw 'PLATFORM_SMOKE_EXCLUSIVE_DIRECTORY_PARENT_CHANGED'
@@ -570,13 +612,32 @@ function Test-LoopbackPortFree([int]$Port) {
 }
 
 function Assert-LoopbackListener($Service, [int]$Port) {
-    $listeners = @(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction Stop |
-        Where-Object { $_.LocalAddress -in @('127.0.0.1', '::1') })
+    # Windows CIM can raise a terminating "no matching objects" error for a
+    # freshly-bound port when the listener table has not caught up with the
+    # server's readiness log.  Query the listen set with a non-terminating
+    # error policy and briefly retry so the readiness check is race-tolerant,
+    # while retaining the loopback-only and owning-process assertions below.
+    $listeners = @()
+    # A second launch in the same isolated runtime can spend tens of seconds
+    # rebuilding plugin state before Netty binds, even after a readiness line
+    # from the prior bootstrap phase is still present in the log directory.
+    # Stay within the surrounding 150/300-second marker budgets while allowing
+    # that real bind to appear instead of rejecting a stale-log race.
+    $deadline = [DateTime]::UtcNow.AddSeconds(60)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        $listeners = @(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+            Where-Object { $_.LocalPort -eq $Port -and
+                $_.LocalAddress -in @('127.0.0.1', '::1') })
+        if ($listeners.Count -gt 0) { break }
+        if ($Service.Process.HasExited) { break }
+        Start-Sleep -Milliseconds 250
+    }
     if ($listeners.Count -eq 0) {
         throw "$($Service.Name) did not expose the expected loopback listener on port $Port"
     }
-    if (@(Get-NetTCPConnection -State Listen -LocalPort $Port -ErrorAction Stop |
-            Where-Object { $_.LocalAddress -notin @('127.0.0.1', '::1') }).Count -ne 0) {
+    if (@(Get-NetTCPConnection -State Listen -ErrorAction SilentlyContinue |
+            Where-Object { $_.LocalPort -eq $Port -and
+                $_.LocalAddress -notin @('127.0.0.1', '::1') }).Count -ne 0) {
         throw "$($Service.Name) exposed a non-loopback listener on port $Port"
     }
     if (-not @($listeners | Where-Object { $_.OwningProcess -eq $Service.Pid }).Count) {
@@ -632,6 +693,27 @@ function Test-TextContains(
     return $null -ne $Content -and $Content.IndexOf($Needle, $Comparison) -ge 0
 }
 
+function Normalize-FabricConsentEvidence([System.Collections.IDictionary]$Evidence) {
+    # Schema-8 compatibility fields describe the one visible connection-enablement
+    # screen.  They are aliases, not evidence that another explicit-file screen was
+    # rendered later in the connection.
+    $Evidence['explicit_file_requested'] = [bool]$Evidence['enablement_requested']
+    $Evidence['explicit_file_rendered'] = [bool]$Evidence['enablement_rendered']
+    $Evidence['explicit_file_accepted'] = [bool]$Evidence['enablement_accepted']
+
+    # GAME_RENDER_FRAME inherits that accepted connection decision.  A producer
+    # that observes both a separately rendered frame prompt and inheritance is
+    # contradictory and must fail rather than publish two-human-confirmation data.
+    if ([bool]$Evidence['game_render_frame_rendered'] -and
+            [bool]$Evidence['game_render_frame_inherited']) {
+        throw 'PLATFORM_SMOKE_GAME_RENDER_FRAME_RENDERED_AND_INHERITED'
+    }
+    if ([bool]$Evidence['game_render_frame_inherited']) {
+        $Evidence['game_render_frame_rendered'] = $false
+        $Evidence['game_render_frame_allowed'] = $true
+    }
+}
+
 function Update-FabricConsentEvidence(
         [System.Collections.IDictionary]$Evidence,
         [string]$LogPath) {
@@ -648,13 +730,17 @@ function Update-FabricConsentEvidence(
         }
     }
     $markers = [ordered]@{
+        enablement_requested = 'MCAce enablement consent requested for signed policy; explicit-file paths='
+        enablement_rendered = 'MCAce enablement consent screen rendered'
+        enablement_accepted = 'MCAce enablement accepted for the current connection'
         explicit_file_requested = 'MCAce explicit-file consent requested for '
         explicit_file_rendered = 'MCAce explicit-file consent screen rendered'
         explicit_file_accepted = 'MCAce explicit-file authorization accepted for the current connection'
         authenticated = 'MCAce session verified at trust level VERIFIED'
-        game_render_frame_requested = 'MCAce evidence consent requested for signed GAME_RENDER_FRAME request'
+        game_render_frame_requested = 'MCAce evidence request accepted under connection enablement; no second consent screen'
         game_render_frame_rendered = 'MCAce evidence consent screen rendered for signed GAME_RENDER_FRAME request'
         game_render_frame_allowed = 'MCAce evidence consent allowed once for signed GAME_RENDER_FRAME request'
+        game_render_frame_inherited = 'MCAce evidence consent inherited from connection enablement'
         game_render_frame_completed = 'MCAce evidence transfer COMPLETE request='
     }
     foreach ($entry in $markers.GetEnumerator()) {
@@ -662,24 +748,28 @@ function Update-FabricConsentEvidence(
             $Evidence[$entry.Key] = $true
         }
     }
+    Normalize-FabricConsentEvidence $Evidence
 }
 
 function Get-FabricGuiStage(
         [System.Collections.IDictionary]$Evidence,
         [string]$Fallback) {
     if ([bool]$Evidence['game_render_frame_completed']) { return 'EVIDENCE_COMPLETE' }
-    if ([bool]$Evidence['game_render_frame_allowed']) { return 'EVIDENCE_ALLOWED' }
-    if ([bool]$Evidence['game_render_frame_rendered']) { return 'EVIDENCE_CONSENT_RENDERED' }
+    if ([bool]$Evidence['game_render_frame_inherited']) { return 'EVIDENCE_INHERITED' }
     if ([bool]$Evidence['game_render_frame_requested']) { return 'EVIDENCE_REQUESTED' }
     if ([bool]$Evidence['authenticated']) { return 'AUTHENTICATED' }
-    if ([bool]$Evidence['explicit_file_accepted']) { return 'EXPLICIT_FILE_CONSENT_ACCEPTED' }
-    if ([bool]$Evidence['explicit_file_rendered']) { return 'EXPLICIT_FILE_CONSENT_RENDERED' }
-    if ([bool]$Evidence['explicit_file_requested']) { return 'EXPLICIT_FILE_CONSENT_REQUESTED' }
+    if ([bool]$Evidence['enablement_accepted']) { return 'ENABLEMENT_ACCEPTED' }
+    if ([bool]$Evidence['enablement_rendered']) { return 'ENABLEMENT_RENDERED' }
+    if ([bool]$Evidence['enablement_requested']) { return 'ENABLEMENT_REQUESTED' }
     return $Fallback
 }
 
 function Test-FabricGuiCoverage([System.Collections.IDictionary]$Evidence) {
-    return [bool]$Evidence['explicit_file_requested'] -and
+    Normalize-FabricConsentEvidence $Evidence
+    return [bool]$Evidence['enablement_requested'] -and
+        [bool]$Evidence['enablement_rendered'] -and
+        [bool]$Evidence['enablement_accepted'] -and
+        [bool]$Evidence['explicit_file_requested'] -and
         [bool]$Evidence['explicit_file_rendered'] -and
         [bool]$Evidence['explicit_file_accepted'] -and
         [int]$Evidence['explicit_file_manifest_entries'] -eq 1 -and
@@ -687,10 +777,12 @@ function Test-FabricGuiCoverage([System.Collections.IDictionary]$Evidence) {
 }
 
 function Test-FabricEvidenceCoverage([System.Collections.IDictionary]$Evidence) {
+    Normalize-FabricConsentEvidence $Evidence
     return (Test-FabricGuiCoverage $Evidence) -and
         [bool]$Evidence['game_render_frame_requested'] -and
-        [bool]$Evidence['game_render_frame_rendered'] -and
+        -not [bool]$Evidence['game_render_frame_rendered'] -and
         [bool]$Evidence['game_render_frame_allowed'] -and
+        [bool]$Evidence['game_render_frame_inherited'] -and
         [bool]$Evidence['game_render_frame_completed']
 }
 
@@ -712,6 +804,7 @@ function New-SanitizedReleaseReport(
         [int]$AssertionCount,
         [int]$RemainingOwnedProcessCount,
         [System.Collections.IDictionary]$VelocityPolicyTuple) {
+    Normalize-FabricConsentEvidence $ConsentEvidence
     return [ordered]@{
         schema = $reportSchema
         generated_at = [DateTimeOffset]::UtcNow.ToString('o')
@@ -731,6 +824,9 @@ function New-SanitizedReleaseReport(
         fabric_release_jar_loaded = $FabricReleaseJarLoaded
         fabric_client_requested = $FabricClientRequested
         fabric_evidence_requested = $FabricEvidenceRequested
+        enablement_consent_requested = [bool]$ConsentEvidence['enablement_requested']
+        enablement_consent_rendered = [bool]$ConsentEvidence['enablement_rendered']
+        enablement_consent_accepted = [bool]$ConsentEvidence['enablement_accepted']
         explicit_file_fixture_present = $ExplicitFileFixturePresent
         explicit_file_manifest_entries = [int]$ConsentEvidence['explicit_file_manifest_entries']
         explicit_file_manifest_entries_observed = ([int]$ConsentEvidence['explicit_file_manifest_entries'] -eq 1)
@@ -741,6 +837,7 @@ function New-SanitizedReleaseReport(
         game_render_frame_requested = [bool]$ConsentEvidence['game_render_frame_requested']
         game_render_frame_consent_rendered = [bool]$ConsentEvidence['game_render_frame_rendered']
         game_render_frame_consent_allowed = [bool]$ConsentEvidence['game_render_frame_allowed']
+        game_render_frame_consent_inherited = [bool]$ConsentEvidence['game_render_frame_inherited']
         game_render_frame_completed = [bool]$ConsentEvidence['game_render_frame_completed']
         fabric_gui_coverage = ($FabricClientRequested -and (Test-FabricGuiCoverage $ConsentEvidence))
         fabric_evidence_coverage = ($FabricEvidenceRequested -and (Test-FabricEvidenceCoverage $ConsentEvidence))
@@ -1085,6 +1182,7 @@ function Start-FabricClient(
             "-PmcaceSmokeRunDirectory=$loomRunDirectory",
             "-PmcaceSmokeServerAddress=$ServerAddress",
             '-PmcaceSmokeArtifactMode=true',
+            "-PmcaceSmokeConsentTimeoutSeconds=$manualConsentHandshakeTimeoutSeconds",
             "-PmcaceClientBuildId=$fabricSmokeBuildId",
             "-PmcaceSmokeExpectedArtifactSha256=$ExpectedArtifactSha256",
             "-PmcaceSmokeRunToken=$runToken",
@@ -1154,8 +1252,8 @@ function Get-SmokeProcessTreeTargets(
 
 function Stop-SmokeProcessTree([int]$RootPid, [string]$RunToken) {
     $snapshot = @(Get-CimInstance Win32_Process -ErrorAction Stop)
-    foreach ($pid in @(Get-SmokeProcessTreeTargets $snapshot $RootPid $RunToken)) {
-        Stop-Process -Id $pid -Force -ErrorAction SilentlyContinue
+    foreach ($targetPid in @(Get-SmokeProcessTreeTargets $snapshot $RootPid $RunToken)) {
+        Stop-Process -Id $targetPid -Force -ErrorAction SilentlyContinue
     }
 }
 
@@ -1171,14 +1269,14 @@ function Get-RunTokenJavaProcesses([string]$RunToken) {
 function Stop-RunTokenJavaProcesses([string]$RunToken) {
     Assert-SmokeRunToken $RunToken
     foreach ($candidate in @(Get-RunTokenJavaProcesses $RunToken)) {
-        $pid = [int]$candidate.ProcessId
-        $current = @(Get-CimInstance Win32_Process -Filter "ProcessId = $pid" -ErrorAction Stop)
+        $candidatePid = [int]$candidate.ProcessId
+        $current = @(Get-CimInstance Win32_Process -Filter "ProcessId = $candidatePid" -ErrorAction Stop)
         if ($current.Count -ne 1 -or $current[0].Name -notin @('java.exe', 'javaw.exe') -or
                 [string]::IsNullOrWhiteSpace([string]$current[0].CommandLine) -or
                 -not (Test-ExactRunTokenArgument ([string]$current[0].CommandLine) $RunToken)) {
             continue
         }
-        Stop-Process -Id $pid -Force -ErrorAction Stop
+        Stop-Process -Id $candidatePid -Force -ErrorAction Stop
     }
 }
 
@@ -1216,8 +1314,36 @@ function Stop-JavaService($Service, [string]$Command) {
         }
     }
     Stop-SmokeProcessTree $rootPid $Service.RunToken
-    $stdout = if ($null -eq $Service.Stdout) { '' } else { $Service.Stdout.GetAwaiter().GetResult() }
-    $stderr = if ($null -eq $Service.Stderr) { '' } else { $Service.Stderr.GetAwaiter().GetResult() }
+    # A JVM child can inherit the stdout/stderr pipe after the exact root is
+    # terminated.  An unbounded GetResult() here strands the whole smoke runner
+    # even though all owned processes are already gone.  Bound the drain and
+    # close the readers before giving up; the console log remains a best-effort
+    # capture of the bytes that were actually observed.
+    $stdout = ''
+    $stderr = ''
+    foreach ($output in @(
+            [pscustomobject]@{ Task = $Service.Stdout; Name = 'stdout' },
+            [pscustomobject]@{ Task = $Service.Stderr; Name = 'stderr' })) {
+        if ($null -eq $output.Task) { continue }
+        $task = $output.Task
+        if (-not $task.IsCompleted) {
+            try {
+                if ($output.Name -ceq 'stdout') { $process.StandardOutput.Close() }
+                else { $process.StandardError.Close() }
+            } catch { }
+            if (-not $task.Wait(5000)) {
+                Write-Warning "Timed out draining $($output.Name) for $($Service.Name) after process termination"
+                continue
+            }
+        }
+        try {
+            $text = $task.GetAwaiter().GetResult()
+            if ($output.Name -ceq 'stdout') { $stdout = [string]$text }
+            else { $stderr = [string]$text }
+        } catch {
+            Write-Warning "Could not drain $($output.Name) for $($Service.Name): $($_.Exception.Message)"
+        }
+    }
     [System.IO.File]::WriteAllText(
         $Service.ConsolePath,
         $stdout + [Environment]::NewLine + $stderr,
@@ -1611,10 +1737,12 @@ function Assert-PassingReportRaw([string]$Raw, [switch]$RequireFullFabricEvidenc
         'fabric_artifact_kind', 'fabric_java_major', 'fabric_runtime_mode',
         'fabric_runtime_jar_loaded', 'fabric_release_jar_loaded',
         'fabric_client_requested', 'fabric_evidence_requested', 'explicit_file_fixture_present',
+        'enablement_consent_requested', 'enablement_consent_rendered', 'enablement_consent_accepted',
         'explicit_file_manifest_entries', 'explicit_file_manifest_entries_observed',
         'explicit_file_consent_requested', 'explicit_file_consent_rendered',
         'explicit_file_consent_accepted', 'fabric_authenticated', 'game_render_frame_requested',
         'game_render_frame_consent_rendered', 'game_render_frame_consent_allowed',
+        'game_render_frame_consent_inherited',
         'game_render_frame_completed', 'fabric_gui_coverage', 'fabric_evidence_coverage',
         'raw_evidence_retained', 'evidence_audit_summary_observed', 'persistent_identity_unchanged',
         'velocity_transport_classes_present', 'paper_admission_channel_enabled',
@@ -1649,19 +1777,25 @@ function Assert-PassingReportRaw([string]$Raw, [switch]$RequireFullFabricEvidenc
         if ($report.$name -isnot [bool]) { throw "PLATFORM_SMOKE_REPORT_TYPE_INVALID: $name" }
     }
     foreach ($name in @('fabric_client_requested', 'fabric_evidence_requested',
-            'explicit_file_fixture_present', 'explicit_file_manifest_entries_observed',
+            'explicit_file_fixture_present', 'enablement_consent_requested',
+            'enablement_consent_rendered', 'enablement_consent_accepted',
+            'explicit_file_manifest_entries_observed',
             'explicit_file_consent_requested', 'explicit_file_consent_rendered',
             'explicit_file_consent_accepted', 'fabric_authenticated', 'game_render_frame_requested',
             'game_render_frame_consent_rendered', 'game_render_frame_consent_allowed',
+            'game_render_frame_consent_inherited',
             'game_render_frame_completed', 'fabric_gui_coverage', 'fabric_evidence_coverage',
             'evidence_audit_summary_observed')) {
         if ($report.$name -isnot [bool]) { throw "PLATFORM_SMOKE_REPORT_TYPE_INVALID: $name" }
     }
-    $guiFields = @('explicit_file_fixture_present', 'explicit_file_manifest_entries_observed',
+    $guiFields = @('explicit_file_fixture_present', 'enablement_consent_requested',
+        'enablement_consent_rendered', 'enablement_consent_accepted',
+        'explicit_file_manifest_entries_observed',
         'explicit_file_consent_requested', 'explicit_file_consent_rendered',
         'explicit_file_consent_accepted', 'fabric_authenticated', 'fabric_gui_coverage')
-    $evidenceFields = @('game_render_frame_requested', 'game_render_frame_consent_rendered',
-        'game_render_frame_consent_allowed', 'game_render_frame_completed',
+    $evidenceFields = @('game_render_frame_requested', 'game_render_frame_consent_allowed',
+        'game_render_frame_consent_inherited',
+        'game_render_frame_completed',
         'fabric_evidence_coverage', 'evidence_audit_summary_observed')
     foreach ($name in $guiFields) {
         if ([bool]$report.$name -ne [bool]$report.fabric_client_requested) {
@@ -1672,6 +1806,13 @@ function Assert-PassingReportRaw([string]$Raw, [switch]$RequireFullFabricEvidenc
         if ([bool]$report.$name -ne [bool]$report.fabric_evidence_requested) {
             throw "PLATFORM_SMOKE_REPORT_EVIDENCE_BOUNDARY_INVALID: $name"
         }
+    }
+    if ([bool]$report.game_render_frame_consent_rendered -and
+            [bool]$report.game_render_frame_consent_inherited) {
+        throw 'PLATFORM_SMOKE_REPORT_GAME_RENDER_FRAME_RENDERED_AND_INHERITED'
+    }
+    if ([bool]$report.game_render_frame_consent_rendered) {
+        throw 'PLATFORM_SMOKE_REPORT_GAME_RENDER_FRAME_RENDERED_INVALID'
     }
     if ($report.fabric_evidence_requested -and -not $report.fabric_client_requested) {
         throw 'PLATFORM_SMOKE_REPORT_EVIDENCE_WITHOUT_CLIENT_INVALID'
@@ -2101,6 +2242,9 @@ $currentAfterRun = $null
 $velocityPolicyTuple = $null
 $fabricConsentEvidence = [ordered]@{
     explicit_file_manifest_entries = 0
+    enablement_requested = $false
+    enablement_rendered = $false
+    enablement_accepted = $false
     explicit_file_requested = $false
     explicit_file_rendered = $false
     explicit_file_accepted = $false
@@ -2108,6 +2252,7 @@ $fabricConsentEvidence = [ordered]@{
     game_render_frame_requested = $false
     game_render_frame_rendered = $false
     game_render_frame_allowed = $false
+    game_render_frame_inherited = $false
     game_render_frame_completed = $false
 }
 $fabricGuiStage = if ($WithFabricClient) { 'CLIENT_PENDING' } else { 'NOT_REQUESTED' }
@@ -2222,11 +2367,11 @@ try {
         } catch {
             Update-FabricConsentEvidence $fabricConsentEvidence $fabricLog
             $fabricGuiStage = Get-FabricGuiStage $fabricConsentEvidence $fabricGuiStage
-            if ([bool]$fabricConsentEvidence['explicit_file_rendered']) {
-                throw "Fabric explicit-file consent screen rendered but was not approved before the $manualConsentHandshakeTimeoutSeconds-second smoke handshake timeout"
+            if ([bool]$fabricConsentEvidence['enablement_rendered']) {
+                throw "Fabric MCAce enablement screen rendered but was not approved before the $manualConsentHandshakeTimeoutSeconds-second smoke handshake timeout"
             }
-            if ([bool]$fabricConsentEvidence['explicit_file_requested']) {
-                throw "Fabric explicit-file consent was requested but no completed render was observed before the $manualConsentHandshakeTimeoutSeconds-second smoke handshake timeout"
+            if ([bool]$fabricConsentEvidence['enablement_requested']) {
+                throw "Fabric MCAce enablement was requested but no completed render was observed before the $manualConsentHandshakeTimeoutSeconds-second smoke handshake timeout"
             }
             throw
         }
@@ -2265,26 +2410,20 @@ try {
             Wait-ServiceLog $fabricClient $fabricLog @(
                 'MCAce platform evidence smoke verified; waiting for a signed GAME_RENDER_FRAME request'
             ) 30
-            # The console request is intentionally the only automated action. Consent remains a
-            # visible, per-request human decision; this script has no cursor, window, desktop, or
-            # operating-system screen-capture API.
-            Write-Host 'MCAce evidence smoke: approve Allow once in the visible Fabric client window.'
+            # The console request is intentionally the only automated action. The single
+            # connection-level enablement decision above covers this signed frame request; this
+            # script has no cursor, window, desktop, or operating-system screen-capture API.
             $velocity.Process.StandardInput.WriteLine(
                 "mcaceevidence request $evidencePlayerName frame platform-smoke-frame")
             $velocity.Process.StandardInput.Flush()
             Wait-ServiceLog $fabricClient $fabricLog @(
-                'MCAce evidence consent requested for signed GAME_RENDER_FRAME request'
+                'MCAce evidence request accepted under connection enablement; no second consent screen'
             ) 30
             Update-FabricConsentEvidence $fabricConsentEvidence $fabricLog
             $fabricGuiStage = Get-FabricGuiStage $fabricConsentEvidence $fabricGuiStage
             Wait-ServiceLog $fabricClient $fabricLog @(
-                'MCAce evidence consent screen rendered for signed GAME_RENDER_FRAME request'
+                'MCAce evidence consent inherited from connection enablement'
             ) 30
-            Update-FabricConsentEvidence $fabricConsentEvidence $fabricLog
-            $fabricGuiStage = Get-FabricGuiStage $fabricConsentEvidence $fabricGuiStage
-            Wait-ServiceLog $fabricClient $fabricLog @(
-                'MCAce evidence consent allowed once for signed GAME_RENDER_FRAME request'
-            ) 120
             Update-FabricConsentEvidence $fabricConsentEvidence $fabricLog
             $fabricGuiStage = Get-FabricGuiStage $fabricConsentEvidence $fabricGuiStage
             Wait-ServiceLog $fabricClient $fabricLog @(
@@ -2293,7 +2432,7 @@ try {
             Update-FabricConsentEvidence $fabricConsentEvidence $fabricLog
             $fabricGuiStage = Get-FabricGuiStage $fabricConsentEvidence $fabricGuiStage
             if (-not (Test-FabricEvidenceCoverage $fabricConsentEvidence)) {
-                throw 'Fabric evidence flow completed without its full requested/rendered/allowed/completed marker chain'
+                throw 'Fabric evidence flow completed without its full requested/non-rendered/allowed/inherited/completed marker chain'
             }
             $evidenceAudit = Join-Path $velocityRoot 'plugins\mcace\evidence-audit.log'
             $auditDeadline = [DateTime]::UtcNow.AddSeconds(30)
@@ -2319,7 +2458,7 @@ try {
             $evidenceReport = [ordered]@{
                 outcome = 'COMPLETE'
                 request_scope = 'GAME_RENDER_FRAME'
-                consent = 'manual-visible-allow-once'
+                consent = 'single-visible-connection-enablement'
                 raw_content_retained = $false
             }
         }
@@ -2505,6 +2644,9 @@ try {
             fabric_gui_stage = $fabricGuiStage
             explicit_file_fixture_present = $explicitFileFixturePresent
             explicit_file_manifest_entries = [int]$fabricConsentEvidence['explicit_file_manifest_entries']
+            enablement_consent_requested = [bool]$fabricConsentEvidence['enablement_requested']
+            enablement_consent_rendered = [bool]$fabricConsentEvidence['enablement_rendered']
+            enablement_consent_accepted = [bool]$fabricConsentEvidence['enablement_accepted']
             explicit_file_consent_requested = [bool]$fabricConsentEvidence['explicit_file_requested']
             explicit_file_consent_rendered = [bool]$fabricConsentEvidence['explicit_file_rendered']
             explicit_file_consent_accepted = [bool]$fabricConsentEvidence['explicit_file_accepted']
@@ -2513,6 +2655,7 @@ try {
             game_render_frame_requested = [bool]$fabricConsentEvidence['game_render_frame_requested']
             game_render_frame_consent_rendered = [bool]$fabricConsentEvidence['game_render_frame_rendered']
             game_render_frame_consent_allowed = [bool]$fabricConsentEvidence['game_render_frame_allowed']
+            game_render_frame_consent_inherited = [bool]$fabricConsentEvidence['game_render_frame_inherited']
             game_render_frame_completed = [bool]$fabricConsentEvidence['game_render_frame_completed']
             fabric_gui_coverage = ($WithFabricClient -and (Test-FabricGuiCoverage $fabricConsentEvidence))
             fabric_evidence_coverage = ($WithFabricEvidence -and (Test-FabricEvidenceCoverage $fabricConsentEvidence))

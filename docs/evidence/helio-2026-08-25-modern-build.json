@@ -1,0 +1,25 @@
+{
+  "schema": "MCACE_HELIO_MODERN_BUILD_V1_SANITIZED",
+  "node": "helio",
+  "source_commit": "57b14244c570a127417f6e15eed6c54f1bf10d47",
+  "jdk25": "Temurin 25.0.4.1+1",
+  "jdk25_zip_sha256": "00c847d804f4a78e9f04f2683faf14fed898535b177b7fc704486cb0284e9283",
+  "root_jars_exit": 0,
+  "modern_test_and_jar_exit": 0,
+  "artifacts": [
+    {
+      "name": "mcace-client-fabric-26.1.2-0.1.0-SNAPSHOT.jar",
+      "bytes": 3520469,
+      "sha256": "2424c85f3d5a1b55b6a9157c270f0571d73a963de2c77b642a12a73fbec447f6"
+    },
+    {
+      "name": "mcace-client-fabric-26.2-0.1.0-SNAPSHOT.jar",
+      "bytes": 3520467,
+      "sha256": "82e2cf8d2a5b5c85ed101c91935206afd63156c7ef91369c0f426acfbed0b0ab"
+    }
+  ],
+  "cleanup_all_zero": true,
+  "java_process_count": 0,
+  "gradle_network_after_toolchain_download": "OFFLINE",
+  "raw_evidence": "docs/evidence/helio/modern-build/summary.json"
+}

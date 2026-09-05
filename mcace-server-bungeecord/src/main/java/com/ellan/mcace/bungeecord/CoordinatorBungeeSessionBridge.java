@@ -44,6 +44,7 @@ public final class CoordinatorBungeeSessionBridge implements BungeeSessionBridge
     private final String dispositionLimitedServer;
     private final String dispositionQuarantineServer;
     private final HeartbeatMissingPolicy heartbeatMissingPolicy;
+    private final boolean requiresClient;
     private final FederationRuntime federationRuntime;
     private final AutoCloseable federationLifecycle;
     private final AtomicReference<Consumer<AuthenticatedManifestDispositionEvent>> dispositionEventHandler =
@@ -90,7 +91,7 @@ public final class CoordinatorBungeeSessionBridge implements BungeeSessionBridge
         this(coordinator, api, admissionSigningKey, dispositionPolicyRuntime, dispositionPolicyPublisher,
                 manifestAuditQueue, evidenceContentStore, evidenceAdmin,
                 BungeeDispositionExecutionMode.MONITOR, "restricted", "",
-                HeartbeatMissingPolicy.disabled(), null, null);
+                HeartbeatMissingPolicy.disabled(), null, null, false);
     }
 
     public CoordinatorBungeeSessionBridge(ServerHandshakeCoordinator coordinator, MCAceApi api, PrivateKey admissionSigningKey,
@@ -100,7 +101,7 @@ public final class CoordinatorBungeeSessionBridge implements BungeeSessionBridge
             String dispositionRestrictedServer) {
         this(coordinator, api, admissionSigningKey, dispositionPolicyRuntime, dispositionPolicyPublisher,
                 manifestAuditQueue, evidenceContentStore, evidenceAdmin, dispositionExecutionMode,
-                dispositionRestrictedServer, "", HeartbeatMissingPolicy.disabled(), null, null);
+                dispositionRestrictedServer, "", HeartbeatMissingPolicy.disabled(), null, null, false);
     }
 
     public CoordinatorBungeeSessionBridge(ServerHandshakeCoordinator coordinator, MCAceApi api, PrivateKey admissionSigningKey,
@@ -110,7 +111,7 @@ public final class CoordinatorBungeeSessionBridge implements BungeeSessionBridge
             String dispositionRestrictedServer, HeartbeatMissingPolicy heartbeatMissingPolicy) {
         this(coordinator, api, admissionSigningKey, dispositionPolicyRuntime, dispositionPolicyPublisher,
                 manifestAuditQueue, evidenceContentStore, evidenceAdmin, dispositionExecutionMode,
-                dispositionRestrictedServer, "", heartbeatMissingPolicy, null, null);
+                dispositionRestrictedServer, "", heartbeatMissingPolicy, null, null, false);
     }
 
     public CoordinatorBungeeSessionBridge(ServerHandshakeCoordinator coordinator, MCAceApi api,
@@ -121,7 +122,7 @@ public final class CoordinatorBungeeSessionBridge implements BungeeSessionBridge
             HeartbeatMissingPolicy heartbeatMissingPolicy, FederationRuntime federationRuntime) {
         this(coordinator, api, admissionSigningKey, dispositionPolicyRuntime, dispositionPolicyPublisher,
                 manifestAuditQueue, evidenceContentStore, evidenceAdmin, dispositionExecutionMode,
-                dispositionRestrictedServer, "", heartbeatMissingPolicy, federationRuntime, null);
+                dispositionRestrictedServer, "", heartbeatMissingPolicy, federationRuntime, null, false);
     }
 
     public CoordinatorBungeeSessionBridge(ServerHandshakeCoordinator coordinator, MCAceApi api,
@@ -131,6 +132,20 @@ public final class CoordinatorBungeeSessionBridge implements BungeeSessionBridge
             BungeeDispositionExecutionMode dispositionExecutionMode, String dispositionLimitedServer,
             String dispositionQuarantineServer, HeartbeatMissingPolicy heartbeatMissingPolicy,
             FederationRuntime federationRuntime, AutoCloseable federationLifecycle) {
+        this(coordinator, api, admissionSigningKey, dispositionPolicyRuntime, dispositionPolicyPublisher,
+                manifestAuditQueue, evidenceContentStore, evidenceAdmin, dispositionExecutionMode,
+                dispositionLimitedServer, dispositionQuarantineServer, heartbeatMissingPolicy,
+                federationRuntime, federationLifecycle, false);
+    }
+
+    /** Full constructor used by the built-in bridge when strict client admission is configured. */
+    public CoordinatorBungeeSessionBridge(ServerHandshakeCoordinator coordinator, MCAceApi api,
+            PrivateKey admissionSigningKey, SharedProxyDispositionPolicyRuntime dispositionPolicyRuntime,
+            BungeeDispositionPolicyPublisher dispositionPolicyPublisher, AutoCloseable manifestAuditQueue,
+            EvidenceContentStore evidenceContentStore, EvidenceAdminService evidenceAdmin,
+            BungeeDispositionExecutionMode dispositionExecutionMode, String dispositionLimitedServer,
+            String dispositionQuarantineServer, HeartbeatMissingPolicy heartbeatMissingPolicy,
+            FederationRuntime federationRuntime, AutoCloseable federationLifecycle, boolean requiresClient) {
         this.coordinator = Objects.requireNonNull(coordinator, "coordinator");
         this.api = Objects.requireNonNull(api, "api");
         this.admissionSigningKey = admissionSigningKey;
@@ -143,6 +158,7 @@ public final class CoordinatorBungeeSessionBridge implements BungeeSessionBridge
         this.dispositionLimitedServer = Objects.requireNonNull(dispositionLimitedServer, "dispositionLimitedServer");
         this.dispositionQuarantineServer = Objects.requireNonNull(dispositionQuarantineServer, "dispositionQuarantineServer");
         this.heartbeatMissingPolicy = Objects.requireNonNull(heartbeatMissingPolicy, "heartbeatMissingPolicy");
+        this.requiresClient = requiresClient;
         this.federationRuntime = federationRuntime;
         this.federationLifecycle = federationLifecycle;
     }
@@ -156,7 +172,7 @@ public final class CoordinatorBungeeSessionBridge implements BungeeSessionBridge
             AutoCloseable federationLifecycle) {
         this(coordinator, api, admissionSigningKey, dispositionPolicyRuntime, dispositionPolicyPublisher,
                 manifestAuditQueue, evidenceContentStore, evidenceAdmin, dispositionExecutionMode,
-                dispositionRestrictedServer, "", heartbeatMissingPolicy, federationRuntime, federationLifecycle);
+                dispositionRestrictedServer, "", heartbeatMissingPolicy, federationRuntime, federationLifecycle, false);
     }
 
     @Override
@@ -239,6 +255,8 @@ public final class CoordinatorBungeeSessionBridge implements BungeeSessionBridge
         return coordinator.pollHeartbeatMissingTransitions(heartbeatMissingPolicy);
     }
     @Override public HeartbeatMissingPolicy heartbeatMissingPolicy() { return heartbeatMissingPolicy; }
+
+    @Override public boolean requiresClient() { return requiresClient; }
 
     @Override
     public void remove(UUID playerId) {

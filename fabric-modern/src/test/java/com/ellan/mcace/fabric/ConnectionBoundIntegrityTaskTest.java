@@ -15,6 +15,7 @@ final class ConnectionBoundIntegrityTaskTest {
     void disconnectCancellationInterruptsWorkAndSuppressesFramePublication() throws Exception {
         CountDownLatch started = new CountDownLatch(1);
         CountDownLatch release = new CountDownLatch(1);
+        CountDownLatch interruptObserved = new CountDownLatch(1);
         CountDownLatch finished = new CountDownLatch(1);
         AtomicBoolean interrupted = new AtomicBoolean();
         AtomicInteger publishedFrames = new AtomicInteger();
@@ -26,6 +27,7 @@ final class ConnectionBoundIntegrityTaskTest {
                     release.await();
                 } catch (InterruptedException exception) {
                     interrupted.set(true);
+                    interruptObserved.countDown();
                     Thread.currentThread().interrupt();
                 }
                 try {
@@ -39,6 +41,7 @@ final class ConnectionBoundIntegrityTaskTest {
             });
             assertTrue(started.await(5, TimeUnit.SECONDS));
             task.cancel();
+            assertTrue(interruptObserved.await(5, TimeUnit.SECONDS));
             release.countDown();
             assertTrue(finished.await(5, TimeUnit.SECONDS));
         } finally {

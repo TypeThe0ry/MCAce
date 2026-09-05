@@ -2,6 +2,7 @@ package com.ellan.mcace.core.federation;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import com.ellan.mcace.core.api.InMemoryMCAceApi;
@@ -9,6 +10,8 @@ import com.ellan.mcace.protocol.ProtocolConstants;
 import com.ellan.mcace.protocol.crypto.Ed25519Keys;
 import com.ellan.mcace.protocol.crypto.EnvelopeCodec;
 import com.ellan.mcace.protocol.federation.FederationDocuments;
+import com.ellan.mcace.protocol.federation.FederationException;
+import com.ellan.mcace.protocol.federation.FederationVerification;
 import com.ellan.mcace.protocol.generated.FederationGrant;
 import com.ellan.mcace.protocol.generated.FederationLocalClaim;
 import com.ellan.mcace.protocol.generated.FederationPresentation;
@@ -24,10 +27,14 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 import org.junit.jupiter.api.Test;
 
 final class FederationRuntimeTest {
@@ -60,6 +67,191 @@ final class FederationRuntimeTest {
     }
 
     @Test
+    void rejectsTargetSessionWithoutSignedAssertionAuthBinding() throws Exception {
+        Fixture fixture = fixture();
+        FederationSubject preexistingTargetSession = fixture.targetSubject();
+        fixture.clock().advance(Duration.ofSeconds(10));
+        GrantExchange exchange = fixture.issueAndGrant();
+        FederationPresentation presentation = fixture.presentation(
+                exchange.grant(), preexistingTargetSession);
+
+        FederationPresentationResult result = fixture.targetRuntime().receivePresentation(
+                preexistingTargetSession,
+                fixture.outerPresentation(presentation, preexistingTargetSession),
+                "target-console");
+
+        assertEquals(FederationRuntimeStatus.INVALID_PRESENTATION, result.status());
+        assertTrue(result.observation().isEmpty());
+        assertTrue(fixture.targetRuntime().observations(fixture.playerId(), 10).isEmpty());
+        assertEquals(FederationAuditEvent.PRESENTATION_REJECTED,
+                fixture.targetAudits().getLast().event());
+    }
+
+    @Test
+    void exactAssertionBindingAcceptsDespiteIndependentTargetClockOrdering() throws Exception {
+        Fixture fixture = fixture();
+        FederationIssueResult issue = fixture.sourceRuntime().issueConsent(
+                fixture.sourceSubject(), TARGET, "source-console");
+        assertEquals(FederationRuntimeStatus.CONSENT_ISSUED, issue.status());
+
+        fixture.clock().advance(Duration.ofSeconds(1));
+        FederationSubject targetBetweenRequestAndGrant = new FederationSubject(
+                fixture.playerId(), TARGET, "target-between-request-and-grant",
+                fixture.client().getPublic(), fixture.targetChallenge(),
+                fixture.sourceSubject().policyVersion(), fixture.sourceSubject().policySha256(),
+                fixture.clock().instant());
+
+        fixture.clock().advance(Duration.ofSeconds(1));
+        var request = issue.request().orElseThrow();
+        var consent = FederationDocuments.signClientConsent(
+                request, fixture.client().getPrivate(), fixture.client().getPublic(),
+                fixture.clock(), ProtocolConstants.DEFAULT_CLOCK_SKEW);
+        EnvelopeCodec clientCodec = new EnvelopeCodec(
+                fixture.clock(), new SecureRandom(),
+                ProtocolConstants.MAX_FEDERATION_PRESENTATION_BYTES,
+                ProtocolConstants.DEFAULT_CLOCK_SKEW);
+        byte[] responseFrame = clientCodec.sign(
+                PacketType.FEDERATION_CONSENT_RESPONSE,
+                fixture.sourceSubject().authenticatedSessionId(),
+                FederationDocuments.encodeConsentResponse(consent),
+                fixture.client().getPrivate()).toByteArray();
+        FederationGrant grant = fixture.sourceRuntime()
+                .receiveConsentResponse(fixture.sourceSubject(), responseFrame)
+                .grant().orElseThrow();
+        FederationSubject exactlyBoundTarget = new FederationSubject(
+                targetBetweenRequestAndGrant.playerId(), targetBetweenRequestAndGrant.localNetworkId(),
+                targetBetweenRequestAndGrant.authenticatedSessionId(),
+                targetBetweenRequestAndGrant.clientPublicKey(),
+                targetBetweenRequestAndGrant.serverChallengeNonce(),
+                targetBetweenRequestAndGrant.policyVersion(),
+                targetBetweenRequestAndGrant.policySha256(),
+                targetBetweenRequestAndGrant.authenticatedAt(),
+                Optional.of(new FederationAuthenticationBinding(
+                        FederationDocuments.signedAssertionSha256(grant))));
+        FederationPresentation presentation = fixture.presentation(
+                grant, exactlyBoundTarget);
+
+        FederationPresentationResult result = fixture.targetRuntime().receivePresentation(
+                exactlyBoundTarget,
+                fixture.outerPresentation(presentation, exactlyBoundTarget),
+                "target-console");
+
+        assertEquals(FederationRuntimeStatus.OBSERVED, result.status());
+        assertTrue(result.observation().isPresent());
+        assertEquals(1, fixture.targetRuntime().observations(fixture.playerId(), 10).size());
+        assertEquals(FederationAuditEvent.PRESENTATION_ACCEPTED,
+                fixture.targetAudits().getLast().event());
+    }
+
+    @Test
+    void wrongTargetAuthHashDoesNotBurnPresentationReplayBeforeCorrectBoundRetry() throws Exception {
+        Fixture fixture = fixture();
+        GrantExchange exchange = fixture.issueAndGrant();
+        FederationSubject correct = fixture.targetSubject();
+        byte[] wrongHash = correct.targetAuthenticationBinding().orElseThrow()
+                .signedAssertionSha256();
+        wrongHash[0] ^= 1;
+        FederationSubject wrong = new FederationSubject(
+                correct.playerId(), correct.localNetworkId(), correct.authenticatedSessionId(),
+                correct.clientPublicKey(), correct.serverChallengeNonce(), correct.policyVersion(),
+                correct.policySha256(), correct.authenticatedAt(),
+                Optional.of(new FederationAuthenticationBinding(wrongHash)));
+        FederationPresentation presentation = fixture.presentation(exchange.grant(), correct);
+
+        assertEquals(FederationRuntimeStatus.INVALID_PRESENTATION,
+                fixture.targetRuntime().receivePresentation(
+                        wrong, fixture.outerPresentation(presentation, wrong), "target-console").status());
+        assertTrue(fixture.targetRuntime().observations(fixture.playerId(), 10).isEmpty());
+
+        assertEquals(FederationRuntimeStatus.OBSERVED,
+                fixture.targetRuntime().receivePresentation(
+                        correct, fixture.outerPresentation(presentation, correct), "target-console").status());
+        assertEquals(1, fixture.targetRuntime().observations(fixture.playerId(), 10).size());
+    }
+
+    @Test
+    void acceptanceDecisionUsesStrictVerifiedTimelineBoundaries() throws Exception {
+        long issuedAt = NOW.toEpochMilli();
+        long sourceAuthorizedAt = issuedAt + 1_000L;
+        long verifiedAt = sourceAuthorizedAt + 1_000L;
+        long expiresAt = verifiedAt + 1_000L;
+        FederationVerification verification = new FederationVerification(
+                SOURCE, TARGET, UUID.randomUUID().toString(), new byte[32],
+                "source-session", UUID.randomUUID().toString(), new byte[32], issuedAt,
+                sourceAuthorizedAt, expiresAt, verifiedAt, "policy-v1", new byte[32],
+                FederationDocuments.MINIMAL_DISCLOSURE,
+                FederationLocalClaim.FEDERATION_SOURCE_LOCALLY_VERIFIED);
+
+        assertEquals(Instant.ofEpochMilli(expiresAt - 1L),
+                FederationRuntime.strictAcceptanceInstant(verification, expiresAt - 1L));
+        assertThrows(FederationException.class,
+                () -> FederationRuntime.strictAcceptanceInstant(verification, expiresAt));
+        assertThrows(FederationException.class,
+                () -> FederationRuntime.strictAcceptanceInstant(verification, verifiedAt - 1L));
+    }
+
+    @Test
+    void fullPresentationRejectsWhenDecisionSamplingReachesExactSignedExpiry() throws Exception {
+        Fixture fixture = fixture();
+        GrantExchange exchange = fixture.issueAndGrant();
+        FederationPresentation presentation = fixture.presentation(
+                exchange.grant(), fixture.targetSubject());
+        List<FederationAuditRecord> audits = new ArrayList<>();
+        long expiresAt = NOW.plus(Duration.ofMinutes(2)).toEpochMilli();
+        FederationRuntime target = new FederationRuntime(
+                fixture.clock(), new SecureRandom(), fixture.targetIdentity(),
+                configuration(TARGET, SOURCE, fixture.sourceIdentity(),
+                        FederationPeerCapability.ACCEPT_FROM),
+                audits::add, FederationRuntime.DEFAULT_MAX_PENDING,
+                FederationRuntime.DEFAULT_MAX_OBSERVATIONS,
+                () -> System.nanoTime() / 1_000_000L, () -> expiresAt);
+
+        FederationPresentationResult result = target.receivePresentation(
+                fixture.targetSubject(),
+                fixture.outerPresentation(presentation, fixture.targetSubject()),
+                "target-console");
+
+        assertEquals(FederationRuntimeStatus.INVALID_PRESENTATION, result.status());
+        assertTrue(result.observation().isEmpty());
+        assertTrue(target.observations(fixture.playerId(), 10).isEmpty());
+        assertEquals(List.of(FederationAuditEvent.PRESENTATION_REJECTED),
+                audits.stream().map(FederationAuditRecord::event).toList());
+    }
+
+    @Test
+    void acceptanceLinearizesBeforeDurableAuditCompletesAcrossExpiry() throws Exception {
+        Fixture fixture = fixture();
+        GrantExchange exchange = fixture.issueAndGrant();
+        FederationPresentation presentation = fixture.presentation(
+                exchange.grant(), fixture.targetSubject());
+        List<FederationAuditRecord> audits = new ArrayList<>();
+        AtomicBoolean advanced = new AtomicBoolean();
+        FederationRuntime target = new FederationRuntime(
+                fixture.clock(), new SecureRandom(), fixture.targetIdentity(),
+                configuration(TARGET, SOURCE, fixture.sourceIdentity(),
+                        FederationPeerCapability.ACCEPT_FROM),
+                record -> {
+                    audits.add(record);
+                    if (record.event() == FederationAuditEvent.PRESENTATION_ACCEPTED
+                            && advanced.compareAndSet(false, true)) {
+                        fixture.clock().advance(Duration.ofMinutes(2));
+                    }
+                });
+
+        FederationPresentationResult result = target.receivePresentation(
+                fixture.targetSubject(),
+                fixture.outerPresentation(presentation, fixture.targetSubject()),
+                "target-console");
+
+        assertEquals(FederationRuntimeStatus.OBSERVED, result.status());
+        assertEquals(NOW, result.observation().orElseThrow().observedAt());
+        assertTrue(target.observations(fixture.playerId(), 10).isEmpty());
+        assertEquals(List.of(FederationAuditEvent.PRESENTATION_ACCEPTED),
+                audits.stream().map(FederationAuditRecord::event).toList());
+        assertEquals(NOW, audits.getFirst().recordedAt());
+    }
+
+    @Test
     void rejectsWrongCapabilitiesAndConfigurationNetworkMismatch() throws Exception {
         Fixture fixture = fixture();
         FederationConfiguration wrongSourceDirection = configuration(
@@ -82,6 +274,27 @@ final class FederationRuntimeTest {
         assertEquals(FederationRuntimeStatus.NO_CURRENT_SUBJECT,
                 fixture.targetRuntime().receivePresentation(mismatchedNetwork,
                         fixture.outerPresentation(presentation, mismatchedNetwork), "target-console").status());
+    }
+
+    @Test
+    void rejectsAReusedLocalAndPeerIdentityAtStartupAndReload() throws Exception {
+        MutableClock clock = new MutableClock(NOW);
+        KeyPair localIdentity = Ed25519Keys.generate(new SecureRandom());
+        FederationConfiguration sameKey = configuration(
+                SOURCE, TARGET, localIdentity, FederationPeerCapability.ISSUE_TO);
+        assertThrows(IllegalArgumentException.class, () ->
+                runtime(clock, localIdentity, sameKey, new ArrayList<>()));
+
+        KeyPair independentPeer = Ed25519Keys.generate(new SecureRandom());
+        FederationRuntime runtime = runtime(
+                clock, localIdentity,
+                configuration(SOURCE, TARGET, independentPeer,
+                        FederationPeerCapability.ISSUE_TO),
+                new ArrayList<>());
+        assertThrows(IllegalArgumentException.class, () -> runtime.reload(sameKey));
+        assertTrue(MessageDigest.isEqual(
+                FederationPeerPin.sha256(independentPeer.getPublic().getEncoded()),
+                runtime.configuration().peers().get(TARGET).keyIdSha256()));
     }
 
     @Test
@@ -136,11 +349,12 @@ final class FederationRuntimeTest {
                 fixture.clock(), ProtocolConstants.DEFAULT_CLOCK_SKEW);
         FederationGrant wrongAudienceGrant = FederationDocuments.grant(
                 wrongAudienceConsent, wrongAudienceAssertion, fixture.client().getPublic());
+        FederationSubject wrongAudienceTarget = bind(fixture.targetSubject(), wrongAudienceGrant);
         FederationPresentation wrongAudience = fixture.presentation(
-                wrongAudienceGrant, fixture.targetSubject());
+                wrongAudienceGrant, wrongAudienceTarget);
         assertEquals(FederationRuntimeStatus.INVALID_PRESENTATION,
-                fixture.targetRuntime().receivePresentation(fixture.targetSubject(),
-                        fixture.outerPresentation(wrongAudience, fixture.targetSubject()), "target-console").status());
+                fixture.targetRuntime().receivePresentation(wrongAudienceTarget,
+                        fixture.outerPresentation(wrongAudience, wrongAudienceTarget), "target-console").status());
         assertEquals(1, fixture.targetRuntime().observations(fixture.playerId(), 10).size());
     }
 
@@ -161,8 +375,9 @@ final class FederationRuntimeTest {
                         fixture.targetSubject(), freshOuter, "target-console").status());
 
         byte[] nextChallenge = randomBytes(new SecureRandom());
-        FederationSubject nextTargetSession = subject(
-                fixture.playerId(), TARGET, "target-session-2", fixture.client(), nextChallenge);
+        FederationSubject nextTargetSession = bind(subject(
+                fixture.playerId(), TARGET, "target-session-2", fixture.client(), nextChallenge),
+                exchange.grant());
         FederationPresentation recapturedForNewSession = FederationDocuments.presentation(
                 exchange.grant(), fixture.client().getPrivate(),
                 nextTargetSession.authenticatedSessionId(), nextTargetSession.serverChallengeNonce(),
@@ -174,9 +389,9 @@ final class FederationRuntimeTest {
         assertEquals(1, fixture.targetRuntime().observations(fixture.playerId(), 10).size());
 
         KeyPair unrelatedTargetKey = Ed25519Keys.generate(new SecureRandom());
-        FederationSubject targetWithDifferentSessionKey = subject(
+        FederationSubject targetWithDifferentSessionKey = bind(subject(
                 fixture.playerId(), TARGET, "different-key-session", unrelatedTargetKey,
-                fixture.targetChallenge());
+                fixture.targetChallenge()), exchange.grant());
         FederationPresentation proofWithSourceKey = FederationDocuments.presentation(
                 exchange.grant(), fixture.client().getPrivate(),
                 targetWithDifferentSessionKey.authenticatedSessionId(), targetWithDifferentSessionKey.serverChallengeNonce(),
@@ -355,6 +570,41 @@ final class FederationRuntimeTest {
     }
 
     @Test
+    void wallClockRollbackTripsStickyFailClosedStateAndClearsPendingState() throws Exception {
+        Fixture fixture = fixture();
+        AtomicLong monotonicMillis = new AtomicLong(1_000L);
+        FederationRuntime source = new FederationRuntime(
+                fixture.clock(), new SecureRandom(), fixture.sourceIdentity(),
+                configuration(SOURCE, TARGET, fixture.targetIdentity(),
+                        FederationPeerCapability.ISSUE_TO),
+                ignored -> { }, FederationRuntime.DEFAULT_MAX_PENDING,
+                FederationRuntime.DEFAULT_MAX_OBSERVATIONS, monotonicMillis::get);
+
+        assertEquals(FederationRuntimeStatus.CONSENT_ISSUED,
+                source.issueConsent(fixture.sourceSubject(), TARGET, "source-console").status());
+        assertEquals(1, source.status().pendingConsentRequests());
+
+        fixture.clock().advance(Duration.ofSeconds(60));
+        monotonicMillis.addAndGet(Duration.ofSeconds(60).toMillis());
+        assertTrue(source.status().enabled());
+        assertEquals(1, source.status().pendingConsentRequests());
+
+        fixture.clock().advance(Duration.ofSeconds(-45));
+        monotonicMillis.addAndGet(Duration.ofSeconds(1).toMillis());
+        FederationRuntimeState faulted = source.status();
+        assertFalse(faulted.enabled());
+        assertTrue(faulted.configuredEnabled());
+        assertEquals(0, faulted.pendingConsentRequests());
+        assertEquals(0, faulted.activeObservations());
+
+        fixture.clock().advance(Duration.ofMinutes(10));
+        monotonicMillis.addAndGet(Duration.ofMinutes(10).toMillis());
+        assertEquals(FederationRuntimeStatus.DISABLED,
+                source.issueConsent(fixture.sourceSubject(), TARGET, "source-console").status());
+        assertFalse(source.status().enabled());
+    }
+
+    @Test
     void classifierRoutesOnlyBoundedFederationDirections() throws Exception {
         Fixture fixture = fixture();
         GrantExchange exchange = fixture.issueAndGrant();
@@ -388,6 +638,7 @@ final class FederationRuntimeTest {
                 playerId, SOURCE, "source-session", client, sourceChallenge);
         FederationSubject targetSubject = subject(
                 playerId, targetNetworkId, "target-session", client, targetChallenge);
+        AtomicReference<FederationAuthenticationBinding> targetAuthBinding = new AtomicReference<>();
         List<FederationAuditRecord> sourceAudits = new ArrayList<>();
         List<FederationAuditRecord> targetAudits = new ArrayList<>();
         FederationRuntime sourceRuntime = runtime(clock, sourceIdentity,
@@ -397,7 +648,7 @@ final class FederationRuntimeTest {
                 configuration(targetNetworkId, SOURCE, sourceIdentity, FederationPeerCapability.ACCEPT_FROM),
                 targetAudits);
         return new Fixture(clock, client, sourceIdentity, targetIdentity, playerId,
-                sourceChallenge, targetChallenge, sourceSubject, targetSubject,
+                sourceChallenge, targetChallenge, sourceSubject, targetSubject, targetAuthBinding,
                 sourceRuntime, targetRuntime, sourceAudits, targetAudits);
     }
 
@@ -428,6 +679,16 @@ final class FederationRuntimeTest {
             byte[] challenge) throws Exception {
         return new FederationSubject(playerId, localNetworkId, sessionId, client.getPublic(), challenge,
                 "policy-v1", MessageDigest.getInstance("SHA-256").digest("policy".getBytes()), NOW);
+    }
+
+    private static FederationSubject bind(FederationSubject subject, FederationGrant grant)
+            throws Exception {
+        return new FederationSubject(
+                subject.playerId(), subject.localNetworkId(), subject.authenticatedSessionId(),
+                subject.clientPublicKey(), subject.serverChallengeNonce(), subject.policyVersion(),
+                subject.policySha256(), subject.authenticatedAt(),
+                Optional.of(new FederationAuthenticationBinding(
+                        FederationDocuments.signedAssertionSha256(grant))));
     }
 
     private static byte[] randomBytes(SecureRandom random) {
@@ -478,7 +739,8 @@ final class FederationRuntimeTest {
             byte[] sourceChallenge,
             byte[] targetChallenge,
             FederationSubject sourceSubject,
-            FederationSubject targetSubject,
+            FederationSubject baseTargetSubject,
+            AtomicReference<FederationAuthenticationBinding> targetAuthBinding,
             FederationRuntime sourceRuntime,
             FederationRuntime targetRuntime,
             List<FederationAuditRecord> sourceAudits,
@@ -491,9 +753,19 @@ final class FederationRuntimeTest {
         @Override public byte[] sourceChallenge() { return sourceChallenge.clone(); }
         @Override public byte[] targetChallenge() { return targetChallenge.clone(); }
 
+        private FederationSubject targetSubject() {
+            FederationAuthenticationBinding binding = targetAuthBinding.get();
+            return new FederationSubject(
+                    baseTargetSubject.playerId(), baseTargetSubject.localNetworkId(),
+                    baseTargetSubject.authenticatedSessionId(), baseTargetSubject.clientPublicKey(),
+                    baseTargetSubject.serverChallengeNonce(), baseTargetSubject.policyVersion(),
+                    baseTargetSubject.policySha256(), baseTargetSubject.authenticatedAt(),
+                    Optional.ofNullable(binding));
+        }
+
         private GrantExchange issueAndGrant() throws Exception {
             FederationIssueResult issue = sourceRuntime.issueConsent(
-                    sourceSubject, targetSubject.localNetworkId(), "source-console");
+                    sourceSubject, baseTargetSubject.localNetworkId(), "source-console");
             assertEquals(FederationRuntimeStatus.CONSENT_ISSUED, issue.status());
             var request = issue.request().orElseThrow();
             var consent = FederationDocuments.signClientConsent(
@@ -508,6 +780,8 @@ final class FederationRuntimeTest {
             FederationGrantResult result = sourceRuntime.receiveConsentResponse(sourceSubject, responseFrame);
             assertEquals(FederationRuntimeStatus.GRANT_READY, result.status());
             FederationGrant grant = result.grant().orElseThrow();
+            targetAuthBinding.set(new FederationAuthenticationBinding(
+                    FederationDocuments.signedAssertionSha256(grant)));
             assertEquals(grant, FederationDocuments.verifyGrant(
                     FederationDocuments.encodeGrant(grant), request, client.getPublic(),
                     sourceIdentity.getPublic(), clock, ProtocolConstants.DEFAULT_CLOCK_SKEW));
