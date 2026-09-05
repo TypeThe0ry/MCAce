@@ -8,17 +8,17 @@ plugin.
 > ## v0.0.1 — RELEASE LOCKED
 >
 > **No tag or GitHub Release is claimed.** Release remains locked until all seven
-> fail-closed gates below validate for one reviewed exact source. In particular,
-> MCAce still needs a Matrix V4 externally supervised package, one visible
-> connection-bound `Enable MCAce` decision captured inside a real Federation V5
-> handoff, a supervisor-signed licensed Vulcan V3 genuine event, an externally
-> captured Production Authority V4 MONITOR package, and protected-main/tag V4
-> exact-commit CI. Decline, close, timeout, or missing consent leaves MCAce
-> disabled.
+> fail-closed gates below validate for one reviewed exact source. The current
+> readiness run has Matrix V4 and the clean-worktree gate passing; MCAce still
+> needs a current-source visible connection-bound `Enable MCAce` decision inside
+> a real Federation V5 handoff, a supervisor-signed licensed Vulcan V3 genuine
+> event, an externally captured Production Authority V4 MONITOR package, and
+> protected-main/tag V4 exact-commit CI. Decline, close, timeout, or missing
+> consent leaves MCAce disabled.
 
 [中文 README](README_CN.md) · [architecture](docs/ARCHITECTURE.md) ·
 [security model](docs/SECURITY.md) · [release gates](docs/RELEASE_GATES.md) ·
-[operations](docs/OPERATIONS.md)
+[operations](docs/OPERATIONS.md) · [current progress ledger](docs/evidence/PROGRESS_2026-09-05.md)
 
 ![Release verification dashboard](docs/assets/verification-dashboard.svg)
 
@@ -29,7 +29,7 @@ historical PASS, a caller Boolean, or an unsigned report cannot promote any gate
 
 | Readiness gate | Required release evidence | State |
 | --- | --- | --- |
-| `server_matrix_exact_source` | Matrix V4 seven-root native package; exactly 12 raw process cases; process-incarnation and cleanup commitments; protected V4 release bundle and three server-JAR cross-bindings; out-of-repository RSA supervisor root, protected pin, fresh detached receipt, replay and TOCTOU validation | **PENDING** |
+| `server_matrix_exact_source` | Matrix V4 seven-root native package; exactly 12 raw process cases; process-incarnation and cleanup commitments; protected V4 release bundle and three server-JAR cross-bindings; out-of-repository RSA supervisor root, protected pin, fresh detached receipt, replay and TOCTOU validation | **PASS for `67ff44b1…`; re-check at final release commit** |
 | `fabric_gui_single_enablement_confirmation` | One human-origin, visible, connection-bound `Enable MCAce` decision for the entire v0.0.1 release acceptance; signed GUI attestation and decoded PNG inside the Federation V5 evidence set | **PENDING** |
 | `fabric_federation_real_handoff` | Federation V5 source-to-target handoff, inherited consent with no second prompt, subject/route/session binding, expiry and correlated negatives, runtime ledger, zero owned residue, and a distinct post-run supervisor receipt | **PENDING** |
 | `vulcan_genuine_event` | Licensed reviewed Vulcan JAR, genuine non-synthetic external provider event, exact release-artifact binding, and an externally pinned supervisor-signed Vulcan V3 receipt/index | **PENDING** |
@@ -37,22 +37,38 @@ historical PASS, a caller Boolean, or an unsigned report cannot promote any gate
 | `protected_exact_release_bundle` | Protected `main` or `v0.0.1` tag-push CI validates the exact `MCACE_RELEASE_BUNDLE_V4`, compatibility report, canonical artifact-source marker, final HEAD, and all eight release entries | **PENDING** |
 | `clean_worktree` | `git status --porcelain` is empty for the final exact release checkout | **PASS for current checkout; re-checked at release commit** |
 
-Matrix V4, Federation V5, Vulcan V3, and Authority V4 validators/contracts are
-under active integration, but no corresponding release-grade index is retained
-under `docs/evidence/`. They therefore remain PENDING regardless of local test
-success.
+The current readiness report for `67ff44b1e2685bd2bdf1d15a661081c4d76f6cee`
+records `server_matrix_exact_source=PASS` and `clean_worktree=PASS`. The other
+five gates remain fail-closed: the retained Federation package is bound to an
+older release-bundle source commit, no licensed Vulcan V3 genuine-event package
+is retained, no Production Authority V4 raw package/receipt is retained, and
+protected exact-commit release CI has not run. A local or historical PASS never
+promotes any of those gates.
 
-### Current verification snapshot (b931791d)
+### Current verification snapshot (`67ff44b1`)
 
-The current integration commit has a clean worktree and passes the targeted
-anti-cheat/compatibility smoke set plus the runtime network integration test.
-The strict local build also completed with JDK 21 for the root modules and JDK 25
-for the isolated `26.1.2`/`26.2` Fabric modules; its eight-file output is kept at
-`build/local-verification-bundle/` as diagnostic material only because the local
-manifest is intentionally `LOCAL_VERIFICATION`/`release_identity=false`.
-Those results are diagnostic evidence only: they do not replace the external
-GUI, federation, Vulcan, Authority, Matrix-supervisor, or protected-release
-gates listed above.
+As of 2026-09-05, the authoritative checkout is `D:\Projects\MCAce`, branch
+`feature/active-pack-integrity`. The audited product/evidence baseline is
+`67ff44b1e2685bd2bdf1d15a661081c4d76f6cee`; this README update is an allowed
+documentation-only descendant. GitHub PR
+[#17](https://github.com/TypeThe0ry/MCAce/pull/17) is open as a draft, based on
+`main`, and its baseline `build` and `windows-contracts` checks are green. There
+is still no `v0.0.1` tag or GitHub Release.
+
+The current local readiness report is `build/release-readiness/report.json`:
+Matrix V4 and the clean-worktree gate pass; GUI enablement, Federation handoff,
+Vulcan genuine event, Production Authority, and protected exact release bundle
+remain blocked. The validated exact V4 release bundle is stored outside the Git
+checkout; its source/artifact commits and six SHA-256 values are recorded in the
+progress ledger.
+
+A local 26.2 client was started and reached the real visible consent phase, but
+the active Computer Use surface exposed browser tabs only and no native-window
+control. No click, synthetic attestation, or fabricated screenshot was recorded;
+the GUI/Federation gate therefore remains blocked until a real native Computer
+Use session supplies the one allowed consent and the external signer returns a
+current-source receipt. The complete source-of-truth ledger is kept in
+[PROGRESS_2026-09-05.md](docs/evidence/PROGRESS_2026-09-05.md).
 
 ## What MCAce is — and is not
 
@@ -350,9 +366,13 @@ exact Fabric/Paper/source-proxy/target-proxy V4 JARs.
 
 The GUI signer and post-run supervisor must be independently approved and use
 different out-of-repository roots/private keys. Fixture, equal-key, self-approved,
-missing-receipt, stale, replayed, or tampered packages fail closed. No production
-Federation V5 index/receipt is retained, so both the GUI and federation gates are
-PENDING.
+missing-receipt, stale, replayed, or tampered packages fail closed. A real
+externally signed Federation V5 package is retained under
+`docs/evidence/federation-gui-handoff-20260905T0659535636601Z-26.2-velocity-to-velocity-28af49d.json`,
+but it is bound to release source `28af49d…` while the current exact release
+source is `67ff44b…`; readiness rejects that cross-gate mismatch. It is useful
+historical evidence, not current release evidence, so both GUI and federation
+gates remain PENDING.
 
 See [Federation](docs/FEDERATION.md).
 

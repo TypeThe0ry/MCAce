@@ -7,15 +7,15 @@ Paper/Folia 后端插件。
 > ## v0.0.1 — RELEASE LOCKED
 >
 > **当前没有创建正式 tag，也没有发布 GitHub Release。** 只有下面七个 fail-closed
-> 发布门在同一个已审查精确源码上全部通过后才能放行。当前仍缺 Matrix V4 外部 supervisor
-> 签名包、一次可见且绑定当前连接的 `Enable MCAce` 决定及真实 Federation V5 handoff、
-> 外部 supervisor 签名的 licensed Vulcan V3 genuine event、Production Authority V4
-> 外部 MONITOR 捕获包，以及受保护 main/tag 的 V4 exact-commit CI。拒绝、关闭、超时或
-> 未确认时，MCAce 保持禁用。
+> 发布门在同一个已审查精确源码上全部通过后才能放行。当前 readiness 已通过 Matrix V4
+> 与 clean-worktree；仍缺当前源码的一次可见且绑定当前连接的 `Enable MCAce` 决定及真实
+> Federation V5 handoff、外部 supervisor 签名的 licensed Vulcan V3 genuine event、
+> Production Authority V4 外部 MONITOR 捕获包，以及受保护 main/tag 的 V4 exact-commit
+> CI。拒绝、关闭、超时或未确认时，MCAce 保持禁用。
 
 [English README](README.md) · [架构](docs/ARCHITECTURE.md) ·
 [安全模型](docs/SECURITY.md) · [发布门](docs/RELEASE_GATES.md) ·
-[运维](docs/OPERATIONS.md)
+[运维](docs/OPERATIONS.md) · [当前进度台账](docs/evidence/PROGRESS_2026-09-05.md)
 
 ![发布验证总览](docs/assets/verification-dashboard.svg)
 
@@ -26,7 +26,7 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 
 | Readiness gate | 正式发布需要的证据 | 状态 |
 | --- | --- | --- |
-| `server_matrix_exact_source` | Matrix V4 七根条目 native package；精确 12 份 raw 进程 case；进程 incarnation 与清理承诺；受保护 V4 release bundle 和三份服务端 JAR 交叉绑定；仓库外 RSA supervisor root、受保护 pin、新鲜 detached receipt、replay 与 TOCTOU 校验 | **PENDING** |
+| `server_matrix_exact_source` | Matrix V4 七根条目 native package；精确 12 份 raw 进程 case；进程 incarnation 与清理承诺；受保护 V4 release bundle 和三份服务端 JAR 交叉绑定；仓库外 RSA supervisor root、受保护 pin、新鲜 detached receipt、replay 与 TOCTOU 校验 | **`67ff44b…` 已通过；最终发布 commit 仍需复核** |
 | `fabric_gui_single_enablement_confirmation` | 整个 v0.0.1 发布验收只保留一次真人来源、可见、绑定当前连接的 `Enable MCAce` 决定；签名 GUI attestation 和完整解码 PNG 必须进入 Federation V5 证据集 | **PENDING** |
 | `fabric_federation_real_handoff` | Federation V5 source→target handoff、继承同一次确认且不弹第二次窗口、subject/route/session 绑定、expiry 与关联负例、runtime ledger、零自有残留，以及不同 post-run supervisor 的 receipt | **PENDING** |
 | `vulcan_genuine_event` | 已审查 licensed Vulcan JAR、真实非合成外部 provider event、精确发布产物绑定，以及仓库外已批准 supervisor 签名的 Vulcan V3 receipt/index | **PENDING** |
@@ -34,18 +34,30 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 | `protected_exact_release_bundle` | 受保护 `main` 或 `v0.0.1` tag-push CI 校验精确 `MCACE_RELEASE_BUNDLE_V4`、兼容性报告、canonical artifact-source marker、最终 HEAD 和八项发布内容 | **PENDING** |
 | `clean_worktree` | 最终精确发布 checkout 的 `git status --porcelain` 为空 | **当前 checkout 已通过；发布 commit 仍需复核** |
 
-Matrix V4、Federation V5、Vulcan V3 和 Authority V4 的 validator/contract 正在当前
-开发工作树中集成，但 `docs/evidence/` 下尚未保留对应的 release-grade index。因此无论本地
-测试是否通过，这些门都继续保持 PENDING。
+当前 readiness report 针对
+`67ff44b1e2685bd2bdf1d15a661081c4d76f6cee` 记录了
+`server_matrix_exact_source=PASS` 和 `clean_worktree=PASS`。其余五门仍 fail-closed：
+现有 Federation 包绑定旧 release-bundle source commit；没有保留 licensed Vulcan V3
+genuine-event 包；没有保留 Production Authority V4 raw package/receipt；受保护 exact
+release CI 也尚未运行。任何本地或历史 PASS 都不能替代这些门。
 
-### 当前验证快照（b931791d）
+### 当前验证快照（`67ff44b1`）
 
-当前集成 commit 工作树干净，定向反作弊/兼容性 smoke 集合与 runtime network integration
-测试均已通过；严格本地构建也已用根模块 JDK 21 及隔离的 `26.1.2`/`26.2` Fabric 模块
-JDK 25 完成，八项输出保存在 `build/local-verification-bundle/`，但该目录只属于诊断材料，
-因为本地 manifest 明确是 `LOCAL_VERIFICATION`/`release_identity=false`。这些结果仍只是诊断证据，
-不能替代上面列出的外部 GUI、federation、Vulcan、
-Authority、Matrix supervisor 或受保护发布门。
+截至 2026-09-05，权威 checkout 是 `D:\Projects\MCAce`，分支为
+`feature/active-pack-integrity`。本次审计的产品/证据基线为
+`67ff44b1e2685bd2bdf1d15a661081c4d76f6cee`；本次 README 更新属于规则允许的纯文档后代。
+GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) 仍是基于 `main` 的 open draft，
+基线 `build` 与 `windows-contracts` 检查均为绿色。尚未创建 `v0.0.1` tag 或 GitHub Release。
+
+当前本地 readiness report 位于 `build/release-readiness/report.json`：Matrix V4 与
+clean-worktree 通过；GUI enablement、Federation handoff、Vulcan genuine event、
+Production Authority 和 protected exact release bundle 仍阻塞。已验证的精确 V4 release
+bundle 保存在 Git checkout 外；它的 source/artifact commit 与六项 SHA-256 已写入进度台账。
+
+本地 26.2 客户端确实启动并到达真人可见同意阶段，但当前 Computer Use 只暴露浏览器标签，
+没有 native-window 控制能力。没有点击、合成 attestation 或伪造截图；因此 GUI/Federation 门
+保持阻塞，直到真实 native Computer Use 会话完成唯一一次确认并由外部 signer 返回当前源码收据。
+完整事实台账见 [PROGRESS_2026-09-05.md](docs/evidence/PROGRESS_2026-09-05.md)。
 
 ## MCAce 是什么、又不是什么
 
@@ -298,7 +310,10 @@ target-proxy V4 JAR。
 
 GUI signer 与 post-run supervisor 必须分别独立批准，使用不同的仓库外 root/private key。
 fixture、相同 key、自批准、缺 receipt、过期、replay 或篡改 package 全部 fail-closed。
-当前没有保留 production Federation V5 index/receipt，因此 GUI 与 federation 两个门都 PENDING。
+仓库保留了一套真实外部签名的 Federation V5 package，路径为
+`docs/evidence/federation-gui-handoff-20260905T0659535636601Z-26.2-velocity-to-velocity-28af49d.json`，
+但它绑定的 release source 是 `28af49d…`，而当前精确 release source 是 `67ff44b…`；readiness
+因此拒绝该 cross-gate。它只能作为历史证据，GUI 与 federation 两门仍为 PENDING。
 
 详见 [Federation](docs/FEDERATION.md)。
 
