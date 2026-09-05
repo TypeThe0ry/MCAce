@@ -204,6 +204,61 @@ function Assert-ReleasePathChainNoReparse([string]$AbsolutePath, [bool]$LeafMust
     }
 }
 
+# The canonical checkout may expose its generated build tree through the one
+# explicitly approved migration junction used by this workspace.  Evidence
+# files remain tracked under the checkout and continue to use the strict
+# no-follow path chain above; only generated build inputs are resolved to the
+# physical D: volume.  Any other link, target, or reparse point stays fail-closed.
+function Resolve-ApprovedBuildRoot([string]$RepoRoot) {
+    $candidate = [IO.Path]::GetFullPath((Join-Path $RepoRoot 'build'))
+    $item = Get-Item -LiteralPath $candidate -Force -ErrorAction Stop
+    if (-not $item.PSIsContainer) {
+        throw 'MCACE_RELEASE_BUILD_DIRECTORY_REQUIRED'
+    }
+    if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -eq 0) {
+        Assert-ReleasePathChainNoReparse $candidate $true
+        return $candidate
+    }
+
+    $approvedTarget = [IO.Path]::GetFullPath('D:\Migrated\Projects\MCAce\build')
+    $targetText = [string]$item.Target
+    if ($item.LinkType -cne 'Junction' -or [string]::IsNullOrWhiteSpace($targetText)) {
+        throw 'MCACE_RELEASE_UNAPPROVED_BUILD_REPARSE_PATH'
+    }
+    $target = [IO.Path]::GetFullPath($targetText)
+    if (-not $target.Equals($approvedTarget, [StringComparison]::OrdinalIgnoreCase)) {
+        throw 'MCACE_RELEASE_UNAPPROVED_BUILD_REPARSE_PATH'
+    }
+    $targetItem = Get-Item -LiteralPath $target -Force -ErrorAction Stop
+    if (-not $targetItem.PSIsContainer -or
+            (($targetItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0)) {
+        throw 'MCACE_RELEASE_UNAPPROVED_BUILD_REPARSE_TARGET'
+    }
+    Assert-ReleasePathChainNoReparse $target $true
+    return $target
+}
+
+function ConvertTo-ReleaseBuildPath([string]$Path) {
+    if ([string]::IsNullOrWhiteSpace($Path)) {
+        throw 'MCACE_RELEASE_BUILD_PATH_REQUIRED'
+    }
+    $full = if ([IO.Path]::IsPathRooted($Path)) {
+        [IO.Path]::GetFullPath($Path)
+    } else {
+        [IO.Path]::GetFullPath((Join-Path $repoRoot $Path))
+    }
+    $canonicalBuild = [IO.Path]::GetFullPath((Join-Path $repoRoot 'build'))
+    $prefix = $canonicalBuild.TrimEnd('\','/') + [IO.Path]::DirectorySeparatorChar
+    $comparison = if (Test-ReleaseWindowsPlatform) {
+        [StringComparison]::OrdinalIgnoreCase
+    } else { [StringComparison]::Ordinal }
+    if ($full.StartsWith($prefix, $comparison)) {
+        $relative = $full.Substring($prefix.Length)
+        return [IO.Path]::GetFullPath((Join-Path $buildRoot $relative))
+    }
+    return $full
+}
+
 function Get-ReleaseNoFollowFileIdentity([string]$Path, [switch]$Directory) {
     if (Test-ReleaseWindowsPlatform) {
         Initialize-ReleaseFileIdentityApi
@@ -840,7 +895,7 @@ function Test-BuildReleaseBundle(
         [string]$ExpectedCommit,
         [string]$ExpectedArtifactSourceCommit) {
     try {
-        $root = ConvertTo-AbsoluteRepoPath $BundleRoot
+        $root = ConvertTo-ReleaseBuildPath $BundleRoot
         $manifestPath = Join-Path $root 'release-manifest.properties'
         $sumsPath = Join-Path $root 'SHA256SUMS'
         if (-not (Test-Path -LiteralPath $root -PathType Container) -or
@@ -895,7 +950,8 @@ function Test-BuildReleaseBundle(
             }
         }
         if ($seen.Count -ne 6) { return $false }
-        $compatibilityReport = Read-StrictAbsoluteJson (Join-Path $repoRoot 'build/compatibility-contract/report.json')
+        $compatibilityReport = Read-StrictAbsoluteJson (
+            Join-Path $buildRoot 'compatibility-contract/report.json')
         if ($null -eq $compatibilityReport) { return $false }
         Assert-CompatibilityReport $compatibilityReport $ExpectedCommit `
             $ExpectedArtifactSourceCommit $root
@@ -911,7 +967,7 @@ function Get-ProtectedReleaseBundleArtifactBinding(
     if (-not (Test-BuildReleaseBundle $BundleRoot $ExpectedCommit $ExpectedArtifactSourceCommit)) {
         throw 'MCACE_RELEASE_PROTECTED_BUNDLE_INVALID'
     }
-    $root = ConvertTo-AbsoluteRepoPath $BundleRoot
+    $root = ConvertTo-ReleaseBuildPath $BundleRoot
     $manifestPath = Join-Path $root 'release-manifest.properties'
     $manifest = Read-PropertiesFile $manifestPath
     $manifestDoc = Read-ReleaseLockedFileBytes $manifestPath 64 1048576 `
@@ -1465,7 +1521,7 @@ function Read-MatrixSupervisorTrustRootEvidence([string]$PackageRoot) {
     if (Test-MatrixFullPathBelow $repoRoot $path) {
         throw 'MCACE_RELEASE_MATRIX_SUPERVISOR_TRUST_ROOT_MUST_BE_OUT_OF_REPO'
     }
-    foreach ($forbiddenRoot in @($PackageRoot,(ConvertTo-AbsoluteRepoPath $ReleaseBundleRoot))) {
+    foreach ($forbiddenRoot in @($PackageRoot,(ConvertTo-ReleaseBuildPath $ReleaseBundleRoot))) {
         if (-not [string]::IsNullOrWhiteSpace([string]$forbiddenRoot) -and
                 (Test-MatrixFullPathBelow ([IO.Path]::GetFullPath([string]$forbiddenRoot)) $path)) {
             throw 'MCACE_RELEASE_MATRIX_SELF_SUPERVISOR_TRUST_ROOT_REJECTED'
@@ -1880,7 +1936,7 @@ function Assert-MatrixIndex([object]$Index, [string]$IndexRelative, [string]$Req
     if (-not (Test-BuildReleaseBundle $ReleaseBundleRoot $RequestedCommit $artifactSourceCommit)) {
         throw 'MCACE_RELEASE_MATRIX_PROTECTED_BUNDLE_INVALID'
     }
-    $bundleRootAbsolute = ConvertTo-AbsoluteRepoPath $ReleaseBundleRoot
+    $bundleRootAbsolute = ConvertTo-ReleaseBuildPath $ReleaseBundleRoot
     $manifestDocument = Read-ReleaseLockedFileBytes `
         (Join-Path $bundleRootAbsolute 'release-manifest.properties') 64 1048576 'MATRIX_RELEASE_MANIFEST'
     $sumsDocument = Read-ReleaseLockedFileBytes `
@@ -2620,7 +2676,7 @@ function Assert-FederationIndex(
         $releaseBinding = & $validator {
             param($Root,$BundleCommit,$ArtifactCommit,$Target,$SourceProxy,$TargetProxy)
             Get-ReleaseBundleTargetBinding $Root $BundleCommit $ArtifactCommit $Target $SourceProxy $TargetProxy
-        } (ConvertTo-AbsoluteRepoPath $ReleaseBundleRoot) $RequestedCommit $artifactSourceCommit $target `
+        } (ConvertTo-ReleaseBuildPath $ReleaseBundleRoot) $RequestedCommit $artifactSourceCommit $target `
             ([string]$Index.source_proxy) ([string]$Index.target_proxy)
         # The signed V5 run binds the capture bundle at artifact commit A.  The protected
         # release bundle is reconstructed at the evidence-only descendant R, so its manifest
@@ -3305,7 +3361,7 @@ function Assert-ProductionAuthorityIndex(
     if (-not (Test-BuildReleaseBundle $ReleaseBundleRoot $RequestedCommit $artifactSourceCommit)) {
         throw 'MCACE_RELEASE_PRODUCTION_AUTHORITY_PROTECTED_BUNDLE_INVALID'
     }
-    $bundleRootAbsolute = ConvertTo-AbsoluteRepoPath $ReleaseBundleRoot
+    $bundleRootAbsolute = ConvertTo-ReleaseBuildPath $ReleaseBundleRoot
     $bundleSnapshots = [ordered]@{
         manifest=(Read-ProductionAuthorityLockedFileBytes `
             (Join-Path $bundleRootAbsolute 'release-manifest.properties') 64 1048576 `
@@ -3624,10 +3680,12 @@ function Add-Gate {
     [void]$List.Add([pscustomobject][ordered]@{ name=$Name; passed=$Passed; evidence=$Evidence; detail=$Detail })
 }
 
+$buildRoot = Resolve-ApprovedBuildRoot $repoRoot
 if ([string]::IsNullOrWhiteSpace($ReportPath)) {
-    $ReportPath = Join-Path $repoRoot 'build/release-readiness/report.json'
+    $ReportPath = Join-Path $buildRoot 'release-readiness/report.json'
+} else {
+    $ReportPath = ConvertTo-ReleaseBuildPath $ReportPath
 }
-$ReportPath = ConvertTo-AbsoluteRepoPath $ReportPath
 [void][IO.Directory]::CreateDirectory((Split-Path -Parent $ReportPath))
 
 $head = Get-RepoHead
