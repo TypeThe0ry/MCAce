@@ -3761,6 +3761,18 @@ function Clear-OwnedRunForEvidence([string]$RunDirectory) {
     }
 }
 
+# Resolve the migrated physical build root before any preflight reads the
+# server matrix or prepared Paper assets.  The initial C: paths above are only
+# lexical defaults; all runtime/evidence access must use the approved D: target.
+$repoRoot = Assert-DirectLocalPath $repoRoot -Directory
+$buildRoot = Resolve-ApprovedBuildRoot $repoRoot
+$evidenceRoot = Join-Path $buildRoot 'fabric-federation-gui-handoff'
+$evidenceRunsRoot = Join-Path $evidenceRoot 'evidence-runs'
+$serverMatrixRoot = Join-Path $buildRoot 'runtime-assets'
+$serverMatrixManifest = Join-Path $serverMatrixRoot 'manifest.json'
+$serverPreparedManifest = Join-Path $serverMatrixRoot 'prepared-manifest.json'
+$stagedModernDependencies = Join-Path $buildRoot 'fabric-modern-deps'
+
 $script:ServerAssets = Resolve-FederationServerAssets
 $preparedPaperRoot = [string]$script:ServerAssets.prepared_root
 $repoInputPrefix = [System.IO.Path]::GetFullPath($repoRoot).TrimEnd('\') + '\'
