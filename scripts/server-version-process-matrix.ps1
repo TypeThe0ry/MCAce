@@ -6,6 +6,7 @@ param(
     [ValidateRange(1, 10080)]
     [int]$MaximumReportAgeMinutes = 1440,
     [string]$ExpectedSourceCommit = $env:MCACE_ARTIFACT_SOURCE_COMMIT,
+    [string]$ExpectedArtifactSourceCommit = $env:MCACE_ARTIFACT_SOURCE_COMMIT,
     [string]$ReleaseBundleRoot = $env:MCACE_MATRIX_RELEASE_BUNDLE_ROOT,
     [string]$SupervisorTrustRootPath = $env:MCACE_MATRIX_SUPERVISOR_TRUST_ROOT_PATH,
     [string]$ExpectedSupervisorTrustRootSha256 = $env:MCACE_RELEASE_APPROVED_MATRIX_SUPERVISOR_TRUST_ROOT_SHA256,
@@ -18,6 +19,10 @@ param(
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression -ErrorAction Stop
+
+if ([string]::IsNullOrWhiteSpace($ExpectedArtifactSourceCommit)) {
+    $ExpectedArtifactSourceCommit = $ExpectedSourceCommit
+}
 
 $reportSchema = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V4'
 $bindingSchema = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V4'
@@ -98,11 +103,19 @@ function Assert-ExactGitSourceIdentity {
     if ($ExpectedSourceCommit -cnotmatch '^[0-9a-f]{40}$') {
         throw 'SERVER_VERSION_MATRIX_SOURCE_COMMIT_REQUIRED'
     }
+    if ($ExpectedArtifactSourceCommit -cnotmatch '^[0-9a-f]{40}$') {
+        throw 'SERVER_VERSION_MATRIX_ARTIFACT_SOURCE_COMMIT_REQUIRED'
+    }
     if ($ProductVersion -cnotmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$') {
         throw 'SERVER_VERSION_MATRIX_PRODUCT_VERSION_INVALID'
     }
     $null = Invoke-ExactGit @('cat-file','-e',"$ExpectedSourceCommit^{commit}") `
         'SERVER_VERSION_MATRIX_SOURCE_COMMIT_UNKNOWN'
+    $null = Invoke-ExactGit @('cat-file','-e',"$ExpectedArtifactSourceCommit^{commit}") `
+        'SERVER_VERSION_MATRIX_ARTIFACT_SOURCE_COMMIT_UNKNOWN'
+    $null = Invoke-ExactGit @('merge-base','--is-ancestor',
+        $ExpectedArtifactSourceCommit,$ExpectedSourceCommit) `
+        'SERVER_VERSION_MATRIX_ARTIFACT_SOURCE_PROVENANCE_INVALID'
     $head = Invoke-ExactGit @('rev-parse','--verify','HEAD') `
         'SERVER_VERSION_MATRIX_SOURCE_HEAD_UNAVAILABLE'
     if ($head -cne $ExpectedSourceCommit) {
@@ -1128,8 +1141,8 @@ function Read-ReleaseBundleSnapshot {
             [string]$manifest.deployable_count -cne '6' -or
             [string]$manifest.bundle_entry_count -cne '8' -or
             [string]$manifest.product_version -cne $ProductVersion -or
-            [string]$manifest.source_commit -cnotmatch '^[0-9a-f]{40}$' -or
-            [string]$manifest.artifact_source_commit -cne $ExpectedSourceCommit) {
+            [string]$manifest.source_commit -cne $ExpectedSourceCommit -or
+            [string]$manifest.artifact_source_commit -cne $ExpectedArtifactSourceCommit) {
         throw 'SERVER_VERSION_MATRIX_RELEASE_MANIFEST_INVALID'
     }
     $sumLines = @($sumsRaw.TrimEnd("`n") -split "`n")
@@ -1277,7 +1290,7 @@ function Invoke-StrictGradle {
         $ErrorActionPreference = 'Continue'
         $allArguments = @($Arguments) + @(
             "-PmcaceSourceCommit=$ExpectedSourceCommit",
-            "-PmcaceArtifactSourceCommit=$ExpectedSourceCommit",
+            "-PmcaceArtifactSourceCommit=$ExpectedArtifactSourceCommit",
             "-PmcaceProductVersion=$ProductVersion") + @(Get-StrictGradleFlags) + @(
             '--gradle-user-home', $Current.gradle.user_home,
             '--project-dir', $repoRoot)
@@ -1850,7 +1863,7 @@ function Assert-Report {
             [string]$Report.schema -cne $reportSchema -or
             [string]$Report.source_mode -cne 'EXECUTED' -or
             [string]$Report.source_commit -cne $ExpectedSourceCommit -or
-            [string]$Report.artifact_source_commit -cne $ExpectedSourceCommit -or
+            [string]$Report.artifact_source_commit -cne $ExpectedArtifactSourceCommit -or
             [string]$Report.release_source_commit -cnotmatch '^[0-9a-f]{40}$' -or
             [string]$Report.product_version -cne $ProductVersion -or
             ((@($Report.target_versions) -join ',') -cne ($targetVersions -join ',')) -or
@@ -1936,7 +1949,7 @@ function Assert-Binding {
             [string]$Binding.source_commit -cne $ExpectedSourceCommit -or
             [string]$Binding.source_commit -cne [string]$Report.source_commit -or
             [string]$Binding.release_source_commit -cne [string]$Report.release_source_commit -or
-            [string]$Binding.artifact_source_commit -cne $ExpectedSourceCommit -or
+            [string]$Binding.artifact_source_commit -cne $ExpectedArtifactSourceCommit -or
             [string]$Binding.product_version -cne $ProductVersion -or
             [string]$Binding.product_version -cne [string]$Report.product_version -or
             [string]$Binding.raw_manifest_schema -cne $rawManifestSchema -or
@@ -2005,7 +2018,7 @@ function Assert-Commit {
             [string]$Commit.source_commit -cne $ExpectedSourceCommit -or
             [string]$Commit.source_commit -cne [string]$Report.source_commit -or
             [string]$Commit.release_source_commit -cne [string]$Report.release_source_commit -or
-            [string]$Commit.artifact_source_commit -cne $ExpectedSourceCommit -or
+            [string]$Commit.artifact_source_commit -cne $ExpectedArtifactSourceCommit -or
             [string]$Commit.product_version -cne $ProductVersion -or
             [string]$Commit.product_version -cne [string]$Report.product_version -or
             [string]$Commit.supervisor_signing_request_schema -cne $signingRequestSchema -or
@@ -2120,7 +2133,7 @@ function Assert-SupervisorEvidencePackage {
     if([string]$request.schema -cne $signingRequestSchema -or
             [string]$request.source_mode -cne 'EXECUTED_AWAITING_EXTERNAL_SUPERVISOR' -or
             [string]$request.release_source_commit -cne [string]$bundle.release_source_commit -or
-            [string]$request.artifact_source_commit -cne $ExpectedSourceCommit -or
+            [string]$request.artifact_source_commit -cne $ExpectedArtifactSourceCommit -or
             [string]$request.operation_attempt_id -cne [string]$report.supervisor_operation_attempt_id -or
             [string]$request.challenge_nonce -cne [string]$report.supervisor_challenge_nonce -or
             [string]$request.challenge_issued_at -cne [string]$report.supervisor_challenge_issued_at -or
@@ -2405,7 +2418,7 @@ function New-EvidenceTriplet {
     $report=[pscustomobject][ordered]@{
         schema=$reportSchema; generated_at=$generatedAt; source_mode='EXECUTED'
         source_commit=$ExpectedSourceCommit; release_source_commit=$bundle.release_source_commit
-        artifact_source_commit=$ExpectedSourceCommit; product_version=$ProductVersion
+        artifact_source_commit=$ExpectedArtifactSourceCommit; product_version=$ProductVersion
         target_versions=@($targetVersions); expected_case_count=12; observed_case_count=12
         stable_case_count=10; beta_case_count=2; all_cases_passed=$true; cleanup_all_zero=$true
         raw_manifest_schema=$rawManifestSchema; raw_manifest_sha256=$rawManifestSha256
@@ -2434,7 +2447,7 @@ function New-EvidenceTriplet {
         report_generated_at=$generatedAt; report_sha256=$reportSha256
         report_bytes=[long]$reportBytes.Length; source_mode='EXECUTED'
         source_commit=$ExpectedSourceCommit; release_source_commit=$bundle.release_source_commit
-        artifact_source_commit=$ExpectedSourceCommit; product_version=$ProductVersion
+        artifact_source_commit=$ExpectedArtifactSourceCommit; product_version=$ProductVersion
         raw_manifest_schema=$rawManifestSchema; raw_manifest_sha256=$rawManifestSha256
         raw_manifest_bytes=[long]$rawManifestBytes.Length
         ordered_raw_report_set_sha256=$orderedRawSetSha256
@@ -2459,7 +2472,7 @@ function New-EvidenceTriplet {
     $signingRequest=[pscustomobject][ordered]@{
         schema=$signingRequestSchema; generated_at=$generatedAt
         source_mode='EXECUTED_AWAITING_EXTERNAL_SUPERVISOR'
-        release_source_commit=$bundle.release_source_commit; artifact_source_commit=$ExpectedSourceCommit
+        release_source_commit=$bundle.release_source_commit; artifact_source_commit=$ExpectedArtifactSourceCommit
         product_version=$ProductVersion; operation_attempt_id=$operationAttemptId
         challenge_nonce=$challengeNonce; challenge_issued_at=$challengeIssuedAt
         receipt_not_after=$receiptNotAfter; report_sha256=$reportSha256
@@ -2522,7 +2535,7 @@ function New-EvidenceTriplet {
             throw 'SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_SCHEMA_INVALID'
         }
         $expected=[ordered]@{
-            release_source_commit=$bundle.release_source_commit; artifact_source_commit=$ExpectedSourceCommit
+            release_source_commit=$bundle.release_source_commit; artifact_source_commit=$ExpectedArtifactSourceCommit
             product_version=$ProductVersion; operation_attempt_id=$operationAttemptId
             challenge_nonce=$challengeNonce; challenge_issued_at=$challengeIssuedAt
             report_sha256=$reportSha256; report_size_bytes=[long]$reportBytes.Length
@@ -2594,7 +2607,7 @@ function New-EvidenceTriplet {
             binding_bytes=[long]$bindingBytes.Length; raw_manifest_schema=$rawManifestSchema
             raw_manifest_sha256=$rawManifestSha256; raw_manifest_bytes=[long]$rawManifestBytes.Length
             ordered_raw_report_set_sha256=$orderedRawSetSha256; source_commit=$ExpectedSourceCommit
-            release_source_commit=$bundle.release_source_commit; artifact_source_commit=$ExpectedSourceCommit
+            release_source_commit=$bundle.release_source_commit; artifact_source_commit=$ExpectedArtifactSourceCommit
             product_version=$ProductVersion; supervisor_signing_request_schema=$signingRequestSchema
             supervisor_signing_request_sha256=$signingRequestSha256
             supervisor_signing_request_bytes=[long]$signingRequestBytes.Length

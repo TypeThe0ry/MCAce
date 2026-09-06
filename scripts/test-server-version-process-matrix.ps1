@@ -89,7 +89,7 @@ foreach ($token in @(
     'RSA_PKCS1_SHA256',
     'MCACE_PREPARED_TREE_SHA256_V1',
     'MCACE_SERVER_VERSION_PROCESS_MATRIX_CHECKPOINT_V2',
-    'ExpectedSourceCommit', 'ProductVersion',
+    'ExpectedSourceCommit', 'ExpectedArtifactSourceCommit', 'ProductVersion',
     'SERVER_VERSION_MATRIX_SOURCE_COMMIT_REQUIRED',
     'SERVER_VERSION_MATRIX_SOURCE_WORKTREE_DIRTY',
     '-PmcaceSourceCommit=', '-PmcaceArtifactSourceCommit=', '-PmcaceProductVersion=',
@@ -501,6 +501,7 @@ Set-StrictMode -Version Latest
 `$repoRoot = `$FixtureRepoRoot
 `$invocationRoot = `$FixtureInvocationRoot
 `$ExpectedSourceCommit = 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa'
+`$ExpectedArtifactSourceCommit = 'bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb'
 `$ProductVersion = '0.0.1'
 $($invokeFunctionNames | ForEach-Object { Get-FunctionText $_ } | Out-String)
 `$fixtureCurrent = [pscustomobject]@{
