@@ -56,19 +56,20 @@ artifact source 为 `2a6274a9200f2aa195e1238eaddf43650f549a0a` 和六个产品 J
 pin 的 readiness 重跑确认 `server_matrix_exact_source=true`、
 `clean_worktree=true`；其余五个门仍 fail-closed，这不是发布批准。
 
-当前文档/证据后代为
-`97b9d9e5f15cc4eacac3acc947a06cb29ae27a8a`。Helio job
-`20260906-mcace-97b9d9e-final-doc-bundle` 已针对该提交重新生成 exact
+之前的文档/证据后代是
+`97b9d9e5f15cc4eacac3acc947a06cb29ae27a8a`；当前文档/证据后代为
+`07c36f6e0389000709e585d4f108ab600952df61`。Helio job
+`20260906-mcace-07c36f6-final-doc-bundle` 已针对当前提交重新生成 exact
 bundle，同时保持 artifact source 为
 `2a6274a9200f2aa195e1238eaddf43650f549a0a`，六个产品 JAR 字节不变；1966
 字节 manifest、565 字节 `SHA256SUMS`、兼容性 Execute/ReportOnly 和 Matrix
 绑定 readiness 复核均通过。四个外部验收门以及受保护 exact-release CI 仍待完成。
 
-### 当前可执行验证快照（`97b9d9e` 文档/证据后代 / `2a6274a` artifact）
+### 当前可执行验证快照（`07c36f6` 文档/证据后代 / `2a6274a` artifact）
 
 截至 2026-09-06，权威 checkout 是 `D:\Projects\MCAce`，分支为
 `feature/active-pack-integrity`，当前文档/证据后代 HEAD 为
-`97b9d9e5f15cc4eacac3acc947a06cb29ae27a8a`；六个产品 JAR 仍绑定 artifact source
+`07c36f6e0389000709e585d4f108ab600952df61`；六个产品 JAR 仍绑定 artifact source
 commit `2a6274a9200f2aa195e1238eaddf43650f549a0a`。
 GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) 仍是基于 `main` 的 open draft；
 当前 `build` 与 `windows-contracts` checks 为绿色；每次新的 evidence/documentation 后代

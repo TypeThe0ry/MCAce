@@ -58,25 +58,27 @@ the out-of-repository Matrix supervisor root confirmed
 `server_matrix_exact_source=true` and `clean_worktree=true`. That rerun still
 fails closed on the five gates listed above; it is not a release approval.
 
-The current documentation/evidence descendant is
-`97b9d9e5f15cc4eacac3acc947a06cb29ae27a8a`. Helio job
-`20260906-mcace-97b9d9e-final-doc-bundle` rebuilt the exact bundle from that
-commit while preserving artifact source `2a6274a9200f2aa195e1238eaddf43650f549a0a`
-and all six product JAR bytes. The 1966-byte manifest and 565-byte
-`SHA256SUMS` controls matched, and compatibility `-Execute`/`-ReportOnly` plus
-the Matrix-bound readiness rerun passed their local checks. The four external
-acceptance gates and protected exact-release CI remain pending.
+The previous documentation/evidence descendant was
+`97b9d9e5f15cc4eacac3acc947a06cb29ae27a8a`; the current documentation/evidence
+descendant is `07c36f6e0389000709e585d4f108ab600952df61`. Helio job
+`20260906-mcace-07c36f6-final-doc-bundle` rebuilt the exact bundle from the
+current commit while preserving artifact source
+`2a6274a9200f2aa195e1238eaddf43650f549a0a` and all six product JAR bytes. The
+1966-byte manifest and 565-byte `SHA256SUMS` controls matched, and compatibility
+`-Execute`/`-ReportOnly` plus the Matrix-bound readiness rerun passed their local
+checks. The four external acceptance gates and protected exact-release CI remain
+pending.
 
 Historical Matrix/Federation packages remain useful regression material only.
 They are intentionally not relabeled as current evidence, and no licensed
 Vulcan V3 genuine-event package or Production Authority V4 raw package/receipt
 is retained. Protected exact-commit release CI has not run.
 
-### Current executable verification snapshot (`97b9d9e` docs/evidence descendant / `2a6274a` artifact)
+### Current executable verification snapshot (`07c36f6` docs/evidence descendant / `2a6274a` artifact)
 
 As of 2026-09-06, the authoritative checkout is `D:\Projects\MCAce`, branch
 `feature/active-pack-integrity`, at documentation/evidence descendant
-`97b9d9e5f15cc4eacac3acc947a06cb29ae27a8a`; the six product JARs remain bound to
+`07c36f6e0389000709e585d4f108ab600952df61`; the six product JARs remain bound to
 artifact source commit `2a6274a9200f2aa195e1238eaddf43650f549a0a`.
 GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) is open as a draft,
 based on `main`; the current `build` and `windows-contracts` checks are green.
