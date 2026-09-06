@@ -48,12 +48,20 @@ production receipt，Helio 校验后由本地 publisher 发布了
 当前仍没有 licensed Vulcan V3 genuine-event package、Production Authority V4 raw package/
 receipt，也没有运行受保护 exact-commit release CI。
 
-### 当前可执行验证快照（`2a6274a`）
+随后 Helio job `20260906-mcace-5880460-final-doc-bundle` 又针对文档后代
+`5880460ac856ecd61cb81b2a8c3024f0bee29c71` 重建了 bundle，同时保持
+artifact source 为 `2a6274a9200f2aa195e1238eaddf43650f549a0a` 和六个产品 JAR
+字节不变。该次 strict bundle 仍满足 1966-byte manifest 控制；兼容性
+`-Execute`/`-ReportOnly` 都通过。带仓库外 Matrix supervisor root 和 approved
+pin 的 readiness 重跑确认 `server_matrix_exact_source=true`、
+`clean_worktree=true`；其余五个门仍 fail-closed，这不是发布批准。
+
+### 当前可执行验证快照（`5880460` 文档后代 / `2a6274a` artifact）
 
 截至 2026-09-06，权威 checkout 是 `D:\Projects\MCAce`，分支为
-`feature/active-pack-integrity`，HEAD 为
-`2a6274a9200f2aa195e1238eaddf43650f549a0a`。六个产品 JAR 绑定同一个 artifact source
-commit。
+`feature/active-pack-integrity`，当前文档后代 HEAD 为
+`5880460ac856ecd61cb81b2a8c3024f0bee29c71`；六个产品 JAR 仍绑定 artifact source
+commit `2a6274a9200f2aa195e1238eaddf43650f549a0a`。
 GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) 仍是基于 `main` 的 open draft；
 当前 `build` 与 `windows-contracts` checks 为绿色；每次新的 evidence/documentation 后代
 仍必须重新通过它们。尚未创建 `v0.0.1` tag 或 GitHub Release。
@@ -65,9 +73,8 @@ Computer Use 的 `sky` RPC 未配置，运行中没有捕获真人点击。runne
 或 post-run receipt。旧 live15/历史 accepted GUI/Federation package 属于旧源码边界，当前
 readiness 会拒绝它们。
 
-本次 README/台账更新是上述审计基线的 documentation descendant，不改变六个产品 JAR
-字节；正式发布前仍必须针对最终 documentation commit 重新生成 exact-source bundle、
-重跑 readiness，并通过受保护 CI。
+本次 README/台账更新只改文档，不改变六个产品 JAR 字节；后续任何文档/evidence 后代
+都必须在发布前重新生成 exact-source bundle、重跑 readiness，并通过受保护 CI。
 
 真实本地 Fabric 26.2 run 与 Cheat-Mod/Xray 分类仍是 diagnostic/controlled evidence：不是
 第三方作弊程序执行，也不能关闭当前 GUI 或 release gate。实现仍会在明确同意后采集 Loaded

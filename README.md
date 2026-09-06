@@ -50,16 +50,25 @@ and the local publisher emitted the release-eligible
 Local readiness still reports five blockers: current GUI consent, Federation V5,
 Vulcan V3, Production Authority V4, and protected exact-release CI.
 
+The final documentation descendant `5880460ac856ecd61cb81b2a8c3024f0bee29c71`
+was rebuilt separately on Helio by job `20260906-mcace-5880460-final-doc-bundle`
+with the same six JAR bytes and the required 1966-byte manifest control. Its
+compatibility `-Execute`/`-ReportOnly` checks passed, and a readiness rerun with
+the out-of-repository Matrix supervisor root confirmed
+`server_matrix_exact_source=true` and `clean_worktree=true`. That rerun still
+fails closed on the five gates listed above; it is not a release approval.
+
 Historical Matrix/Federation packages remain useful regression material only.
 They are intentionally not relabeled as current evidence, and no licensed
 Vulcan V3 genuine-event package or Production Authority V4 raw package/receipt
 is retained. Protected exact-commit release CI has not run.
 
-### Current executable verification snapshot (`2a6274a`)
+### Current executable verification snapshot (`5880460` docs descendant / `2a6274a` artifact)
 
 As of 2026-09-06, the authoritative checkout is `D:\Projects\MCAce`, branch
-`feature/active-pack-integrity`, at `2a6274a9200f2aa195e1238eaddf43650f549a0a`.
-The six product JARs are bound to the same artifact source commit.
+`feature/active-pack-integrity`, at documentation descendant
+`5880460ac856ecd61cb81b2a8c3024f0bee29c71`; the six product JARs remain bound to
+artifact source commit `2a6274a9200f2aa195e1238eaddf43650f549a0a`.
 GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) is open as a draft,
 based on `main`; the current `build` and `windows-contracts` checks are green.
 There is still no `v0.0.1` tag or GitHub Release.
@@ -74,9 +83,9 @@ signing request, attestation, handoff, or post-run receipt. The older live15
 package and any historical accepted package use a different source boundary and
 are rejected by the current readiness validator.
 
-This README/ledger update is a documentation descendant of that audit base. It
-does not alter product JAR bytes, but the exact-source bundle and protected CI
-must be regenerated against the final documentation commit before release.
+This README/ledger update is documentation-only and does not alter product JAR
+bytes. Any later documentation/evidence commit must repeat the exact-source
+bundle and protected-CI checks before release.
 
 A real local Fabric 26.2 client run and the Cheat-Mod/Xray classification tests
 remain diagnostic/controlled evidence: they are not third-party cheat execution
