@@ -14,7 +14,7 @@ Paper/Folia 后端插件。
 
 [English README](README.md) · [架构](docs/ARCHITECTURE.md) ·
 [安全模型](docs/SECURITY.md) · [发布门](docs/RELEASE_GATES.md) ·
-[运维](docs/OPERATIONS.md) · [当前进度台账](docs/evidence/PROGRESS_2026-09-06.md)
+[运维](docs/OPERATIONS.md) · [当前进度台账](docs/evidence/PROGRESS_2026-09-06.md) · [2026-09-07 更新](docs/evidence/PROGRESS_2026-09-07.md)
 
 ![发布验证总览](docs/assets/verification-dashboard.svg)
 
@@ -326,17 +326,17 @@ supervisor receipt，但没有绑定当前 `2a6274a` source/artifact pair，因�
 拒绝它；它只是历史 provenance。匹配当前 2a6274a 的新鲜 Matrix supervisor receipt 已
 写入下面的当前 V4 index。
 
-当前源码的 Helio diagnostic 及发布包见
-[server-version-process-matrix-20260906-2a6274a.json](docs/evidence/server-version-process-matrix-20260906-2a6274a.json)，
+修正后的 artifact-commit A diagnostic 及发布包见
+[server-version-process-matrix-20260907-2a6274a.json](docs/evidence/server-version-process-matrix-20260907-2a6274a.json)，
 原生证据目录为
-[`server-version-process-matrix-20260906-2a6274a`](docs/evidence/server-version-process-matrix/server-version-process-matrix-20260906-2a6274a/)。
+[`server-version-process-matrix-20260907-2a6274a`](docs/evidence/server-version-process-matrix/server-version-process-matrix-20260907-2a6274a/)。
 它针对冻结的 Paper/Folia 与 Velocity/Bungee 资产完成了 12/12 个真实 case（10 STABLE +
 2 BETA）；每个 case 都通过启动、登录、MCAce hello/auth、backend admission，且 cleanup
-为 zero。随后与仓库外 supervisor 完成 fresh request/receipt 交换，publisher 校验
+为 zero。随后 A worktree 与仓库外 supervisor 完成 fresh request/receipt 交换，publisher 校验
 `release_eligible=true`、`test_fixture=false` 并关闭 Matrix V4 发布门。当前 index 为
-[server-version-process-matrix-20260906-2a6274a.json](docs/evidence/server-version-process-matrix-20260906-2a6274a.json)，
+[server-version-process-matrix-20260907-2a6274a.json](docs/evidence/server-version-process-matrix-20260907-2a6274a.json)，
 信任根 SHA-256 为 `05be3d1ce14b03ab66db85045377f52afa91f03d662a4d70c26468a93bcde223`，
-receipt SHA-256 为 `14fa8156b1029e91f26d22a05dd25a0171abc26511c03f30d9774fde6ba896a7`。
+receipt SHA-256 为 `878ee99995f46fc63d02ea568dee1f16e11c504546f1bad49732fb912c8e53ad`。
 
 producer 冻结全部 raw report、report/binding/raw-manifest 字节、ordered raw root、case 与
 process-incarnation identity、invocation 与 cleanup 事实、精确 V4 bundle、六份发布 JAR，以及
