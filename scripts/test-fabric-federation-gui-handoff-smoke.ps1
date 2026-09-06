@@ -339,6 +339,14 @@ foreach ($contract in @(
     Assert-True $source.Contains($contract) "GUI request atomic/no-follow contract missing: $contract"
 }
 
+# PowerShell emits every uncaptured command result from a function. The V6 telemetry validator
+# returns the validated aggregate, so Assert-PassingReportRaw must suppress that nested value and
+# return exactly the report object. A real execution caught this when the caller received Object[].
+$passingReportValidator = Get-FunctionText $ast @('Assert-PassingReportRaw')
+Assert-True ($passingReportValidator -match
+    '(?m)^\s*\$null\s*=\s*Assert-TelemetryAggregate\b') `
+    'Assert-PassingReportRaw leaks the telemetry validator result into its return value'
+
 # Build an isolated copy of the actual production validators. This keeps the fixture tests tied to
 # the code that runs in Execute/ReportOnly rather than testing a weaker duplicate parser.
 $platformFunctions = Get-FunctionText $platformAst @(

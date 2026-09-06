@@ -2515,7 +2515,7 @@ function Assert-PassingReportRaw(
         throw 'FABRIC_FEDERATION_GUI_REPORT_INVALID'
     }
     if ($hasTelemetryAggregate) {
-        Assert-TelemetryAggregate $report $report.run_attempt_id $report.source_negative_session_id `
+        $null = Assert-TelemetryAggregate $report $report.run_attempt_id $report.source_negative_session_id `
             $report.source_negative_subject_commitment_sha256 $report.gui_challenge_nonce
     }
     $startedAt = [DateTimeOffset]::MinValue
