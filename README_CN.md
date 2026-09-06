@@ -7,8 +7,8 @@ Paper/Folia 后端插件。
 > ## v0.0.1 — RELEASE LOCKED
 >
 > **当前没有创建正式 tag，也没有发布 GitHub Release。** 只有下面七个 fail-closed
-> 发布门在同一个已审查精确源码上全部通过后才能放行。最近一次 `ad13ec6` readiness 仍被
-> exact-source Matrix V4、当前源码 GUI/Federation V5、licensed Vulcan V3、Production
+> 发布门在同一个已审查精确源码上全部通过后才能放行。当前 `3590b9f` readiness 仍被
+> Matrix V4 的外部 supervisor receipt、当前源码 GUI/Federation V5、licensed Vulcan V3、Production
 > Authority V4，以及受保护 main/tag 的 V4 exact-commit CI 阻塞。当前 `live16`
 > 只渲染了同意页面，随后在没有生成可见截图/accepted event 前 fail-closed，并不是已接受的发布决定。
 
@@ -25,7 +25,7 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 
 | Readiness gate | 正式发布需要的证据 | 状态 |
 | --- | --- | --- |
-| `server_matrix_exact_source` | Matrix V4 七根条目 native package；精确 12 份 raw 进程 case；进程 incarnation 与清理承诺；受保护 V4 release bundle 和三份服务端 JAR 交叉绑定；仓库外 RSA supervisor root、受保护 pin、新鲜 detached receipt、replay 与 TOCTOU 校验 | **PENDING — 当前 validator 拒绝所有过期或未绑定当前 artifact source 的 Matrix 索引** |
+| `server_matrix_exact_source` | Matrix V4 七根条目 native package；精确 12 份 raw 进程 case；进程 incarnation 与清理承诺；受保护 V4 release bundle 和三份服务端 JAR 交叉绑定；仓库外 RSA supervisor root、受保护 pin、新鲜 detached receipt、replay 与 TOCTOU 校验 | **PENDING — Helio 已完成当前源码 12/12 diagnostic cases（10 stable + 2 beta，cleanup zero）；approved supervisor trust root/pin/receipt 仍缺失** |
 | `fabric_gui_single_enablement_confirmation` | 整个 v0.0.1 发布验收只保留一次真人来源、可见、绑定当前连接的 `Enable MCAce` 决定；签名 GUI attestation 和完整解码 PNG 必须进入 Federation V5 证据集 | **PENDING — 当前源码 `live16` 渲染 prompt，但没有生成可见截图或 accepted event；runner 已 fail-closed** |
 | `fabric_federation_real_handoff` | Federation V5 source→target handoff、继承同一次确认且不弹第二次窗口、subject/route/session 绑定、expiry 与关联负例、runtime ledger、零自有残留，以及不同 post-run supervisor 的 receipt | **PENDING — 没有当前源码绑定的 V5 index/native package；旧 ce4f6 package 已被拒绝** |
 | `vulcan_genuine_event` | 已审查 licensed Vulcan JAR、真实非合成外部 provider event、精确发布产物绑定，以及仓库外已批准 supervisor 签名的 Vulcan V3 receipt/index | **PENDING** |
@@ -33,25 +33,27 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 | `protected_exact_release_bundle` | 受保护 `main` 或 `v0.0.1` tag-push CI 校验精确 `MCACE_RELEASE_BUNDLE_V4`、兼容性报告、canonical artifact-source marker、最终 HEAD 和八项发布内容 | **PENDING** |
 | `clean_worktree` | 最终精确发布 checkout 的 `git status --porcelain` 为空 | **当前 checkout 已通过；发布 commit 仍需复核** |
 
-最近一次可执行审计基线是 `ad13ec67…`；六个产品 JAR 仍绑定 artifact source
-`66982e583351bde386c1cab1df85f499b81743a2`。Helio job
-`20260906-mcace-ad13ec6-current-bundle` 使用 JDK 21/25 重建了精确
-`MCACE_RELEASE_BUNDLE_V4`，复现六个 JAR hash；同一 exact-source checkout 的
-Helio `clean test` 也以 `BUILD SUCCESSFUL`/exit 0 结束。当前 readiness 仍有六个 blocker：
-Matrix V4、当前 GUI consent、Federation V5、Vulcan V3、Production Authority V4 和受保护
-exact-release CI。D: authority store 有 Matrix public trust root 与 exchange 目录，但没有
-匹配当前 artifact source 的新鲜 request/receipt pair 被接受。
+当前可执行审计基线和 artifact source 都是
+`3590b9f7aed34445a743282a0502a0a275347e34`。Helio job
+`20260906-mcace-3590b9f-final-bundle` 使用 JDK 21/25 重建了精确
+`MCACE_RELEASE_BUNDLE_V4`；strict `releaseBundle` 以 `BUILD SUCCESSFUL`（37 tasks）
+结束。其真实 Matrix V4 diagnostic run 完成 12/12（10 stable + 2 beta），通过启动、登录、
+MCAce hello/auth、backend admission 和 cleanup zero 检查，随后在
+`SERVER_VERSION_MATRIX_APPROVED_SUPERVISOR_PIN_REQUIRED` 处 fail-closed。当前 readiness
+仍有六个 blocker：Matrix V4 external receipt、当前 GUI consent、Federation V5、Vulcan V3、
+Production Authority V4 和受保护 exact-release CI；没有可用的当前 approved Matrix
+trust root/pin/receipt。
 
 历史 Matrix/Federation package 继续用于回归与 provenance，但不会被改名或冒充当前证据。
 当前仍没有 licensed Vulcan V3 genuine-event package、Production Authority V4 raw package/
 receipt，也没有运行受保护 exact-commit release CI。
 
-### 最近一次可执行验证快照（`ad13ec6`）
+### 当前可执行验证快照（`3590b9f`）
 
 截至 2026-09-06，权威 checkout 是 `D:\Projects\MCAce`，分支为
 `feature/active-pack-integrity`，HEAD 为
-`ad13ec671b473592c2ee56ee0486f338d5ad0a1b`。六个产品 JAR 仍按字节绑定 artifact source
-`66982e583351bde386c1cab1df85f499b81743a2`。
+`3590b9f7aed34445a743282a0502a0a275347e34`。六个产品 JAR 绑定同一个 artifact source
+commit。
 GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) 仍是基于 `main` 的 open draft；
 当前 `build` 与 `windows-contracts` checks 为绿色；每次新的 evidence/documentation 后代
 仍必须重新通过它们。尚未创建 `v0.0.1` tag 或 GitHub Release。
@@ -302,9 +304,17 @@ Matrix V4 是第一个在结构上有资格满足 `server_matrix_exact_source` �
 保留的 [Matrix V4 证据索引](docs/evidence/server-version-process-matrix-20260905-92a49b9.json)
 是 artifact source `92a49b9…` 的历史 release-eligible package。它记录 12/12 个进程
 case、24 个进程身份、全部六个发布产物、三份服务端 JAR、精确八项 bundle 和独立 RSA
-supervisor receipt，但没有绑定当前审计的 `ad13ec6`/`66982e5…` source/artifact pair，
-因此当前 validator 会拒绝它，Matrix 门仍为 PENDING。D: authority exchange 当前也没有
-匹配 `66982e5…` 的新鲜 accepted request/receipt pair。
+supervisor receipt，但没有绑定当前 `3590b9f` source/artifact pair，因此当前 validator 会
+拒绝它，Matrix 门仍为 PENDING。当前也没有 approved 的 Matrix supervisor trust root、pin
+或匹配 3590b9f 的新鲜 receipt。
+
+当前源码的 Helio diagnostic 记录见
+[server-version-process-matrix-20260906-3590b9f.json](docs/evidence/server-version-process-matrix-20260906-3590b9f.json)。
+它针对冻结的 Paper/Folia 与 Velocity/Bungee 资产完成了 12/12 个真实 case（10 STABLE +
+2 BETA）；每个 case 都通过启动、登录、MCAce hello/auth、backend admission，且 cleanup
+为 zero。随后因为没有 approved 外部 supervisor trust-root/pin 或 signed receipt，在
+`SERVER_VERSION_MATRIX_APPROVED_SUPERVISOR_PIN_REQUIRED` 处 fail-closed，因此仍不能关闭
+Matrix V4 发布门。
 
 producer 冻结全部 raw report、report/binding/raw-manifest 字节、ordered raw root、case 与
 process-incarnation identity、invocation 与 cleanup 事实、精确 V4 bundle、六份发布 JAR，以及

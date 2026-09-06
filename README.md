@@ -8,8 +8,9 @@ plugin.
 > ## v0.0.1 — RELEASE LOCKED
 >
 > **No tag or GitHub Release is claimed.** Release remains locked until all seven
-> fail-closed gates below validate for one reviewed exact source. The last
-> `ad13ec6` readiness run is still blocked by exact-source Matrix V4 evidence,
+> fail-closed gates below validate for one reviewed exact source. The current
+> `3590b9f` readiness boundary is still blocked by the Matrix V4 external
+> supervisor receipt,
 > current-source GUI/Federation V5 evidence, licensed Vulcan V3, Production
 > Authority V4, and protected-main/tag V4 exact-commit CI. The current `live16`
 > attempt rendered the consent prompt but failed closed before a visible
@@ -28,7 +29,7 @@ historical PASS, a caller Boolean, or an unsigned report cannot promote any gate
 
 | Readiness gate | Required release evidence | State |
 | --- | --- | --- |
-| `server_matrix_exact_source` | Matrix V4 seven-root native package; exactly 12 raw process cases; process-incarnation and cleanup commitments; protected V4 release bundle and three server-JAR cross-bindings; out-of-repository RSA supervisor root, protected pin, fresh detached receipt, replay and TOCTOU validation | **PENDING — current validator rejects all tracked Matrix indices as stale or not bound to the current artifact source** |
+| `server_matrix_exact_source` | Matrix V4 seven-root native package; exactly 12 raw process cases; process-incarnation and cleanup commitments; protected V4 release bundle and three server-JAR cross-bindings; out-of-repository RSA supervisor root, protected pin, fresh detached receipt, replay and TOCTOU validation | **PENDING — Helio completed 12/12 current-source diagnostic cases (10 stable + 2 beta, cleanup zero); approved supervisor trust root/pin/receipt is still absent** |
 | `fabric_gui_single_enablement_confirmation` | One human-origin, visible, connection-bound `Enable MCAce` decision for the entire v0.0.1 release acceptance; signed GUI attestation and decoded PNG inside the Federation V5 evidence set | **PENDING — current-source `live16` rendered the prompt but created no visible screenshot or accepted event; the runner failed closed** |
 | `fabric_federation_real_handoff` | Federation V5 source-to-target handoff, inherited consent with no second prompt, subject/route/session binding, expiry and correlated negatives, runtime ledger, zero owned residue, and a distinct post-run supervisor receipt | **PENDING — no current-source Federation V5 index/native package; the older ce4f6 package is rejected** |
 | `vulcan_genuine_event` | Licensed reviewed Vulcan JAR, genuine non-synthetic external provider event, exact release-artifact binding, and an externally pinned supervisor-signed Vulcan V3 receipt/index | **PENDING** |
@@ -36,27 +37,29 @@ historical PASS, a caller Boolean, or an unsigned report cannot promote any gate
 | `protected_exact_release_bundle` | Protected `main` or `v0.0.1` tag-push CI validates the exact `MCACE_RELEASE_BUNDLE_V4`, compatibility report, canonical artifact-source marker, final HEAD, and all eight release entries | **PENDING** |
 | `clean_worktree` | `git status --porcelain` is empty for the final exact release checkout | **PASS for current checkout; re-checked at release commit** |
 
-The last executable audit base is `ad13ec67…`; the six product JARs remain bound to
-artifact source `66982e583351bde386c1cab1df85f499b81743a2`. Helio job
-`20260906-mcace-ad13ec6-current-bundle` rebuilt the exact `MCACE_RELEASE_BUNDLE_V4`
-with JDK 21/25 and reproduced all six JAR hashes; the same exact-source checkout
-also passed a Helio `clean test` run (`BUILD SUCCESSFUL`, exit 0). Local readiness still reports
-six blockers: Matrix V4, current GUI consent, Federation V5, Vulcan V3,
-Production Authority V4, and protected exact-release CI. The D: authority store
-contains the public Matrix trust root and exchange directory, but no fresh
-request/receipt pair matching this artifact source has been accepted.
+The current executable audit base and artifact source are both
+`3590b9f7aed34445a743282a0502a0a275347e34`. Helio job
+`20260906-mcace-3590b9f-final-bundle` rebuilt the exact
+`MCACE_RELEASE_BUNDLE_V4` with JDK 21/25; strict `releaseBundle` completed with
+`BUILD SUCCESSFUL` (37 tasks), and the current six JAR hashes are recorded in
+the [progress ledger](docs/evidence/PROGRESS_2026-09-06.md). Its real Matrix V4
+diagnostic run completed all 12 cases (10 stable + 2 beta) with startup/login,
+MCAce hello/auth, backend admission, and cleanup-zero results, then failed closed
+at `SERVER_VERSION_MATRIX_APPROVED_SUPERVISOR_PIN_REQUIRED`. Local readiness still
+reports six blockers: Matrix V4 external receipt, current GUI consent, Federation
+V5, Vulcan V3, Production Authority V4, and protected exact-release CI. No current
+approved external Matrix trust root/pin/receipt is available.
 
 Historical Matrix/Federation packages remain useful regression material only.
 They are intentionally not relabeled as current evidence, and no licensed
 Vulcan V3 genuine-event package or Production Authority V4 raw package/receipt
 is retained. Protected exact-commit release CI has not run.
 
-### Last executable verification snapshot (`ad13ec6`)
+### Current executable verification snapshot (`3590b9f`)
 
 As of 2026-09-06, the authoritative checkout is `D:\Projects\MCAce`, branch
-`feature/active-pack-integrity`, at `ad13ec671b473592c2ee56ee0486f338d5ad0a1b`.
-The six product JARs remain byte-bound to artifact source
-`66982e583351bde386c1cab1df85f499b81743a2`.
+`feature/active-pack-integrity`, at `3590b9f7aed34445a743282a0502a0a275347e34`.
+The six product JARs are bound to the same artifact source commit.
 GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) is open as a draft,
 based on `main`; the current `build` and `windows-contracts` checks are green.
 There is still no `v0.0.1` tag or GitHub Release.
@@ -354,10 +357,19 @@ The retained [Matrix V4 evidence index](docs/evidence/server-version-process-mat
 is a historical release-eligible package for artifact source `92a49b9…`.
 It records 12/12 process cases, 24 process identities, all six release
 artifacts, the three server JARs, the exact eight-entry bundle, and an
-independent RSA supervisor receipt. It is not bound to the audited `ad13ec6`
-source/artifact pair, so the current validator rejects it and the Matrix gate
-remains PENDING. The current D: authority exchange has no fresh accepted
-request/receipt pair for artifact source `66982e5…`.
+independent RSA supervisor receipt. It is not bound to the current
+`3590b9f` source/artifact pair, so the current validator rejects it and the
+Matrix gate remains PENDING. No approved current-source supervisor trust-root,
+pin, or receipt is available.
+
+The current-source Helio diagnostic is recorded in
+[server-version-process-matrix-20260906-3590b9f.json](docs/evidence/server-version-process-matrix-20260906-3590b9f.json).
+It ran all 12 real cases (10 STABLE + 2 BETA) against the frozen Paper/Folia
+trees and Velocity/Bungee proxies; every case passed startup/login/MCAce
+hello/auth/backend-admission checks and cleanup returned zero remaining owned
+processes. It then failed closed because no approved external supervisor
+trust-root/pin or signed receipt was available, so this diagnostic result does
+not close the Matrix V4 release gate.
 
 The producer freezes all raw reports, report/binding/raw-manifest bytes, ordered
 raw root, case and process-incarnation identities, invocation and cleanup facts,
