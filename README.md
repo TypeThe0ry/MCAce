@@ -8,12 +8,12 @@ plugin.
 > ## v0.0.1 — RELEASE LOCKED
 >
 > **No tag or GitHub Release is claimed.** Release remains locked until all seven
-> fail-closed gates below validate for one reviewed exact source. The current
-> `29120be` readiness run is still blocked by exact-source Matrix V4 evidence,
+> fail-closed gates below validate for one reviewed exact source. The last
+> `ad13ec6` readiness run is still blocked by exact-source Matrix V4 evidence,
 > current-source GUI/Federation V5 evidence, licensed Vulcan V3, Production
-> Authority V4, and protected-main/tag V4 exact-commit CI. A current visible
-> GUI capture proves that the consent prompt rendered, but its client log timed
-> out with MCAce still disabled; it is not an accepted release decision.
+> Authority V4, and protected-main/tag V4 exact-commit CI. The current `live16`
+> attempt rendered the consent prompt but failed closed before a visible
+> screenshot/accepted event was created; it is not an accepted release decision.
 
 [中文 README](README_CN.md) · [architecture](docs/ARCHITECTURE.md) ·
 [security model](docs/SECURITY.md) · [release gates](docs/RELEASE_GATES.md) ·
@@ -29,17 +29,18 @@ historical PASS, a caller Boolean, or an unsigned report cannot promote any gate
 | Readiness gate | Required release evidence | State |
 | --- | --- | --- |
 | `server_matrix_exact_source` | Matrix V4 seven-root native package; exactly 12 raw process cases; process-incarnation and cleanup commitments; protected V4 release bundle and three server-JAR cross-bindings; out-of-repository RSA supervisor root, protected pin, fresh detached receipt, replay and TOCTOU validation | **PENDING — current validator rejects all tracked Matrix indices as stale or not bound to the current artifact source** |
-| `fabric_gui_single_enablement_confirmation` | One human-origin, visible, connection-bound `Enable MCAce` decision for the entire v0.0.1 release acceptance; signed GUI attestation and decoded PNG inside the Federation V5 evidence set | **PENDING — current live15 attestation proves only prompt visibility; the client log records timeout/decline and no frame** |
+| `fabric_gui_single_enablement_confirmation` | One human-origin, visible, connection-bound `Enable MCAce` decision for the entire v0.0.1 release acceptance; signed GUI attestation and decoded PNG inside the Federation V5 evidence set | **PENDING — current-source `live16` rendered the prompt but created no visible screenshot or accepted event; the runner failed closed** |
 | `fabric_federation_real_handoff` | Federation V5 source-to-target handoff, inherited consent with no second prompt, subject/route/session binding, expiry and correlated negatives, runtime ledger, zero owned residue, and a distinct post-run supervisor receipt | **PENDING — no current-source Federation V5 index/native package; the older ce4f6 package is rejected** |
 | `vulcan_genuine_event` | Licensed reviewed Vulcan JAR, genuine non-synthetic external provider event, exact release-artifact binding, and an externally pinned supervisor-signed Vulcan V3 receipt/index | **PENDING** |
 | `production_server_confirmed_authority` | Authority V4 raw package with genuine Grim/Vulcan provider events, actual signed grant/observation frames, process and journal ledgers, exact V4 server JARs, approved external Ed25519 supervisor receipt, and native release index | **PENDING** |
 | `protected_exact_release_bundle` | Protected `main` or `v0.0.1` tag-push CI validates the exact `MCACE_RELEASE_BUNDLE_V4`, compatibility report, canonical artifact-source marker, final HEAD, and all eight release entries | **PENDING** |
 | `clean_worktree` | `git status --porcelain` is empty for the final exact release checkout | **PASS for current checkout; re-checked at release commit** |
 
-The audited source snapshot is `29120bea…`; the six product JARs remain bound to
+The last executable audit base is `ad13ec67…`; the six product JARs remain bound to
 artifact source `66982e583351bde386c1cab1df85f499b81743a2`. Helio job
-`20260906-mcace-29120be-remote-audit` rebuilt the exact `MCACE_RELEASE_BUNDLE_V4`
-with JDK 21/25 and reproduced all six JAR hashes. Local readiness still reports
+`20260906-mcace-ad13ec6-current-bundle` rebuilt the exact `MCACE_RELEASE_BUNDLE_V4`
+with JDK 21/25 and reproduced all six JAR hashes; the same exact-source checkout
+also passed a Helio `clean test` run (`BUILD SUCCESSFUL`, exit 0). Local readiness still reports
 six blockers: Matrix V4, current GUI consent, Federation V5, Vulcan V3,
 Production Authority V4, and protected exact-release CI. The D: authority store
 contains the public Matrix trust root and exchange directory, but no fresh
@@ -50,22 +51,29 @@ They are intentionally not relabeled as current evidence, and no licensed
 Vulcan V3 genuine-event package or Production Authority V4 raw package/receipt
 is retained. Protected exact-commit release CI has not run.
 
-### Current verification snapshot (`29120be`)
+### Last executable verification snapshot (`ad13ec6`)
 
 As of 2026-09-06, the authoritative checkout is `D:\Projects\MCAce`, branch
-`feature/active-pack-integrity`, at `29120bea41eef3f4ea4ae2134b801f71b8cac585`.
+`feature/active-pack-integrity`, at `ad13ec671b473592c2ee56ee0486f338d5ad0a1b`.
 The six product JARs remain byte-bound to artifact source
 `66982e583351bde386c1cab1df85f499b81743a2`.
 GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) is open as a draft,
 based on `main`; the current `build` and `windows-contracts` checks are green.
 There is still no `v0.0.1` tag or GitHub Release.
 
-The current live15 GUI exchange has a signed V3 visible-session attestation and
-decoded PNG for `29120be`, but the PNG still shows the `Enable MCAce` prompt and
-the corresponding client log ends with `MCAce enablement was declined` after
-the timeout. It therefore proves prompt visibility only. The accepted GUI and
-Federation package linked in the historical archive uses an older source
-boundary and is rejected by the current readiness validator.
+The audit-base `live16` run launched a real Fabric 26.2 client and rendered
+the `Enable MCAce` prompt in a visible Minecraft window. The native Computer Use
+surface was unavailable (`sky` RPC not configured), and no human click was
+captured in the run. The runner therefore failed closed with
+`FABRIC_FEDERATION_GUI_EXTERNAL_SCREENSHOT_NOT_CREATED_IN_VISIBLE_WINDOW` and
+cleaned the owned processes; the exchange directory contains no screenshot,
+signing request, attestation, handoff, or post-run receipt. The older live15
+package and any historical accepted package use a different source boundary and
+are rejected by the current readiness validator.
+
+This README/ledger update is a documentation descendant of that audit base. It
+does not alter product JAR bytes, but the exact-source bundle and protected CI
+must be regenerated against the final documentation commit before release.
 
 A real local Fabric 26.2 client run and the Cheat-Mod/Xray classification tests
 remain diagnostic/controlled evidence: they are not third-party cheat execution
@@ -346,7 +354,7 @@ The retained [Matrix V4 evidence index](docs/evidence/server-version-process-mat
 is a historical release-eligible package for artifact source `92a49b9…`.
 It records 12/12 process cases, 24 process identities, all six release
 artifacts, the three server JARs, the exact eight-entry bundle, and an
-independent RSA supervisor receipt. It is not bound to the audited `29120be`
+independent RSA supervisor receipt. It is not bound to the audited `ad13ec6`
 source/artifact pair, so the current validator rejects it and the Matrix gate
 remains PENDING. The current D: authority exchange has no fresh accepted
 request/receipt pair for artifact source `66982e5…`.
@@ -385,9 +393,9 @@ different out-of-repository roots/private keys. Fixture, equal-key, self-approve
 missing-receipt, stale, replayed, or tampered packages fail closed. The linked
 [Federation V5 package](docs/evidence/federation-gui-handoff-20260905T1212514132609Z-26.2-velocity-to-velocity-ce4f6d9.json)
 is retained as a historical witness for an older source/artifact boundary; the
-current validator rejects it. The current live15 session did not reach an
-accepted consent or source-to-target handoff, so the GUI and Federation gates
-remain pending.
+current validator rejects it. The current-source `live16` run rendered the
+prompt but did not produce a visible screenshot, accepted consent, or
+source-to-target handoff, so the GUI and Federation gates remain pending.
 
 See [Federation](docs/FEDERATION.md).
 
