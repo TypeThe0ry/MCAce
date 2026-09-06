@@ -58,16 +58,25 @@ the out-of-repository Matrix supervisor root confirmed
 `server_matrix_exact_source=true` and `clean_worktree=true`. That rerun still
 fails closed on the five gates listed above; it is not a release approval.
 
+The current documentation/evidence descendant is
+`97b9d9e5f15cc4eacac3acc947a06cb29ae27a8a`. Helio job
+`20260906-mcace-97b9d9e-final-doc-bundle` rebuilt the exact bundle from that
+commit while preserving artifact source `2a6274a9200f2aa195e1238eaddf43650f549a0a`
+and all six product JAR bytes. The 1966-byte manifest and 565-byte
+`SHA256SUMS` controls matched, and compatibility `-Execute`/`-ReportOnly` plus
+the Matrix-bound readiness rerun passed their local checks. The four external
+acceptance gates and protected exact-release CI remain pending.
+
 Historical Matrix/Federation packages remain useful regression material only.
 They are intentionally not relabeled as current evidence, and no licensed
 Vulcan V3 genuine-event package or Production Authority V4 raw package/receipt
 is retained. Protected exact-commit release CI has not run.
 
-### Current executable verification snapshot (`5880460` docs descendant / `2a6274a` artifact)
+### Current executable verification snapshot (`97b9d9e` docs/evidence descendant / `2a6274a` artifact)
 
 As of 2026-09-06, the authoritative checkout is `D:\Projects\MCAce`, branch
-`feature/active-pack-integrity`, at documentation descendant
-`5880460ac856ecd61cb81b2a8c3024f0bee29c71`; the six product JARs remain bound to
+`feature/active-pack-integrity`, at documentation/evidence descendant
+`97b9d9e5f15cc4eacac3acc947a06cb29ae27a8a`; the six product JARs remain bound to
 artifact source commit `2a6274a9200f2aa195e1238eaddf43650f549a0a`.
 GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) is open as a draft,
 based on `main`; the current `build` and `windows-contracts` checks are green.
@@ -95,6 +104,8 @@ observations after explicit consent; the server path records them as
 `CLIENT_REPORTED / LOW` and the controlled fixtures exercise correlation and
 `SERVER_CONFIRMED`/`QUARANTINE` transitions. See the
 [sanitized anti-cheat validation summary](docs/evidence/anticheat-validation-20260905-25b8b06.json)
+and the [fresh Helio executable-correlation evidence](docs/evidence/anticheat-live-fixture-20260906-97b9d9e.json)
+plus [fresh ModList/Xray classification evidence](docs/evidence/anticheat-classification-20260906-97b9d9e.json)
 and the complete [progress ledger](docs/evidence/PROGRESS_2026-09-06.md).
 
 ## What MCAce is — and is not

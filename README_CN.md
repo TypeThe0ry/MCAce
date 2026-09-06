@@ -56,11 +56,19 @@ artifact source 为 `2a6274a9200f2aa195e1238eaddf43650f549a0a` 和六个产品 J
 pin 的 readiness 重跑确认 `server_matrix_exact_source=true`、
 `clean_worktree=true`；其余五个门仍 fail-closed，这不是发布批准。
 
-### 当前可执行验证快照（`5880460` 文档后代 / `2a6274a` artifact）
+当前文档/证据后代为
+`97b9d9e5f15cc4eacac3acc947a06cb29ae27a8a`。Helio job
+`20260906-mcace-97b9d9e-final-doc-bundle` 已针对该提交重新生成 exact
+bundle，同时保持 artifact source 为
+`2a6274a9200f2aa195e1238eaddf43650f549a0a`，六个产品 JAR 字节不变；1966
+字节 manifest、565 字节 `SHA256SUMS`、兼容性 Execute/ReportOnly 和 Matrix
+绑定 readiness 复核均通过。四个外部验收门以及受保护 exact-release CI 仍待完成。
+
+### 当前可执行验证快照（`97b9d9e` 文档/证据后代 / `2a6274a` artifact）
 
 截至 2026-09-06，权威 checkout 是 `D:\Projects\MCAce`，分支为
-`feature/active-pack-integrity`，当前文档后代 HEAD 为
-`5880460ac856ecd61cb81b2a8c3024f0bee29c71`；六个产品 JAR 仍绑定 artifact source
+`feature/active-pack-integrity`，当前文档/证据后代 HEAD 为
+`97b9d9e5f15cc4eacac3acc947a06cb29ae27a8a`；六个产品 JAR 仍绑定 artifact source
 commit `2a6274a9200f2aa195e1238eaddf43650f549a0a`。
 GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) 仍是基于 `main` 的 open draft；
 当前 `build` 与 `windows-contracts` checks 为绿色；每次新的 evidence/documentation 后代
@@ -80,6 +88,9 @@ readiness 会拒绝它们。
 第三方作弊程序执行，也不能关闭当前 GUI 或 release gate。实现仍会在明确同意后采集 Loaded
 ModList、active resource-pack 和可选 shader-pack observation；服务器把它们记录为
 `CLIENT_REPORTED / LOW`，受控 fixture 则覆盖关联与 `SERVER_CONFIRMED`/`QUARANTINE` 状态。
+本次新增的 [Helio 可执行客户端/服务端关联证据](docs/evidence/anticheat-live-fixture-20260906-97b9d9e.json)
+和 [ModList/Xray 分类证据](docs/evidence/anticheat-classification-20260906-97b9d9e.json)
+记录了当前 HEAD 的复跑结果；它们仍是受控证据，不是公网或 Tencent ACE 级别承诺。
 详见
 [脱敏反作弊验证摘要](docs/evidence/anticheat-validation-20260905-25b8b06.json) 与
 [完整事实台账](docs/evidence/PROGRESS_2026-09-06.md)。

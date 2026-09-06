@@ -1,0 +1,43 @@
+{
+  "schema": "MCACE_ANTICHEAT_FIXTURE_CLASSIFICATION_V1",
+  "source_commit": "97b9d9e5f15cc4eacac3acc947a06cb29ae27a8a",
+  "node": "local-controller",
+  "generated_at": "2026-09-06T14:48:22.1468218+00:00",
+  "report_sha256": "fa34579c572a32c31ba7e742c4362cd7b93f33bca31326ba74f7a535188a0b77",
+  "execute_result": "ANTICHEAT_FIXTURE_EXECUTE_PASS",
+  "report_only_result": "ANTICHEAT_FIXTURE_REPORT_ONLY_PASS",
+  "passed": true,
+  "minecraft_version": "26.2",
+  "fixture_mode": "CONTROLLED_LAB_FIXTURE_METADATA_AND_SERVER_CORRELATION",
+  "client_reported_observations": 2,
+  "independent_server_signals": 2,
+  "correlated_same_session": true,
+  "server_confirmed_observations": 2,
+  "server_confirmed_action": "OBSERVE_ONLY_UNTIL_SIGNED_POLICY",
+  "false_positive": false,
+  "meteor": {
+    "sha256": "c286a140ba5e872a30e115fd1c60bc5f1c4f7081f21e72951266a2c0b399850e",
+    "bytes": 251,
+    "id": "meteor-client",
+    "version": "26.2-86",
+    "origin": "CLIENT_REPORTED",
+    "confidence": "LOW",
+    "action": "OBSERVE"
+  },
+  "xray_resource_pack": {
+    "sha256": "f932cd181cea83559784e1d9c2ca2eed6c72d5015ab28014916b30191f45d227",
+    "bytes": 193,
+    "identifier": "unknown",
+    "metadata_status": "not-applicable",
+    "origin": "CLIENT_REPORTED",
+    "confidence": "LOW",
+    "action": "OBSERVE"
+  },
+  "executable_code_loaded": false,
+  "third_party_network_access": false,
+  "limitations": [
+    "The Meteor and Xray inputs are controlled metadata fixtures; no third-party executable code was loaded.",
+    "This validates modlist/resource-pack classification and same-session correlation, not ACE-level memory or process protection.",
+    "The observed disposition is intentionally low-confidence and does not authorize a production ban."
+  ]
+}
