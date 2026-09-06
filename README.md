@@ -9,16 +9,15 @@ plugin.
 >
 > **No tag or GitHub Release is claimed.** Release remains locked until all seven
 > fail-closed gates below validate for one reviewed exact source. The current
-> readiness run has Matrix V4, one visible connection-bound `Enable MCAce`
-> decision, and the real Federation V5 handoff passing. MCAce still needs a
-> supervisor-signed licensed Vulcan V3 genuine event, an externally captured
-> Production Authority V4 MONITOR package, and protected-main/tag V4
-> exact-commit CI. Decline, close, timeout, or missing consent leaves MCAce
-> disabled.
+> `29120be` readiness run is still blocked by exact-source Matrix V4 evidence,
+> current-source GUI/Federation V5 evidence, licensed Vulcan V3, Production
+> Authority V4, and protected-main/tag V4 exact-commit CI. A current visible
+> GUI capture proves that the consent prompt rendered, but its client log timed
+> out with MCAce still disabled; it is not an accepted release decision.
 
 [中文 README](README_CN.md) · [architecture](docs/ARCHITECTURE.md) ·
 [security model](docs/SECURITY.md) · [release gates](docs/RELEASE_GATES.md) ·
-[operations](docs/OPERATIONS.md) · [current progress ledger](docs/evidence/PROGRESS_2026-09-05.md)
+[operations](docs/OPERATIONS.md) · [current progress ledger](docs/evidence/PROGRESS_2026-09-06.md)
 
 ![Release verification dashboard](docs/assets/verification-dashboard.svg)
 
@@ -29,54 +28,54 @@ historical PASS, a caller Boolean, or an unsigned report cannot promote any gate
 
 | Readiness gate | Required release evidence | State |
 | --- | --- | --- |
-| `server_matrix_exact_source` | Matrix V4 seven-root native package; exactly 12 raw process cases; process-incarnation and cleanup commitments; protected V4 release bundle and three server-JAR cross-bindings; out-of-repository RSA supervisor root, protected pin, fresh detached receipt, replay and TOCTOU validation | **PASS — [current source-bound Matrix V4 index](docs/evidence/server-version-process-matrix-20260905-92a49b9.json)** |
-| `fabric_gui_single_enablement_confirmation` | One human-origin, visible, connection-bound `Enable MCAce` decision for the entire v0.0.1 release acceptance; signed GUI attestation and decoded PNG inside the Federation V5 evidence set | **PASS — [current source-bound Federation V5 index](docs/evidence/federation-gui-handoff-20260905T1212514132609Z-26.2-velocity-to-velocity-ce4f6d9.json)** |
-| `fabric_federation_real_handoff` | Federation V5 source-to-target handoff, inherited consent with no second prompt, subject/route/session binding, expiry and correlated negatives, runtime ledger, zero owned residue, and a distinct post-run supervisor receipt | **PASS — [current source-bound Federation V5 index](docs/evidence/federation-gui-handoff-20260905T1212514132609Z-26.2-velocity-to-velocity-ce4f6d9.json)** |
+| `server_matrix_exact_source` | Matrix V4 seven-root native package; exactly 12 raw process cases; process-incarnation and cleanup commitments; protected V4 release bundle and three server-JAR cross-bindings; out-of-repository RSA supervisor root, protected pin, fresh detached receipt, replay and TOCTOU validation | **PENDING — current validator rejects all tracked Matrix indices as stale or not bound to the current artifact source** |
+| `fabric_gui_single_enablement_confirmation` | One human-origin, visible, connection-bound `Enable MCAce` decision for the entire v0.0.1 release acceptance; signed GUI attestation and decoded PNG inside the Federation V5 evidence set | **PENDING — current live15 attestation proves only prompt visibility; the client log records timeout/decline and no frame** |
+| `fabric_federation_real_handoff` | Federation V5 source-to-target handoff, inherited consent with no second prompt, subject/route/session binding, expiry and correlated negatives, runtime ledger, zero owned residue, and a distinct post-run supervisor receipt | **PENDING — no current-source Federation V5 index/native package; the older ce4f6 package is rejected** |
 | `vulcan_genuine_event` | Licensed reviewed Vulcan JAR, genuine non-synthetic external provider event, exact release-artifact binding, and an externally pinned supervisor-signed Vulcan V3 receipt/index | **PENDING** |
 | `production_server_confirmed_authority` | Authority V4 raw package with genuine Grim/Vulcan provider events, actual signed grant/observation frames, process and journal ledgers, exact V4 server JARs, approved external Ed25519 supervisor receipt, and native release index | **PENDING** |
 | `protected_exact_release_bundle` | Protected `main` or `v0.0.1` tag-push CI validates the exact `MCACE_RELEASE_BUNDLE_V4`, compatibility report, canonical artifact-source marker, final HEAD, and all eight release entries | **PENDING** |
 | `clean_worktree` | `git status --porcelain` is empty for the final exact release checkout | **PASS for current checkout; re-checked at release commit** |
 
-The validator correction is frozen as artifact source `92a49b9…`. P1 rebuilt both
-the artifact source and current evidence descendant with exact JDK 21/25 inputs;
-their six deployable JARs and `SHA256SUMS` are byte-identical. A fresh externally
-supervised Matrix V4 run then passed all 12 Paper/Folia × Velocity/Bungee cases
-with 24 process identities and zero owned-process residue. A real Fabric 26.2
-client then completed one visibly approved Velocity-to-Velocity Federation V5
-handoff at this source boundary, including independent GUI/post-run signatures,
-an 18-event runtime ledger, expiry and replay negatives, and zero owned-process
-residue. No licensed Vulcan V3 genuine-event package or Production Authority V4
-raw package/receipt is retained, and protected exact-commit release CI has not
-run.
+The audited source snapshot is `29120bea…`; the six product JARs remain bound to
+artifact source `66982e583351bde386c1cab1df85f499b81743a2`. Helio job
+`20260906-mcace-29120be-remote-audit` rebuilt the exact `MCACE_RELEASE_BUNDLE_V4`
+with JDK 21/25 and reproduced all six JAR hashes. Local readiness still reports
+six blockers: Matrix V4, current GUI consent, Federation V5, Vulcan V3,
+Production Authority V4, and protected exact-release CI. The D: authority store
+contains the public Matrix trust root and exchange directory, but no fresh
+request/receipt pair matching this artifact source has been accepted.
 
-### Current verification snapshot (`ce4f6d9` evidence descendant)
+Historical Matrix/Federation packages remain useful regression material only.
+They are intentionally not relabeled as current evidence, and no licensed
+Vulcan V3 genuine-event package or Production Authority V4 raw package/receipt
+is retained. Protected exact-commit release CI has not run.
 
-As of 2026-09-05, the authoritative checkout is `D:\Projects\MCAce`, branch
-`feature/active-pack-integrity`. The current evidence descendant is
-`ce4f6d955c28c1508fb6fcc8d95d6b60aca81c13`, while all six product JARs remain
-bound to artifact source `92a49b9bd51e388e065bbb96ace7fe99c5c09320`.
+### Current verification snapshot (`29120be`)
+
+As of 2026-09-06, the authoritative checkout is `D:\Projects\MCAce`, branch
+`feature/active-pack-integrity`, at `29120bea41eef3f4ea4ae2134b801f71b8cac585`.
+The six product JARs remain byte-bound to artifact source
+`66982e583351bde386c1cab1df85f499b81743a2`.
 GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) is open as a draft,
-based on `main`; every new evidence/documentation descendant must pass the push
-and PR `build`/`windows-contracts` checks. There is still no `v0.0.1` tag or
-GitHub Release.
+based on `main`; the current `build` and `windows-contracts` checks are green.
+There is still no `v0.0.1` tag or GitHub Release.
 
-The current artifact-source boundary now has fresh, externally supervised
-Matrix V4 and Federation V5 packages. The Federation run used one real visible
-GUI decision, inherited it at the target without a second prompt, and passed
-independent `ReportOnly` and native-publisher validation. Vulcan, Production
-Authority, and protected main/tag CI remain pending.
+The current live15 GUI exchange has a signed V3 visible-session attestation and
+decoded PNG for `29120be`, but the PNG still shows the `Enable MCAce` prompt and
+the corresponding client log ends with `MCAce enablement was declined` after
+the timeout. It therefore proves prompt visibility only. The accepted GUI and
+Federation package linked in the historical archive uses an older source
+boundary and is rejected by the current readiness validator.
 
-A real local Fabric 26.2 client received one visible, human-approved
-`Enable MCAce` decision. It submitted four scoped manifests; Velocity audited
-53 observations (52 loaded mods plus one explicit file), and Paper accepted the
-signed `VERIFIED/risk=0` admission state. The aggregate run is still
-diagnostic/non-release because its supplied expected player name did not match
-the observed `Player981` development profile. No attestation was rewritten or
-fabricated after the run. Cheat-Mod/Xray classification and executable
-`SERVER_CONFIRMED/QUARANTINE` tests also pass as explicitly controlled fixtures,
-not as third-party code inside that real GUI session. See the
+A real local Fabric 26.2 client run and the Cheat-Mod/Xray classification tests
+remain diagnostic/controlled evidence: they are not third-party cheat execution
+and do not close the current GUI or release gates. The implementation still
+collects Loaded ModList, active resource-pack and optional shader-pack
+observations after explicit consent; the server path records them as
+`CLIENT_REPORTED / LOW` and the controlled fixtures exercise correlation and
+`SERVER_CONFIRMED`/`QUARANTINE` transitions. See the
 [sanitized anti-cheat validation summary](docs/evidence/anticheat-validation-20260905-25b8b06.json)
-and the complete [progress ledger](docs/evidence/PROGRESS_2026-09-05.md).
+and the complete [progress ledger](docs/evidence/PROGRESS_2026-09-06.md).
 
 ## What MCAce is — and is not
 
@@ -343,11 +342,14 @@ Matrix V4 is the first Matrix schema structurally capable of satisfying
 - Velocity and BungeeCord;
 - `3 × 2 × 2 = 12` real process cases.
 
-The current [Matrix V4 evidence index](docs/evidence/server-version-process-matrix-20260905-92a49b9.json)
-is release-eligible and binds artifact source `92a49b9…`, 12/12 fresh process
-cases, 24 process identities, all six release artifacts, the three server JARs,
-the exact eight-entry bundle, and an independent RSA supervisor receipt. All
-cases passed and all owned-process cleanup counts returned to zero.
+The retained [Matrix V4 evidence index](docs/evidence/server-version-process-matrix-20260905-92a49b9.json)
+is a historical release-eligible package for artifact source `92a49b9…`.
+It records 12/12 process cases, 24 process identities, all six release
+artifacts, the three server JARs, the exact eight-entry bundle, and an
+independent RSA supervisor receipt. It is not bound to the audited `29120be`
+source/artifact pair, so the current validator rejects it and the Matrix gate
+remains PENDING. The current D: authority exchange has no fresh accepted
+request/receipt pair for artifact source `66982e5…`.
 
 The producer freezes all raw reports, report/binding/raw-manifest bytes, ordered
 raw root, case and process-incarnation identities, invocation and cleanup facts,
@@ -380,15 +382,12 @@ exact Fabric/Paper/source-proxy/target-proxy V4 JARs.
 
 The GUI signer and post-run supervisor must be independently approved and use
 different out-of-repository roots/private keys. Fixture, equal-key, self-approved,
-missing-receipt, stale, replayed, or tampered packages fail closed. The current
+missing-receipt, stale, replayed, or tampered packages fail closed. The linked
 [Federation V5 package](docs/evidence/federation-gui-handoff-20260905T1212514132609Z-26.2-velocity-to-velocity-ce4f6d9.json)
-binds release source `ce4f6d9…` to artifact source `92a49b9…`. A real Fabric 26.2
-client accepted exactly one visible prompt, moved from Velocity source to
-Velocity target, inherited consent without a second prompt, remained connected
-through assertion expiry, rejected both one-shot replay attempts, recorded an
-18-event sealed ledger, and cleaned all owned processes/ports. The independently
-signed post-run receipt and a fresh `ReportOnly` pass close both the GUI and
-Federation gates.
+is retained as a historical witness for an older source/artifact boundary; the
+current validator rejects it. The current live15 session did not reach an
+accepted consent or source-to-target handoff, so the GUI and Federation gates
+remain pending.
 
 See [Federation](docs/FEDERATION.md).
 
