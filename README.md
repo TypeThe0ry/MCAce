@@ -39,11 +39,11 @@ historical PASS, a caller Boolean, or an unsigned report cannot promote any gate
 | `protected_exact_release_bundle` | Protected `main` or `v0.0.1` tag-push CI validates the exact `MCACE_RELEASE_BUNDLE_V4`, compatibility report, canonical artifact-source marker, final HEAD, and all eight release entries | **PENDING** |
 | `clean_worktree` | `git status --porcelain` is empty for the final exact release checkout | **PASS for current checkout; re-checked at release commit** |
 
-The current exact bundle is source-bound to branch HEAD
-`624eda24180ff13c51b03897395599089694cf46`; its immutable artifact source is
-`2a6274a9200f2aa195e1238eaddf43650f549a0a`. The strict local build, checksum
-verification, and three-version compatibility contract pass, and the six JAR
-hashes are recorded in the [progress ledger](docs/evidence/PROGRESS_2026-09-07.md).
+The final exact bundle is source-bound to the clean checkout through the
+`source_commit` field in `release-manifest.properties`; its immutable artifact
+source remains `2a6274a9200f2aa195e1238eaddf43650f549a0a`. The strict local
+build, checksum verification, and three-version compatibility contract pass,
+and the six JAR hashes are recorded in the [progress ledger](docs/evidence/PROGRESS_2026-09-07.md).
 The historical artifact-commit A Matrix V4 execution completed all 12 cases (10
 stable + 2 beta) with startup/login, MCAce hello/auth, backend admission, and
 cleanup-zero results, and its detached supervisor receipt is retained as
@@ -53,7 +53,9 @@ current readiness report
 rejects the tracked Matrix indexes for protected-bundle binding. Readiness
 therefore has six blockers: Matrix exact-source binding, current GUI consent,
 Federation V5, Vulcan V3, Production Authority V4, and protected exact-release
-CI.
+CI. The final readiness JSON is generated under `build/` by
+`scripts/release-readiness.ps1`; its `source_commit` and `observed_head` must
+match the final bundle before any release action.
 
 The final documentation descendant `5880460ac856ecd61cb81b2a8c3024f0bee29c71`
 was rebuilt separately on Helio by job `20260906-mcace-5880460-final-doc-bundle`

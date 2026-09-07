@@ -35,8 +35,8 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 | `protected_exact_release_bundle` | 受保护 `main` 或 `v0.0.1` tag-push CI 校验精确 `MCACE_RELEASE_BUNDLE_V4`、兼容性报告、canonical artifact-source marker、最终 HEAD 和八项发布内容 | **PENDING** |
 | `clean_worktree` | 最终精确发布 checkout 的 `git status --porcelain` 为空 | **当前 checkout 已通过；发布 commit 仍需复核** |
 
-当前 exact bundle 已绑定分支 HEAD
-`624eda24180ff13c51b03897395599089694cf46`；不可变 artifact source 仍是
+最终 exact bundle 通过 `release-manifest.properties` 的 `source_commit` 字段绑定
+干净 checkout；不可变 artifact source 仍是
 `2a6274a9200f2aa195e1238eaddf43650f549a0a`。strict 本地构建、checksum 校验和三版本
 兼容性合同均通过，六个 JAR 哈希记录在[进度台账](docs/evidence/PROGRESS_2026-09-07.md)。
 历史 artifact-commit A 的 Matrix V4 run 完成 12/12（10 stable + 2 beta），通过启动、登录、
@@ -45,7 +45,9 @@ provenance 保留。但它不能自动满足当前 exact-source gate：当前 re
 [`release-readiness-current-624eda2.json`](build/release-readiness-current-624eda2.json)
 拒绝已跟踪 Matrix index 的受保护 bundle 绑定。因此 readiness 现在有六个 blocker：Matrix
 exact-source 绑定、当前 GUI consent、Federation V5、Vulcan V3、Production Authority V4
-和受保护 exact-release CI。
+和受保护 exact-release CI。最终 readiness JSON 由
+`scripts/release-readiness.ps1` 写入 `build/`；正式发布前必须核对它的
+`source_commit`、`observed_head` 与最终 bundle 完全一致。
 
 历史 Matrix/Federation package 继续用于回归与 provenance，但不会被改名或冒充当前证据。
 当前仍没有 licensed Vulcan V3 genuine-event package、Production Authority V4 raw package/
