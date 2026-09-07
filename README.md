@@ -81,12 +81,13 @@ They are intentionally not relabeled as current evidence, and no licensed
 Vulcan V3 genuine-event package or Production Authority V4 raw package/receipt
 is retained. Protected exact-commit release CI has not run.
 
-### Current executable verification snapshot (branch HEAD / `2a6274a` artifact)
+### Current executable verification snapshot (current branch / `2a6274a` artifact)
 
-As of 2026-09-06, the authoritative checkout is `D:\Projects\MCAce`, branch
-`feature/active-pack-integrity`; the exact current HEAD is recorded by the
-final bundle manifest, and the six product JARs remain bound to
-artifact source commit `2a6274a9200f2aa195e1238eaddf43650f549a0a`.
+As of the latest verification, the authoritative checkout is `D:\Projects\MCAce`,
+branch `feature/active-pack-integrity`; the exact current HEAD is always read from
+the `source_commit` field of the latest exact bundle manifest, and the six product
+JARs remain byte-bound to artifact source commit
+`2a6274a9200f2aa195e1238eaddf43650f549a0a`.
 GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) is open as a draft,
 based on `main`; the current `build` and `windows-contracts` checks are green.
 There is still no `v0.0.1` tag or GitHub Release.
@@ -105,16 +106,18 @@ This README/ledger update is documentation-only and does not alter product JAR
 bytes. Any later documentation/evidence commit must repeat the exact-source
 bundle and protected-CI checks before release.
 
-A real local Fabric 26.2 client run and the Cheat-Mod/Xray classification tests
-remain diagnostic/controlled evidence: they are not third-party cheat execution
-and do not close the current GUI or release gates. The implementation still
-collects Loaded ModList, active resource-pack and optional shader-pack
-observations after explicit consent; the server path records them as
-`CLIENT_REPORTED / LOW` and the controlled fixtures exercise correlation and
-`SERVER_CONFIRMED`/`QUARANTINE` transitions. See the
+The tracked Fabric and Cheat-Mod/Xray packages remain diagnostic/controlled
+evidence: they are not third-party cheat execution and do not close the current
+GUI or release gates. The implementation still collects Loaded ModList, active
+resource-pack and optional shader-pack observations after explicit consent; the
+server path records them as `CLIENT_REPORTED / LOW` and the controlled fixtures
+exercise correlation and `SERVER_CONFIRMED`/`QUARANTINE` transitions. The
+2026-09-07 rerun outputs are intentionally kept under ignored `build/` paths and
+are summarized in the progress ledger; they are not promoted to tracked release
+evidence. See the
 [sanitized anti-cheat validation summary](docs/evidence/anticheat-validation-20260905-25b8b06.json)
-and the [fresh Helio executable-correlation evidence](docs/evidence/anticheat-live-fixture-20260906-97b9d9e.json)
-plus [fresh ModList/Xray classification evidence](docs/evidence/anticheat-classification-20260906-97b9d9e.json)
+and the [tracked Helio executable-correlation evidence](docs/evidence/anticheat-live-fixture-20260906-97b9d9e.json)
+plus [tracked ModList/Xray classification evidence](docs/evidence/anticheat-classification-20260906-97b9d9e.json)
 and the complete [progress ledger](docs/evidence/PROGRESS_2026-09-06.md).
 
 ## What MCAce is — and is not

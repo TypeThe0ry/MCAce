@@ -70,11 +70,12 @@ bundle，同时保持 artifact source 为
 绑定 readiness 复核均通过。四个外部验收门以及受保护 exact-release CI 仍待完成；该
 job 之后的文档提交还需要最后一次 exact bundle 复核。
 
-### 当前可执行验证快照（branch HEAD / `2a6274a` artifact）
+### 当前可执行验证快照（当前分支 / `2a6274a` artifact）
 
-截至 2026-09-06，权威 checkout 是 `D:\Projects\MCAce`，分支为
-`feature/active-pack-integrity`；精确当前 HEAD 以最终 bundle manifest 为准；六个产品 JAR 仍绑定 artifact source
-commit `2a6274a9200f2aa195e1238eaddf43650f549a0a`。
+截至最近一次复核，权威 checkout 是 `D:\Projects\MCAce`，分支为
+`feature/active-pack-integrity`；精确当前 HEAD 始终以最新 exact bundle manifest 的
+`source_commit` 字段为准；六个产品 JAR 仍按字节绑定 artifact source commit
+`2a6274a9200f2aa195e1238eaddf43650f549a0a`。
 GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) 仍是基于 `main` 的 open draft；
 当前 `build` 与 `windows-contracts` checks 为绿色；每次新的 evidence/documentation 后代
 仍必须重新通过它们。尚未创建 `v0.0.1` tag 或 GitHub Release。
@@ -89,13 +90,14 @@ readiness 会拒绝它们。
 本次 README/台账更新只改文档，不改变六个产品 JAR 字节；后续任何文档/evidence 后代
 都必须在发布前重新生成 exact-source bundle、重跑 readiness，并通过受保护 CI。
 
-真实本地 Fabric 26.2 run 与 Cheat-Mod/Xray 分类仍是 diagnostic/controlled evidence：不是
+仓库内已跟踪的 Fabric 与 Cheat-Mod/Xray 包仍是 diagnostic/controlled evidence：不是
 第三方作弊程序执行，也不能关闭当前 GUI 或 release gate。实现仍会在明确同意后采集 Loaded
 ModList、active resource-pack 和可选 shader-pack observation；服务器把它们记录为
 `CLIENT_REPORTED / LOW`，受控 fixture 则覆盖关联与 `SERVER_CONFIRMED`/`QUARANTINE` 状态。
-本次新增的 [Helio 可执行客户端/服务端关联证据](docs/evidence/anticheat-live-fixture-20260906-97b9d9e.json)
+2026-09-07 复跑输出保留在被忽略的 `build/` 路径，并在进度台账中汇总；它们没有被提升为仓库
+内的 release evidence。本节引用的 [Helio 可执行客户端/服务端关联证据](docs/evidence/anticheat-live-fixture-20260906-97b9d9e.json)
 和 [ModList/Xray 分类证据](docs/evidence/anticheat-classification-20260906-97b9d9e.json)
-记录了当前 HEAD 的复跑结果；它们仍是受控证据，不是公网或 Tencent ACE 级别承诺。
+记录了此前源码边界的复跑结果；它们仍是受控证据，不是公网或 Tencent ACE 级别承诺。
 详见
 [脱敏反作弊验证摘要](docs/evidence/anticheat-validation-20260905-25b8b06.json) 与
 [完整事实台账](docs/evidence/PROGRESS_2026-09-06.md)。
