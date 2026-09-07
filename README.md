@@ -48,14 +48,14 @@ The historical artifact-commit A Matrix V4 execution completed all 12 cases (10
 stable + 2 beta) with startup/login, MCAce hello/auth, backend admission, and
 cleanup-zero results, and its detached supervisor receipt is retained as
 provenance. It does not by itself satisfy the current exact-source gate: the
-current readiness report
-[`release-readiness-current-624eda2.json`](build/release-readiness-current-624eda2.json)
-rejects the tracked Matrix indexes for protected-bundle binding. Readiness
-therefore has six blockers: Matrix exact-source binding, current GUI consent,
-Federation V5, Vulcan V3, Production Authority V4, and protected exact-release
-CI. The final readiness JSON is generated under `build/` by
-`scripts/release-readiness.ps1`; its `source_commit` and `observed_head` must
-match the final bundle before any release action.
+current readiness output is generated under the ignored `build/` directory by
+`scripts/release-readiness.ps1` and is summarized in the tracked
+[progress ledger](docs/evidence/PROGRESS_2026-09-07.md); it rejects the tracked
+Matrix indexes for protected-bundle binding. Readiness therefore has six
+blockers: Matrix exact-source binding, current GUI consent, Federation V5,
+Vulcan V3, Production Authority V4, and protected exact-release CI. Its
+`source_commit` and `observed_head` must match the final bundle before any
+release action.
 
 The final documentation descendant `5880460ac856ecd61cb81b2a8c3024f0bee29c71`
 was rebuilt separately on Helio by job `20260906-mcace-5880460-final-doc-bundle`
