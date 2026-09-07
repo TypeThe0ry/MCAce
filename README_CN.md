@@ -7,10 +7,12 @@ Paper/Folia 后端插件。
 > ## v0.0.1 — RELEASE LOCKED
 >
 > **当前没有创建正式 tag，也没有发布 GitHub Release。** 只有下面七个 fail-closed
-> 发布门在同一个已审查精确源码上全部通过后才能放行。当前 `2a6274a` readiness 仍被
-> 当前已有 release-eligible Matrix V4 外部签名包；仍被当前源码 GUI/Federation V5、licensed
-> Vulcan V3、Production Authority V4，以及受保护 main/tag 的 V4 exact-commit CI 阻塞。当前 `live16`
-> 只渲染了同意页面，随后在没有生成可见截图/accepted event 前 fail-closed，并不是已接受的发布决定。
+> 发布门在同一个已审查精确源码上全部通过后才能放行。不可变的 `2a6274a` artifact
+> boundary 保留了一份历史外部签名 Matrix V4 包，但当前 readiness validator 因精确受保护
+> bundle 绑定失败而拒绝该 Matrix index（`MCACE_RELEASE_MATRIX_PROTECTED_BUNDLE_INVALID`）。
+> 当前分支还被 Matrix 绑定、当前源码 GUI/Federation V5、licensed Vulcan V3、Production
+> Authority V4，以及受保护 main/tag 的 V4 exact-commit CI 阻塞。当前 `live16` 只渲染了同意
+> 页面，随后在没有生成可见截图/accepted event 前 fail-closed，并不是已接受的发布决定。
 
 [English README](README.md) · [架构](docs/ARCHITECTURE.md) ·
 [安全模型](docs/SECURITY.md) · [发布门](docs/RELEASE_GATES.md) ·
@@ -25,7 +27,7 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 
 | Readiness gate | 正式发布需要的证据 | 状态 |
 | --- | --- | --- |
-| `server_matrix_exact_source` | Matrix V4 七根条目 native package；精确 12 份 raw 进程 case；进程 incarnation 与清理承诺；受保护 V4 release bundle 和三份服务端 JAR 交叉绑定；仓库外 RSA supervisor root、受保护 pin、新鲜 detached receipt、replay 与 TOCTOU 校验 | **PASS — 当前源码 Helio 12/12 已由外部 supervisor 签名并发布为 [Matrix V4 evidence](docs/evidence/server-version-process-matrix-20260906-2a6274a.json)，receipt 为非 fixture 且绑定 2a6274a bundle** |
+| `server_matrix_exact_source` | Matrix V4 七根条目 native package；精确 12 份 raw 进程 case；进程 incarnation 与清理承诺；受保护 V4 release bundle 和三份服务端 JAR 交叉绑定；仓库外 RSA supervisor root、受保护 pin、新鲜 detached receipt、replay 与 TOCTOU 校验 | **BLOCKED — artifact-commit A 有外部签名的 12/12 证据，但当前 validator 拒绝 20260906/20260907 index 的精确受保护 bundle 绑定；仍需针对当前 bundle 的新批准绑定** |
 | `fabric_gui_single_enablement_confirmation` | 整个 v0.0.1 发布验收只保留一次真人来源、可见、绑定当前连接的 `Enable MCAce` 决定；签名 GUI attestation 和完整解码 PNG 必须进入 Federation V5 证据集 | **PENDING — 当前源码 `live16` 渲染 prompt，但没有生成可见截图或 accepted event；runner 已 fail-closed** |
 | `fabric_federation_real_handoff` | Federation V5 source→target handoff、继承同一次确认且不弹第二次窗口、subject/route/session 绑定、expiry 与关联负例、runtime ledger、零自有残留，以及不同 post-run supervisor 的 receipt | **PENDING — 没有当前源码绑定的 V5 index/native package；旧 ce4f6 package 已被拒绝** |
 | `vulcan_genuine_event` | 已审查 licensed Vulcan JAR、真实非合成外部 provider event、精确发布产物绑定，以及仓库外已批准 supervisor 签名的 Vulcan V3 receipt/index | **PENDING** |
@@ -33,15 +35,16 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 | `protected_exact_release_bundle` | 受保护 `main` 或 `v0.0.1` tag-push CI 校验精确 `MCACE_RELEASE_BUNDLE_V4`、兼容性报告、canonical artifact-source marker、最终 HEAD 和八项发布内容 | **PENDING** |
 | `clean_worktree` | 最终精确发布 checkout 的 `git status --porcelain` 为空 | **当前 checkout 已通过；发布 commit 仍需复核** |
 
-当前可执行审计基线和 artifact source 都是
-`2a6274a9200f2aa195e1238eaddf43650f549a0a`。Helio job
-`20260906-mcace-2a6274a-final-bundle-retry2` 使用 JDK 21/25 重建了精确
-`MCACE_RELEASE_BUNDLE_V4`；strict `releaseBundle` 以 `BUILD SUCCESSFUL`（37 tasks）
-结束。其真实 Matrix V4 run 完成 12/12（10 stable + 2 beta），通过启动、登录、MCAce
-hello/auth、backend admission 和 cleanup zero 检查；D 盘受保护 RSA supervisor 生成了
-production receipt，Helio 校验后由本地 publisher 发布了
-[release-eligible Matrix V4 index](docs/evidence/server-version-process-matrix-20260906-2a6274a.json)。当前 readiness
-仍有五个 blocker：当前 GUI consent、Federation V5、Vulcan V3、Production Authority V4
+当前 exact bundle 已绑定分支 HEAD
+`624eda24180ff13c51b03897395599089694cf46`；不可变 artifact source 仍是
+`2a6274a9200f2aa195e1238eaddf43650f549a0a`。strict 本地构建、checksum 校验和三版本
+兼容性合同均通过，六个 JAR 哈希记录在[进度台账](docs/evidence/PROGRESS_2026-09-07.md)。
+历史 artifact-commit A 的 Matrix V4 run 完成 12/12（10 stable + 2 beta），通过启动、登录、
+MCAce hello/auth、backend admission 和 cleanup zero 检查，外部 detached receipt 也作为
+provenance 保留。但它不能自动满足当前 exact-source gate：当前 readiness 报告
+[`release-readiness-current-624eda2.json`](build/release-readiness-current-624eda2.json)
+拒绝已跟踪 Matrix index 的受保护 bundle 绑定。因此 readiness 现在有六个 blocker：Matrix
+exact-source 绑定、当前 GUI consent、Federation V5、Vulcan V3、Production Authority V4
 和受保护 exact-release CI。
 
 历史 Matrix/Federation package 继续用于回归与 provenance，但不会被改名或冒充当前证据。

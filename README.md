@@ -8,12 +8,15 @@ plugin.
 > ## v0.0.1 — RELEASE LOCKED
 >
 > **No tag or GitHub Release is claimed.** Release remains locked until all seven
-> fail-closed gates below validate for one reviewed exact source. The current
-> `2a6274a` artifact boundary has a release-eligible Matrix V4 package; it is
-> still blocked by current-source GUI/Federation V5 evidence, licensed Vulcan
-> V3, Production Authority V4, and protected-main/tag V4 exact-commit CI. The current `live16`
-> attempt rendered the consent prompt but failed closed before a visible
-> screenshot/accepted event was created; it is not an accepted release decision.
+> fail-closed gates below validate for one reviewed exact source. The immutable
+> `2a6274a` artifact boundary has a historical externally signed Matrix V4
+> package, but the current readiness validator rejects the tracked Matrix index
+> for exact protected-bundle binding (`MCACE_RELEASE_MATRIX_PROTECTED_BUNDLE_INVALID`).
+> The current branch is still blocked by that Matrix binding, current-source
+> GUI/Federation V5 evidence, licensed Vulcan V3, Production Authority V4, and
+> protected-main/tag V4 exact-commit CI. The current `live16` attempt rendered
+> the consent prompt but failed closed before a visible screenshot/accepted
+> event was created; it is not an accepted release decision.
 
 [中文 README](README_CN.md) · [architecture](docs/ARCHITECTURE.md) ·
 [security model](docs/SECURITY.md) · [release gates](docs/RELEASE_GATES.md) ·
@@ -28,7 +31,7 @@ historical PASS, a caller Boolean, or an unsigned report cannot promote any gate
 
 | Readiness gate | Required release evidence | State |
 | --- | --- | --- |
-| `server_matrix_exact_source` | Matrix V4 seven-root native package; exactly 12 raw process cases; process-incarnation and cleanup commitments; protected V4 release bundle and three server-JAR cross-bindings; out-of-repository RSA supervisor root, protected pin, fresh detached receipt, replay and TOCTOU validation | **PASS — artifact-commit A 12/12 package was externally signed and published as [Matrix V4 evidence](docs/evidence/server-version-process-matrix-20260907-2a6274a.json); receipt is non-fixture and bound to the 2a6274a bundle** |
+| `server_matrix_exact_source` | Matrix V4 seven-root native package; exactly 12 raw process cases; process-incarnation and cleanup commitments; protected V4 release bundle and three server-JAR cross-bindings; out-of-repository RSA supervisor root, protected pin, fresh detached receipt, replay and TOCTOU validation | **BLOCKED — artifact-commit A has externally signed 12/12 evidence, but the current validator rejects the tracked 20260906/20260907 indexes for exact protected-bundle binding; a fresh approved binding for the current bundle is still required** |
 | `fabric_gui_single_enablement_confirmation` | One human-origin, visible, connection-bound `Enable MCAce` decision for the entire v0.0.1 release acceptance; signed GUI attestation and decoded PNG inside the Federation V5 evidence set | **PENDING — current-source `live16` rendered the prompt but created no visible screenshot or accepted event; the runner failed closed** |
 | `fabric_federation_real_handoff` | Federation V5 source-to-target handoff, inherited consent with no second prompt, subject/route/session binding, expiry and correlated negatives, runtime ledger, zero owned residue, and a distinct post-run supervisor receipt | **PENDING — no current-source Federation V5 index/native package; the older ce4f6 package is rejected** |
 | `vulcan_genuine_event` | Licensed reviewed Vulcan JAR, genuine non-synthetic external provider event, exact release-artifact binding, and an externally pinned supervisor-signed Vulcan V3 receipt/index | **PENDING** |
@@ -36,20 +39,21 @@ historical PASS, a caller Boolean, or an unsigned report cannot promote any gate
 | `protected_exact_release_bundle` | Protected `main` or `v0.0.1` tag-push CI validates the exact `MCACE_RELEASE_BUNDLE_V4`, compatibility report, canonical artifact-source marker, final HEAD, and all eight release entries | **PENDING** |
 | `clean_worktree` | `git status --porcelain` is empty for the final exact release checkout | **PASS for current checkout; re-checked at release commit** |
 
-The current executable audit base and artifact source are both
-`2a6274a9200f2aa195e1238eaddf43650f549a0a`. Helio job
-`20260906-mcace-2a6274a-final-bundle-retry2` rebuilt the exact
-`MCACE_RELEASE_BUNDLE_V4` with JDK 21/25; strict `releaseBundle` completed with
-`BUILD SUCCESSFUL` (37 tasks), and the current six JAR hashes are recorded in
-the [progress ledger](docs/evidence/PROGRESS_2026-09-06.md). Its real Matrix V4
-execution completed all 12 cases (10 stable + 2 beta) with startup/login,
-MCAce hello/auth, backend admission, and cleanup-zero results. A D-drive
-out-of-band RSA supervisor signed the fresh request, Helio verified the receipt,
-and the local publisher emitted the earlier release-eligible package. The
-corrected artifact-commit A rerun is the current
-[Matrix V4 evidence index](docs/evidence/server-version-process-matrix-20260907-2a6274a.json).
-Local readiness still reports five blockers: current GUI consent, Federation V5,
-Vulcan V3, Production Authority V4, and protected exact-release CI.
+The current exact bundle is source-bound to branch HEAD
+`624eda24180ff13c51b03897395599089694cf46`; its immutable artifact source is
+`2a6274a9200f2aa195e1238eaddf43650f549a0a`. The strict local build, checksum
+verification, and three-version compatibility contract pass, and the six JAR
+hashes are recorded in the [progress ledger](docs/evidence/PROGRESS_2026-09-07.md).
+The historical artifact-commit A Matrix V4 execution completed all 12 cases (10
+stable + 2 beta) with startup/login, MCAce hello/auth, backend admission, and
+cleanup-zero results, and its detached supervisor receipt is retained as
+provenance. It does not by itself satisfy the current exact-source gate: the
+current readiness report
+[`release-readiness-current-624eda2.json`](build/release-readiness-current-624eda2.json)
+rejects the tracked Matrix indexes for protected-bundle binding. Readiness
+therefore has six blockers: Matrix exact-source binding, current GUI consent,
+Federation V5, Vulcan V3, Production Authority V4, and protected exact-release
+CI.
 
 The final documentation descendant `5880460ac856ecd61cb81b2a8c3024f0bee29c71`
 was rebuilt separately on Helio by job `20260906-mcace-5880460-final-doc-bundle`
