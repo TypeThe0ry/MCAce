@@ -355,6 +355,30 @@ results or relaxing access checks. The focused empty-root/nested-path regression
 passed locally on JDK 21 (one test); this is not the complete filesystem security
 suite. A real-process rerun has been started; runtime recovery is not yet proven.
 
+### Post-optimization results
+
+The real-process rerun completed with a timeout in the disabled control. The
+captured stack still ran through the Windows ACL helper, delegated key loading,
+policy retrieval, and coordinator `begin`. Login initialization and challenge
+creation were observed, but neither challenge dispatch nor authentication was
+observed. This run reached PLAY without observing GameJoin before timeout.
+Removing duplicate root traversal did not restore the runtime handshake. The
+run overlapped a filesystem regression suite, so it is not a controlled timing
+benchmark and no performance percentage is claimed.
+
+The complete `AuthorityFilePreflightTest` class finished on local Windows/JDK 21:
+12 discovered, 8 executed, 0 failures, 0 errors, 4 skipped. The skips cover the
+three POSIX-specific tests and the symbolic-link leaf/ancestor test; they remain
+coverage gaps, not passes. These results validate the executed cases only.
+
+The next design change must remove private-key filesystem I/O from the locked
+handshake hot path. A prevalidated policy snapshot/refresh design must explicitly
+retain expiration checks, signed policy and server-configuration binding, forced
+rotation/revocation semantics, failure handling, and safe publication between
+refresh and handshake threads. It must not treat installation as cheat-free or
+use a stale/expired policy merely to pass runtime tests. This design change is
+not implemented by the duplicate-traversal optimization.
+
 ## Retained GUI run details (2026-09-08, UTC+08)
 
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.
