@@ -201,3 +201,40 @@ write is visible before Flush/Dispose. The V5-contract tests passed under both
 PowerShell Core and Windows PowerShell 5.1, with the explicitly reported
 Windows symlink-permission coverage gap. This
 repair still requires a fresh real runtime rerun; it is not a GUI acceptance.
+
+## Rerun after the readiness repair (source 3f27d16)
+
+The candidate bundle for source `3f27d16ab85390009fa6cc0b3a863cd29f8272d3`
+and artifact source `81d5d09aabf73e5e63e0e83b4b072958336ed43e` built successfully;
+all six deployed JAR hashes matched its SHA256SUMS. Run
+`20260908T025425168Z-26_2-VELOCITY-to-VELOCITY-087c150267ca9e25aa9b546f9830978f`
+then passed the real source and target active-proxy readiness checks after
+70.36 and 79.18 seconds respectively. Both Paper backends also became ready.
+The runtime ledger contains process-start events for all five roles, including
+the real Fabric client. This confirms the repaired readiness path progressed
+past the previous failure; it does not prove the complete federation handoff.
+
+At 11:01:28 local time the client logged artifact version 0.0.1, build ID
+`fabric-26.2-81d5d09aabf73e5e63e0e83b4b072958336ed43e` and SHA-256
+`2a225366cecd5f2ec7e647ad80e46f9c18e98fd37232986e39de676c0d50f01b`.
+It logged a rendered connection-level enablement prompt and the run-bound
+challenge at 11:01:54. Native Computer Use screenshots showed the unrelated
+`cyc-controller.exe` Windows firewall permission dialog covering that prompt,
+even though the window inventory did not list the overlay separately.
+No firewall permission action was taken and no valid GUI attestation was issued.
+
+A local diagnostic screenshot (not release GUI evidence) is retained outside
+the repository at
+`D:\MCAceReleaseAuthority\federation-exchange-20260908-3f27d16-r1\blocked-desktop.png`,
+SHA-256 `b2a7d98f9e0567e99491ab63b0ab86182403e7890335ef90cd1e7c360747e5a2`.
+The wrapper finished with exit code 1 and
+`FABRIC_FEDERATION_GUI_EXTERNAL_SCREENSHOT_NOT_CREATED_IN_VISIBLE_WINDOW`.
+It stopped the isolated client (forced after graceful timeout) and all four
+owned servers. Their PIDs 29236, 46748, 40860, 30444 and 69200 were absent on
+the cleanup check. The failure marker at 03:07:14 UTC explicitly records
+`release_eligible=false`; raw run data remains local-only.
+
+No Enable decision, accepted GUI receipt, true source-to-target handoff or
+real-client texture-policy disposition was completed in this run. Do not
+restart the same obstructed GUI scenario until the user handles the unrelated
+security prompt. Current product code remains unchanged by this evidence note.
