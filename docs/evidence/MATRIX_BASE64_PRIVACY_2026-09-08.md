@@ -26,6 +26,8 @@ Verification:
   on PowerShell 7 and Windows PowerShell 5.1.
 - Complete publisher regression: PowerShell 7.6.5 passed, including all 48
   existing negative cases and force-idempotence checks.
+- Complete publisher regression also passed on Windows PowerShell
+  5.1.26100.9168, with the same 48 negative cases and force-idempotence checks.
 
 Work was isolated in `D:/Projects/MCAce-matrix-base64-fix` while the source-bound
 runtime matrix continued unchanged in `D:/Projects/MCAce`. The new focused test
