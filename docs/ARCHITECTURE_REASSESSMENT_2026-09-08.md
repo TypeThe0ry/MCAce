@@ -16,11 +16,44 @@ Vulcan integration, and federation architecture are design choices, not immutabl
 requirements. Removing a gate must be an explicit capability/scope decision, never
 an edit that relabels missing evidence as passing evidence.
 
-## Source-backed gaps
+## Constraint review and decision rule
 
-- `ServerHandshakeCoordinator` stores `lastArtifactObservationAcceptedAtEpochMs`
-  and uses it for update rate limiting. It does not expose a telemetry freshness
-  lease. A live authenticated session is distinct from a fresh resource-pack view.
+Review baseline: `a3e6815` (2026-09-08). Historical decisions are evidence to
+reassess, not requirements to preserve automatically.
+
+| Class | Current examples | Treatment |
+| --- | --- | --- |
+| Hard constraints | Truthful results, meaningful consent, bounded collection, connection isolation, administrator-scoped actions, actual external API requirements | Preserve the property; its implementation may still change. |
+| Soft choices | Java/Fabric architecture, update cadence, package layout, notice adapters, release workflow, optional integration gates | Compare benefit with migration, technical risk, and validation cost. |
+| Historical assumptions | Installation implies safety; signatures prove the client's observations; all integrations must block a core release | Reject the first two; explicitly review the release scope for the third. |
+| Historical inertia | Adding receipts or adapter parity because they were previously next on a checklist | Require a demonstrated contribution to the product outcome before prioritizing. |
+
+Incremental recommendation: retain the collectors, transport and session checks;
+complete the observation-to-policy-to-action path with independently testable
+execution results. A from-scratch alternative would separate a small inventory
+admission product from optional behavioral and federation integrations. It offers
+a simpler scope, but a complete code rewrite has no demonstrated performance or
+reliability gain and incurs substantial migration and revalidation cost. Prefer
+the smaller product boundary without assuming it requires replacing all code.
+
+In particular, Bungee notice parity is useful consistency work, not proof of
+detection or enforcement and not inherently the next release-critical feature.
+Prioritize a real clean-client receipt, a controlled prohibited-artifact finding,
+and an observable configured action over increasing the number of notice paths.
+Missing telemetry must remain distinguishable from a cheating verdict.
+
+Before changing any release gate, specify the capability included or excluded,
+the user-visible documentation change, retained acceptance cases, and migration
+impact. Removing an optional integration from core scope means NOT INCLUDED,
+not PASSED. No existing gate is changed by this review.
+
+## Initial source-backed gaps (before the implementations below)
+
+- `ServerHandshakeCoordinator` originally used
+  `lastArtifactObservationAcceptedAtEpochMs` for update rate limiting without an
+  exposed freshness view. The query and optional notices described below now
+  address visibility, but do not enforce a freshness lease. A live authenticated
+  session is distinct from a fresh resource-pack view.
 - The current production authority path ends in MONITOR; the README explicitly
   excludes LIMIT, QUARANTINE, DENY, kick, and ban from that path. Completing external
   receipts alone will not implement the user's requested server action loop.
