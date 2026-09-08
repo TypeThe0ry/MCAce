@@ -420,6 +420,18 @@ pre-hello blocking stage advanced, but end-to-end authentication, accepted ModLi
 and enabled-rule disconnect remain unproven. The next investigation is the
 authentication ingress/response and peer deadline, not the old pre-hello timeout.
 
+### First passing inventory process control
+
+A subsequent complete run passed both disabled and enabled controls on local
+Paper 1.21.11/Velocity. The client observed accepted authentication in both cases;
+disabled rules allowed verified backend admission, and enabled rules produced
+the prohibited-loaded-mod dispatch marker plus remote disconnect evidence.
+Only test diagnostics changed since the preceding failed run; therefore the
+earlier authentication failure is not claimed fixed by those diagnostics and
+repeatability remains to be established. See the
+[evidence summary](evidence/inventory-admission-2026-09-08.md) for artifact/report
+hashes, actual assertions, and raw-peer versus genuine Fabric/Xray limitations.
+
 ## Retained GUI run details (2026-09-08, UTC+08)
 
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.

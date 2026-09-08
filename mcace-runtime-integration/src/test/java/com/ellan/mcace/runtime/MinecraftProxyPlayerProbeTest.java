@@ -233,6 +233,9 @@ final class MinecraftProxyPlayerProbeTest {
                         + "|login_initialized=" + proxyDiagnostics.contains("MCAce login initialization: current-player=true ticket-created=true")
                         + "|creation_entered=" + proxyDiagnostics.contains("MCAce challenge creation: current-ticket=true")
                         + "|dispatch_logged=" + proxyDiagnostics.contains("MCAce challenge dispatch")
+                        + "|protocol_violation=" + proxyDiagnostics.contains("MCAce protocol violation")
+                        + "|server_verified=" + proxyDiagnostics.contains("MCAce verified ")
+                        + "|response_send_failed=" + proxyDiagnostics.contains("MCAce handshake response could not be sent")
                         + "|creation_failed=" + proxyDiagnostics.contains("Could not create MCAce challenge")
                         + "|strict_start_failed=" + proxyDiagnostics.contains("MCAce strict handshake could not start")
                         + "|channel_unavailable=" + proxyDiagnostics.contains("MCAce strict handshake channel is unavailable"));
@@ -241,6 +244,9 @@ final class MinecraftProxyPlayerProbeTest {
                         + "|server_hello=" + (peer != null && peer.serverHelloSeen)
                         + "|authentication_sent=" + (peer != null && peer.authenticationSent)
                         + "|auth_result=" + (peer != null && peer.authResultSeen)
+                        + "|peer_disconnected=" + (peer != null && peer.limitations.contains("peer disconnected"))
+                        + "|login_deadline_exceeded=" + (peer != null && peer.loginDeadlineExceeded)
+                        + "|authentication_work_ms=" + (peer == null ? -1 : peer.authenticationWorkMillis)
                         + "|phase=" + (peer == null ? "NONE" : peer.state)
                         + "|configuration_finished=" + (peer != null && peer.configurationFinished)
                         + "|play_join=" + (peer != null && peer.playJoinSeen)
@@ -3900,6 +3906,8 @@ final class MinecraftProxyPlayerProbeTest {
         private AuthResultStage authResultStage = AuthResultStage.NOT_OBSERVED;
         private UUID playerId;
         private int compressionThreshold = -1;
+        private boolean loginDeadlineExceeded;
+        private long authenticationWorkMillis = -1;
         private ClientHandshakeEngine engine;
         private byte[] federationFirstOuter;
         private byte[] federationReplayPresentation;
@@ -4139,6 +4147,7 @@ final class MinecraftProxyPlayerProbeTest {
                         break;
                     }
                 }
+                loginDeadlineExceeded = !authResultSeen && System.nanoTime() >= deadline;
                 if (activeCleanReconnectProbe
                         && cleanReconnectStage != CleanReconnectStage.LOBBY_VERIFIED
                         && cleanReconnectTermination == CleanReconnectTermination.NONE) {
@@ -5014,6 +5023,7 @@ final class MinecraftProxyPlayerProbeTest {
         private void handlePayloadAfterChannelRecord(Payload payload) throws Exception {
             if (!"mcace:handshake".equals(payload.channel())) return;
             if (!serverHelloSeen) {
+                long authenticationStarted = System.nanoTime();
                 serverHelloSeen = true;
                 serverHelloStage = serverHelloStageFor(state);
                 advanceCleanReconnectStage(CleanReconnectStage.SERVER_HELLO);
@@ -5038,6 +5048,8 @@ final class MinecraftProxyPlayerProbeTest {
                     }
                 }
                 authenticationSent = true;
+                authenticationWorkMillis = TimeUnit.NANOSECONDS.toMillis(
+                        System.nanoTime() - authenticationStarted);
                 authOutboundStage = authenticationFrames.isEmpty() ? AuthOutboundStage.EMPTY
                         : allAuthenticationFramesDuringConfiguration
                         ? AuthOutboundStage.CONFIGURATION : authOutboundStageFor(state);
