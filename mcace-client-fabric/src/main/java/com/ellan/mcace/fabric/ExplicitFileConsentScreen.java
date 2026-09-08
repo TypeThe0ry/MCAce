@@ -1,6 +1,7 @@
 package com.ellan.mcace.fabric;
 
 import com.ellan.mcace.client.policy.VerifiedPolicy;
+import com.ellan.mcace.client.ui.GuiEvidenceChallenge;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -30,6 +31,8 @@ final class ExplicitFileConsentScreen extends Screen {
     private final Consumer<Boolean> decision;
     private final OneShotRenderMarker firstRender;
     private final boolean enablement;
+    private final String guiChallenge;
+    private final List<String> challengeDisclosure;
     private int page;
     private int scrollOffset;
 
@@ -45,7 +48,15 @@ final class ExplicitFileConsentScreen extends Screen {
         this.policy = Objects.requireNonNull(policy, "policy");
         this.files = List.copyOf(files);
         this.decision = Objects.requireNonNull(decision, "decision");
-        this.firstRender = new OneShotRenderMarker(rendered);
+        this.guiChallenge = enablement ? System.getProperty(GuiEvidenceChallenge.PROPERTY) : null;
+        this.challengeDisclosure = GuiEvidenceChallenge.disclosure(guiChallenge);
+        this.firstRender = new OneShotRenderMarker(() -> {
+            if (guiChallenge != null) {
+                org.slf4j.LoggerFactory.getLogger("mcace").info(
+                        "MCAce GUI evidence challenge rendered: {}", guiChallenge);
+            }
+            rendered.run();
+        });
         this.enablement = enablement;
     }
 
@@ -179,6 +190,8 @@ final class ExplicitFileConsentScreen extends Screen {
         List<String> source = enablement
                 ? enablementParagraphs(policy, files)
                 : pageParagraphs(policy, files, page);
+        source = new ArrayList<>(source);
+        source.addAll(0, challengeDisclosure);
         for (String paragraph : source) {
             wrapped.add(textRenderer.wrapLines(Text.literal(paragraph), maxWidth));
         }

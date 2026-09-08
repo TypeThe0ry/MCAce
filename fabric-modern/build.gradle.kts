@@ -63,6 +63,12 @@ val smokeRuntimeArtifactPath = providers.gradleProperty("mcaceSmokeRuntimeArtifa
 val smokeRunDirectory = providers.gradleProperty("mcaceSmokeRunDirectory")
 val smokeServerAddress = providers.gradleProperty("mcaceSmokeServerAddress")
 val smokeEvidence = providers.gradleProperty("mcaceSmokeEvidence")
+val smokeGuiChallenge = providers.gradleProperty("mcaceSmokeGuiChallenge").map { value ->
+    require(Regex("[0-9a-f]{64}").matches(value)) {
+        "mcaceSmokeGuiChallenge must be 64 lowercase hex characters"
+    }
+    value
+}
 val smokeConsentTimeoutSeconds = providers.gradleProperty("mcaceSmokeConsentTimeoutSeconds")
     .map { configured ->
         val seconds = configured.toIntOrNull()
@@ -351,6 +357,9 @@ subprojects {
                     expectedArtifactSha256,
                 )
                 systemProperty("mcace.smoke.run-token", runToken)
+                smokeGuiChallenge.orNull?.let {
+                    systemProperty("mcace.platform-smoke.gui-challenge", it)
+                }
                 systemProperty(
                     "mcace.client.enablement-decision-timeout-seconds",
                     smokeConsentTimeoutSeconds.get().toString(),
@@ -375,6 +384,9 @@ subprojects {
                 smokeEvidence.isPresent.toString(),
             )
             systemProperties.put("mcace.platform-smoke.server-address", smokeServerAddress.get())
+            smokeGuiChallenge.orNull?.let {
+                systemProperties.put("mcace.platform-smoke.gui-challenge", it)
+            }
             // Loom launches the configured run directly; JavaExec.doFirst above does not
             // reliably propagate this property into the actual client JVM. Keep the
             // human-visible consent window bound to the same smoke configuration here.

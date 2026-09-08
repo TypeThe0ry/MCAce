@@ -2172,6 +2172,7 @@ function Start-FabricReleaseClient(
             "-PmcaceSmokeExpectedArtifactSha256=$ExpectedArtifactSha256",
             "-PmcaceSmokeRuntimeArtifactPath=$fabricArtifactJar",
             "-PmcaceSmokeRunToken=$runToken",
+            "-PmcaceSmokeGuiChallenge=$guiChallengeNonce",
             "-PmcaceSmokeConsentTimeoutSeconds=$clientConsentTimeoutSeconds",
             '--rerun-tasks', '--offline', '--dependency-verification=strict',
             '--no-build-cache', '--no-configuration-cache', '--no-daemon',
@@ -4403,6 +4404,8 @@ try {
     # protocol because authentication is enabled by this decision.
     Wait-FileLiteralCount $fabricClient $fabricLog $requiredHumanGuiMarkers[0] 1 30
     Wait-FileLiteralCount $fabricClient $fabricLog $requiredHumanGuiMarkers[1] 1 30
+    Wait-FileLiteralCount $fabricClient $fabricLog `
+        "MCAce GUI evidence challenge rendered: $guiChallengeNonce" 1 30
     $guiPromptRenderedAt = [DateTimeOffset]::UtcNow
     Wait-ExternalEvidenceLeaf $visibleGuiScreenshotInput $HumanTransitionTimeoutSeconds 'SCREENSHOT'
     $visibleGuiScreenshotEvidence = Open-LockedBinaryEvidence $visibleGuiScreenshotInput

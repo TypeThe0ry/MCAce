@@ -51,6 +51,12 @@ val smokeRuntimeArtifactPath = providers.gradleProperty("mcaceSmokeRuntimeArtifa
 val smokeRunDirectory = providers.gradleProperty("mcaceSmokeRunDirectory")
 val smokeServerAddress = providers.gradleProperty("mcaceSmokeServerAddress")
 val smokeEvidence = providers.gradleProperty("mcaceSmokeEvidence")
+val smokeGuiChallenge = providers.gradleProperty("mcaceSmokeGuiChallenge").map { value ->
+    require(Regex("[0-9a-f]{64}").matches(value)) {
+        "mcaceSmokeGuiChallenge must be 64 lowercase hex characters"
+    }
+    value
+}
 val smokeConsentTimeoutSeconds = providers.gradleProperty("mcaceSmokeConsentTimeoutSeconds")
     .map { configured ->
         val seconds = configured.toIntOrNull()
@@ -198,6 +204,9 @@ if (smokeArtifactModeEnabled) {
                     "artifact-mode runClient requires -PmcaceSmokeRunToken=<32 lowercase hex>")
             systemProperty("mcace.platform-smoke.expected-artifact-sha256", expectedArtifactSha256)
             systemProperty("mcace.smoke.run-token", runToken)
+            smokeGuiChallenge.orNull?.let {
+                systemProperty("mcace.platform-smoke.gui-challenge", it)
+            }
             // Keep the legacy development run on the same connection-bound consent
             // budget as the smoke runner.  Without this bridge the Gradle project
             // property is validated but the client controller silently falls back
@@ -317,6 +326,9 @@ loom {
             property("mcace.platform-smoke.await-evidence", smokeEvidence.isPresent.toString())
             property("mcace.platform-smoke.exit-on-evidence-complete", smokeEvidence.isPresent.toString())
             property("mcace.platform-smoke.server-address", smokeServerAddress.get())
+            smokeGuiChallenge.orNull?.let {
+                property("mcace.platform-smoke.gui-challenge", it)
+            }
             // Loom's generated JavaExec path is independent of the task-level
             // doFirst above; propagate the same budget into the named client run.
             property(
@@ -428,6 +440,9 @@ val runReleaseClient = tasks.register<org.gradle.api.tasks.JavaExec>("runRelease
         systemProperty("fabric.gameVersion", "1.21.11")
         systemProperty("mcace.platform-smoke.expected-artifact-sha256", expectedArtifactSha256)
         systemProperty("mcace.smoke.run-token", runToken)
+        smokeGuiChallenge.orNull?.let {
+            systemProperty("mcace.platform-smoke.gui-challenge", it)
+        }
         // The release-client task bypasses Loom's named `client` run configuration. Keep the
         // connection-bound consent window aligned with the smoke runner's human transition
         // budget instead of silently falling back to the 30-second fail-closed default.

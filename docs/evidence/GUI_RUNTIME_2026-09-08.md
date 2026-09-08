@@ -104,3 +104,29 @@ contract. The old `2a6274a` bundle and its Matrix evidence remain historical
 evidence for that source; a new artifact source, build and relevant runtime
 evidence are required before release. Do not merely reuse the previous green
 readiness result for the changed wrapper.
+
+## Follow-up: visible challenge transport
+
+The wrapper now passes its per-run GUI nonce as `mcaceSmokeGuiChallenge` to the
+release-client Gradle launcher. Both the legacy and modern launch paths forward
+it as `mcace.platform-smoke.gui-challenge` to the actual client JVM. The shared
+`GuiEvidenceChallenge` formatter rejects anything except 64 lowercase hex
+characters and displays all characters in four ordered 16-character lines at
+the start of the enablement disclosure. Ordinary launches without this
+property do not add test text. This display value does not authorize a session
+or affect risk scoring.
+
+Both Fabric renderers log the configured value through their one-shot render
+callback. Before collecting the screenshot, the wrapper requires the matching
+render marker. An actual screenshot still needs visual inspection: the log
+marker alone is insufficient to attest that the complete challenge is visible.
+
+Validation: shared formatter tests, legacy ExplicitFileConsentScreen tests,
+modern 26.1.2/26.2 test tasks and the native V5 PowerShell contract suite passed.
+The PowerShell suite retains its symbolic-link-permission coverage gap. A root
+build initially failed when storing the pre-existing stage task configuration
+cache; rerunning with `--no-configuration-cache` completed successfully.
+
+The new challenge display still requires a rebuilt release JAR and a fresh
+native GUI run. The earlier screenshot in this document predates this change
+and cannot verify its appearance or its signed evidence chain.

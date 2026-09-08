@@ -261,6 +261,15 @@ Assert-True (-not $releaseStarter.Contains('Start-FabricClient')) `
     'release client delegates to the development snapshot launcher'
 Assert-True ($releaseStarter.Contains('-PmcaceSmokeConsentTimeoutSeconds=')) `
     'release client did not propagate the configured human consent timeout to Loom'
+Assert-True ($releaseStarter.Contains('"-PmcaceSmokeGuiChallenge=$guiChallengeNonce"')) `
+    'GUI challenge is not passed into the actual release client launcher'
+Assert-True ($source.Contains('"MCAce GUI evidence challenge rendered: $guiChallengeNonce" 1 30')) `
+    'runner does not require the matching rendered challenge before screenshot collection'
+foreach ($gradleSource in @($rootFabricGradle, $modernFabricGradle)) {
+    Assert-True ($gradleSource.Contains('mcaceSmokeGuiChallenge') -and
+        $gradleSource.Contains('mcace.platform-smoke.gui-challenge')) `
+        'Fabric launcher lacks the GUI challenge property bridge'
+}
 foreach ($contract in @(
         '$clientConsentTimeoutSeconds = [Math]::Min(',
         '$serverHandshakeSafetyMarginSeconds = 30',
