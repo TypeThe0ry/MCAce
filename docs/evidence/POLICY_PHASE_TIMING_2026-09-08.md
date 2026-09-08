@@ -27,3 +27,48 @@ Log: `build/policy-phase-diagnostics-20260908.log`.
 This is diagnostic instrumentation, not a performance fix or a new real-server
 acceptance result. A new controlled runtime measurement remains required. The
 existing release bundle predates this product change and does not contain it.
+
+## Controlled runtime measurement (2026-09-08)
+
+The previously pending run completed at source
+`dbfa4f21f21df22a8b9c45d27fe91577b13c097d`. Folia 26.1.2 build 8 behind
+Velocity 3.5.1-615 failed with `SocketTimeoutException`; Gradle exited 1
+after 3 minutes 20 seconds. This is a raw protocol peer, not a Fabric GUI
+client or evidence of actual mod/Xray collection.
+
+Local report:
+`build/runtime-player-probe/runs/velocity-folia-2026-09-08T14-36-06-089069800Z/report.json`
+
+SHA-256:
+`7d29aa176068eb240e871c8b621ff2c782b0094a3eb8e5d65825a48ab3401f6e`
+
+| Measured interval | Milliseconds |
+| --- | ---: |
+| Envelope parse/verification | 631.6784 |
+| Challenge decoding | 310.1153 |
+| Policy cache acceptance | 2044.1474 |
+| Compatibility/state initialization | 11.3190 |
+| Policy total (internal counter) | 2997.2645 |
+| Policy preparation (outer probe interval) | 2999 |
+| Authentication inputs and frame preparation | 3442 |
+| Complete authentication work, including send | 6591 |
+
+TCP connection, login, configuration completion and SERVER_HELLO observation
+succeeded. AUTH_RESULT was not observed; authentication acceptance and backend
+admission were false. The proxy logged challenge dispatch at 22:37:15 and
+timeout/LIMITED at 22:37:21 (local time). The report lists no remaining owned
+run processes after cleanup.
+
+The frame interval includes Java argument evaluation (`authenticationBundle`
+and `probeLoadedModGraph`) as well as `createAuthenticationFrames`; it is not
+a measurement of signing alone. Cache acceptance also includes verification
+and persistence. These measurements do not establish a single CPU, disk, JIT
+or cryptographic root cause. Compared with the previous 9718 ms policy interval,
+this failure has substantial latency in multiple stages. No deadline was
+extended and no verification step was removed.
+
+Next diagnostic work should separate input preparation from frame creation
+and profile the slow stages before selecting a performance change. A passing
+warm retry alone will not establish that the cold-start failure is fixed.
+The complete version matrix remains incomplete; this failed diagnostic is not
+release acceptance or a claim of real cheat detection.
