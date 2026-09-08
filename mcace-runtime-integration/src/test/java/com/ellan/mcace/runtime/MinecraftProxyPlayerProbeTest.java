@@ -203,6 +203,12 @@ final class MinecraftProxyPlayerProbeTest {
         peer.loginSuccess = true;
         peer.configurationFinished = true;
         peer.state = State.PLAY;
+        peer.authenticationWorkMillis = 6600;
+        peer.engineInitializationMillis = 6000;
+        peer.policyPrepareMillis = 300;
+        peer.authenticationFramesMillis = 200;
+        assertEquals(List.of("AUTH_TIMING:work_ms=6600:engine_ms=6000:policy_ms=300:frames_ms=200"),
+                peer.authenticationTimingTrace());
         peer.channels.add("mcace:handshake");
         peer.packetTrace.add("LOGIN:0x2");
         ProbeReport report = ProbeReport.failure(ProxyKind.VELOCITY, BackendKind.FOLIA,
@@ -217,6 +223,8 @@ final class MinecraftProxyPlayerProbeTest {
         assertTrue(!report.backendContextShadowAudit());
         assertTrue(report.packetTrace().contains("LOGIN:0x2"));
         assertTrue(report.packetTrace().contains("FAILURE_STATE:PLAY"));
+        assertTrue(report.packetTrace().contains(
+                "FAILURE_AUTH_TIMING:work_ms=6600:engine_ms=6000:policy_ms=300:frames_ms=200"));
         assertEquals(List.of("SocketTimeoutException"), report.limitations());
     }
 
@@ -3953,6 +3961,7 @@ final class MinecraftProxyPlayerProbeTest {
         private int compressionThreshold = -1;
         private boolean loginDeadlineExceeded;
         private long authenticationWorkMillis = -1;
+        private long engineInitializationMillis = -1;
         private long policyPrepareMillis = -1;
         private long authenticationFramesMillis = -1;
         private List<String> inventorySelectedPacks = List.of();
@@ -4246,7 +4255,16 @@ final class MinecraftProxyPlayerProbeTest {
                     harness.proxyPort, harness.paperPort, true, loginSuccess,
                     compressionSeen, configurationFinished, serverHelloSeen, authResultSeen, authAccepted,
                     backendAdmission, backendContextShadowAudit,
-                    List.copyOf(channels), List.copyOf(packetTrace), List.copyOf(limitations), List.of(), List.of());
+                    List.copyOf(channels), authenticationTimingTrace(), List.copyOf(limitations), List.of(), List.of());
+        }
+
+        private List<String> authenticationTimingTrace() {
+            List<String> trace = new ArrayList<>(packetTrace);
+            trace.add("AUTH_TIMING:work_ms=" + authenticationWorkMillis
+                    + ":engine_ms=" + engineInitializationMillis
+                    + ":policy_ms=" + policyPrepareMillis
+                    + ":frames_ms=" + authenticationFramesMillis);
+            return List.copyOf(trace);
         }
 
         private DispositionPeerResult dispositionProbe(DispositionScenario scenario) throws Exception {
@@ -5080,10 +5098,13 @@ final class MinecraftProxyPlayerProbeTest {
                         harness.wireProfile.minecraftVersion(),
                         BUILD_ID, LoaderType.FABRIC, harness.proxyPublicKey,
                         Clock.systemUTC(), new SecureRandom());
+                engineInitializationMillis = TimeUnit.NANOSECONDS.toMillis(
+                        System.nanoTime() - authenticationStarted);
+                long policyStarted = System.nanoTime();
                 VerifiedPolicy verifiedPolicy = engine.prepareServerHello(payload.data(),
                         "127.0.0.1:" + harness.proxyPort,
                         new VerifiedPolicyCache(harness.runRoot.resolve("client-cache"), Clock.systemUTC()));
-                policyPrepareMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - authenticationStarted);
+                policyPrepareMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - policyStarted);
                 long framesStarted = System.nanoTime();
                 List<ClientHandshakeEngine.OutboundFrame> authenticationFrames = engine.createAuthenticationFrames(
                         authenticationBundle(verifiedPolicy), List.of(), inventorySelectedPacks, List.of(),
@@ -5635,6 +5656,7 @@ final class MinecraftProxyPlayerProbeTest {
             trace.add("FAILURE_PLAY:join=" + peer.playJoinSeen
                     + ":registration=" + peer.playChannelRegistrationSent);
             trace.add("FAILURE_AUTH_TIMING:work_ms=" + peer.authenticationWorkMillis
+                    + ":engine_ms=" + peer.engineInitializationMillis
                     + ":policy_ms=" + peer.policyPrepareMillis
                     + ":frames_ms=" + peer.authenticationFramesMillis);
             return new ProbeReport(proxy, backend, backendMinecraftVersion,
