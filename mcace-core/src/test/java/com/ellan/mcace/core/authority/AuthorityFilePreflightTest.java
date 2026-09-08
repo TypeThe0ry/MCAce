@@ -1,6 +1,7 @@
 package com.ellan.mcace.core.authority;
 
 import static org.junit.jupiter.api.Assertions.assertArrayEquals;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -17,6 +18,15 @@ import org.junit.jupiter.api.io.TempDir;
 
 final class AuthorityFilePreflightTest {
     @TempDir Path temporaryDirectory;
+
+    @Test
+    void directoryTraversalDoesNotRecheckRootForAnEmptyRelativePath() {
+        Path root = temporaryDirectory.toAbsolutePath().normalize();
+        assertTrue(AuthorityFilePreflight.nonEmptyPathComponents(root.relativize(root)).isEmpty());
+        assertEquals(java.util.List.of(Path.of("keys"), Path.of("nested")),
+                AuthorityFilePreflight.nonEmptyPathComponents(
+                        root.relativize(root.resolve("keys/nested"))));
+    }
 
     @Test
     void boundedReadAcceptsOrdinaryFileAndRejectsOversizedOrNonRegularLeaf()

@@ -227,6 +227,7 @@ final class MinecraftProxyPlayerProbeTest {
                 System.out.println("MCACE_INVENTORY_RUNTIME_CASE_PASS|enabled=" + enabled
                         + "|real_proxy=true|raw_protocol_peer=true|fabric_gui=false");
             } catch (Exception | AssertionError failure) {
+                if (harness != null) captureInventoryFailureStack(harness, work);
                 String proxyDiagnostics = harness == null ? "" : harness.proxyLogs();
                 System.out.println("MCACE_INVENTORY_HANDSHAKE_DIAGNOSTICS"
                         + "|login_initialized=" + proxyDiagnostics.contains("MCAce login initialization: current-player=true ticket-created=true")
@@ -260,6 +261,39 @@ final class MinecraftProxyPlayerProbeTest {
                     else throw cleanupFailure;
                 }
             }
+        }
+    }
+
+    private static void captureInventoryFailureStack(ProbeHarness harness, Path work) {
+        Process diagnostic = null;
+        try {
+            OwnedProcess proxy = harness.currentProxyProcess();
+            if (proxy == null || !proxy.process().isAlive()) return;
+            Path jcmd = harness.runtimeAssets.serverJava().resolveSibling(
+                    System.getProperty("os.name").startsWith("Windows") ? "jcmd.exe" : "jcmd");
+            if (!Files.isRegularFile(jcmd)) return;
+            Path output = work.resolve("proxy-failure-threads.txt");
+            diagnostic = new ProcessBuilder(jcmd.toString(),
+                    Long.toString(proxy.process().pid()), "Thread.print")
+                    .redirectErrorStream(true).redirectOutput(output.toFile()).start();
+            if (!diagnostic.waitFor(5, TimeUnit.SECONDS)) {
+                System.out.println("MCACE_INVENTORY_STACK|status=TIMEOUT");
+                return;
+            }
+            if (diagnostic.exitValue() != 0 || Files.size(output) > 2_000_000L) {
+                System.out.println("MCACE_INVENTORY_STACK|status=UNAVAILABLE");
+                return;
+            }
+            // Never publish thread names, arguments, or raw dump contents.
+            try (var lines = Files.lines(output, StandardCharsets.UTF_8)) {
+                lines.map(String::trim)
+                        .filter(line -> line.matches("at com\\.ellan\\.mcace\\.[A-Za-z0-9_.$]+\\([A-Za-z0-9_.:]+\\)"))
+                        .limit(48).forEach(line -> System.out.println("MCACE_INVENTORY_STACK|" + line));
+            }
+        } catch (Exception diagnosticFailure) {
+            System.out.println("MCACE_INVENTORY_STACK|status=UNAVAILABLE");
+        } finally {
+            if (diagnostic != null && diagnostic.isAlive()) diagnostic.destroyForcibly();
         }
     }
 

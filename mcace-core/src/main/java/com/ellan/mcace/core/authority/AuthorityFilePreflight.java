@@ -531,7 +531,7 @@ public final class AuthorityFilePreflight {
         Path current = normalizedRoot;
         requirePrivateNode(current, true, description + " root", security);
         Path relative = normalizedRoot.relativize(normalizedDirectory);
-        for (Path component : relative) {
+        for (Path component : nonEmptyPathComponents(relative)) {
             current = current.resolve(component);
             requirePrivateNode(current, true, description + " directory", security);
         }
@@ -548,11 +548,21 @@ public final class AuthorityFilePreflight {
         Path current = normalizedRoot;
         requireIntegrityProtectedNode(current, true, description + " root", security);
         Path relative = normalizedRoot.relativize(normalizedDirectory);
-        for (Path component : relative) {
+        for (Path component : nonEmptyPathComponents(relative)) {
             current = current.resolve(component);
             requireIntegrityProtectedNode(
                     current, true, description + " directory", security);
         }
+    }
+
+    static List<Path> nonEmptyPathComponents(Path relative) {
+        // root.relativize(root) has one empty name on the default filesystem.
+        // The root was already checked; this is not an additional directory.
+        List<Path> components = new ArrayList<>();
+        for (Path component : relative) {
+            if (!component.toString().isEmpty()) components.add(component);
+        }
+        return List.copyOf(components);
     }
 
     private static void requireIntegrityProtectedNode(

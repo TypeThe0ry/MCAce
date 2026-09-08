@@ -339,6 +339,22 @@ a confirmed root cause. A subsequent thread-attach attempt found the owned proxy
 already terminated, so it supplied no blocking-stack evidence. All these runs
 failed in the disabled control; none proves inventory rejection or GUI detection.
 
+The next completed run captured MCAce-only stack frames before cleanup. At timeout
+the handshake was inside `AuthorityFilePreflight.runWindowsAclHelper`, reached
+through private-file validation, `DelegatedPolicyKeyStore.load`, policy `current`,
+and coordinator `begin`. Heartbeat and expiry coordinator calls were also present
+in the dump. Login initialization and challenge creation markers were true, while
+dispatch and creation-failure markers were false. This confirms the ACL helper is
+on the blocking handshake path at timeout, not that it is the only latency source.
+
+The first optimization removes the empty relative-path component when a checked
+directory equals its root. Both private and integrity directory traversals still
+check the root once and every actual descendant; pre/post-read checks remain.
+This removes redundant per-traversal Windows helper launches without caching ACL
+results or relaxing access checks. The focused empty-root/nested-path regression
+passed locally on JDK 21 (one test); this is not the complete filesystem security
+suite. A real-process rerun has been started; runtime recovery is not yet proven.
+
 ## Retained GUI run details (2026-09-08, UTC+08)
 
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.
