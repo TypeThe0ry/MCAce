@@ -1,6 +1,6 @@
 # Inventory admission real-process control test — 2026-09-08
 
-Status: passed once; development evidence, not release-grade acceptance.
+Status: two complete passing executions; development evidence, not release-grade acceptance.
 
 ## Execution and provenance
 
@@ -57,5 +57,20 @@ apply an administrator-configured identifier rule with observable disconnection.
 It does not prove authentic Fabric ModList collection, visible GUI consent, Xray
 pack-content detection, external-process detection, resistance to client lies,
 production precision/recall, the other Minecraft versions, or BungeeCord parity.
-Earlier attempts failed; repeated-run reliability remains unverified. No actual
+Earlier attempts failed; two passing runs are not a broad reliability study. No actual
 cheat program was loaded and no screenshot is represented as having been taken.
+
+## Forced repeat
+
+The test was forced with the test task's `--rerun` option from clean commit
+`c01a248` before editing the companion resource-pack test. Gradle reported one
+task executed and 34 up-to-date; the test itself ran, exit 0. Both result markers
+above appeared again. JUnit: one test, zero failures/errors/skips, 391.229 seconds.
+Report SHA-256:
+`75f9839573ba905a0ce7a0fe2d0a58d0221b4f0c13401779d2f9f6ae66e83415`.
+The subsequent source edit occurred after test compilation and was not part of
+this running test's bytecode. No additional build/test ran concurrently.
+
+An earlier repeat invocation returned `test UP-TO-DATE`; it is expressly excluded
+from the two executions counted here. This repeat covers the same 1.21.11 Mod
+identifier case only, not the newly added selected-resource-pack control.

@@ -77,7 +77,7 @@ the raw peer's reported `fabricloader` ID and must produce both a disconnect API
 log and protocol-disconnect/remote-EOF evidence. Do not copy that fixture rule into
 a real server. This is a raw protocol peer, not Fabric GUI or real cheat detection.
 
-2026-09-08 local result: **FAILED, not release evidence**. Paper 1.21.11 build 132,
+Initial 2026-09-08 local result: **FAILED, not release evidence**. Paper 1.21.11 build 132,
 Velocity 3.5.1-615 and JDK 21 assets passed content-binding preflight. The first run
 had a cleanup-root mismatch that masked its startup error; the test now recognizes
 its own dedicated work root and preserves original failures when cleanup fails.
@@ -89,6 +89,24 @@ control timed out in the raw peer's frame read before passing its assertions.
 The enabled case was not reached. That attempt's owned processes/work tree were
 cleaned; the first failed cleanup left a diagnostic directory, not passing evidence.
 Fixed-field handshake-stage diagnostics have since been added for the next rerun.
+
+Later that day the full disabled/enabled Mod control passed once after the
+Velocity handshake policy snapshot change; see the
+[real-process evidence summary](evidence/inventory-admission-2026-09-08.md).
+This is development evidence, not release acceptance. A second forced execution
+also passed both controls; cached results are not counted as repeatability evidence.
+When repeating this test with the same inputs, pass the test task's `--rerun`
+option as well as the existing opt-in and exact asset properties. A successful
+Gradle invocation showing `:mcace-runtime-integration:test UP-TO-DATE` did not
+execute a new server/client control.
+
+The companion `realVelocityInventoryAdmissionRejectsSelectedPackOnlyWhenEnabled`
+case uses the signed selected-pack identifier `file/mcace-test-pack.zip` and only
+the resource-pack deny selector. It requires the specific resource-pack finding
+and remote disconnection, with the same disabled baseline. Its implementation
+has been added and its first execution started; no passing result is yet claimed.
+It does not load a texture pack or
+test Xray rendering/content recognition.
 
 Protocol integration coverage now drives the normal ClientHandshakeEngine signed
 authentication and bounded-update frames into ServerHandshakeCoordinator for two

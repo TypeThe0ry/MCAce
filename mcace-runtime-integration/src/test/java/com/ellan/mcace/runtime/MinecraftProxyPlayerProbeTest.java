@@ -193,6 +193,19 @@ final class MinecraftProxyPlayerProbeTest {
     @Timeout(600)
     @EnabledIfSystemProperty(named = "mcace.runtime.inventory-admission.enabled", matches = "true")
     void realVelocityInventoryAdmissionRejectsReportedModOnlyWhenEnabled() throws Exception {
+        runInventoryAdmissionControl(false);
+    }
+
+    @Test
+    @Timeout(600)
+    @EnabledIfSystemProperty(named = "mcace.runtime.inventory-admission.enabled", matches = "true")
+    void realVelocityInventoryAdmissionRejectsSelectedPackOnlyWhenEnabled() throws Exception {
+        runInventoryAdmissionControl(true);
+    }
+
+    private void runInventoryAdmissionControl(boolean selectedPack) throws Exception {
+        String expectedFinding = selectedPack
+                ? "PROHIBITED_SELECTED_RESOURCE_PACK" : "PROHIBITED_LOADED_MOD";
         for (boolean enabled : new boolean[] {false, true}) {
             Path repository = repositoryRoot();
             Path work = repository.resolve("build/runtime-inventory-admission/work/" + UUID.randomUUID());
@@ -207,16 +220,19 @@ final class MinecraftProxyPlayerProbeTest {
                 harness.proxyListenerTimeoutSeconds = 120;
                 harness.prepare();
                 Files.writeString(harness.proxyDataDirectory().resolve("inventory-admission.properties"),
-                        "enabled=" + enabled + "\ndenied-mod-ids=fabricloader\n", StandardCharsets.UTF_8);
+                        "enabled=" + enabled + (selectedPack
+                                ? "\ndenied-selected-resource-packs=file/mcace-test-pack.zip\n"
+                                : "\ndenied-mod-ids=fabricloader\n"), StandardCharsets.UTF_8);
                 harness.start();
                 peer = new MinecraftWirePeer(harness);
+                peer.inventorySelectedPacks = selectedPack ? List.of("file/mcace-test-pack.zip") : List.of();
                 peer.activeInventoryAdmissionProbe = enabled;
                 peer.activeDenyProbe = enabled;
                 ProbeReport report = peer.probe();
                 assertTrue(report.authAccepted(), "signed probe authentication must be accepted");
                 String log = harness.proxyLogs();
                 if (enabled) {
-                    assertTrue(inventoryDisconnectDispatched(log), "inventory disconnect API result missing");
+                    assertTrue(inventoryDisconnectDispatched(log, expectedFinding), "inventory disconnect API result missing");
                     assertTrue(peer.inlineDenyObservation != null
                                     && peer.inlineDenyObservation.disconnectEvidence() != DisconnectEvidence.NONE,
                             "remote protocol disconnect or EOF evidence missing");
@@ -225,7 +241,7 @@ final class MinecraftProxyPlayerProbeTest {
                     assertTrue(!inventoryDisconnectDispatched(log), "disabled rule dispatched disconnect");
                 }
                 System.out.println("MCACE_INVENTORY_RUNTIME_CASE_PASS|enabled=" + enabled
-                        + "|real_proxy=true|raw_protocol_peer=true|fabric_gui=false");
+                        + "|real_proxy=true|raw_protocol_peer=true|fabric_gui=false|finding=" + expectedFinding);
             } catch (Exception | AssertionError failure) {
                 if (harness != null) captureInventoryFailureStack(harness, work);
                 String proxyDiagnostics = harness == null ? "" : harness.proxyLogs();
@@ -240,6 +256,7 @@ final class MinecraftProxyPlayerProbeTest {
                         + "|strict_start_failed=" + proxyDiagnostics.contains("MCAce strict handshake could not start")
                         + "|channel_unavailable=" + proxyDiagnostics.contains("MCAce strict handshake channel is unavailable"));
                 System.out.println("MCACE_INVENTORY_RUNTIME_CASE_FAILED|enabled=" + enabled
+                        + "|finding=" + expectedFinding
                         + "|peer_created=" + (peer != null)
                         + "|server_hello=" + (peer != null && peer.serverHelloSeen)
                         + "|authentication_sent=" + (peer != null && peer.authenticationSent)
@@ -304,8 +321,13 @@ final class MinecraftProxyPlayerProbeTest {
     }
 
     private static boolean inventoryDisconnectDispatched(String log) {
+        return inventoryDisconnectDispatched(log, "PROHIBITED_LOADED_MOD")
+                || inventoryDisconnectDispatched(log, "PROHIBITED_SELECTED_RESOURCE_PACK");
+    }
+
+    private static boolean inventoryDisconnectDispatched(String log, String finding) {
         return log.lines().anyMatch(line -> line.contains("MCAce inventory admission:")
-                && line.contains("finding=PROHIBITED_LOADED_MOD")
+                && line.contains("finding=" + finding)
                 && line.contains("result=DISPATCHED")
                 && line.contains("authority=ADMIN_CONFIGURED_INVENTORY")
                 && line.contains("execution-evidence=DISCONNECT_API_ACCEPTED"));
@@ -3908,6 +3930,7 @@ final class MinecraftProxyPlayerProbeTest {
         private int compressionThreshold = -1;
         private boolean loginDeadlineExceeded;
         private long authenticationWorkMillis = -1;
+        private List<String> inventorySelectedPacks = List.of();
         private ClientHandshakeEngine engine;
         private byte[] federationFirstOuter;
         private byte[] federationReplayPresentation;
@@ -5035,7 +5058,7 @@ final class MinecraftProxyPlayerProbeTest {
                         "127.0.0.1:" + harness.proxyPort,
                         new VerifiedPolicyCache(harness.runRoot.resolve("client-cache"), Clock.systemUTC()));
                 List<ClientHandshakeEngine.OutboundFrame> authenticationFrames = engine.createAuthenticationFrames(
-                        authenticationBundle(verifiedPolicy), List.of(), List.of(), List.of(),
+                        authenticationBundle(verifiedPolicy), List.of(), inventorySelectedPacks, List.of(),
                         probeLoadedModGraph());
                 boolean allAuthenticationFramesDuringConfiguration = !authenticationFrames.isEmpty();
                 for (ClientHandshakeEngine.OutboundFrame frame : authenticationFrames) {
