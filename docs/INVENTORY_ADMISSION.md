@@ -104,8 +104,8 @@ The companion `realVelocityInventoryAdmissionRejectsSelectedPackOnlyWhenEnabled`
 case uses the signed selected-pack identifier `file/mcace-test-pack.zip` and only
 the resource-pack deny selector. It requires the specific resource-pack finding
 and remote disconnection, with the same disabled baseline. Its implementation
-has been added and its first execution started; no passing result is yet claimed.
-It does not load a texture pack or
+compiled and passed both controls once on Paper 1.21.11/Velocity/JDK 21; see the
+same evidence summary for report/source hashes. It does not load a texture pack or
 test Xray rendering/content recognition.
 
 Protocol integration coverage now drives the normal ClientHandshakeEngine signed

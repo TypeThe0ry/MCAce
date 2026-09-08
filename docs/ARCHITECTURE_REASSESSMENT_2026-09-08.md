@@ -432,6 +432,15 @@ repeatability remains to be established. See the
 [evidence summary](evidence/inventory-admission-2026-09-08.md) for artifact/report
 hashes, actual assertions, and raw-peer versus genuine Fabric/Xray limitations.
 
+The Mod control subsequently passed a second forced execution, and the new
+selected-resource-pack control passed its disabled/enabled execution on 1.21.11.
+Both cover accepted authentication, the appropriate inventory rule, and remote
+disconnect evidence, not genuine Fabric collection or Xray content analysis.
+Paper 26.1.2 build 74 and 26.2 build 116 local JAR hashes match the asset manifest;
+their prepared trees and JDK 25 are present. A 26.1.2/JDK 25 execution of both
+control tests has started, but no 26.x passing result is claimed yet. Current
+PR Windows checks were still running when inspected; this is not release approval.
+
 ## Retained GUI run details (2026-09-08, UTC+08)
 
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.

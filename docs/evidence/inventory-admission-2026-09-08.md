@@ -1,6 +1,7 @@
 # Inventory admission real-process control test — 2026-09-08
 
-Status: two complete passing executions; development evidence, not release-grade acceptance.
+Status: two passing Mod executions and one passing selected-pack execution;
+development evidence, not release-grade acceptance.
 
 ## Execution and provenance
 
@@ -74,3 +75,28 @@ this running test's bytecode. No additional build/test ran concurrently.
 An earlier repeat invocation returned `test UP-TO-DATE`; it is expressly excluded
 from the two executions counted here. This repeat covers the same 1.21.11 Mod
 identifier case only, not the newly added selected-resource-pack control.
+
+## Selected-resource-pack control
+
+The companion `realVelocityInventoryAdmissionRejectsSelectedPackOnlyWhenEnabled`
+completed on the same Paper 1.21.11/Velocity/JDK 21 runtime. Its test code is the
+version committed as `8ea02b3` (the process started before that commit was made).
+Local test-source SHA-256:
+`07b17eb83bb867bf5b7356c983ba479c7e5761dcf9ce24b089cb65238e14cc47`.
+JUnit: one executed test, zero failures/errors/skips, 238.015 seconds. Gradle exit
+0. Report SHA-256:
+`bb9f4d0e06dd5ebdab47d9029246a816b89fe5a4d0b92c8a507233734d7b51b1`.
+
+Disabled configuration allowed accepted authentication and verified backend
+admission. Enabled configuration contained only
+`denied-selected-resource-packs=file/mcace-test-pack.zip` (no denied Mod IDs).
+It produced the specific `PROHIBITED_SELECTED_RESOURCE_PACK` dispatch marker and
+the peer's non-NONE disconnect observation. Both cleanup assertions passed.
+
+```text
+MCACE_INVENTORY_RUNTIME_CASE_PASS|enabled=false|real_proxy=true|raw_protocol_peer=true|fabric_gui=false|finding=PROHIBITED_SELECTED_RESOURCE_PACK
+MCACE_INVENTORY_RUNTIME_CASE_PASS|enabled=true|real_proxy=true|raw_protocol_peer=true|fabric_gui=false|finding=PROHIBITED_SELECTED_RESOURCE_PACK
+```
+
+The selected-pack identifier is a signed test report, not a loaded texture ZIP.
+This does not test Xray content, rendering, or genuine Fabric resource selection.
