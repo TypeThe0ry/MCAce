@@ -3958,10 +3958,22 @@ function Assert-OwnedRunDirectory([string]$RunDirectory) {
     return $run
 }
 
-function Remove-OwnedRunDirectory([string]$RunDirectory) {
+function Preserve-FailedRunDirectory([string]$RunDirectory) {
     if (-not (Test-Path -LiteralPath $RunDirectory -PathType Container)) { return }
     $run = Assert-OwnedRunDirectory $RunDirectory
-    Remove-Item -LiteralPath $run -Recurse -Force
+    # Keep the original logs after process cleanup. Do not serialize exceptions,
+    # configuration, or keys into a publishable report. The extra failure marker
+    # also prevents a partially written native evidence set from being promoted.
+    $marker = Join-Path $run 'diagnostic-failure.json'
+    $record = [ordered]@{
+        schema = 'MCACE_FABRIC_FEDERATION_DIAGNOSTIC_FAILURE_V1'
+        status = 'failed'
+        release_eligible = $false
+        retained_at = [DateTimeOffset]::UtcNow.ToString('o')
+        handling = 'LOCAL_ONLY_MAY_CONTAIN_TEST_KEYS_AND_PLAYER_METADATA'
+    }
+    $null = Write-NewUtf8File $marker ($record | ConvertTo-Json -Compress)
+    Write-Warning "FABRIC_FEDERATION_GUI_DIAGNOSTICS_RETAINED_LOCAL_ONLY|$run"
 }
 
 function Clear-OwnedRunForEvidence([string]$RunDirectory) {
@@ -4861,7 +4873,10 @@ if ($null -ne $failure -or -not $runtimeAssertionsComplete -or -not $clientShutd
     if ($null -ne $visibleGuiSigningRequestEvidence) { $visibleGuiSigningRequestEvidence.stream.Dispose() }
     $postRunTrustRootEvidence.stream.Dispose()
     $visibleGuiTrustRootEvidence.stream.Dispose()
-    if ($runRootCreated) { Remove-OwnedRunDirectory $runRoot }
+    if ($runRootCreated) {
+        try { Preserve-FailedRunDirectory $runRoot }
+        catch { Write-Warning 'FABRIC_FEDERATION_GUI_FAILURE_MARKER_WRITE_FAILED_RAW_RUN_RETAINED' }
+    }
     throw "FABRIC_FEDERATION_GUI_HANDOFF_FAILED: $message"
 }
 
@@ -5075,7 +5090,10 @@ try {
         $visibleGuiTrustRootEvidence $postRunTrustRootEvidence $releaseBundleBinding `
         $approvedVisibleGuiTrustRootSha256 $approvedPostRunTrustRootSha256
 } catch {
-    if ($runRootCreated) { Remove-OwnedRunDirectory $runRoot }
+    if ($runRootCreated) {
+        try { Preserve-FailedRunDirectory $runRoot }
+        catch { Write-Warning 'FABRIC_FEDERATION_GUI_FAILURE_MARKER_WRITE_FAILED_RAW_RUN_RETAINED' }
+    }
     throw
 } finally {
     if ($null -ne $postRunReceiptEvidence) { $postRunReceiptEvidence.stream.Dispose() }

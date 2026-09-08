@@ -78,3 +78,29 @@ Computer Use result after cleanup.
 Federation handoff, licensed Vulcan genuine callback, production authority
 evidence and protected main/tag release CI remain pending. The final README
 evidence edition and v0.0.1 publication remain gated on those results.
+
+## Follow-up: retain failed-run diagnostics
+
+The wrapper now retains a failed owned run directory after its existing process
+and port cleanup. It creates `diagnostic-failure.json` with `status=failed` and
+`release_eligible=false` instead of recursively deleting the run. This applies
+to runtime/assertion failures and final evidence publication failures. The
+original exception remains the terminal error even if marker creation fails.
+
+Retained directories are local troubleshooting material and may contain test
+keys and player metadata. Do not commit or upload them wholesale. Successful
+evidence publication retains its existing exact-directory validation; the
+failure marker is not an accepted release document. A late publication failure
+may occur after the success-path raw directory clearing, so this change cannot
+recover logs already removed at that earlier stage.
+
+The native V5 regression suite verifies original log preservation, non-release
+marking, create-new marker semantics, owned-directory enforcement and rejection
+of the diagnostic directory by release evidence validation. The suite passed
+with the existing host symbolic-link-permission coverage gap.
+
+This wrapper change is release-affecting under the current artifact-source
+contract. The old `2a6274a` bundle and its Matrix evidence remain historical
+evidence for that source; a new artifact source, build and relevant runtime
+evidence are required before release. Do not merely reuse the previous green
+readiness result for the changed wrapper.

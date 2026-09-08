@@ -351,11 +351,13 @@ Assert-True ($passingReportValidator -match
 # the code that runs in Execute/ReportOnly rather than testing a weaker duplicate parser.
 $platformFunctions = Get-FunctionText $platformAst @(
     'Get-BytesSha256','Get-JsonPropertyNames','Test-ExactJsonProperties',
-    'Test-JsonInteger','Assert-DirectLocalPath')
+    'Test-JsonInteger','Assert-DirectLocalPath','Assert-OwnedTreeNoReparse')
 $wrapperFunctions = Get-FunctionText $ast @(
     'ConvertFrom-StrictJson','Test-IsWindowsPlatform','Initialize-WindowsFileIdentityApi',
     'Get-NoFollowFileIdentity','Assert-LockedFileIdentity','Assert-SanitizedJson',
     'Write-NewLockedJsonExchange','Open-LockedFileBytes',
+    'Write-NewUtf8File','Write-NewBytesFile','Assert-FederationRunLeaf',
+    'Assert-OwnedRunDirectory','Preserve-FailedRunDirectory',
     'Get-Crc32','Get-Adler32','Expand-PngZlib','Get-PaethPredictor','Get-PngUInt32',
     'Assert-PngEvidence','Test-JsonString','Test-JsonBoolean','Test-Sha256',
     'Get-CanonicalExchangePathBinding','Assert-VisibleGuiSigningRequest',
@@ -414,6 +416,28 @@ $postRunRsa = $null
 $unapprovedPostRunRsa = $null
 $atomicExchangeEvidence = $null
 try {
+    $failedRun = Join-Path $tempRoot ('20260908T000000000Z-26_2-VELOCITY-to-VELOCITY-' + ('a' * 32))
+    [IO.Directory]::CreateDirectory($failedRun) | Out-Null
+    $failedLog = Join-Path $failedRun 'client.log'
+    [IO.File]::WriteAllText($failedLog, 'retained diagnostic sentinel', $utf8NoBom)
+    & $validator { param($Root, $Run)
+        $script:evidenceRunsRoot = $Root
+        Preserve-FailedRunDirectory $Run
+    } $tempRoot $failedRun
+    Assert-True ([IO.File]::ReadAllText($failedLog) -ceq 'retained diagnostic sentinel') `
+        'failure handling deleted or modified the original log'
+    $failureRecord = Get-Content (Join-Path $failedRun 'diagnostic-failure.json') -Raw | ConvertFrom-Json
+    Assert-True ($failureRecord.status -ceq 'failed' -and $failureRecord.release_eligible -eq $false) `
+        'retained failure was not explicitly non-release'
+    Assert-Throws {
+        & $validator { param($Run) Preserve-FailedRunDirectory $Run } $failedRun
+    } 'failure marker was silently overwritten'
+    Assert-Throws {
+        & $validator { param($Run) Preserve-FailedRunDirectory $Run } $tempRoot
+    } 'failure retention accepted a directory outside its owned run root'
+    Assert-Throws {
+        & $validator { param($Run) Assert-ExactFederationEvidenceDirectory $Run } $failedRun
+    } 'retained diagnostic run was accepted as a native release evidence directory'
     # A real PNG encoder creates IHDR/IDAT/IEND and valid CRC/zlib/Adler data. The challenge is
     # rendered into the image as well as bound into the signed receipt.
     Add-Type -AssemblyName System.Drawing
