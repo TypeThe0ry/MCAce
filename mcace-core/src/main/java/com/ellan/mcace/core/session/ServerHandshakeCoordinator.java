@@ -979,6 +979,12 @@ public final class ServerHandshakeCoordinator {
             }
             Set<String> paths = new HashSet<>();
             for (FileEntry entry : manifest.getEntriesList()) {
+                if (entry.hasTextureProbe() && (!rule.getRelativeRoot().equals("resourcepacks")
+                        || rule.getExplicitRelativeFilesCount() != 0
+                        || !entry.getRelativePath().toLowerCase(java.util.Locale.ROOT).endsWith(".zip")
+                        || !com.ellan.mcace.protocol.integrity.TextureProbeReports.valid(entry.getTextureProbe()))) {
+                    return false;
+                }
                 if (!paths.add(entry.getRelativePath())
                         || !safeRelativePath(entry.getRelativePath())
                         || entry.getSha256().size() != 32

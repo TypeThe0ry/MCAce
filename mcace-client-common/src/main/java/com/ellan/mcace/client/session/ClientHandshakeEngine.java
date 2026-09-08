@@ -1387,10 +1387,22 @@ public final class ClientHandshakeEngine {
                     .setEntryCount(scope.entries().size())
                     .setRootSha256(ByteString.copyFrom(scope.rootSha256()));
             for (IntegrityEntry entry : scope.entries()) {
-                manifest.addEntries(FileEntry.newBuilder()
+                FileEntry.Builder file = FileEntry.newBuilder()
                         .setRelativePath(entry.relativePath())
                         .setFileSize(entry.fileSize())
-                        .setSha256(ByteString.copyFrom(entry.sha256())));
+                        .setSha256(ByteString.copyFrom(entry.sha256()));
+                ArtifactObservation enrichment = enrichments.get(new ManifestEntryKey(
+                        scope.scope(), entry.relativePath(), entry.sha256Hex()));
+                if (enrichment != null && enrichment.type() == ArtifactType.RESOURCE_PACK
+                        && enrichment.metadata().containsKey("texture_probe_status")) {
+                    try {
+                        file.setTextureProbe(com.ellan.mcace.protocol.integrity.TextureProbeReports
+                                .fromMetadata(enrichment.metadata()));
+                    } catch (IllegalArgumentException | NullPointerException invalid) {
+                        throw new EnvelopeException("invalid resource-pack texture observation");
+                    }
+                }
+                manifest.addEntries(file);
             }
             request.addScopeManifests(manifest);
         }

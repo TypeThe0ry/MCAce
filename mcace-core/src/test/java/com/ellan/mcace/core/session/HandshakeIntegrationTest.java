@@ -1101,6 +1101,81 @@ final class HandshakeIntegrationTest {
         assertFalse(api.isVerified(playerId));
     }
 
+    @Test
+    void signedTextureProbeReachesServerWithSelectedStateAndLowConfidence() throws Exception {
+        SecurityPolicy policy = SecurityPolicy.parseFrom(signedPolicy.getPolicy()).toBuilder()
+                .setSignerKeyIdSha256(ByteString.copyFrom(PolicyDocuments.keyId(serverKeys.getPublic())))
+                .addIntegrityScopes(IntegrityScopeRule.newBuilder().setScope("resourcepacks")
+                        .setRelativeRoot("resourcepacks").setMaxEntries(16)
+                        .setMaxFileBytes(1024 * 1024).addAllowedExtensions(".zip"))
+                .build();
+        signedPolicy = PolicyDocuments.sign(policy, serverKeys.getPrivate(), serverKeys.getPublic());
+        var captured = new java.util.ArrayList<AuthenticatedManifest>();
+        server = new ServerHandshakeCoordinator(clock, new SecureRandom(), serverKeys,
+                new RiskEngine(RiskPolicy.defaults()), api, Duration.ofSeconds(5), () -> signedPolicy,
+                com.ellan.mcace.core.persistence.SecurityAuditSink.noop(), ignored -> { },
+                captured::add, captured::add, com.ellan.mcace.core.evidence.EvidenceContentStore.discard(),
+                com.ellan.mcace.core.evidence.EvidenceAuditSink.noop());
+        Path game = temporaryDirectory.resolve("texture-game");
+        java.nio.file.Files.createDirectories(game.resolve("mods"));
+        Path pack = java.nio.file.Files.createDirectories(game.resolve("resourcepacks")).resolve("plain.zip");
+        var image = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        var png = new java.io.ByteArrayOutputStream();
+        assertTrue(javax.imageio.ImageIO.write(image, "png", png));
+        try (var zip = new java.util.zip.ZipOutputStream(java.nio.file.Files.newOutputStream(pack))) {
+            for (String block : List.of("stone", "dirt", "deepslate")) {
+                zip.putNextEntry(new java.util.zip.ZipEntry("assets/minecraft/textures/block/" + block + ".png"));
+                zip.write(png.toByteArray());
+                zip.closeEntry();
+            }
+        }
+        var bundle = new com.ellan.mcace.client.integrity.PolicyDrivenIntegrityCollector(clock).collect(game, policy);
+        var observations = new com.ellan.mcace.client.observation.ArtifactObservationCollector()
+                .collect(game, policy, bundle);
+        for (boolean selected : List.of(false, true)) {
+            playerId = UUID.randomUUID();
+            ClientHandshakeEngine client = client(serverKeys);
+            client.prepareServerHello(server.begin(playerId), "test.example:25565",
+                    new VerifiedPolicyCache(temporaryDirectory.resolve("texture-cache-" + selected), clock));
+            var frames = client.createAuthenticationFrames(bundle, observations,
+                    selected ? List.of("file/plain.zip") : List.of(), List.of(), List.of());
+            assertFalse(server.receive(playerId, frames.getFirst().data()).protocolViolation());
+            var accepted = server.receive(playerId, frames.get(1).data());
+            assertFalse(accepted.protocolViolation());
+            assertTrue(client.receiveAuthResult(accepted.outboundFrames().getFirst()).getAccepted());
+            var derived = new com.ellan.mcace.core.proxy.AuthenticatedManifestObservationDeriver()
+                    .derive(captured.getLast()).observations().getFirst();
+            assertEquals("opaque-block-transparency", derived.metadata().get("xray_heuristic"));
+            assertEquals(Boolean.toString(selected), derived.metadata().get("selected"));
+            assertEquals(com.ellan.mcace.core.disposition.ObservationOrigin.CLIENT_REPORTED, derived.origin());
+            assertEquals(com.ellan.mcace.core.disposition.Confidence.LOW, derived.confidence());
+            var update = client.prepareArtifactObservationUpdate(bundle, observations,
+                    selected ? List.of() : List.of("file/plain.zip"), List.of());
+            int beforeUpdate = captured.size();
+            var updated = sendObservationFrames(update.frames());
+            assertTrue(client.receiveArtifactObservationResult(updated.outboundFrames().getFirst(), update).accepted());
+            client.commitArtifactObservationUpdate(update);
+            assertEquals(beforeUpdate + 1, captured.size());
+            var after = new com.ellan.mcace.core.proxy.AuthenticatedManifestObservationDeriver()
+                    .derive(captured.getLast()).observations().getFirst();
+            assertEquals("opaque-block-transparency", after.metadata().get("xray_heuristic"));
+            assertEquals(Boolean.toString(!selected), after.metadata().get("selected"));
+            assertEquals(com.ellan.mcace.core.disposition.ObservationOrigin.CLIENT_REPORTED, after.origin());
+            assertTrue(api.isVerified(playerId));
+        }
+    }
+
+    @Test
+    void textureProbeCannotBeSmuggledIntoModScope() throws Exception {
+        assertDirectLoadedRequestMutationRejected("texture-on-mod", request -> request.toBuilder()
+                .setScopeManifests(0, request.getScopeManifests(0).toBuilder()
+                        .setEntries(0, request.getScopeManifests(0).getEntries(0).toBuilder()
+                                .setTextureProbe(com.ellan.mcace.protocol.generated.ResourcePackTextureProbe
+                                        .newBuilder().setStatus("complete").setOpaqueTexturesChecked(3)
+                                        .setOpaqueTexturesTransparent(3))))
+                .build());
+    }
+
     private static com.ellan.mcace.core.disposition.ArtifactObservation modMetadata(
             String id, String version, String filename, byte[] sha256) {
         return new com.ellan.mcace.core.disposition.ArtifactObservation(

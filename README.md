@@ -22,6 +22,15 @@ plugin.
 [security model](docs/SECURITY.md) · [release gates](docs/RELEASE_GATES.md) ·
 [operations](docs/OPERATIONS.md) · [current progress ledger](docs/evidence/PROGRESS_2026-09-06.md) · [2026-09-07 update](docs/evidence/PROGRESS_2026-09-07.md)
 
+**2026-09-08 development update:** bounded PNG-content observations for ZIP
+resource packs now travel in the signed client manifest and are exposed to
+server policy evaluation alongside the separately reported selected-pack state.
+This is low-confidence telemetry, not a confirmed cheat verdict or a default
+punishment rule. See the [texture-probe implementation and test record](docs/evidence/TEXTURE_PROBE_2026-09-08.md)
+and [latest GUI/runtime evidence](docs/evidence/GUI_RUNTIME_2026-09-08.md).
+The `live16` references below are historical; current-source release-grade GUI
+and federation acceptance remain pending. Earlier bundles predate this change.
+
 ![Release verification dashboard](docs/assets/verification-dashboard.svg)
 
 ## Release status: exact seven gates

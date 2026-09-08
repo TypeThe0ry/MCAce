@@ -332,6 +332,14 @@ message FileEntry {
   string relative_path = 1;
   uint64 file_size = 2;
   bytes sha256 = 3;
+  // Optional bounded client report about these exact archive bytes, not server proof.
+  ResourcePackTextureProbe texture_probe = 4;
+}
+
+message ResourcePackTextureProbe {
+  string status = 1;
+  uint32 opaque_textures_checked = 2;
+  uint32 opaque_textures_transparent = 3;
 }
 
 message IntegrityScopeManifest {

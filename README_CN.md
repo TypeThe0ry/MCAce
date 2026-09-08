@@ -14,6 +14,12 @@ Paper/Folia 后端插件。
 > Authority V4，以及受保护 main/tag 的 V4 exact-commit CI 阻塞。当前 `live16` 只渲染了同意
 > 页面，随后在没有生成可见截图/accepted event 前 fail-closed，并不是已接受的发布决定。
 
+**2026-09-08 开发更新：** ZIP 材质包的有界 PNG 内容特征已接入客户端签名清单，
+服务端可将它与单独上报的材质包选中状态一起用于策略评估。它仍是低置信度遥测，
+不是作弊实锤，也没有默认开启处罚。见[纹理探测实现与测试记录](docs/evidence/TEXTURE_PROBE_2026-09-08.md)
+和[最新 GUI/运行证据](docs/evidence/GUI_RUNTIME_2026-09-08.md)。文中的 `live16` 为历史尝试；
+当前源码的发布级 GUI 与 federation 验收仍待完成，先前发布包不包含本次代码。
+
 [English README](README.md) · [架构](docs/ARCHITECTURE.md) ·
 [安全模型](docs/SECURITY.md) · [发布门](docs/RELEASE_GATES.md) ·
 [运维](docs/OPERATIONS.md) · [当前进度台账](docs/evidence/PROGRESS_2026-09-06.md) · [2026-09-07 更新](docs/evidence/PROGRESS_2026-09-07.md)

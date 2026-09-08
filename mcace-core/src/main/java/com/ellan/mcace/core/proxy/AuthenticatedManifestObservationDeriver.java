@@ -281,9 +281,15 @@ public final class AuthenticatedManifestObservationDeriver {
 
     private static ArtifactObservation scopeObservation(
             ArtifactType type, String scope, FileEntry entry, boolean selected) {
+        Map<String, String> metadata = new LinkedHashMap<>(Map.of(
+                "scope", scope, "artifact_path", entry.getRelativePath(),
+                "selected", Boolean.toString(selected)));
+        if (type == ArtifactType.RESOURCE_PACK && entry.hasTextureProbe()
+                && com.ellan.mcace.protocol.integrity.TextureProbeReports.valid(entry.getTextureProbe())) {
+            metadata.putAll(com.ellan.mcace.protocol.integrity.TextureProbeReports.metadata(entry.getTextureProbe()));
+        }
         return observation(type, entry.getRelativePath(), "unknown", hex(entry.getSha256().toByteArray()),
-                Map.of("scope", scope, "artifact_path", entry.getRelativePath(),
-                        "selected", Boolean.toString(selected)));
+                metadata);
     }
 
     private static boolean selectedForEntry(

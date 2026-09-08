@@ -99,6 +99,48 @@ final class ArtifactObservationCollectorTest {
                 root, policy(directory("resourcepacks", "resourcepacks", ".zip")), bundle));
     }
 
+    @Test
+    void textureFeatureIsHashBoundPolicyScopedAndRemainsClientReported() throws Exception {
+        Path file = Files.createDirectories(root.resolve("resourcepacks")).resolve("ordinary.zip");
+        var image = new java.awt.image.BufferedImage(16, 16, java.awt.image.BufferedImage.TYPE_INT_ARGB);
+        var png = new java.io.ByteArrayOutputStream();
+        assertTrue(javax.imageio.ImageIO.write(image, "png", png));
+        try (var zip = new ZipOutputStream(Files.newOutputStream(file))) {
+            for (String block : List.of("stone", "dirt", "deepslate")) {
+                zip.putNextEntry(new ZipEntry("assets/minecraft/textures/block/" + block + ".png"));
+                zip.write(png.toByteArray());
+                zip.closeEntry();
+            }
+        }
+        SecurityPolicy granted = policy(directory("resourcepacks", "resourcepacks", ".zip"));
+        var integrity = new PolicyDrivenIntegrityCollector(Clock.systemUTC());
+        var bundle = integrity.collect(root, granted);
+        var collector = new ArtifactObservationCollector();
+        var observation = collector.collect(root, granted, bundle).getFirst();
+        assertEquals("opaque-block-transparency", observation.metadata().get("xray_heuristic"));
+        assertEquals("3", observation.metadata().get("opaque_textures_checked"));
+        assertEquals(ObservationOrigin.CLIENT_REPORTED, observation.origin());
+        assertEquals(Confidence.LOW, observation.confidence());
+        assertFalse(observation.foundationSecurity());
+        assertEquals("unknown", observation.identifier());
+        SecurityPolicy withoutPacks = policy(directory("mods", "mods", ".jar"));
+        assertTrue(collector.collect(root, withoutPacks, integrity.collect(root, withoutPacks)).isEmpty());
+        Files.writeString(file, "changed after scan");
+        assertThrows(IntegrityScanException.class, () -> collector.collect(root, granted, bundle));
+    }
+
+    @Test
+    void directoryPackFilesRemainOrdinaryManifestEntries() throws Exception {
+        Path file = Files.createDirectories(root.resolve("resourcepacks/folder/assets/minecraft/textures/block"))
+                .resolve("stone.png");
+        Files.write(file, new byte[]{1, 2, 3});
+        SecurityPolicy granted = policy(directory("resourcepacks", "resourcepacks", ".png"));
+        var bundle = new PolicyDrivenIntegrityCollector(Clock.systemUTC()).collect(root, granted);
+        var observations = new ArtifactObservationCollector().collect(root, granted, bundle);
+        assertEquals(1, observations.size());
+        assertFalse(observations.getFirst().metadata().containsKey("texture_probe_status"));
+    }
+
     private static SecurityPolicy policy(IntegrityScopeRule... rules) {
         return SecurityPolicy.newBuilder().addAllIntegrityScopes(List.of(rules)).build();
     }
