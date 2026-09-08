@@ -3096,12 +3096,14 @@ function Start-FederationJavaService(
         (@($runTokenJvmArgument, '-Xms128m', "-Xmx$MaximumHeap", '-jar', $Jar) + $ExtraArguments)
     $stdoutPath = Join-Path $WorkingDirectory "$Name-stdout.log"
     $stderrPath = Join-Path $WorkingDirectory "$Name-stderr.log"
-    $stdoutStream = [System.IO.File]::Open(
+    # Disable FileStream buffering so readiness bytes copied from the live
+    # process are readable before another 4 KiB arrives or the process exits.
+    $stdoutStream = [System.IO.FileStream]::new(
         $stdoutPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write,
-        [System.IO.FileShare]::Read)
-    $stderrStream = [System.IO.File]::Open(
+        [System.IO.FileShare]::Read, 1, [System.IO.FileOptions]::Asynchronous)
+    $stderrStream = [System.IO.FileStream]::new(
         $stderrPath, [System.IO.FileMode]::CreateNew, [System.IO.FileAccess]::Write,
-        [System.IO.FileShare]::Read)
+        [System.IO.FileShare]::Read, 1, [System.IO.FileOptions]::Asynchronous)
     $process = [System.Diagnostics.Process]::new()
     $process.StartInfo = $startInfo
     try {
@@ -3142,11 +3144,9 @@ function Get-ServiceText($Service) {
     $paths = [System.Collections.Generic.List[string]]::new()
     $paths.Add([string]$Service.StdoutPath)
     $paths.Add([string]$Service.StderrPath)
-    foreach ($file in @(Get-ChildItem -LiteralPath $Service.WorkingDirectory -File -Filter 'proxy.log.*' -ErrorAction SilentlyContinue)) {
-        $paths.Add($file.FullName)
-    }
-    $latest = Join-Path $Service.WorkingDirectory 'logs\latest.log'
-    if (Test-Path -LiteralPath $latest -PathType Leaf) { $paths.Add($latest) }
+    # These create-new paths belong to this process incarnation. Shared rolling
+    # logs can still contain the bootstrap process's readiness markers while
+    # the active JVM starts; accepting those skips the real readiness wait.
     $parts = [System.Collections.Generic.List[string]]::new()
     foreach ($path in @($paths.ToArray() | Select-Object -Unique)) {
         if (Test-Path -LiteralPath $path -PathType Leaf) {

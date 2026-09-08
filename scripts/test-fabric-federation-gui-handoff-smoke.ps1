@@ -378,6 +378,7 @@ $wrapperFunctions = Get-FunctionText $ast @(
     'Read-StrictPropertiesBytes','Get-ReleaseBundleTargetBinding',
     'Get-ProcessStartTimeString','Get-ProcessIncarnationId','Get-RuntimeEventSigningPayload',
     'New-RuntimeLedger','Add-RuntimeLedgerEvent','Complete-RuntimeLedger',
+    'Get-ServiceText','Wait-ServiceRegex',
     'Get-ResourcePackCountFromOptions','Convert-ManifestActionCounts',
     'Get-TelemetryAggregateCommitment','Assert-TelemetryAggregate','Get-TelemetryAggregate',
     'Assert-RuntimeLedgerBytes','Assert-PassingReportRaw','Assert-BindingRaw',
@@ -425,6 +426,31 @@ $postRunRsa = $null
 $unapprovedPostRunRsa = $null
 $atomicExchangeEvidence = $null
 try {
+    $serviceRoot = Join-Path $tempRoot 'service-log-incarnation'
+    [IO.Directory]::CreateDirectory((Join-Path $serviceRoot 'logs')) | Out-Null
+    [IO.File]::WriteAllText((Join-Path $serviceRoot 'logs\latest.log'), 'STALE_READY', $utf8NoBom)
+    [IO.File]::WriteAllText((Join-Path $serviceRoot 'proxy.log.0'), 'STALE_READY', $utf8NoBom)
+    $liveOut = Join-Path $serviceRoot 'active-stdout.log'
+    $liveErr = Join-Path $serviceRoot 'active-stderr.log'
+    [IO.File]::WriteAllText($liveErr, '', $utf8NoBom)
+    $liveStream = [IO.FileStream]::new($liveOut, [IO.FileMode]::CreateNew,
+        [IO.FileAccess]::Write, [IO.FileShare]::Read, 1, [IO.FileOptions]::Asynchronous)
+    try {
+        $service = [pscustomobject]@{ Name='active'; WorkingDirectory=$serviceRoot;
+            StdoutPath=$liveOut; StderrPath=$liveErr; Process=[pscustomobject]@{HasExited=$false} }
+        Assert-Throws { & $validator { param($s) Wait-ServiceRegex $s 'STALE_READY' 1 } $service } `
+            'bootstrap rolling logs incorrectly satisfied active process readiness'
+        $liveBytes = $utf8NoBom.GetBytes('LIVE_READY')
+        $liveStream.Write($liveBytes, 0, $liveBytes.Length)
+        # No Flush/Dispose: short live output must already be observable.
+        $liveText = & $validator { param($s) Get-ServiceText $s } $service
+        Assert-True ($liveText.Contains('LIVE_READY') -and -not $liveText.Contains('STALE_READY')) `
+            'short current-process output was buffered or mixed with prior logs'
+        & $validator { param($s) Wait-ServiceRegex $s 'LIVE_READY' 1 } $service
+    } finally { $liveStream.Dispose() }
+    $serviceStartCode = Get-FunctionText $ast @('Start-FederationJavaService')
+    Assert-True ($serviceStartCode.Contains('[System.IO.FileShare]::Read, 1, [System.IO.FileOptions]::Asynchronous')) `
+        'service output capture must expose short live writes without FileStream buffering'
     $failedRun = Join-Path $tempRoot ('20260908T000000000Z-26_2-VELOCITY-to-VELOCITY-' + ('a' * 32))
     [IO.Directory]::CreateDirectory($failedRun) | Out-Null
     $failedLog = Join-Path $failedRun 'client.log'

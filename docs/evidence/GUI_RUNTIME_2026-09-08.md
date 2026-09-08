@@ -171,3 +171,33 @@ Report SHA-256 values respectively:
 and `e553f853b544ea619e6d40d80e9a7d029cdcbc7495719af6149362aeaf58a886`.
 These are diagnostic reports, not substitute release attestations. Production
 authority, genuine Vulcan callback and real federation handoff remain pending.
+
+## Current-candidate runtime attempt and stale readiness repair
+
+The bundle was rebuilt with source `9e5f280f06c0c9dacdb8b0379e7c830655565f71`
+and artifact source `91ce31dc98ab4b0b0ccb09e534ca87a8a0c69688` before the next
+26.2 Velocity-to-Velocity attempt. The new run was
+`20260908T024253729Z-26_2-VELOCITY-to-VELOCITY-b99d1cc1c45a7b96658a72356c11ba7e`.
+
+Both bootstrap proxies loaded MCAce 0.0.1. The source active process eventually
+logged `Listening on /127.0.0.1:54954` and `Done (74.57s)!` at 10:48:20 local
+time, but the wrapper failed its listener check and cleaned up. No Fabric
+client or new Enable decision was reached. The retained directory is local-only
+and may contain test keys; do not upload it wholesale. After cleanup, the Java
+inventory contained the pre-existing Minecraft/server PIDs 44064 and 23900.
+An unrelated Gaius Maven process was identified during diagnosis and not stopped.
+
+The readiness helper read shared `logs/latest.log` and `proxy.log.*` along
+with per-process output. Bootstrap readiness markers could therefore satisfy
+the active-process wait early, starting a 60-second listener check before the
+active JVM was ready. Its own stdout capture also buffered short writes.
+
+The repair reads only the create-new stdout/stderr paths belonging to the
+current process incarnation and disables FileStream buffering. It preserves
+the existing marker deadlines, loopback-only check and owning-PID check.
+Regression tests place stale ready markers in both rolling-log locations,
+require them not to satisfy readiness, and verify a short current-process
+write is visible before Flush/Dispose. The V5-contract tests passed under both
+PowerShell Core and Windows PowerShell 5.1, with the explicitly reported
+Windows symlink-permission coverage gap. This
+repair still requires a fresh real runtime rerun; it is not a GUI acceptance.
