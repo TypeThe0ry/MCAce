@@ -4,6 +4,7 @@ param()
 Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 Add-Type -AssemblyName System.IO.Compression -ErrorAction Stop
+& (Join-Path $PSScriptRoot 'test-matrix-public-base64-privacy.ps1')
 
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $publisher = Join-Path $PSScriptRoot 'publish-server-version-matrix-evidence.ps1'
