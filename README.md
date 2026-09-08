@@ -2,7 +2,7 @@
 
 Development update (2026-09-08): Velocity and BungeeCord now expose
 `/mcaceobservation freshness <uuid> [seconds]` to `mcace.admin.audit` administrators.
-The optional diagnostic window defaults to 120 seconds (range 1–3600). Results
+The optional diagnostic window defaults to three refresh intervals (currently 900 seconds; range 1–3600). Results
 are FRESH, STALE, CLOCK_ANOMALY, or UNAVAILABLE; they describe server-received
 client telemetry, not cheat-free proof or action execution. This read-only query
 does not change admission or configure enforcement. See the

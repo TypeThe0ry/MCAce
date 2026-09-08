@@ -86,7 +86,9 @@ No real-client runtime or complete repository test pass is claimed for this chan
 Velocity and BungeeCord now route `/mcaceobservation freshness <uuid> [seconds]`
 through the same `ArtifactTelemetryQuery`. The command retains `mcace.admin.audit`
 permission, checked before any lookup. UUIDs must have canonical form (case is
-ignored); the diagnostic window defaults to 120 seconds and is bounded to 1–3600.
+ignored); the diagnostic window defaults to three refresh intervals (currently
+900 seconds) and is bounded to 1–3600. The initial 120-second default was incorrect
+for the existing five-minute client cadence and has been corrected.
 It is a query parameter, not a persisted policy or an automatic kick timeout.
 
 Output includes the freshness classification, accepted update sequence, receipt
@@ -100,6 +102,28 @@ Tests cover malformed/shortened UUIDs, argument bounds, no lookup on invalid inp
 default/custom windows, exact expiry, content-free output, and permission-before-
 lookup behavior in both proxy adapters. Real in-game command acceptance remains
 pending; unit command dispatch is not a substitute for that runtime check.
+
+## Client cadence audit and default-window correction
+
+Both Fabric source trees already schedule a refresh after each accepted result,
+even if pack/mod state is unchanged. The normal interval is five minutes. The
+first detected change may send immediately; later changes coalesce behind that
+interval. Work is single-flight; ACK timeout starts after transport send, and
+failed scans/sends use bounded backoff. A genuine semantic rejection clears the
+pending update and schedules a fresh scan; invalid/unverified replies do not
+mutate the pending update. These are implementation observations, not latency
+measurements on a running server.
+
+The initial administrator-query default of 120 seconds was shorter than this
+normal cadence. It now derives from three protocol refresh intervals (900 seconds)
+instead of a disconnected literal. Regression tests cover the default remaining
+FRESH at the normal interval and STALE at its exact expiry. Both Fabric scheduler
+test sources also cover periodic unchanged-state refresh and cancellation.
+
+This does not accelerate detection. In particular, a later pack change can still
+wait up to the normal cooldown plus scan/transport time. A faster scoped change
+notification, its server rate limit, and an explicit configured freshness policy
+require coordinated client/server design before any automatic action is enabled.
 
 ## Current runtime observation (2026-09-08, UTC+08)
 

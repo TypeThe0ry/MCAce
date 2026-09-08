@@ -9,7 +9,10 @@ import java.util.function.BiFunction;
 
 /** Shared, content-free administrator query. Its window is diagnostic, never an enforcement setting. */
 public final class ArtifactTelemetryQuery {
-    public static final String USAGE = "Usage: /mcaceobservation freshness <uuid> [1-3600 seconds; default 120]";
+    public static final int DEFAULT_WINDOW_SECONDS = Math.toIntExact(
+            com.ellan.mcace.protocol.ProtocolConstants.ARTIFACT_OBSERVATION_INTERVAL.multipliedBy(3).toSeconds());
+    public static final String USAGE = "Usage: /mcaceobservation freshness <uuid> [1-3600 seconds; default "
+            + DEFAULT_WINDOW_SECONDS + "]";
     private final BiFunction<UUID, Duration, Optional<ArtifactTelemetrySnapshot>> snapshots;
 
     public ArtifactTelemetryQuery(BiFunction<UUID, Duration, Optional<ArtifactTelemetrySnapshot>> snapshots) {
@@ -23,7 +26,7 @@ public final class ArtifactTelemetryQuery {
         try {
             player = UUID.fromString(arguments[0]);
             if (!player.toString().equalsIgnoreCase(arguments[0])) return USAGE;
-            seconds = arguments.length == 2 ? Integer.parseInt(arguments[1]) : 120;
+            seconds = arguments.length == 2 ? Integer.parseInt(arguments[1]) : DEFAULT_WINDOW_SECONDS;
             if (seconds < 1 || seconds > 3600) return USAGE;
         } catch (IllegalArgumentException exception) { return USAGE; }
         var result = snapshots.apply(player, Duration.ofSeconds(seconds));

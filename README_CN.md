@@ -2,7 +2,7 @@
 
 开发更新（2026-09-08）：Velocity 和 BungeeCord 已提供管理员只读命令
 `/mcaceobservation freshness <uuid> [秒数]`，需要 `mcace.admin.audit` 权限。
-诊断窗口默认 120 秒，范围为 1–3600 秒；返回 FRESH、STALE、CLOCK_ANOMALY
+诊断窗口默认三个上报周期（当前 900 秒），范围为 1–3600 秒；返回 FRESH、STALE、CLOCK_ANOMALY
 或 UNAVAILABLE。它表示服务端接收的客户端遥测状态，不是无作弊证明或动作执行回执。
 查询不会改变准入，也不会设置自动处置策略。详见
 [架构重评与实施进度](docs/ARCHITECTURE_REASSESSMENT_2026-09-08.md)。

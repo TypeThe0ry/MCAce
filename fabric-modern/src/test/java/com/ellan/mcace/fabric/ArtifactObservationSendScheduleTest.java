@@ -14,6 +14,27 @@ import org.junit.jupiter.api.Test;
 
 final class ArtifactObservationSendScheduleTest {
     @Test
+    void unchangedStateStillRefreshesPeriodicallyAfterAcceptedResults() {
+        MutableClock clock = new MutableClock(Instant.EPOCH);
+        Duration interval = com.ellan.mcace.protocol.ProtocolConstants.ARTIFACT_OBSERVATION_INTERVAL;
+        ArtifactObservationSendSchedule schedule = new ArtifactObservationSendSchedule(clock, interval);
+        schedule.activate(23L);
+        assertFalse(schedule.takeDue(23L, false));
+        clock.advance(interval.minusMillis(1));
+        assertFalse(schedule.takeDue(23L, false));
+        clock.advance(Duration.ofMillis(1));
+        assertTrue(schedule.takeDue(23L, false));
+        assertFalse(schedule.takeDue(23L, false));
+        schedule.markSent(23L);
+        schedule.complete(23L);
+        clock.advance(interval);
+        assertTrue(schedule.takeDue(23L, false));
+        schedule.cancel();
+        clock.advance(interval);
+        assertFalse(schedule.takeDue(23L, false));
+    }
+
+    @Test
     void firstChangeIsImmediateAndLaterChangesCoalesceBehindFullCooldown() {
         MutableClock clock = new MutableClock(Instant.EPOCH);
         ArtifactObservationSendSchedule schedule =
