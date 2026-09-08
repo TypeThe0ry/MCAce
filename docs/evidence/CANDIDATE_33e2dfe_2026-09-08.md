@@ -52,3 +52,34 @@ server event dispatch, or stable cold Folia authentication. The previous matrix
 failure is retained; it is not converted into a pass by this build.
 Current-candidate runtime checks and external release evidence remain required.
 No tag or GitHub Release was created by this operation.
+
+## Documentation descendant and strict runtime matrix
+
+Release source `028c44c886fe959c9081604aff4d1a214d673b9c` was packaged through
+`releaseBundle` with artifact source `33e2dfec7b5d8cc864723d294cb23efa8c2158fe`.
+Build exit 0, 47 seconds. SHA256SUMS and all six product hashes remained unchanged;
+the descendant compatibility contract also passed. The earlier invocation with
+the old release-source manifest was rejected before server startup, as expected.
+
+The subsequent strict Matrix V4 execution terminated with exit 1 on case 7:
+`07-26.1.2-folia-velocity`. Cases 1–6 passed with zero remaining owned processes:
+all four 1.21.11 Paper/Folia × Velocity/Bungee combinations, plus both 26.1.2
+Paper proxy combinations. Cases 8–12 were not executed. This is not a full
+matrix pass or an external supervisor receipt.
+
+Failed run: `velocity-folia-2026-09-08T14-23-47-806472400Z`.
+Report SHA-256: `2912b2f7ba275c593a708ca2b96757e023a58a068b13b07d785806e8b9deeda0`.
+It connected, completed configuration, entered PLAY and received SERVER_HELLO,
+but received no AUTH_RESULT. Authentication preparation took 10005 ms:
+engine 65 ms, policy 9718 ms, frames 147 ms. Proxy logs record challenge dispatch
+at 22:25:02 and LIMITED timeout at 22:25:07 local time. The failure was a socket
+read timeout; all owned run processes were cleaned up. No deadline was relaxed.
+
+The earlier 1.21.11 Folia/Velocity case passed in this run (401 ms preparation),
+but that single success does not resolve the intermittent slow preparation.
+These are real server processes with a raw protocol test peer, not real Fabric
+GUI collection or cheating-software execution evidence.
+
+Logs: `build/release-descendant-028c44c-20260908.log` and
+`build/matrix-028c44c-retry-20260908.log`. The checkpoint retains six successful
+cases; the failed raw report and invocation log are retained separately.
