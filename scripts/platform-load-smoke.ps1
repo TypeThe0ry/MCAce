@@ -1397,6 +1397,67 @@ function Get-BytesSha256([byte[]]$Bytes) {
     }
 }
 
+function Get-SmokeOfflinePlayerUuid([string]$PlayerName) {
+    if ($PlayerName -cnotmatch '^[A-Za-z0-9_]{3,16}$') { throw 'Invalid smoke player name' }
+    $hash = [System.Security.Cryptography.MD5]::Create()
+    try { $bytes = $hash.ComputeHash([System.Text.Encoding]::UTF8.GetBytes("OfflinePlayer:$PlayerName")) }
+    finally { $hash.Dispose() }
+    $bytes[6] = ($bytes[6] -band 15) -bor 48
+    $bytes[8] = ($bytes[8] -band 63) -bor 128
+    $hex = ([BitConverter]::ToString($bytes)).Replace('-', '').ToLowerInvariant()
+    return '{0}-{1}-{2}-{3}-{4}' -f $hex.Substring(0,8), $hex.Substring(8,4), `
+        $hex.Substring(12,4), $hex.Substring(16,4), $hex.Substring(20,12)
+}
+
+function Get-SmokeInventoryReceipt([string]$NewLogText) {
+    # This parser is only for a fresh console response in the isolated, single-player run.
+    $pattern = '(?m)^.*?MCAce: inventory state=FRESH updateSequence=(?<sequence>[0-9]{1,18}) loadedMods=(?<mods>[0-9]{1,5}) selectedResourcePacks=(?<packs>[0-9]{1,5}) selectedShaderPacks=(?<shaders>[0-9]{1,5}) receivedAt=(?<received>[^\s]{1,40}) \(client claims; not cheat-free proof or an execution receipt\)\r?$'
+    $hits = [regex]::Matches($NewLogText, $pattern)
+    if ($hits.Count -eq 0) { return $null }
+    if ($hits.Count -ne 1) { throw 'Ambiguous inventory response in isolated smoke' }
+    $match = $hits[0]
+    $mods = [int]$match.Groups['mods'].Value
+    $packs = [int]$match.Groups['packs'].Value
+    $shaders = [int]$match.Groups['shaders'].Value
+    if ($mods -lt 1 -or $mods -gt 16384 -or $packs -gt 16384 -or $shaders -gt 16384) {
+        throw 'Inventory response has missing loaded mods or out-of-range counts'
+    }
+    $received = [DateTimeOffset]::Parse($match.Groups['received'].Value, [Globalization.CultureInfo]::InvariantCulture)
+    return [ordered]@{
+        schema = 'MCACE_GUI_INVENTORY_DIAGNOSTIC_V1'
+        release_evidence = $false
+        source = 'isolated-velocity-console-current-authenticated-session'
+        loaded_mods = $mods
+        selected_resource_packs = $packs
+        selected_shader_packs = $shaders
+        update_sequence = [long]$match.Groups['sequence'].Value
+        received_at = $received.ToUniversalTime().ToString('o')
+        client_claims = $true
+        full_modlist_verified = $false
+        xray_detection_verified = $false
+    }
+}
+
+function Wait-SmokeInventoryReceipt($Service, [string]$LogPath, [string]$PlayerName) {
+    $before = [string](Get-Content -Raw -LiteralPath $LogPath)
+    $uuid = Get-SmokeOfflinePlayerUuid $PlayerName
+    $Service.Process.StandardInput.WriteLine("mcaceobservation inventory $uuid")
+    $Service.Process.StandardInput.Flush()
+    $deadline = [DateTime]::UtcNow.AddSeconds(30)
+    while ([DateTime]::UtcNow -lt $deadline) {
+        if ($Service.Process.HasExited) { throw 'Velocity exited before inventory receipt' }
+        if ((Get-Item -LiteralPath $LogPath).Length -gt 4194304) { throw 'Inventory smoke log exceeds limit' }
+        $current = [string](Get-Content -Raw -LiteralPath $LogPath)
+        if (-not $current.StartsWith($before, [StringComparison]::Ordinal)) {
+            throw 'Inventory smoke log rotated or changed before its response'
+        }
+        $receipt = Get-SmokeInventoryReceipt $current.Substring($before.Length)
+        if ($null -ne $receipt) { return $receipt }
+        Start-Sleep -Milliseconds 250
+    }
+    throw 'No fresh nonempty authenticated inventory summary received from Velocity'
+}
+
 function Get-ManifestSha256([string[]]$Entries) {
     $raw = (@($Entries | Sort-Object) -join "`n")
     return Get-BytesSha256 ([System.Text.UTF8Encoding]::new($false).GetBytes($raw))
@@ -2402,6 +2463,13 @@ try {
         } else {
             $FabricEvidencePlayerName
         }
+        $inventoryReceipt = Wait-SmokeInventoryReceipt $velocity $velocityLog $evidencePlayerName
+        $inventoryReceipt['fabric_target'] = $FabricTarget
+        $inventoryReceipt['script_sha256'] = $executedScriptSha256
+        $inventoryReceipt['fabric_runtime_artifact_sha256'] = $currentEvidenceBinding.fabric_runtime_artifact_sha256
+        [System.IO.File]::WriteAllText((Join-Path $runRoot 'inventory-diagnostic.json'),
+            ($inventoryReceipt | ConvertTo-Json -Depth 4), [System.Text.UTF8Encoding]::new($false))
+        Write-Host 'MCACE_GUI_INVENTORY_DIAGNOSTIC_PASS|release_evidence=false|full_modlist_verified=false'
         $evidenceReport = [ordered]@{
             outcome = 'NOT_REQUESTED'
             reason = 'WithFabricEvidence was not requested.'

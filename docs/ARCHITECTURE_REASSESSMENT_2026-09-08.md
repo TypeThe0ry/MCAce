@@ -500,3 +500,25 @@ real Fabric GUI acceptance. Bungee and GUI smoke wiring remain pending.
 
 The local reports may be overwritten by later runs; these hashes identify this
 run but do not constitute retained release-grade raw evidence.
+
+### GUI inventory query wiring
+
+On base `8a550f3`, the Fabric smoke now requests the authenticated inventory
+summary after its real client has authenticated. The parser demands a fresh,
+nonempty Loaded Mod count and bounded selected resource/shader counts, captures
+only a newly appended response from the isolated proxy, and rejects ambiguity,
+log replacement or process exit. UUID derivation uses the observed profile name
+and the wrapper's existing offline-mode proxy configuration.
+
+The content-free result is stored separately as `inventory-diagnostic.json`,
+with `release_evidence=false`, `full_modlist_verified=false`, and
+`xray_detection_verified=false`. This prevents the new diagnostic from silently
+becoming a stronger formal release claim. The command cannot establish exact
+Mod ID equality or texture-content detection from counts alone.
+
+Validation: `test-smoke-inventory-receipt.ps1` and the existing
+`test-platform-load-smoke-privacy.ps1` passed on local PowerShell Core and Windows
+PowerShell 5.1. New tests cover UUID name case, malformed input, missing/stale
+responses, invalid counts/timestamps, duplicate responses, old-log exclusion,
+log rotation and stopped process. The new test is wired into both CI shell lanes.
+No real GUI client was launched in this change; runtime acceptance is pending.

@@ -61,6 +61,21 @@ No Mod names, filesystem paths, file bytes, player UUID, or session ID are
 printed in the reply. This command is a verification aid, not a full ModList
 browser, an Xray verdict, or an action receipt. Bungee does not yet expose it.
 
+The real-client `platform-load-smoke.ps1` now queries this summary after accepted
+Fabric authentication. In its isolated offline-mode single-player environment,
+it derives the offline UUID from the observed development profile and reads only
+the append-only log suffix after dispatching the console command. It requires a
+FRESH response with at least one Loaded Mod entry and bounded pack counts.
+Missing/ambiguous responses, log replacement and process exit fail the run.
+This does not require a nonempty selected-pack list: a normal client may select
+no external resource pack.
+
+The resulting `inventory-diagnostic.json` remains in that run directory and is
+explicitly not release evidence, a full ModList comparison, or Xray validation.
+It binds the target, executed script hash and Fabric runtime artifact hash, but
+does not expand the formal GUI report schema or substitute for genuine runtime
+acceptance. Parser and mocked-console tests run in both PowerShell CI lanes.
+
 ### Rule execution
 
 Initial and accepted dynamic manifests use the existing bounded audit handoff.

@@ -49,6 +49,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           ./scripts/test-fabric-federation-gui-handoff-smoke.ps1
           ./scripts/test-platform-load-smoke-privacy.ps1
+          ./scripts/test-smoke-inventory-receipt.ps1
           ./scripts/test-production-authority-process-evidence.ps1
           ./scripts/test-sign-production-authority-receipt.ps1
           ./scripts/test-provision-production-authority.ps1
@@ -71,6 +72,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           ./scripts/test-fabric-federation-gui-handoff-smoke.ps1
           ./scripts/test-platform-load-smoke-privacy.ps1
+          ./scripts/test-smoke-inventory-receipt.ps1
           ./scripts/test-production-authority-process-evidence.ps1
           ./scripts/test-sign-production-authority-receipt.ps1
           ./scripts/test-provision-production-authority.ps1
