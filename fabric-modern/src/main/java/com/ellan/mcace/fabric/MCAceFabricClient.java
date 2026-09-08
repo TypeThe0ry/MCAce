@@ -110,7 +110,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
             federationVault.discardExpired(Clock.systemUTC());
         });
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-            cancelAuthentication("disconnect");
+            cancelAuthentication("disconnect", false);
             federationVault.onConnectionClosed();
         });
         LevelRenderEvents.END_MAIN.register(
@@ -1044,17 +1044,27 @@ public final class MCAceFabricClient implements ClientModInitializer {
     }
 
     private void cancelAuthentication(String reason) {
+        cancelAuthentication(reason, true);
+    }
+
+    private void cancelAuthentication(String reason, boolean restoreScreens) {
         invalidateAndCancelTargetClaim(enablementAuthorization);
         federationVault.cancelTargetClaims();
         authenticationAttempts.cancel();
         authenticationIntegrityTask.cancel();
         observationIntegrityTask.cancel();
         cancelQueuedEvidenceFrames();
-        if (evidenceCapture != null) {
-            evidenceCapture.cancel(Minecraft.getInstance());
+        if (!restoreScreens) {
+            if (evidenceCapture != null) evidenceCapture.cancelWithoutUi();
+            mcaceEnablement.cancelWithoutUi();
+            explicitFileConsent.cancelWithoutUi();
+        } else {
+            if (evidenceCapture != null) {
+                evidenceCapture.cancel(Minecraft.getInstance());
+            }
+            mcaceEnablement.cancel(Minecraft.getInstance());
+            explicitFileConsent.cancel(Minecraft.getInstance());
         }
-        mcaceEnablement.cancel(Minecraft.getInstance());
-        explicitFileConsent.cancel(Minecraft.getInstance());
         enablementAuthorization = null;
         explicitFileAuthorization = null;
         heartbeatSchedule.cancel();

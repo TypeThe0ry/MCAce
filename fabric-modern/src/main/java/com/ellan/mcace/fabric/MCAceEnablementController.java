@@ -24,7 +24,7 @@ final class MCAceEnablementController {
     private static final long MAX_DECISION_AGE_MILLIS = Duration.ofSeconds(300).toMillis();
     private final Clock clock;
     private final LongSupplier monotonicMillis;
-    private Pending pending;
+    private volatile Pending pending;
 
     MCAceEnablementController() {
         this(Clock.systemUTC(), () -> System.nanoTime() / 1_000_000L);
@@ -89,6 +89,13 @@ final class MCAceEnablementController {
             ConsentUiSupport.setScreen(client, current.previous());
         }
         current.declined().run();
+    }
+
+    /** Disconnect owns its next screen; revoke the pending decision without touching Minecraft UI. */
+    void cancelWithoutUi() {
+        Pending current = pending;
+        pending = null;
+        if (current != null) current.declined().run();
     }
 
     static boolean isCurrent(Object active, Object candidate) {

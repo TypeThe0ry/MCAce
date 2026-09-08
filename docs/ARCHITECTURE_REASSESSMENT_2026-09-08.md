@@ -557,3 +557,28 @@ variants contain this call pattern. A fix should invalidate connection authority
 immediately while scheduling only UI work on the render thread, with stale-work
 guards so cleanup cannot overwrite a new connection's UI. No fix or successful
 retest is claimed yet. Do not automatically restart a consent-waiting GUI loop.
+
+### Disconnect cancellation correction
+
+On base `7969627`, both Fabric implementations now call the no-screen-restoration
+cancellation path from DISCONNECT. Connection authorization, target claims,
+authentication generation and pending work are cancelled immediately as before.
+The three consent/capture controllers discard pending requests without inspecting
+or changing Minecraft's screen. Pending references are volatile for cross-thread
+visibility. Evidence cancellation still clears sensitive capture buffers and
+cancels the request. Normal in-UI cancellation retains its existing restoration.
+
+This supersedes the proposed deferred-UI cleanup: Minecraft owns the disconnect
+screen, so MCAce should not restore a previous loading/consent screen at all.
+No queued UI cleanup is created that could later overwrite a reconnect screen.
+This is a focused correction, not a claim of a complete concurrency audit.
+
+Local builds and selected tests passed on all exact targets: 1.21.11 (12 tests),
+26.1.2 (13), and 26.2 (13), zero failures/errors/skips. Coverage includes new
+background-thread enablement/explicit-file cancellation with no Minecraft UI
+instance, no approval on cancellation, no repeated decline from a second cancel,
+and existing enablement/attempt-generation contracts. The GUI privacy static
+check also passed. The capture cancellation path was compiled and inspected;
+the new behavioral tests specifically cover the two permission controllers.
+No new real GUI run was started. Disappearance of the observed disconnect warning
+and genuine authenticated inventory acceptance still require runtime verification.

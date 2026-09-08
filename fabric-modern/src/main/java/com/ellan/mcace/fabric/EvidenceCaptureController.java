@@ -42,7 +42,7 @@ final class EvidenceCaptureController implements AutoCloseable {
 
     private final Clock clock;
     private final ExecutorService encoder = Executors.newVirtualThreadPerTaskExecutor();
-    private Pending pending;
+    private volatile Pending pending;
 
     EvidenceCaptureController(Clock clock) {
         this.clock = Objects.requireNonNull(clock, "clock");
@@ -198,13 +198,18 @@ final class EvidenceCaptureController implements AutoCloseable {
 
     @Override
     public void close() {
+        cancelWithoutUi();
+        encoder.shutdownNow();
+    }
+
+    /** Discard pending capture on disconnect without restoring a previous screen. */
+    void cancelWithoutUi() {
         Pending current = pending;
         pending = null;
         if (current != null) {
             current.clearSensitive();
             current.sender().cancel(current.request());
         }
-        encoder.shutdownNow();
     }
 
     private void decide(Pending current, boolean allowed) {
