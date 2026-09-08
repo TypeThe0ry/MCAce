@@ -286,10 +286,28 @@ function Assert-NoAmbiguousJsonProperties([object]$Value) {
     }
 }
 
-function Assert-NoSecretFieldsOrAbsoluteStrings([object]$Value, [string]$Role) {
+function Assert-NoSecretFieldsOrAbsoluteStrings(
+        [object]$Value, [string]$Role, [string]$Field = '', [int]$Depth = 0) {
     if ($null -eq $Value -or $Value -is [ValueType]) { return }
     if ($Value -is [string]) {
         $text = [string]$Value
+        # Public cryptographic bytes are not filesystem paths. Restrict this
+        # exception to exact top-level schema fields, with canonical encoding
+        # and bounded lengths; schema and signature validation still follow.
+        $publicBytes = $Depth -eq 1 -and (
+            ($Role -ceq 'supervisor-trust-root' -and $Field -cin @('modulus_base64','exponent_base64')) -or
+            ($Role -ceq 'supervisor-receipt' -and $Field -ceq 'signature_base64'))
+        if ($publicBytes) {
+            try { $decoded = [Convert]::FromBase64String($text) }
+            catch { throw "MCACE_MATRIX_PUBLISH_PUBLIC_BASE64_INVALID|$Role|$Field" }
+            $minimum = 256; $maximum = 512
+            if ($Field -ceq 'exponent_base64') { $minimum = 1; $maximum = 4 }
+            if ($decoded.Length -lt $minimum -or $decoded.Length -gt $maximum -or
+                    [Convert]::ToBase64String($decoded) -cne $text) {
+                throw "MCACE_MATRIX_PUBLISH_PUBLIC_BASE64_INVALID|$Role|$Field"
+            }
+            return
+        }
         if ($text -cmatch '^[A-Za-z]:[\\/]' -or $text.StartsWith('\\', [StringComparison]::Ordinal) -or
                 ($text.StartsWith('/', [StringComparison]::Ordinal) -and
                  -not $text.StartsWith('//', [StringComparison]::Ordinal))) {
@@ -306,7 +324,7 @@ function Assert-NoSecretFieldsOrAbsoluteStrings([object]$Value, [string]$Role) {
             if ($name -match '(^|_)(password|passwd|secret|token|credential|credentials|cookie|authorization|api_key|access_key|client_secret|private_key)(_|$)') {
                 throw "MCACE_MATRIX_PUBLISH_SECRET_FIELD_REJECTED|$Role|$key"
             }
-            Assert-NoSecretFieldsOrAbsoluteStrings $Value[$key] $Role
+            Assert-NoSecretFieldsOrAbsoluteStrings $Value[$key] $Role ([string]$key) ($Depth + 1)
         }
         return
     }
@@ -316,12 +334,12 @@ function Assert-NoSecretFieldsOrAbsoluteStrings([object]$Value, [string]$Role) {
             if ($name -match '(^|_)(password|passwd|secret|token|credential|credentials|cookie|authorization|api_key|access_key|client_secret|private_key)(_|$)') {
                 throw "MCACE_MATRIX_PUBLISH_SECRET_FIELD_REJECTED|$Role|$($property.Name)"
             }
-            Assert-NoSecretFieldsOrAbsoluteStrings $property.Value $Role
+            Assert-NoSecretFieldsOrAbsoluteStrings $property.Value $Role ([string]$property.Name) ($Depth + 1)
         }
         return
     }
     if ($Value -is [Collections.IEnumerable]) {
-        foreach ($item in $Value) { Assert-NoSecretFieldsOrAbsoluteStrings $item $Role }
+        foreach ($item in $Value) { Assert-NoSecretFieldsOrAbsoluteStrings $item $Role '' ($Depth + 1) }
     }
 }
 
