@@ -90,3 +90,54 @@ Two diagnostic passes do not replace the exact-commit 12-case matrix or establis
 the cause of the earlier latency spike. Both used the existing 5-second deadline.
 The next failure will now distinguish engine initialization from policy work;
 no production timeout change is justified by the attribution data collected so far.
+
+## Exact f055c2c matrix: slow policy preparation reproduced
+
+Source and artifact source:
+`f055c2c828f3817ecdac21e1d89b164d62e87949`. Its V4 release bundle was built
+successfully (6 deployables, 8 entries) and the three-version compatibility
+contract executed successfully. The preceding f6e8a48 bundle was copied to
+`build/release-history/f6e8a48-before-f055c2c-20260908/release-bundle` with all
+8 file hashes compared. Fleet inspection found the registered Helio offline
+with stale telemetry, so this run used local cached dependencies, serially.
+
+The exact-source strict matrix terminated with exit 1:
+
+| Case | Result | Authentication work |
+| --- | --- | --- |
+| Paper 1.21.11 / Velocity | PASS, backend admission/context confirmed, no residue | 323 ms |
+| Paper 1.21.11 / BungeeCord | PASS, checkpoint accepted, no residue | 218 ms |
+| Folia 1.21.11 / Velocity | FAIL, SocketTimeoutException, no residue | 11926 ms |
+| Remaining 9 cases | Not executed | Not measured |
+
+Folia's separate counters show engine initialization 252 ms, policy preparation
+11456 ms and frame preparation 142 ms. The peer reached PLAY, sent authentication
+frames, but observed no AUTH_RESULT. The proxy logged the challenge at 21:03:13
+UTC+08 and timeout to LIMITED at 21:03:19. This narrows the slow operation to
+`prepareServerHello`, including signature checks, policy cache handling and class
+loading; it does not yet identify the sub-operation responsible.
+
+Failure report:
+`build/runtime-player-probe/runs/velocity-folia-2026-09-08T13-01-03-573243600Z/report.json`.
+SHA-256: `ff332ec779b2b2b3fde9252f72a2b0f47b33c9e713a731dc3b03cc472063b9bb`.
+Matrix log: `build/matrix-f055c2c-20260908.log`.
+No external receipt was requested/produced at the failed third case.
+
+### Incremental performance diagnostic
+
+A separate JFR-instrumented test JVM run passed without modifying product code
+or the timeout: `velocity-folia-2026-09-08T13-05-44-652109900Z`.
+Total authentication 432 ms; engine 29 ms; policy 300 ms; frame preparation 46 ms.
+Report SHA-256: `2ab5de5c7151e7ce80202915ccb1016fcb648113b20552e8eb56009c0804586d`.
+Log: `build/folia-policy-profile-f055c2c-20260908.log`.
+
+The 87-second recording includes eight sampled stacks containing handshake/cache
+code. Samples show class loading/JAR reads, method-handle generation and EdDSA
+signing. They are samples from a successful run, not measured attribution of the
+11456 ms failure. A strict-recompilation profile is the next useful comparison;
+do not call class loading, antivirus or cache I/O the established root cause.
+
+JFR is retained locally at `build/folia-policy-f055c2c.jfr`, SHA-256
+`e4be57a2dbc50c835710c3805405b1148e78ae9de929e8fbbfd03e3ddcf0cba8`.
+It contains machine/environment metadata and must not be committed or uploaded
+without sanitization. Only this diagnostic summary is tracked.
