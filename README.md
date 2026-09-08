@@ -1,5 +1,13 @@
 # MCAce
 
+Development: Velocity now has an opt-in administrator-defined inventory rejection
+path for exact loaded Mod IDs and selected resource-pack identifiers. It defaults
+off and is independent of signed-disposition MONITOR mode. This is not a cheating
+verdict, content-based Xray detection, or a guaranteed pre-entry barrier. Real
+disconnect acceptance and Bungee parity are pending. Read the
+[configuration, evidence semantics and limitations](docs/INVENTORY_ADMISSION.md)
+before enabling it.
+
 Development update (2026-09-08): Velocity and BungeeCord now expose
 `/mcaceobservation freshness <uuid> [seconds]` to `mcace.admin.audit` administrators.
 The optional diagnostic window defaults to three refresh intervals (currently 900 seconds; range 1–3600). Results

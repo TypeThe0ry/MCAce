@@ -360,6 +360,34 @@ public final class ServerHandshakeCoordinator {
                 context.lastArtifactObservationSequence, receivedAt, clock.instant(), maximumAge));
     }
 
+    public enum InventoryAdmissionExecution { DISPATCHED, STALE_REPORT, DUPLICATE, ACTION_FAILED }
+
+    /**
+     * Serializes a one-shot local admission action with accepted report updates/removal.
+     * Caller must acquire its physical-login lock BEFORE entering this method. The callback
+     * must be nonblocking and must not acquire other locks or wait for asynchronous results.
+     * This is administrator inventory policy, never SERVER_CONFIRMED cheating authority.
+     */
+    public synchronized InventoryAdmissionExecution executeInventoryAdmission(
+            UUID playerId, String sessionId, long sequence, Instant receivedAt, Duration maximumAge,
+            java.util.function.BooleanSupplier action) {
+        Objects.requireNonNull(action, "action");
+        var snapshot = artifactTelemetrySnapshot(playerId, maximumAge);
+        if (snapshot.isEmpty() || !snapshot.orElseThrow().matchesFreshReceipt(sessionId, sequence, receivedAt)) {
+            return InventoryAdmissionExecution.STALE_REPORT;
+        }
+        SessionContext context = sessions.get(playerId);
+        if (context.inventoryAdmissionClaimed) return InventoryAdmissionExecution.DUPLICATE;
+        // Claim before dispatch: an ambiguous exception must not cause repeated disconnects.
+        context.inventoryAdmissionClaimed = true;
+        try {
+            return action.getAsBoolean() ? InventoryAdmissionExecution.DISPATCHED
+                    : InventoryAdmissionExecution.ACTION_FAILED;
+        } catch (RuntimeException exception) {
+            return InventoryAdmissionExecution.ACTION_FAILED;
+        }
+    }
+
     /**
      * Returns the narrow local-authentication binding needed by the opt-in, client-carried
      * federation flow. This is a read-only view: querying it never publishes an SDK snapshot,
@@ -1265,6 +1293,7 @@ public final class ServerHandshakeCoordinator {
         private AuthRequest authenticatedRequest;
         private Instant authenticatedAt;
         private byte[] authenticatedManifestRoot;
+        private boolean inventoryAdmissionClaimed;
         private byte[] lastArtifactObservationRoot;
         private long lastArtifactObservationSequence;
         private byte[] lastArtifactObservationUpdateSha256;

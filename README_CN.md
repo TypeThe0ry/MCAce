@@ -1,5 +1,10 @@
 # MCAce（中文说明）
 
+开发更新：Velocity 已接入可选的管理员清单拒绝规则，精确匹配已加载 Mod ID 和已启用资源包标识。
+默认关闭，且其启用开关独立于签名处置路径的 MONITOR 模式。它不是作弊定罪、基于内容的矿透检测，
+也不是保证先拦截再入服的屏障。真实断开效果验收和 Bungee 对齐仍待完成；启用前请阅读
+[配置方式、证据语义与限制](docs/INVENTORY_ADMISSION.md)。
+
 开发更新（2026-09-08）：Velocity 和 BungeeCord 已提供管理员只读命令
 `/mcaceobservation freshness <uuid> [秒数]`，需要 `mcace.admin.audit` 权限。
 诊断窗口默认三个上报周期（当前 900 秒），范围为 1–3600 秒；返回 FRESH、STALE、CLOCK_ANOMALY

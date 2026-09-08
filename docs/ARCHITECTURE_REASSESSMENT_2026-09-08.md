@@ -260,6 +260,37 @@ Receipt matching covers session/sequence/time mismatch, exact expiry and a
 pre-receipt clock anomaly. Velocity and Bungee main sources compile against the
 new record. Scheduler/player end-to-end execution still requires live validation.
 
+## Opt-in inventory rejection implementation
+
+The next implementation now adds a separate administrator-configured inventory
+path for Velocity. `InventoryAdmissionPolicy` compares exact loaded Mod IDs and
+selected resource-pack identifiers; it does not promote observations to trusted
+cheating authority. `inventory-admission.properties` is absent/disabled by default.
+Its explicit enabled switch is independent of signed-disposition MONITOR mode.
+
+Accepted initial/dynamic reports use the bounded audit handoff. When matched,
+the adapter acquires its physical-login lock before calling the coordinator's
+`executeInventoryAdmission`. The coordinator checks the receipt identity/freshness
+and claims a one-shot attempt before the disconnect API call under its monitor.
+Accepted updates and removal cannot interleave during this call. Route-state
+locking occurs after leaving the coordinator monitor but before releasing the
+physical-login lock. Exceptions are ACTION_FAILED and consume the attempt;
+they are not silently retried. No risk-score or trusted authority changes occur.
+
+This supersedes the earlier statement that no inventory disconnect path exists,
+but does not complete its acceptance. Queue saturation, audit failure, delayed
+reporting and lack of a pre-backend barrier remain limitations. Bungee parity,
+real-client disconnect evidence, content-based Xray detection efficacy and final
+release verification remain pending. See [inventory admission](INVENTORY_ADMISSION.md)
+for configuration, rollback, evidence semantics and the complete limitations.
+
+Local JDK 21 offline validation: 35 handshake tests, 2 inventory-policy tests,
+2 Velocity inventory-config tests and 13 Velocity executor tests passed (52 total,
+zero failures/errors/skips); Velocity main/test sources compiled. Tests cover
+disabled defaults, selected-versus-installed matching, bounded exact selectors,
+stale/replaced receipts, one-shot dispatch, failure deduplication and independent
+claims after reconnect. This is not a live proxy/client disconnection test.
+
 ## Retained GUI run details (2026-09-08, UTC+08)
 
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.

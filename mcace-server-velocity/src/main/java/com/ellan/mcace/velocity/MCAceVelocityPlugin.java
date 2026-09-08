@@ -127,6 +127,8 @@ public final class MCAceVelocityPlugin {
     private final ConcurrentMap<UUID, Instant> lastBackendPublish = new ConcurrentHashMap<>();
     private ServerHandshakeCoordinator handshakes;
     private VelocityAdmissionConfig admissionConfig;
+    private com.ellan.mcace.core.session.InventoryAdmissionPolicy inventoryAdmission =
+            com.ellan.mcace.core.session.InventoryAdmissionPolicy.disabled();
     private ServerPolicyManager policyManager;
     private AsyncSecurityAuditSink asyncAuditSink;
     private SignedAdmissionSnapshotCodec admissionSnapshotCodec;
@@ -168,6 +170,8 @@ public final class MCAceVelocityPlugin {
     public void onProxyInitialize(ProxyInitializeEvent event) {
         try {
             admissionConfig = VelocityAdmissionConfig.loadOrCreate(dataDirectory.resolve("mcace.properties"));
+            inventoryAdmission = VelocityInventoryAdmissionConfig.load(
+                    dataDirectory.resolve("inventory-admission.properties"));
             dispositionRoutes = VelocityDispositionRoutes.resolve(
                     admissionConfig, name -> server.getServer(name).isPresent());
             if (dispositionRoutes.validationStatus() != VelocityDispositionRoutes.ValidationStatus.ACTIVE
@@ -1076,8 +1080,39 @@ public final class MCAceVelocityPlugin {
             AuthenticatedManifestDispositionEvent event) {
         long sequence = manifest.observationSequence();
         Instant receivedAt = manifest.receivedAt();
+        var inventoryFinding = inventoryAdmission.evaluate(manifest.request());
         // Capture receipt identity only, never the raw inventory, in the scheduler closure.
         server.getScheduler().buildTask(this, () -> {
+            if (inventoryFinding != com.ellan.mcace.core.session.InventoryAdmissionPolicy.Finding.NONE) {
+                synchronized (connectionLifecycleLock) {
+                    var login = currentAuthenticatedLoginLocked(event.playerId(), event.sessionId());
+                    if (login.isEmpty()) return;
+                    PhysicalLogin currentLogin = login.orElseThrow();
+                    var outcome = coordinator().executeInventoryAdmission(event.playerId(), event.sessionId(),
+                            sequence, receivedAt,
+                            com.ellan.mcace.protocol.ProtocolConstants.ARTIFACT_OBSERVATION_INTERVAL.multipliedBy(3),
+                            () -> {
+                                currentLogin.player().disconnect(Component.text(
+                                        "MCAce: your reported inventory does not meet this server's entry rules. "
+                                                + "This is not a cheating verdict."));
+                                return true;
+                            });
+                    if (outcome == com.ellan.mcace.core.session.ServerHandshakeCoordinator.InventoryAdmissionExecution.DISPATCHED
+                            || outcome == com.ellan.mcace.core.session.ServerHandshakeCoordinator.InventoryAdmissionExecution.ACTION_FAILED) {
+                        // Keep route-state locking outside the coordinator monitor, while the
+                        // physical-login lock still excludes concurrent route/disconnect handlers.
+                        deferredDispositionRoutes.markDenied(event.playerId(), event.sessionId(),
+                                currentLogin.ticket(), currentLogin.player());
+                        deferredAdmissionRoutes.clear(event.playerId());
+                    }
+                    logger.info("MCAce inventory admission: player={} finding={} result={} "
+                                    + "authority=ADMIN_CONFIGURED_INVENTORY execution-evidence={} client-receipt-confirmed=false",
+                            event.playerId(), inventoryFinding, outcome,
+                            outcome == com.ellan.mcace.core.session.ServerHandshakeCoordinator.InventoryAdmissionExecution.DISPATCHED
+                                    ? "DISCONNECT_API_ACCEPTED" : "NO_NEW_EFFECT_CONFIRMED");
+                }
+                return;
+            }
             var current = coordinator().artifactTelemetrySnapshot(event.playerId(),
                     com.ellan.mcace.protocol.ProtocolConstants.ARTIFACT_OBSERVATION_INTERVAL.multipliedBy(3));
             if (current.isEmpty() || !current.orElseThrow().matchesFreshReceipt(

@@ -420,6 +420,28 @@ final class HandshakeIntegrationTest {
     }
 
     @Test
+    void failedInventoryAdmissionIsNotRetriedAndReplacementHasIndependentClaim() throws Exception {
+        for (int attempt = 0; attempt < 2; attempt++) {
+            var client = client(serverKeys);
+            var authentication = frames(client, server.begin(playerId));
+            server.receive(playerId, authentication.get(0));
+            server.receive(playerId, authentication.get(1));
+            Duration ttl = Duration.ofSeconds(30);
+            var receipt = server.artifactTelemetrySnapshot(playerId, ttl).orElseThrow();
+            AtomicInteger calls = new AtomicInteger();
+            assertEquals(ServerHandshakeCoordinator.InventoryAdmissionExecution.ACTION_FAILED,
+                    server.executeInventoryAdmission(playerId, receipt.sessionId(), 0, receipt.receivedAt(), ttl,
+                            () -> { calls.incrementAndGet(); throw new IllegalStateException("test dispatch failed"); }));
+            assertEquals(ServerHandshakeCoordinator.InventoryAdmissionExecution.DUPLICATE,
+                    server.executeInventoryAdmission(playerId, receipt.sessionId(), 0, receipt.receivedAt(), ttl,
+                            () -> { calls.incrementAndGet(); return true; }));
+            assertEquals(1, calls.get());
+            assertEquals(AdmissionStatus.VERIFIED, api.snapshot(playerId).orElseThrow().admissionStatus());
+            server.remove(playerId);
+        }
+    }
+
+    @Test
     void exposesReceiptFreshnessWithoutRenewalOnRetryOrLeakingReplacedSession() throws Exception {
         Duration ttl = Duration.ofSeconds(2);
         assertTrue(server.artifactTelemetrySnapshot(playerId, ttl).isEmpty());
@@ -449,13 +471,34 @@ final class HandshakeIntegrationTest {
         assertEquals(clock.instant(), fresh.receivedAt());
         assertEquals(ArtifactTelemetrySnapshot.Freshness.FRESH, fresh.freshness());
 
+        AtomicInteger admissionCalls = new AtomicInteger();
+        java.util.function.BooleanSupplier action = () -> { admissionCalls.incrementAndGet(); return true; };
+        assertEquals(ServerHandshakeCoordinator.InventoryAdmissionExecution.STALE_REPORT,
+                server.executeInventoryAdmission(playerId, initial.sessionId(), initial.updateSequence(),
+                        initial.receivedAt(), ttl, action));
+        assertEquals(0, admissionCalls.get());
+        assertEquals(ServerHandshakeCoordinator.InventoryAdmissionExecution.DISPATCHED,
+                server.executeInventoryAdmission(playerId, fresh.sessionId(), fresh.updateSequence(),
+                        fresh.receivedAt(), ttl, action));
+        assertEquals(ServerHandshakeCoordinator.InventoryAdmissionExecution.DUPLICATE,
+                server.executeInventoryAdmission(playerId, fresh.sessionId(), fresh.updateSequence(),
+                        fresh.receivedAt(), ttl, action));
+        assertEquals(1, admissionCalls.get());
+
         clock.advance(ttl);
         var retry = sendObservationFrames(client.retryArtifactObservationUpdate(update));
         assertTrue(client.receiveArtifactObservationResult(retry.outboundFrames().getFirst(), update).accepted());
         var afterRetry = server.artifactTelemetrySnapshot(playerId, ttl).orElseThrow();
         assertEquals(fresh.receivedAt(), afterRetry.receivedAt());
         assertEquals(ArtifactTelemetrySnapshot.Freshness.STALE, afterRetry.freshness());
+        assertEquals(ServerHandshakeCoordinator.InventoryAdmissionExecution.STALE_REPORT,
+                server.executeInventoryAdmission(playerId, fresh.sessionId(), fresh.updateSequence(),
+                        fresh.receivedAt(), ttl, action));
         server.begin(playerId);
+        assertEquals(ServerHandshakeCoordinator.InventoryAdmissionExecution.STALE_REPORT,
+                server.executeInventoryAdmission(playerId, fresh.sessionId(), fresh.updateSequence(),
+                        fresh.receivedAt(), ttl, action));
+        assertEquals(1, admissionCalls.get());
         assertTrue(server.artifactTelemetrySnapshot(playerId, ttl).isEmpty());
         server.remove(playerId);
         assertTrue(server.artifactTelemetrySnapshot(playerId, ttl).isEmpty());
