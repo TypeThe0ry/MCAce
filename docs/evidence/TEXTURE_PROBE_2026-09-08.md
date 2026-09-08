@@ -98,3 +98,25 @@ bundle predates this product change and must not be presented as its build.
 
 以上是实际 PNG 内容与签名协议的自动化集成测试，不是 Minecraft GUI 实服验收。
 真实客户端重载材质 → 服务端接收 → 明确策略处置仍待验证，旧发布包不包含本次代码。
+
+## Candidate build / 候选构建
+
+After implementation, `releaseBundle` succeeded for source
+`fcc5396d140760da29fdb91a6a2347fe59ef0fb9`, artifact source
+`91ce31dc98ab4b0b0ccb09e534ca87a8a0c69688`, version `0.0.1`.
+The V4 manifest reports six deployables and eight bundle entries. All six
+on-disk SHA-256 values were independently compared with `SHA256SUMS`:
+
+```text
+2e9d9d3672df30bfa6fbdb280a8c7b8f55cf62eb76e7b054b0a63febc24119ac  mcace-client-fabric-1.21.11.jar
+122cbcd29aa6412df74dd2c281b86c3f32310e6a2406deea4c66c7305811144a  mcace-client-fabric-26.1.2.jar
+86b9f8a867e485cfa4fa01e133a80a095cb8c10f3e098f1ee32f964586cedcf4  mcace-client-fabric-26.2.jar
+24079074685ea001cc3edceb9e5fa639a502cd9bc4e5707908d51cfad9cdbe91  mcace-server-velocity.jar
+6fd7e75db5096dd66bc8df044646fff4f06eb495eb9b5d5fb14a5ba7093d2309  mcace-server-bungeecord.jar
+bb48dce55e3b75b9347e146107309355daeac57b60e642a7702044c72d6e10d8  mcace-server-paper.jar
+```
+
+Version compatibility static contracts also passed with six negative cases.
+This is a local candidate build, not protected-main/tag CI or release approval.
+Its source identity is the commit above, not the later documentation-only
+commit recording this result. No tag or GitHub Release was created.
