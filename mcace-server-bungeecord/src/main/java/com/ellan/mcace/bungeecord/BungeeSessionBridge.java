@@ -84,6 +84,12 @@ public interface BungeeSessionBridge extends AutoCloseable {
 
     MCAceApi api();
 
+    /** Optional read-only freshness view; unsupported bridges must not report fresh telemetry. */
+    default Optional<com.ellan.mcace.core.session.ArtifactTelemetrySnapshot> artifactTelemetrySnapshot(
+            UUID playerId, java.time.Duration maximumAge) {
+        return Optional.empty();
+    }
+
     default Optional<FederationRuntime> federationRuntime() {
         return Optional.empty();
     }

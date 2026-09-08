@@ -317,6 +317,12 @@ public final class CoordinatorBungeeSessionBridge implements BungeeSessionBridge
     }
 
     @Override
+    public Optional<com.ellan.mcace.core.session.ArtifactTelemetrySnapshot> artifactTelemetrySnapshot(
+            UUID playerId, java.time.Duration maximumAge) {
+        return coordinator.artifactTelemetrySnapshot(playerId, maximumAge);
+    }
+
+    @Override
     public void setDispositionEventHandler(Consumer<AuthenticatedManifestDispositionEvent> handler) {
         dispositionEventHandler.set(Objects.requireNonNull(handler, "handler"));
     }

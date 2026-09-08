@@ -429,7 +429,9 @@ public final class MCAceVelocityPlugin {
                     }, evidenceAdmin, this::issueEvidenceReview));
             server.getCommandManager().register(
                     server.getCommandManager().metaBuilder("mcaceobservation").plugin(this).build(),
-                    new MCAceObservationCommand(artifactObservationAudit));
+                    new MCAceObservationCommand(artifactObservationAudit,
+                            new com.ellan.mcace.core.proxy.ArtifactTelemetryQuery(
+                                    (playerId, maximumAge) -> coordinator().artifactTelemetrySnapshot(playerId, maximumAge))));
             server.getCommandManager().register(
                     server.getCommandManager().metaBuilder("mcacedisposition").plugin(this).build(),
                     new MCAceDispositionReviewCommand(this::reviewDisposition));

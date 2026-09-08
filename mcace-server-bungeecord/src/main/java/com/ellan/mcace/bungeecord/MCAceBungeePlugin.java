@@ -171,11 +171,14 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         try {
             getProxy().getPluginManager().registerCommand(this, new MCAceObservationCommand(
                     new FileArtifactObservationAuditSink(getDataFolder().toPath().resolve("artifact-observation-audit.log"),
-                            8L * 1024 * 1024)));
+                            8L * 1024 * 1024), new com.ellan.mcace.core.proxy.ArtifactTelemetryQuery(
+                                    (playerId, maximumAge) -> bridge.artifactTelemetrySnapshot(playerId, maximumAge))));
         } catch (java.io.IOException exception) {
             getLogger().warning("MCAce dynamic observation audit view disabled: " + safeMessage(exception));
             getProxy().getPluginManager().registerCommand(this,
-                    new MCAceObservationCommand(ArtifactObservationAuditSink.noop()));
+                    new MCAceObservationCommand(ArtifactObservationAuditSink.noop(),
+                            new com.ellan.mcace.core.proxy.ArtifactTelemetryQuery(
+                                    (playerId, maximumAge) -> bridge.artifactTelemetrySnapshot(playerId, maximumAge))));
         }
         getProxy().getPluginManager().registerCommand(this, new MCAceFederationCommand(
                 federationOperations(), name -> java.util.Optional.ofNullable(getProxy().getPlayer(name))

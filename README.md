@@ -1,5 +1,13 @@
 # MCAce
 
+Development update (2026-09-08): Velocity and BungeeCord now expose
+`/mcaceobservation freshness <uuid> [seconds]` to `mcace.admin.audit` administrators.
+The optional diagnostic window defaults to 120 seconds (range 1–3600). Results
+are FRESH, STALE, CLOCK_ANOMALY, or UNAVAILABLE; they describe server-received
+client telemetry, not cheat-free proof or action execution. This read-only query
+does not change admission or configure enforcement. See the
+[architecture reassessment and implementation status](docs/ARCHITECTURE_REASSESSMENT_2026-09-08.md).
+
 MCAce is a privacy-first client visibility, admission, evidence, and reversible-
 disposition stack for modern Minecraft networks. Its deployable surface is a
 Fabric client Mod, Velocity/BungeeCord proxy plugins, and one Paper/Folia backend

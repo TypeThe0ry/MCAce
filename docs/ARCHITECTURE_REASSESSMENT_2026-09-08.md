@@ -69,8 +69,8 @@ does not detect every possible clock adjustment and is not a monotonic timer.
 Missing, replaced, or removed authenticated sessions return no snapshot. Retries
 that receive an idempotent ACK and semantically rejected updates do not refresh
 the receipt time. Authentication/admission is deliberately unchanged by this
-query. This is not yet exposed by a server command or connected to enforcement;
-the client update cadence and operator-configured policy remain integration work.
+query. The command integration below exposes this view; it is not connected to
+enforcement. Client update cadence and operator-configured policy remain work.
 
 Verification: targeted `ArtifactTelemetrySnapshotTest` and the complete
 `HandshakeIntegrationTest` suite passed (35 tests, zero failures). Coverage includes
@@ -80,6 +80,26 @@ rejected update, unchanged VERIFIED admission, replacement and removal.
 The first test attempt incorrectly retried a client update after consuming its
 ACK; the test was corrected to model a genuinely lost ACK before retrying.
 No real-client runtime or complete repository test pass is claimed for this change.
+
+## Administrator query integration
+
+Velocity and BungeeCord now route `/mcaceobservation freshness <uuid> [seconds]`
+through the same `ArtifactTelemetryQuery`. The command retains `mcace.admin.audit`
+permission, checked before any lookup. UUIDs must have canonical form (case is
+ignored); the diagnostic window defaults to 120 seconds and is bounded to 1–3600.
+It is a query parameter, not a persisted policy or an automatic kick timeout.
+
+Output includes the freshness classification, accepted update sequence, receipt
+and evaluation timestamps, and diagnostic window. It excludes artifact identities,
+file paths, player identifiers and session identifiers. UNAVAILABLE covers both
+missing authenticated manifests and bridges without this optional capability.
+The local Bungee coordinator bridge delegates to the shared core; the default
+extension method reports no snapshot rather than inventing a fresh state.
+
+Tests cover malformed/shortened UUIDs, argument bounds, no lookup on invalid input,
+default/custom windows, exact expiry, content-free output, and permission-before-
+lookup behavior in both proxy adapters. Real in-game command acceptance remains
+pending; unit command dispatch is not a substitute for that runtime check.
 
 ## Current runtime observation (2026-09-08, UTC+08)
 
