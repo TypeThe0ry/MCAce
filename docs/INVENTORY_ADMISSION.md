@@ -39,6 +39,30 @@ separate capability.
 
 ## Execution and evidence
 
+### Read-only receipt summary (Velocity)
+
+An administrator with `mcace.admin.audit` can run:
+
+```text
+/mcaceobservation inventory <player-uuid>
+```
+
+The reply reports `loadedMods`, `selectedResourcePacks`, `selectedShaderPacks`,
+update sequence, server receipt time, and FRESH/STALE/CLOCK_ANOMALY using the
+same 900-second diagnostic window as the default freshness query. UNAVAILABLE
+means no current authenticated manifest, not an empty or safe client. Counts
+are entries reported by the client, not independently discovered artifacts.
+
+The summary and receipt are captured under one session lock. Initial
+authentication and accepted dynamic updates replace the counts; rejected
+updates/retries do not refresh the receipt. Replacement/disconnected sessions
+are unavailable. Queries neither renew telemetry nor invoke enforcement.
+No Mod names, filesystem paths, file bytes, player UUID, or session ID are
+printed in the reply. This command is a verification aid, not a full ModList
+browser, an Xray verdict, or an action receipt. Bungee does not yet expose it.
+
+### Rule execution
+
 Initial and accepted dynamic manifests use the existing bounded audit handoff.
 A matching finding carries only its reason and server receipt identity into the
 Velocity scheduler. The physical-login lock is acquired before the coordinator

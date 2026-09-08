@@ -1,5 +1,10 @@
 # MCAce（中文说明）
 
+开发更新：Velocity 管理员可用 `/mcaceobservation inventory <uuid>`（权限 `mcace.admin.audit`）
+查看服务端收到的已加载 Mod、选中资源包／光影包数量，以及上报序号、接收时间和新鲜度。
+回复不输出文件路径或内容。这是客户端声明的接收摘要，不是独立检测或完整 ModList 浏览器。
+详见[清单操作说明](docs/INVENTORY_ADMISSION.md)。
+
 开发更新：Velocity 已接入可选的管理员清单拒绝规则，精确匹配已加载 Mod ID 和已启用资源包标识。
 默认关闭，且其启用开关独立于签名处置路径的 MONITOR 模式。它不是作弊定罪、基于内容的矿透检测，
 也不是保证先拦截再入服的屏障。Paper 1.21.11/Velocity 的 Mod 标识对照已完整通过两次，

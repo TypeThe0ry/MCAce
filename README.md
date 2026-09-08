@@ -1,5 +1,11 @@
 # MCAce
 
+Development: Velocity administrators can inspect server-received inventory counts
+with `/mcaceobservation inventory <uuid>` (`mcace.admin.audit`). It reports loaded
+Mod and selected resource/shader pack counts with receipt freshness, without
+printing paths or file contents. It does not independently verify client claims.
+See [inventory operations](docs/INVENTORY_ADMISSION.md).
+
 Development: Velocity now has an opt-in administrator-defined inventory rejection
 path for exact loaded Mod IDs and selected resource-pack identifiers. It defaults
 off and is independent of signed-disposition MONITOR mode. This is not a cheating

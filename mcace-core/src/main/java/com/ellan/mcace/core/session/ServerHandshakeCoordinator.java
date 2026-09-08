@@ -362,6 +362,16 @@ public final class ServerHandshakeCoordinator {
 
     public enum InventoryAdmissionExecution { DISPATCHED, STALE_REPORT, DUPLICATE, ACTION_FAILED }
 
+    /** Counts and receipt are captured under the same session lock, without refreshing either. */
+    public synchronized Optional<InventoryTelemetrySnapshot> inventoryTelemetrySnapshot(
+            UUID playerId, Duration maximumAge) {
+        return artifactTelemetrySnapshot(playerId, maximumAge).map(receipt -> {
+            SessionContext context = sessions.get(playerId);
+            return new InventoryTelemetrySnapshot(receipt, context.inventoryLoadedMods,
+                    context.inventoryResourcePacks, context.inventoryShaderPacks);
+        });
+    }
+
     /**
      * Serializes a one-shot local admission action with accepted report updates/removal.
      * Caller must acquire its physical-login lock BEFORE entering this method. The callback
@@ -765,6 +775,9 @@ public final class ServerHandshakeCoordinator {
         context.lastArtifactObservationRoot = update.getAggregateRootSha256().toByteArray();
         context.lastArtifactObservationUpdateSha256 = updateSha256.clone();
         context.lastArtifactObservationAcceptedAtEpochMs = now;
+        context.inventoryLoadedMods = candidate.getLoadedModsCount();
+        context.inventoryResourcePacks = candidate.getSelectedResourcePacksCount();
+        context.inventoryShaderPacks = candidate.getSelectedShaderPacksCount();
         notifyArtifactObservationUpdate(new AuthenticatedManifest(
                 context.session.playerId(), context.session.id(), context.policy, candidate,
                 Instant.ofEpochMilli(update.getObservedAtEpochMs()), update.getUpdateSequence(),
@@ -845,6 +858,9 @@ public final class ServerHandshakeCoordinator {
         context.authenticatedAt = clock.instant();
         context.terminal = true;
         context.authenticatedRequest = request;
+        context.inventoryLoadedMods = request.getLoadedModsCount();
+        context.inventoryResourcePacks = request.getSelectedResourcePacksCount();
+        context.inventoryShaderPacks = request.getSelectedShaderPacksCount();
         context.authenticatedManifestRoot = request.getManifestRootSha256().toByteArray();
         context.lastArtifactObservationRoot = aggregateRoot(request);
         context.lastArtifactObservationSequence = 0L;
@@ -1291,6 +1307,9 @@ public final class ServerHandshakeCoordinator {
         private int heartbeatMissingPolls;
         private boolean heartbeatTemporaryControl;
         private AuthRequest authenticatedRequest;
+        private int inventoryLoadedMods;
+        private int inventoryResourcePacks;
+        private int inventoryShaderPacks;
         private Instant authenticatedAt;
         private byte[] authenticatedManifestRoot;
         private boolean inventoryAdmissionClaimed;

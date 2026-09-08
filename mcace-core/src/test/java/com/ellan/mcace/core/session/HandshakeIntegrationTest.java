@@ -445,6 +445,9 @@ final class HandshakeIntegrationTest {
             client.receiveAuthResult(authenticated.outboundFrames().getFirst());
             assertEquals(InventoryAdmissionPolicy.Finding.NONE, policy.evaluate(latest.get().request()));
             assertEquals(0, latest.get().observationSequence());
+            var initialInventory = server.inventoryTelemetrySnapshot(playerId, Duration.ofMinutes(15)).orElseThrow();
+            assertEquals(1, initialInventory.loadedMods());
+            assertEquals(0, initialInventory.selectedResourcePacks());
             AtomicInteger disconnectCalls = new AtomicInteger();
             AuthenticatedManifest blocked = null;
             for (int sequence = 1; sequence <= 3; sequence++) {
@@ -459,6 +462,12 @@ final class HandshakeIntegrationTest {
                 client.commitArtifactObservationUpdate(prepared);
                 var report = latest.get();
                 assertEquals(sequence, report.observationSequence());
+                var inventory = server.inventoryTelemetrySnapshot(playerId, Duration.ofMinutes(15)).orElseThrow();
+                assertEquals(sequence, inventory.telemetry().updateSequence());
+                assertEquals(report.receivedAt(), inventory.telemetry().receivedAt());
+                assertEquals(prohibitedState && modCase ? 2 : 1, inventory.loadedMods());
+                assertEquals(prohibitedState && !modCase ? 1 : 0, inventory.selectedResourcePacks());
+                assertEquals(0, inventory.selectedShaderPacks());
                 var expected = modCase ? InventoryAdmissionPolicy.Finding.PROHIBITED_LOADED_MOD
                         : InventoryAdmissionPolicy.Finding.PROHIBITED_SELECTED_RESOURCE_PACK;
                 assertEquals(prohibitedState ? expected : InventoryAdmissionPolicy.Finding.NONE,
@@ -560,6 +569,7 @@ final class HandshakeIntegrationTest {
     @Test
     void exposesReceiptFreshnessWithoutRenewalOnRetryOrLeakingReplacedSession() throws Exception {
         Duration ttl = Duration.ofSeconds(2);
+        assertTrue(server.inventoryTelemetrySnapshot(playerId, ttl).isEmpty());
         assertTrue(server.artifactTelemetrySnapshot(playerId, ttl).isEmpty());
         assertThrows(IllegalArgumentException.class,
                 () -> server.artifactTelemetrySnapshot(playerId, Duration.ZERO));
@@ -605,6 +615,7 @@ final class HandshakeIntegrationTest {
         var retry = sendObservationFrames(client.retryArtifactObservationUpdate(update));
         assertTrue(client.receiveArtifactObservationResult(retry.outboundFrames().getFirst(), update).accepted());
         var afterRetry = server.artifactTelemetrySnapshot(playerId, ttl).orElseThrow();
+        assertEquals(afterRetry, server.inventoryTelemetrySnapshot(playerId, ttl).orElseThrow().telemetry());
         assertEquals(fresh.receivedAt(), afterRetry.receivedAt());
         assertEquals(ArtifactTelemetrySnapshot.Freshness.STALE, afterRetry.freshness());
         assertEquals(ServerHandshakeCoordinator.InventoryAdmissionExecution.STALE_REPORT,
@@ -618,6 +629,7 @@ final class HandshakeIntegrationTest {
         assertTrue(server.artifactTelemetrySnapshot(playerId, ttl).isEmpty());
         server.remove(playerId);
         assertTrue(server.artifactTelemetrySnapshot(playerId, ttl).isEmpty());
+        assertTrue(server.inventoryTelemetrySnapshot(playerId, ttl).isEmpty());
     }
 
     @Test
@@ -717,6 +729,8 @@ final class HandshakeIntegrationTest {
         assertArrayEquals(MessageDigest.getInstance("SHA-256").digest(invalid.toByteArray()),
                 invalidResult.getUpdateSha256().toByteArray());
         assertEquals(0, updates.get(), "a semantic rejection cannot advance server state");
+        assertEquals(0, server.inventoryTelemetrySnapshot(playerId, Duration.ofMinutes(1))
+                .orElseThrow().selectedResourcePacks());
         assertEquals(initialReceipt.receivedAt(), server.artifactTelemetrySnapshot(
                 playerId, Duration.ofMinutes(1)).orElseThrow().receivedAt());
 

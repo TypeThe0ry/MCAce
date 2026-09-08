@@ -471,3 +471,32 @@ it does not select the launch username. This attempt passed `McAceProbe`, while
 Loom used `Player346`. The assertion was not reached because consent timed out.
 Future runs should omit this optional assertion unless the actual profile is fixed
 independently. This was a caller error, not a product detection failure.
+
+## Inventory receipt summary (2026-09-08)
+
+The three-version process-control results are now recorded in
+[inventory evidence](evidence/inventory-admission-2026-09-08.md), including the
+26.2 selected-pack baseline timeout and passing rerun. That intermittent timeout
+is not considered fixed.
+
+A gap in the existing GUI smoke was identified: authentication/evidence transfer
+alone does not assert that the server received the client's Loaded Mod graph or
+selected-pack counts. Velocity now exposes a read-only administrator command,
+`/mcaceobservation inventory <uuid>`, protected by `mcace.admin.audit`.
+It reports counts plus the current authenticated receipt's sequence/time/freshness.
+No artifact identifiers/content are printed, and this is not a full ModList browser.
+Counts are updated only alongside accepted authentication/dynamic telemetry;
+receipt and counts are read atomically without changing admission or freshness.
+
+Local verification on base `5df5c89` plus this change: Gradle exit 0, 40 tests,
+zero failures/errors/skips. These are in-JVM integration/command tests, not
+real Fabric GUI acceptance. Bungee and GUI smoke wiring remain pending.
+
+| Test class | Tests | JUnit SHA-256 |
+| --- | ---: | --- |
+| InventoryTelemetryQueryTest | 2 | `6f494a8fedc7d079a4e5e2cce27714705ef14fefb495ee2d477020da79dd1ab5` |
+| HandshakeIntegrationTest | 37 | `ee44ed3dc8a691d3950c105b85ed53ec5b9aa86404e3b03240c8f3094cc49f03` |
+| MCAceObservationCommandTest | 1 | `3464cf8ce04d242e82c760141448ffd0d579cfcdbdaa9e430969c21d745eb94c` |
+
+The local reports may be overwritten by later runs; these hashes identify this
+run but do not constitute retained release-grade raw evidence.
