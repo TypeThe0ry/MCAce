@@ -1506,8 +1506,41 @@ final class HandshakeIntegrationTest {
         return PolicyDocuments.signDelegated(policy, delegate.getPrivate(), delegate.getPublic(), trust);
     }
 
+    @Test
+    void authenticationCannotBecomeVerifiedWhenProcessingCrossesDeadline() throws Exception {
+        ClientHandshakeEngine client = client(serverKeys);
+        List<byte[]> authentication = frames(client, server.begin(playerId));
+        server.receive(playerId, authentication.getFirst());
+        assertEquals(AdmissionStatus.VERIFYING, api.snapshot(playerId).orElseThrow().admissionStatus());
+        clock.advance(Duration.ofSeconds(4));
+        clock.advanceAfterRead = Duration.ofSeconds(1);
+
+        HandshakeAction action = server.receive(playerId, authentication.getLast());
+
+        assertEquals(AdmissionStatus.LIMITED, action.snapshot().orElseThrow().admissionStatus());
+        assertEquals(TrustLevel.UNKNOWN, action.snapshot().orElseThrow().trustLevel());
+        assertTrue(action.outboundFrames().isEmpty());
+        assertTrue(server.currentAuthenticatedSessionId(playerId).isEmpty());
+    }
+
+    @Test
+    void authenticationCanCompleteJustBeforeDeadline() throws Exception {
+        ClientHandshakeEngine client = client(serverKeys);
+        List<byte[]> authentication = frames(client, server.begin(playerId));
+        server.receive(playerId, authentication.getFirst());
+        clock.advance(Duration.ofSeconds(4));
+        clock.advanceAfterRead = Duration.ofMillis(999);
+
+        HandshakeAction action = server.receive(playerId, authentication.getLast());
+
+        assertEquals(AdmissionStatus.VERIFIED, action.snapshot().orElseThrow().admissionStatus());
+        assertEquals(1, action.outboundFrames().size());
+        assertTrue(server.currentAuthenticatedSessionId(playerId).isPresent());
+    }
+
     private static final class MutableClock extends Clock {
         private Instant instant;
+        private Duration advanceAfterRead = Duration.ZERO;
 
         private MutableClock(Instant instant) {
             this.instant = instant;
@@ -1532,7 +1565,10 @@ final class HandshakeIntegrationTest {
 
         @Override
         public Instant instant() {
-            return instant;
+            Instant observed = instant;
+            instant = instant.plus(advanceAfterRead);
+            advanceAfterRead = Duration.ZERO;
+            return observed;
         }
     }
 

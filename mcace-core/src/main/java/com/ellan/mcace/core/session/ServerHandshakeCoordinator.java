@@ -854,8 +854,14 @@ public final class ServerHandshakeCoordinator {
         if (!validScopes(request, context.policy) || !validModManifestBinding(request, true)) {
             return violation(context.session.playerId(), context, RiskEventType.PROTOCOL_VIOLATION);
         }
+        // Verification may finish after the entry-time deadline check, especially on a cold
+        // runtime. Apply the same cutoff before granting trust on every AUTH transport path.
+        Instant authenticatedAt = clock.instant();
+        if (!authenticatedAt.isBefore(context.expiresAt)) {
+            return timeout(context);
+        }
         context.session.authenticate(TrustLevel.VERIFIED);
-        context.authenticatedAt = clock.instant();
+        context.authenticatedAt = authenticatedAt;
         context.terminal = true;
         context.authenticatedRequest = request;
         context.inventoryLoadedMods = request.getLoadedModsCount();
