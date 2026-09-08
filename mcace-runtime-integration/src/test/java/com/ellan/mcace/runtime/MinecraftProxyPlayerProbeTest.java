@@ -231,7 +231,13 @@ final class MinecraftProxyPlayerProbeTest {
                         + "|peer_created=" + (peer != null)
                         + "|server_hello=" + (peer != null && peer.serverHelloSeen)
                         + "|authentication_sent=" + (peer != null && peer.authenticationSent)
-                        + "|auth_result=" + (peer != null && peer.authResultSeen));
+                        + "|auth_result=" + (peer != null && peer.authResultSeen)
+                        + "|phase=" + (peer == null ? "NONE" : peer.state)
+                        + "|configuration_finished=" + (peer != null && peer.configurationFinished)
+                        + "|play_join=" + (peer != null && peer.playJoinSeen)
+                        + "|packet_ids=" + (peer == null ? "NONE" : peer.packetTrace.stream()
+                                .filter(value -> value.matches("(LOGIN|CONFIGURATION|PLAY):0x[0-9a-f]+"))
+                                .limit(64).collect(java.util.stream.Collectors.joining(","))));
                 primaryFailure = failure;
                 throw failure;
             } finally {

@@ -321,8 +321,13 @@ disconnect success is claimed. Earlier attempts exposed and corrected this new
 test's cleanup-root handling and its cold Windows listener wait. ACL validation
 remains intact. The latest executed run cleaned its owned processes and work tree.
 See [runtime details](INVENTORY_ADMISSION.md) for the failure sequence and the
-required property bindings. New fixed-field stage diagnostics are compiled for
-the next attempt, not represented as a completed successful rerun.
+required property bindings. Two further diagnostic executions also failed before
+ServerHello. The latest completed execution reached PLAY, finished configuration,
+and received GameJoin, but recorded no ServerHello, authentication submission, or
+AuthResult. This rules out a peer stuck in configuration for that run; handshake
+startup/channel delivery remains unresolved. The enabled-rule case was not reached.
+The bounded packet-ID trace contains protocol phase and IDs only, not packet
+contents, player inventory, or credentials. The failed run is not release evidence.
 
 ## Retained GUI run details (2026-09-08, UTC+08)
 
