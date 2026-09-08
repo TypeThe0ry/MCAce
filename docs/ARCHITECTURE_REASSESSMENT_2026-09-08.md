@@ -329,6 +329,16 @@ startup/channel delivery remains unresolved. The enabled-rule case was not reach
 The bounded packet-ID trace contains protocol phase and IDs only, not packet
 contents, player inventory, or credentials. The failed run is not release evidence.
 
+Further live diagnostics on the same date showed successful current-player login
+initialization and entry into challenge creation, followed by the same pre-hello
+timeout without dispatch or creation-failure markers. This moves investigation
+inside `ServerHandshakeCoordinator.begin()`, rather than assuming channel
+registration or the login identity guard failed. That path synchronously reads
+the policy and delegated key store; filesystem/ACL latency is a hypothesis, not
+a confirmed root cause. A subsequent thread-attach attempt found the owned proxy
+already terminated, so it supplied no blocking-stack evidence. All these runs
+failed in the disabled control; none proves inventory rejection or GUI detection.
+
 ## Retained GUI run details (2026-09-08, UTC+08)
 
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.

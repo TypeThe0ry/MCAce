@@ -584,7 +584,10 @@ public final class MCAceVelocityPlugin {
         VelocityLoginLifecycle.LoginTicket ticket;
         Optional<String> retiredSession;
         synchronized (connectionLifecycleLock) {
-            if (server.getPlayer(playerId).orElse(null) != player) return;
+            if (server.getPlayer(playerId).orElse(null) != player) {
+                logger.info("MCAce login initialization: current-player=false ticket-created=false");
+                return;
+            }
             // Velocity may publish a replacement before delivering the predecessor Disconnect.
             // Remove the exact old federation grant and coordinator (including pre-auth state)
             // before the replacement ticket becomes visible to any callback.
@@ -599,6 +602,7 @@ public final class MCAceVelocityPlugin {
             backendReadyBarrier.clear(playerId);
             backendReadyBarrier.resetForLogin(playerId);
         }
+        logger.info("MCAce login initialization: current-player=true ticket-created=true");
         // VelocityDispositionExecutor has its own monitor. Never acquire it while holding the
         // lifecycle lock; callbacks take the executor monitor before entering lifecycle actions.
         if (dispositionExecutor != null) {
@@ -1587,6 +1591,7 @@ public final class MCAceVelocityPlugin {
                     || isTicketTerminalLocked(playerId, ticket)
                     || !installTicketBoundChallenge(challengedPlayers, playerId, ticket)) return;
             try {
+                logger.info("MCAce challenge creation: current-ticket=true");
                 byte[] challenge = coordinator().begin(playerId);
                 boolean sent = isCurrentPhysicalLoginLocked(player, ticket)
                         && player.sendPluginMessage(MCAceVelocityChannels.HANDSHAKE, challenge);

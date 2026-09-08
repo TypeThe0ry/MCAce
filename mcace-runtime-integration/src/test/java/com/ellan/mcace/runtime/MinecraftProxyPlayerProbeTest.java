@@ -227,6 +227,14 @@ final class MinecraftProxyPlayerProbeTest {
                 System.out.println("MCACE_INVENTORY_RUNTIME_CASE_PASS|enabled=" + enabled
                         + "|real_proxy=true|raw_protocol_peer=true|fabric_gui=false");
             } catch (Exception | AssertionError failure) {
+                String proxyDiagnostics = harness == null ? "" : harness.proxyLogs();
+                System.out.println("MCACE_INVENTORY_HANDSHAKE_DIAGNOSTICS"
+                        + "|login_initialized=" + proxyDiagnostics.contains("MCAce login initialization: current-player=true ticket-created=true")
+                        + "|creation_entered=" + proxyDiagnostics.contains("MCAce challenge creation: current-ticket=true")
+                        + "|dispatch_logged=" + proxyDiagnostics.contains("MCAce challenge dispatch")
+                        + "|creation_failed=" + proxyDiagnostics.contains("Could not create MCAce challenge")
+                        + "|strict_start_failed=" + proxyDiagnostics.contains("MCAce strict handshake could not start")
+                        + "|channel_unavailable=" + proxyDiagnostics.contains("MCAce strict handshake channel is unavailable"));
                 System.out.println("MCACE_INVENTORY_RUNTIME_CASE_FAILED|enabled=" + enabled
                         + "|peer_created=" + (peer != null)
                         + "|server_hello=" + (peer != null && peer.serverHelloSeen)
