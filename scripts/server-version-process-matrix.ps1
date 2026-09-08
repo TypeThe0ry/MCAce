@@ -2294,6 +2294,17 @@ function ConvertTo-RepositoryRelative([string]$Path) {
     return $relative
 }
 
+function Assert-MatrixExecutionInputs {
+    # Reject unusable external inputs before any build, checkpoint reset or server
+    # startup. Final evidence assembly independently repeats these live checks.
+    $null = Read-ReleaseBundleSnapshot
+    $trustRoot = Read-MatrixSupervisorTrustRoot
+    $exchangeRoot = Assert-OutOfBandDirectory $SupervisorExchangeRoot 'SUPERVISOR_EXCHANGE_ROOT'
+    if (Test-FullPathBelow $exchangeRoot ([string]$trustRoot.evidence.digest.path)) {
+        throw 'SERVER_VERSION_MATRIX_SELF_SUPERVISOR_TRUST_ROOT_REJECTED'
+    }
+}
+
 function New-EvidenceTriplet {
     param(
         [Parameter(Mandatory)][object]$Current,
@@ -2751,6 +2762,7 @@ if ($ReportOnly) {
     exit 0
 }
 
+Assert-MatrixExecutionInputs
 Initialize-ExecuteDirectories
 $lock = Open-ExecutionLock
 try {

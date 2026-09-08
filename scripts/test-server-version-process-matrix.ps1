@@ -660,5 +660,55 @@ Assert-AssetManifest
     }
 }
 
+# Exercise the actual preflight function with bounded dependency doubles. The
+# production readers retain their existing hash, source and path validations.
+$preflight = $ast.Find({ param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and
+    $node.Name -eq 'Assert-MatrixExecutionInputs'
+}, $true)
+Assert-True ($null -ne $preflight) 'execution input preflight missing'
+& {
+    . ([ScriptBlock]::Create($preflight.Extent.Text))
+    function Read-ReleaseBundleSnapshot {
+        $script:preflightCalls.Add('bundle')
+        if ($script:preflightFailure -eq 'bundle') { throw 'bundle-rejected' }
+    }
+    function Read-MatrixSupervisorTrustRoot {
+        $script:preflightCalls.Add('trust')
+        if ($script:preflightFailure -eq 'trust') { throw 'trust-rejected' }
+        return @{ evidence = @{ digest = @{ path = 'public-root' } } }
+    }
+    function Assert-OutOfBandDirectory {
+        $script:preflightCalls.Add('exchange')
+        if ($script:preflightFailure -eq 'exchange') { throw 'exchange-rejected' }
+        return 'exchange-root'
+    }
+    function Test-FullPathBelow { return $script:preflightFailure -eq 'overlap' }
+    $SupervisorExchangeRoot = 'exchange-root'
+    foreach ($case in @('ok','bundle','trust','exchange','overlap')) {
+        $script:preflightFailure = $case
+        $script:preflightCalls = [Collections.Generic.List[string]]::new()
+        $failure = $null
+        try { Assert-MatrixExecutionInputs } catch { $failure = $_.Exception.Message }
+        if ($case -eq 'ok') {
+            Assert-True ($null -eq $failure) 'valid preflight rejected'
+        } elseif ($case -eq 'overlap') {
+            Assert-True ($failure -eq 'SERVER_VERSION_MATRIX_SELF_SUPERVISOR_TRUST_ROOT_REJECTED') 'overlap accepted'
+        } else {
+            Assert-True ($failure -eq "$case-rejected") 'input failure was swallowed'
+        }
+        $expected = switch ($case) {
+            'bundle' { 'bundle' }
+            'trust' { 'bundle,trust' }
+            default { 'bundle,trust,exchange' }
+        }
+        Assert-True (($script:preflightCalls -join ',') -eq $expected) 'preflight did not stop at first failure'
+    }
+}
+$topLevel = $ast.EndBlock.Statements.Extent.Text -join "`n"
+Assert-True ($topLevel.IndexOf("`nAssert-MatrixExecutionInputs`n") -ge 0) 'preflight not invoked at top level'
+Assert-True ($topLevel.IndexOf("`nAssert-MatrixExecutionInputs`n") -lt
+    $topLevel.IndexOf("`nInitialize-ExecuteDirectories`n")) 'preflight must precede execution mutations'
+
 Write-Output 'SERVER_VERSION_PROCESS_MATRIX_STATIC_TEST_PASS'
 exit 0
