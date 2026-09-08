@@ -130,3 +130,44 @@ cache; rerunning with `--no-configuration-cache` completed successfully.
 The new challenge display still requires a rebuilt release JAR and a fresh
 native GUI run. The earlier screenshot in this document predates this change
 and cannot verify its appearance or its signed evidence chain.
+
+## 5ccb9d6 runtime retry and controlled anti-cheat results
+
+The rebuilt 26.2 JAR (`79283b790451670af85a0349a5c6592bcbb45cd071128c55b42b62f117e78060`)
+loaded in the real Fabric client on source `5ccb9d62104817f4ff66d7087e5fcea0aff87142`.
+At 10:09:08 local time its render callback logged the exact configured challenge
+`d21b913e11ef83245c897d928b3f171234d665a71c78582c5f4e57b2e20e7e7a`.
+An unrelated Windows firewall prompt for `cyc-controller.exe` covered the
+client. Native input targeting rejected an attempted Minecraft maximize action
+because the point belonged to `PickerHost.exe`. No firewall action was taken,
+and no unobstructed challenge screenshot or GUI attestation was produced.
+
+The wrapper ended with exit code 1 and
+`FABRIC_FEDERATION_GUI_EXTERNAL_SCREENSHOT_NOT_CREATED_IN_VISIBLE_WINDOW`.
+Its failed directory is retained locally at
+`build/fabric-federation-gui-handoff/evidence-runs/20260908T020243638Z-26_2-VELOCITY-to-VELOCITY-f942800da5440031f0575b1c5901a6d1`.
+The `diagnostic-failure.json` marker records `release_eligible=false`; the real
+client log remains available. The test client required forced shutdown after
+the graceful timeout. Final Java inventory matched the pre-run processes
+44064, 23900 and 24116. The local directory may contain test credentials and
+must not be uploaded wholesale.
+
+While GUI work was obstructed, two controlled tests completed against the same
+source:
+
+- [Executable client/server fixture report](anticheat-live-20260908-5ccb9d6.json):
+  all three protocol versions passed, 3 same-session SERVER_CONFIRMED events,
+  signed lab policy action QUARANTINE, clean-client false-positive count 0.
+  This uses an MCAce-owned executable fixture and loopback protocol harness;
+  it does not launch third-party cheat code or a real Fabric client.
+- [26.2 metadata classification report](anticheat-classification-20260908-5ccb9d6.json):
+  3 tests passed, 2 client observations correlated with 2 server signals.
+  The Meteor metadata and resource pack receive CLIENT_REPORTED / LOW /
+  OBSERVE; the Xray fixture identifier is unknown. This does not establish
+  automatic recognition of Xray textures or real-world cheat interception.
+
+Report SHA-256 values respectively:
+`cb8056b427da94d4f3d768ad129db9b6a1a57ac0d59dcacf7ae588ffa9e024f2`
+and `e553f853b544ea619e6d40d80e9a7d029cdcbc7495719af6149362aeaf58a886`.
+These are diagnostic reports, not substitute release attestations. Production
+authority, genuine Vulcan callback and real federation handoff remain pending.
