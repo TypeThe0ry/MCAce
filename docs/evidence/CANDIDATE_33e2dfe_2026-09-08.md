@@ -36,6 +36,16 @@ a9e4eeb723769a9388d2810f54884fd479153165615af67e2e3450288bc1218b  mcace-client-f
 
 ## Acceptance remains incomplete
 
+The complete Paper module regression subsequently finished with exit 0 in
+6m 31s: 86 discovered, 0 failures, 0 errors, 8 skipped. The skipped
+platform/link/permission and licensed Vulcan checks are not validated by this
+result. This rerun used the unchanged product source at documentation descendant
+`d45b707e21e1cae5fdef718ff61031e21ec871a2`.
+Log: `build/backend-interaction-guard-full-33e2dfe-20260908.log`;
+SHA-256 `65f5a27a7d83505add268881117ce6662c254e6570681767fad0943841297294`.
+The existing runtime admission observer only sends an empty action bar after a
+snapshot callback; that marker does not validate this guard's event cancellation.
+
 This build and packaging contract do not prove GUI consent, actual inventory
 delivery, Xray or executable-cheat detection, interaction restriction under real
 server event dispatch, or stable cold Folia authentication. The previous matrix
