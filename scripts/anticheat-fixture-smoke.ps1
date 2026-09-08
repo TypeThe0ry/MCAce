@@ -93,6 +93,36 @@ function Restore-Env([string]$Name, [string]$Value) {
     [Environment]::SetEnvironmentVariable($Name, $Value, 'Process')
 }
 
+function Get-ClassificationJUnitSummary([string]$Raw) {
+    $settings = [Xml.XmlReaderSettings]::new()
+    $settings.DtdProcessing = [Xml.DtdProcessing]::Prohibit
+    $settings.XmlResolver = $null
+    $reader = [Xml.XmlReader]::Create([IO.StringReader]::new($Raw), $settings)
+    try {
+        $document = [Xml.XmlDocument]::new()
+        $document.XmlResolver = $null
+        $document.Load($reader)
+    } finally { $reader.Dispose() }
+    $suite = $document.DocumentElement
+    $expected = @('classifiesMeteorAndXrayFixturesWithoutCallingEitherCheat()',
+        'correlatesClientFixtureWithIndependentServerSignalForBothArtifactTypes()')
+    $cases = @($suite.SelectNodes('testcase'))
+    if ($suite.LocalName -cne 'testsuite' -or
+            $suite.GetAttribute('name') -cne 'com.ellan.mcace.client.observation.AntiCheatFixtureClassificationTest' -or
+            $suite.GetAttribute('tests') -cne '2' -or $cases.Count -ne 2 -or
+            $suite.GetAttribute('failures') -cne '0' -or $suite.GetAttribute('errors') -cne '0' -or
+            $suite.GetAttribute('skipped') -cne '0' -or
+            $suite.SelectNodes('.//failure | .//error | .//skipped').Count -ne 0) {
+        throw 'ANTICHEAT_FIXTURE_JUNIT_NOT_FULLY_PASSED'
+    }
+    foreach ($name in $expected) {
+        if (@($cases | Where-Object { $_.GetAttribute('name') -ceq $name }).Count -ne 1) {
+            throw 'ANTICHEAT_FIXTURE_JUNIT_CASE_MISMATCH'
+        }
+    }
+    return 2
+}
+
 function Invoke-ClassificationTest([string]$Meteor, [string]$Xray) {
     $oldMeteor = Get-EnvValue 'MCACE_TEST_METEOR_JAR'
     $oldXray = Get-EnvValue 'MCACE_TEST_XRAY_PACK'
@@ -130,6 +160,7 @@ function Invoke-ClassificationTest([string]$Meteor, [string]$Xray) {
         }
         $arguments = @(
             ':mcace-client-common:test',
+            '--rerun',
             '--tests', 'com.ellan.mcace.client.observation.AntiCheatFixtureClassificationTest',
             '--offline', '--dependency-verification=strict', '--no-daemon',
             '--no-build-cache', '--no-configuration-cache', '--no-parallel',
@@ -137,6 +168,7 @@ function Invoke-ClassificationTest([string]$Meteor, [string]$Xray) {
         )
         $previousErrorActionPreference = $ErrorActionPreference
         $ErrorActionPreference = 'Continue'
+        $startedAt = [DateTime]::UtcNow
         Push-Location -LiteralPath $repoRoot
         try {
             $output = (& $gradle @arguments 2>&1 | Out-String)
@@ -149,10 +181,18 @@ function Invoke-ClassificationTest([string]$Meteor, [string]$Xray) {
         if ($exitCode -ne 0) {
             throw "ANTICHEAT_FIXTURE_GRADLE_FAILED: exit=$exitCode`n$output"
         }
+        $junit = Join-Path $repoRoot 'mcace-client-common\build\test-results\test\TEST-com.ellan.mcace.client.observation.AntiCheatFixtureClassificationTest.xml'
+        $junitFile = Get-Item -LiteralPath $junit -ErrorAction Stop
+        if ($junitFile.LastWriteTimeUtc -lt $startedAt -or $junitFile.Length -gt 2097152) {
+            throw 'ANTICHEAT_FIXTURE_JUNIT_STALE_OR_OVERSIZED'
+        }
+        $testCount = Get-ClassificationJUnitSummary (Get-Content -LiteralPath $junit -Raw)
         return [ordered]@{
             passed = $true
             test_name = 'AntiCheatFixtureClassificationTest'
-            tests = 3
+            tests = $testCount
+            skipped = 0
+            junit_sha256 = Get-FileSha256 $junit
             client_observation_count = 2
             server_signal_count = 2
             server_client_correlated = $true
@@ -189,7 +229,9 @@ if ($PSCmdlet.ParameterSetName -eq 'Report') {
     $actualHash = Assert-ExactHash $resolved $ExpectedReportSha256 'ReportPath'
     $report = Get-Content -LiteralPath $resolved -Raw | ConvertFrom-Json
     if ($report.schema -cne $schema -or $report.passed -ne $true -or
-            $report.executable_code_loaded -ne $false) {
+            $report.executable_code_loaded -ne $false -or
+            $report.test.tests -ne 2 -or $report.test.skipped -ne 0 -or
+            $report.test.junit_sha256 -cnotmatch '^[0-9a-f]{64}$') {
         throw 'ANTICHEAT_FIXTURE_REPORT_INVALID'
     }
     $age = ([DateTimeOffset]::UtcNow - [DateTimeOffset]::Parse($report.generated_at)).TotalMinutes

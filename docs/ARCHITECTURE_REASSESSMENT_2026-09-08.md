@@ -582,3 +582,40 @@ check also passed. The capture cancellation path was compiled and inspected;
 the new behavioral tests specifically cover the two permission controllers.
 No new real GUI run was started. Disappearance of the observed disconnect warning
 and genuine authenticated inventory acceptance still require runtime verification.
+
+## Full client regression and fixture reporting correction
+
+On clean product source `4d4e2ec`, the complete client suites ran successfully:
+
+| Module | Discovered | Skipped | Failures/errors |
+| --- | ---: | ---: | ---: |
+| client-common | 103 | 3 | 0 |
+| Fabric 1.21.11 | 53 | 0 | 0 |
+| Fabric 26.1.2 | 54 | 0 | 0 |
+| Fabric 26.2 | 54 | 0 | 0 |
+
+Thus 261 tests executed initially, with three coverage gaps rather than 264
+passes. One skip was the unavailable symlink/reparse-directory test environment;
+two were opt-in artifact classification tests without configured sample paths.
+This was local JDK 21/JDK 25 execution, not live GUI/server acceptance.
+
+Inspection of the fixture wrapper found a reporting defect: it hard-coded
+`tests=3`, although `AntiCheatFixtureClassificationTest` has only two tests,
+and trusted Gradle exit 0 without requiring a fresh, non-skipped JUnit result.
+The wrapper now forces test execution with `--rerun` and validates fresh bounded
+JUnit XML, the exact class/two case names, and zero failures/errors/skips.
+DTD processing is prohibited. Report-only checks require the corrected count,
+zero skipped tests and a JUnit hash. Historical reports claiming three tests
+must not be used as accurate execution counts.
+
+The two opt-in tests were then rerun successfully using the existing 26.2
+metadata-only fixture (empty entrypoints) and resource-pack metadata ZIP; neither
+was loaded as executable game code. Both actually executed with zero skips.
+Report SHA-256:
+`bbf0339276349174a6c146aea123c9a18a92c1817f244434048bdc6702823a85`.
+JUnit SHA-256:
+`e92052e8c00de4f5ff718d5d1a5a05decf6fa95c268e2a2aa0f8ae66a0595a82`.
+The corrected report-only check passed. Positive/negative XML parser tests passed
+on PowerShell Core and Windows PowerShell 5.1. This closes the two opt-in test
+skips only for these controlled inputs; the symlink gap remains. Simulated
+SERVER_CONFIRMED correlation is not a genuine provider event or production proof.

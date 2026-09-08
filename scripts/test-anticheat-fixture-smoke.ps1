@@ -40,4 +40,25 @@ foreach ($forbidden in @(
     }
 }
 
+$ast = [System.Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$null, [ref]$errors)
+$function = $ast.Find({ param($node)
+    $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Get-ClassificationJUnitSummary'
+}, $true)
+if ($null -eq $function -or -not $source.Contains("'--rerun'")) { throw 'JUNIT_EXECUTION_CHECK_MISSING' }
+. ([scriptblock]::Create($function.Extent.Text))
+$valid = '<testsuite name="com.ellan.mcace.client.observation.AntiCheatFixtureClassificationTest" tests="2" failures="0" errors="0" skipped="0"><testcase name="classifiesMeteorAndXrayFixturesWithoutCallingEitherCheat()"/><testcase name="correlatesClientFixtureWithIndependentServerSignalForBothArtifactTypes()"/></testsuite>'
+if ((Get-ClassificationJUnitSummary $valid) -ne 2) { throw 'JUNIT_POSITIVE_FAILED' }
+foreach ($invalid in @(
+    $valid.Replace('tests="2"', 'tests="3"'),
+    $valid.Replace('skipped="0"', 'skipped="2"'),
+    $valid.Replace('failures="0"', 'failures="1"'),
+    $valid.Replace('errors="0"', 'errors="1"'),
+    $valid.Replace('/>', '><skipped/></testcase>'),
+    $valid.Replace('correlatesClientFixtureWithIndependentServerSignalForBothArtifactTypes()', 'unexpected()'),
+    ('<!DOCTYPE testsuite [<!ENTITY x "bad">]>' + $valid),
+    '<invalid')) {
+    $rejected = $false
+    try { Get-ClassificationJUnitSummary $invalid | Out-Null } catch { $rejected = $true }
+    if (-not $rejected) { throw 'JUNIT_NEGATIVE_ACCEPTED' }
+}
 Write-Output 'ANTICHEAT_FIXTURE_WRAPPER_STATIC_PASS'
