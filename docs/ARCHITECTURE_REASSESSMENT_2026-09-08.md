@@ -379,6 +379,31 @@ refresh and handshake threads. It must not treat installation as cheat-free or
 use a stale/expired policy merely to pass runtime tests. This design change is
 not implemented by the duplicate-traversal optimization.
 
+### Bounded handshake policy snapshot implementation
+
+Velocity now supplies the coordinator with a nonblocking policy snapshot reader,
+not the disk-backed `current()` method. Initialization still loads/verifies the
+policy and delegated key store. A single-flight scheduled refresh runs every
+minute; successful disk-backed reads publish an immutable snapshot. Handshakes
+reject absent snapshots, clock rollback relative to validation, snapshots aged
+120 seconds or more, signature/time validation failures (zero clock skew), or
+release-configuration mismatch. Rotation invalidates the old snapshot before
+performing disk work. Failed refresh/rotation clears the snapshot. A concurrent
+replacement during verification causes the reader to reject rather than return
+the superseded snapshot.
+
+This intentionally changes disk-change detection from per-handshake to periodic:
+an already validated snapshot may remain usable until the next refresh detects
+failure or its 120-second lease expires. It does not make an offline filesystem
+change instant revocation, and does not retroactively revoke existing sessions.
+The refresh path retains the existing key ownership, ACL, and signed-policy
+checks. The manager monitor and private-key file I/O are not acquired by the
+handshake reader. No stale snapshot is extended by reads or refresh failures.
+
+The new focused snapshot test and the real-process inventory test have been
+started; compilation succeeded, but successful runtime recovery is not yet
+claimed. The change applies to Velocity, not BungeeCord's policy provider.
+
 ## Retained GUI run details (2026-09-08, UTC+08)
 
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.

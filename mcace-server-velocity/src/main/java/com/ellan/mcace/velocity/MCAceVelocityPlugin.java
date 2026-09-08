@@ -258,7 +258,7 @@ public final class MCAceVelocityPlugin {
                     new RiskEngine(RiskPolicy.defaults()),
                     api,
                     admissionConfig.handshakeTimeout(),
-                    policyManager,
+                    policyManager::currentForHandshake,
                     auditSink,
                     this::logPersistenceFailure,
                     this::enqueueManifestAudit,
@@ -464,6 +464,12 @@ public final class MCAceVelocityPlugin {
                     })
                     .repeat(Duration.ofMinutes(1))
                     .schedule();
+            server.getScheduler().buildTask(this, () -> {
+                        try { policyManager.refreshForHandshake(); }
+                        catch (PolicyException | RuntimeException failure) {
+                            logger.warn("MCAce handshake policy refresh failed; snapshot disabled", failure);
+                        }
+                    }).delay(Duration.ofMinutes(1)).repeat(Duration.ofMinutes(1)).schedule();
             logger.info("MCAce Phase 2 handshake initialized with enforcement.mode={} effective.mode={}; server key fingerprint={}",
                     admissionConfig.mode(), dispositionRoutes.effectiveMode(), ServerIdentityStore.fingerprint(identity));
             logger.info("MCAce backend/world/game-mode context enabled in shadow-only mode");
