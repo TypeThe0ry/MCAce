@@ -141,3 +141,45 @@ JFR is retained locally at `build/folia-policy-f055c2c.jfr`, SHA-256
 `e4be57a2dbc50c835710c3805405b1148e78ae9de929e8fbbfd03e3ddcf0cba8`.
 It contains machine/environment metadata and must not be committed or uploaded
 without sanitization. Only this diagnostic summary is tracked.
+
+## Strict-recompilation JFR comparison
+
+At clean documentation descendant `a48430ed647382d511aa3691a5f8f374f42dbe4b`,
+the same Folia case was run with rerun-tasks, strict dependency verification,
+no build/configuration cache, no parallelism and one worker, with JFR enabled
+only for the test JVM. Product code and the 5-second deadline were unchanged.
+
+The failure reproduced: exit 1, 35 tasks executed, 3m 50s build duration.
+Run `velocity-folia-2026-09-08T13-11-39-351123800Z` reached PLAY and sent AUTH,
+but received no AUTH_RESULT. Counters: total 8539 ms, engine 80 ms, policy
+6878 ms, frames 1464 ms. Owned process residue was empty.
+Report SHA-256: `82485404b4a15a3a3a1b2cdc7cf1e1b664b06eeae1af1cd799073e661e565c4e`.
+Log: `build/folia-policy-strict-profile-a48430e-20260908.log`.
+
+The local JFR file `build/folia-policy-strict-a48430e.jfr` has SHA-256
+`da67388a22811f0d174a688116ffb6694869f8b4ff282b5d6e28342a6bbd278b`.
+It remains untracked because recording defaults include environment metadata.
+Streaming inspection through the JDK RecordingFile API avoided expanding the
+whole recording into a large PowerShell JSON object.
+
+Confirmed observations in the 13:13:15–13:13:26 UTC window:
+
+- Stacks containing handshake/cache code include class loading, JAR reads,
+  decompression, cryptography and deoptimization. These are sampled observations,
+  not additive wall-time measurements or proof that any one dominates.
+- A handshake-associated JAR FileRead event lasted 163 ms.
+- SafepointBegin events lasted 1103.9078 ms and 200.3007 ms; these are time to
+  reach safepoints, not proof all application threads paused for the full interval.
+- A GCPhasePause near the end lasted 18.3203 ms, not a multi-second GC pause.
+- Machine CPU samples were approximately 45–59%; aggregate CPU does not establish
+  individual-thread scheduling availability or exclude contention.
+
+A read-only D-volume check reported Healthy/OK and the selected recent System
+event query returned no disk-class errors. This is not an exhaustive hardware
+health or latency test. No antivirus exclusions, power settings, priorities,
+credentials, user processes or production timeout settings were changed.
+
+Next: examine the authentication-pending admission state and deadline design
+alongside cold-start work. A deadline change must preserve unverified-client
+restrictions and bounded resource use; a fixture-only timeout increase or
+verification/cache bypass is not a demonstrated product fix.
