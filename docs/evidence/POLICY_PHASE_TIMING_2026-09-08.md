@@ -72,3 +72,19 @@ and profile the slow stages before selecting a performance change. A passing
 warm retry alone will not establish that the cold-start failure is fixed.
 The complete version matrix remains incomplete; this failed diagnostic is not
 release acceptance or a claim of real cheat detection.
+
+## Frame-input diagnostic follow-up
+
+The runtime test peer now additionally records `AUTH_FRAME_PHASE_NANOS`, with
+separate `inputs` and `creation` intervals. Inputs cover integrity-bundle and
+loaded-mod fixture construction; creation covers `createAuthenticationFrames`.
+Each entered interval records elapsed monotonic time in `finally`, including
+exception paths; an unentered interval remains -1. The existing aggregate
+`frames_ms` field is retained. Only the test peer changes: product protocol,
+signatures, admission deadlines and collection behavior are unchanged.
+
+Three focused report regressions passed (zero failures, errors or skips),
+including both successful-trace and failed-report preservation of these
+counters and absence of invented timing before work begins. Gradle exited 0
+in 30 seconds. This static regression does not establish improved runtime
+performance; a fresh controlled run is required to interpret the new counters.

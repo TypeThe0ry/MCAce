@@ -229,6 +229,24 @@ final class MinecraftProxyPlayerProbeTest {
     }
 
     @Test
+    void framePreparationTimingsSurviveSuccessAndFailureReports() {
+        MinecraftWirePeer peer = new MinecraftWirePeer(null);
+        assertTrue(peer.authenticationTimingTrace().stream()
+                .noneMatch(value -> value.startsWith("AUTH_FRAME_PHASE_NANOS:")));
+        peer.authenticationInputNanos = 1200;
+        peer.authenticationCreationNanos = 3400;
+        String expected = "AUTH_FRAME_PHASE_NANOS:inputs=1200:creation=3400";
+        assertTrue(peer.authenticationTimingTrace().contains(expected));
+        ProbeReport report = ProbeReport.failure(ProxyKind.VELOCITY, BackendKind.FOLIA,
+                "26.1.2", 1, 2, List.of("timeout")).withFailureProgress(peer);
+        assertTrue(report.packetTrace().contains(expected));
+        assertTrue(!report.authAccepted());
+        peer.authenticationCreationNanos = -1;
+        assertTrue(peer.authenticationTimingTrace().contains(
+                "AUTH_FRAME_PHASE_NANOS:inputs=1200:creation=-1"));
+    }
+
+    @Test
     void failureReportBeforeConnectionDoesNotInventProgress() {
         ProbeReport report = ProbeReport.failure(ProxyKind.VELOCITY, BackendKind.FOLIA,
                 "1.21.11", 1, 2, List.of("connect failed"))
@@ -3964,6 +3982,8 @@ final class MinecraftProxyPlayerProbeTest {
         private long engineInitializationMillis = -1;
         private long policyPrepareMillis = -1;
         private long authenticationFramesMillis = -1;
+        private long authenticationInputNanos = -1;
+        private long authenticationCreationNanos = -1;
         private List<String> inventorySelectedPacks = List.of();
         private ClientHandshakeEngine engine;
         private byte[] federationFirstOuter;
@@ -4269,6 +4289,10 @@ final class MinecraftProxyPlayerProbeTest {
         }
 
         private void appendPolicyPhaseTrace(List<String> trace) {
+            if (authenticationInputNanos >= 0 || authenticationCreationNanos >= 0) {
+                trace.add("AUTH_FRAME_PHASE_NANOS:inputs=" + authenticationInputNanos
+                        + ":creation=" + authenticationCreationNanos);
+            }
             if (engine == null) return;
             ClientHandshakeEngine.PolicyPreparationTimings timing = engine.policyPreparationTimings();
             trace.add("POLICY_PHASE_NANOS:envelope=" + timing.envelopeNanos()
@@ -5115,9 +5139,22 @@ final class MinecraftProxyPlayerProbeTest {
                         new VerifiedPolicyCache(harness.runRoot.resolve("client-cache"), Clock.systemUTC()));
                 policyPrepareMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - policyStarted);
                 long framesStarted = System.nanoTime();
-                List<ClientHandshakeEngine.OutboundFrame> authenticationFrames = engine.createAuthenticationFrames(
-                        authenticationBundle(verifiedPolicy), List.of(), inventorySelectedPacks, List.of(),
-                        probeLoadedModGraph());
+                ClientIntegrityBundle authenticationInput;
+                List<LoadedModObservation> loadedModInput;
+                try {
+                    authenticationInput = authenticationBundle(verifiedPolicy);
+                    loadedModInput = probeLoadedModGraph();
+                } finally {
+                    authenticationInputNanos = System.nanoTime() - framesStarted;
+                }
+                long creationStarted = System.nanoTime();
+                List<ClientHandshakeEngine.OutboundFrame> authenticationFrames;
+                try {
+                    authenticationFrames = engine.createAuthenticationFrames(
+                            authenticationInput, List.of(), inventorySelectedPacks, List.of(), loadedModInput);
+                } finally {
+                    authenticationCreationNanos = System.nanoTime() - creationStarted;
+                }
                 authenticationFramesMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - framesStarted);
                 boolean allAuthenticationFramesDuringConfiguration = !authenticationFrames.isEmpty();
                 for (ClientHandshakeEngine.OutboundFrame frame : authenticationFrames) {
