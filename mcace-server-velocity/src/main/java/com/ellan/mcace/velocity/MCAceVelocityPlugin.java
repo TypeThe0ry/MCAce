@@ -801,6 +801,25 @@ public final class MCAceVelocityPlugin {
     }
 
     private void pollHeartbeatTransitions() {
+        for (var notice : coordinator().pollArtifactTelemetryNotices(admissionConfig.telemetryNotice())) {
+            synchronized (connectionLifecycleLock) {
+                var current = currentAuthenticatedLoginLocked(notice.playerId(), notice.sessionId());
+                if (current.isEmpty()) {
+                    logger.info("MCAce telemetry notice kind={} result=SKIPPED_SESSION_CHANGED", notice.kind());
+                    continue;
+                }
+                try {
+                    String message = notice.kind() == com.ellan.mcace.core.session.ArtifactTelemetryNotice.Kind.STALE
+                            ? "MCAce: your client inventory report is overdue. This is not a cheating verdict."
+                            : "MCAce: your client inventory reporting has recovered.";
+                    current.orElseThrow().player().sendMessage(Component.text(message));
+                    logger.info("MCAce telemetry notice player={} kind={} result=DISPATCHED (client receipt unconfirmed)",
+                            notice.playerId(), notice.kind());
+                } catch (RuntimeException exception) {
+                    logger.warn("MCAce telemetry notice player={} kind={} result=FAILED", notice.playerId(), notice.kind());
+                }
+            }
+        }
         for (HeartbeatTransition transition : coordinator().pollHeartbeatTransitions()) {
             if (currentAuthenticatedLogin(transition.playerId(), transition.sessionId()).isEmpty()) continue;
             logger.info("MCAce heartbeat player={} session={} {}->{} (monitor-only; admission unchanged)",

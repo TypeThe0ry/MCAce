@@ -7,6 +7,12 @@
 查询不会改变准入，也不会设置自动处置策略。详见
 [架构重评与实施进度](docs/ARCHITECTURE_REASSESSMENT_2026-09-08.md)。
 
+Velocity 可选择在清单过期、收到更新清单后恢复时向玩家发送提示。在 `mcace.properties`
+设置 `telemetry.notice.enabled=true` 和 `telemetry.notice.max-age-seconds=900`，
+再按维护流程重启插件／服务器加载。默认关闭；窗口必须大于 300 秒且不超过 3600 秒。
+它只发通知，不踢出或封禁；日志仅证明发送 API 调用结果，不证明客户端已收到。
+Bungee 自动通知和真实运行时消息送达验证仍待完成。
+
 MCAce 是面向现代 Minecraft 网络的隐私优先客户端可见性、准入、证据与可逆处置栈。
 它的可部署边界严格收窄为 Fabric 客户端 Mod、Velocity/BungeeCord 代理插件，以及一个
 Paper/Folia 后端插件。

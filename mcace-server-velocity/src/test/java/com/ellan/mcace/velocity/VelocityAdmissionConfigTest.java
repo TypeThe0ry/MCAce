@@ -39,6 +39,24 @@ final class VelocityAdmissionConfigTest {
         assertEquals(java.util.List.of("1.21.11"), config.policy().minecraftVersions());
         assertEquals(java.util.List.of("fabric-phase2-dev"), config.policy().clientBuildIds());
         assertEquals(false, config.heartbeatMissing().enabled());
+        assertFalse(config.telemetryNotice().enabled());
+        assertEquals(Duration.ofSeconds(900), config.telemetryNotice().maximumAge());
+    }
+
+    @Test
+    void telemetryNoticeIsExplicitAndValidatesItsOwnAgeBudget() throws Exception {
+        Path path = temporaryDirectory.resolve("telemetry.properties");
+        Files.writeString(path, "telemetry.notice.enabled=true\ntelemetry.notice.max-age-seconds=600\n");
+        var config = VelocityAdmissionConfig.loadOrCreate(path);
+        assertTrue(config.telemetryNotice().enabled());
+        assertEquals(Duration.ofSeconds(600), config.telemetryNotice().maximumAge());
+        assertEquals(VelocityAdmissionConfig.Mode.MONITOR, config.mode());
+        for (String age : List.of("0", "300", "3601", "-1", "invalid")) {
+            Files.writeString(path, "telemetry.notice.enabled=true\ntelemetry.notice.max-age-seconds=" + age + "\n");
+            assertThrows(IOException.class, () -> VelocityAdmissionConfig.loadOrCreate(path));
+        }
+        Files.writeString(path, "telemetry.notice.enabled=maybe\n");
+        assertThrows(IOException.class, () -> VelocityAdmissionConfig.loadOrCreate(path));
     }
 
     @Test

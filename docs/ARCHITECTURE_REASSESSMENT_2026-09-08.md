@@ -125,6 +125,38 @@ wait up to the normal cooldown plus scan/transport time. A faster scoped change
 notification, its server rate limit, and an explicit configured freshness policy
 require coordinated client/server design before any automatic action is enabled.
 
+## Optional Velocity stale-report notices
+
+Velocity now reads `telemetry.notice.enabled=false` and
+`telemetry.notice.max-age-seconds=900` from its `mcace.properties`. Existing files
+without these keys remain disabled. Enabling requires an age greater than the
+normal five-minute refresh interval and no more than 3600 seconds. Configuration
+is loaded at plugin startup; the query command does not change it.
+
+The existing heartbeat polling task also asks the coordinator for deduplicated
+STALE/RECOVERED notice intents. Recovery requires a newer accepted observation
+sequence: changing the clock alone cannot manufacture recovery. The adapter
+rechecks the physical login and authenticated session under the existing lifecycle
+lock before sending a content-free player message. It never changes risk/admission,
+routes, kicks, or bans a player.
+
+The log records DISPATCHED when the send API returns, FAILED on a send exception,
+or SKIPPED_SESSION_CHANGED if the original connection is gone. DISPATCHED is not
+client receipt confirmation. Each transition causes at most one attempt; a failed
+notification is logged, not retried on every poll. These are operational logs,
+not durable punishment receipts. No genuine runtime delivery is claimed yet.
+
+This adapter integration currently covers Velocity only. Bungee's read-only
+freshness command remains available but automatic stale-report notices have not
+been connected there. The shared core poller and policy are covered by automated
+tests; actual message delivery, production policy actions, and low-latency
+selected-state notifications are still pending work.
+
+Targeted validation passed: 40 core telemetry/handshake tests and 21 Velocity
+configuration/observation-command tests, zero failures or skips. Velocity main
+and test sources compiled. The tests do not drive a live player's network or
+prove delivery of the optional notice; that remains a separate acceptance case.
+
 ## Current runtime observation (2026-09-08, UTC+08)
 
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.

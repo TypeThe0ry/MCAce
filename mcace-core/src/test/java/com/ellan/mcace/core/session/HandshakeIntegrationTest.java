@@ -453,6 +453,35 @@ final class HandshakeIntegrationTest {
     }
 
     @Test
+    void telemetryNoticesAreOptInDeduplicatedAndRequireNewObservationToRecover() throws Exception {
+        var policy = new ArtifactTelemetryNoticePolicy(true, Duration.ofSeconds(301));
+        ClientHandshakeEngine client = client(serverKeys);
+        var authentication = frames(client, server.begin(playerId));
+        server.receive(playerId, authentication.get(0));
+        var authenticated = server.receive(playerId, authentication.get(1));
+        client.receiveAuthResult(authenticated.outboundFrames().getFirst());
+        assertTrue(server.pollArtifactTelemetryNotices(policy).isEmpty());
+        clock.advance(Duration.ofSeconds(301));
+        assertTrue(server.pollArtifactTelemetryNotices(ArtifactTelemetryNoticePolicy.disabled()).isEmpty());
+        var notices = server.pollArtifactTelemetryNotices(policy);
+        assertEquals(1, notices.size());
+        assertEquals(ArtifactTelemetryNotice.Kind.STALE, notices.getFirst().kind());
+        assertTrue(server.isCurrentAuthenticatedSession(playerId, notices.getFirst().sessionId()));
+        assertTrue(server.pollArtifactTelemetryNotices(policy).isEmpty());
+        clock.advance(Duration.ofSeconds(-300));
+        assertTrue(server.pollArtifactTelemetryNotices(policy).isEmpty(), "clock rollback alone is not recovery");
+        var update = client.prepareArtifactObservationUpdate(emptyBundle(), List.of());
+        assertEquals(1, sendObservationFrames(update.frames()).outboundFrames().size());
+        var recovery = server.pollArtifactTelemetryNotices(policy);
+        assertEquals(1, recovery.size());
+        assertEquals(ArtifactTelemetryNotice.Kind.RECOVERED, recovery.getFirst().kind());
+        assertTrue(server.pollArtifactTelemetryNotices(policy).isEmpty());
+        assertEquals(AdmissionStatus.VERIFIED, api.snapshot(playerId).orElseThrow().admissionStatus());
+        server.remove(playerId);
+        assertTrue(server.pollArtifactTelemetryNotices(policy).isEmpty());
+    }
+
+    @Test
     void bindsSelectedPackIdsToInitialAndDynamicAuthenticatedObservations() throws Exception {
         AtomicReference<AuthenticatedManifest> update = new AtomicReference<>();
         server = new ServerHandshakeCoordinator(

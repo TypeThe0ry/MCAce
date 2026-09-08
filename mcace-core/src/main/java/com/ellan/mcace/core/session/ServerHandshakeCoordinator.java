@@ -447,6 +447,34 @@ public final class ServerHandshakeCoordinator {
         return List.copyOf(transitions);
     }
 
+    /** Emits one notice intent per stale/recovered transition; adapters must recheck the session. */
+    public synchronized List<ArtifactTelemetryNotice> pollArtifactTelemetryNotices(
+            ArtifactTelemetryNoticePolicy policy) {
+        Objects.requireNonNull(policy, "policy");
+        List<ArtifactTelemetryNotice> notices = new ArrayList<>();
+        for (SessionContext context : sessions.values()) {
+            if (!policy.enabled()) {
+                context.telemetryStaleNotified = false;
+                continue;
+            }
+            var snapshot = artifactTelemetrySnapshot(context.session.playerId(), policy.maximumAge());
+            if (snapshot.isEmpty()) continue;
+            var freshness = snapshot.orElseThrow().freshness();
+            if (freshness == ArtifactTelemetrySnapshot.Freshness.STALE && !context.telemetryStaleNotified) {
+                context.telemetryStaleNotified = true;
+                context.telemetryStaleSequence = snapshot.orElseThrow().updateSequence();
+                notices.add(new ArtifactTelemetryNotice(context.session.playerId(), context.session.id(),
+                        ArtifactTelemetryNotice.Kind.STALE));
+            } else if (freshness == ArtifactTelemetrySnapshot.Freshness.FRESH && context.telemetryStaleNotified
+                    && snapshot.orElseThrow().updateSequence() > context.telemetryStaleSequence) {
+                context.telemetryStaleNotified = false;
+                notices.add(new ArtifactTelemetryNotice(context.session.playerId(), context.session.id(),
+                        ArtifactTelemetryNotice.Kind.RECOVERED));
+            }
+        }
+        return List.copyOf(notices);
+    }
+
     public synchronized void remove(UUID playerId) {
         SessionContext removed = sessions.remove(Objects.requireNonNull(playerId, "playerId"));
         if (removed != null) {
@@ -1240,6 +1268,8 @@ public final class ServerHandshakeCoordinator {
         private long lastArtifactObservationSequence;
         private byte[] lastArtifactObservationUpdateSha256;
         private long lastArtifactObservationAcceptedAtEpochMs;
+        private boolean telemetryStaleNotified;
+        private long telemetryStaleSequence;
         /** Empty for ordinary AUTH; otherwise the exact 32-byte signed-assertion transcript hash. */
         private byte[] federationSignedAssertionSha256 = new byte[0];
 

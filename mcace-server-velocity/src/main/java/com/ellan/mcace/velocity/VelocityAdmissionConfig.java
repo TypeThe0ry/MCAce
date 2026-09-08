@@ -20,7 +20,14 @@ record VelocityAdmissionConfig(
         HeartbeatMissingConfig heartbeatMissing,
         StorageConfig storage,
         PolicyConfig policy,
-        ClientRequirement clientRequirement) {
+        ClientRequirement clientRequirement,
+        com.ellan.mcace.core.session.ArtifactTelemetryNoticePolicy telemetryNotice) {
+    VelocityAdmissionConfig(Mode mode, Optional<String> limitedServer, Optional<String> quarantineServer,
+            Duration handshakeTimeout, HeartbeatMissingConfig heartbeatMissing, StorageConfig storage,
+            PolicyConfig policy, ClientRequirement clientRequirement) {
+        this(mode, limitedServer, quarantineServer, handshakeTimeout, heartbeatMissing, storage,
+                policy, clientRequirement, com.ellan.mcace.core.session.ArtifactTelemetryNoticePolicy.disabled());
+    }
     private static final int MIN_HANDSHAKE_TIMEOUT_SECONDS = 2;
     private static final int MAX_HANDSHAKE_TIMEOUT_SECONDS = 300;
     private static final String DEFAULT_CONTENT = """
@@ -40,6 +47,9 @@ record VelocityAdmissionConfig(
             heartbeat.missing.enabled=false
             heartbeat.missing.consecutive-polls=3
             heartbeat.missing.action=NOTICE
+            # Opt-in content-free notice only. This does not change admission or punish players.
+            telemetry.notice.enabled=false
+            telemetry.notice.max-age-seconds=900
             # These values are signed into the Fabric client policy. Change them before
             # publishing a release build; comma-separated lists are supported.
             policy.server-id=mcace-velocity
@@ -62,6 +72,7 @@ record VelocityAdmissionConfig(
         Objects.requireNonNull(storage, "storage");
         Objects.requireNonNull(policy, "policy");
         Objects.requireNonNull(clientRequirement, "clientRequirement");
+        Objects.requireNonNull(telemetryNotice, "telemetryNotice");
         if (handshakeTimeout.compareTo(Duration.ofSeconds(MIN_HANDSHAKE_TIMEOUT_SECONDS)) < 0
                 || handshakeTimeout.compareTo(Duration.ofSeconds(MAX_HANDSHAKE_TIMEOUT_SECONDS)) > 0) {
             throw new IllegalArgumentException("handshake timeout must be between 2 and 300 seconds");
@@ -118,7 +129,10 @@ record VelocityAdmissionConfig(
                             Integer.parseInt(properties.getProperty("heartbeat.missing.consecutive-polls", "3").trim()),
                             com.ellan.mcace.core.session.HeartbeatMissingPolicy.Action.valueOf(
                                     properties.getProperty("heartbeat.missing.action", "NOTICE").trim().toUpperCase(Locale.ROOT))),
-                    storage, policy, clientRequirement);
+                    storage, policy, clientRequirement,
+                    new com.ellan.mcace.core.session.ArtifactTelemetryNoticePolicy(
+                            parseBoolean(properties.getProperty("telemetry.notice.enabled", "false"), "telemetry.notice.enabled"),
+                            Duration.ofSeconds(Long.parseLong(properties.getProperty("telemetry.notice.max-age-seconds", "900").trim()))));
         } catch (IllegalArgumentException exception) {
             throw new IOException("invalid MCAce admission configuration", exception);
         }

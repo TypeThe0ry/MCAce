@@ -8,6 +8,14 @@ client telemetry, not cheat-free proof or action execution. This read-only query
 does not change admission or configure enforcement. See the
 [architecture reassessment and implementation status](docs/ARCHITECTURE_REASSESSMENT_2026-09-08.md).
 
+Velocity can optionally notify a player when inventory reporting becomes stale
+and when a newer valid report recovers it. In `mcace.properties`, set
+`telemetry.notice.enabled=true` and `telemetry.notice.max-age-seconds=900`, then
+restart the plugin/server through your normal maintenance process. Default is
+disabled; the age must exceed 300 seconds and be at most 3600. This sends notices
+only, not kicks/bans. Logs describe send-API dispatch, not confirmed client receipt.
+Bungee automatic notices and real-runtime delivery verification remain pending.
+
 MCAce is a privacy-first client visibility, admission, evidence, and reversible-
 disposition stack for modern Minecraft networks. Its deployable surface is a
 Fabric client Mod, Velocity/BungeeCord proxy plugins, and one Paper/Folia backend
