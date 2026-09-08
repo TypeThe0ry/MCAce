@@ -370,11 +370,12 @@ final class HandshakeIntegrationTest {
     @Test
     void acceptsBoundedPostAuthObservationWithoutChangingVerifiedAdmissionAndIgnoresReplay() throws Exception {
         AtomicInteger updates = new AtomicInteger();
+        AtomicReference<AuthenticatedManifest> latest = new AtomicReference<>();
         server = new ServerHandshakeCoordinator(
                 clock, new SecureRandom(), serverKeys, new RiskEngine(RiskPolicy.defaults()), api,
                 Duration.ofSeconds(5), () -> signedPolicy,
                 com.ellan.mcace.core.persistence.SecurityAuditSink.noop(), ignored -> { }, ignored -> { },
-                ignored -> updates.incrementAndGet(),
+                manifest -> { updates.incrementAndGet(); latest.set(manifest); },
                 com.ellan.mcace.core.evidence.EvidenceContentStore.discard(),
                 com.ellan.mcace.core.evidence.EvidenceAuditSink.noop());
         ClientHandshakeEngine client = client(serverKeys);
@@ -392,8 +393,16 @@ final class HandshakeIntegrationTest {
         // a fresh preparation with the same first update sequence.
         ClientHandshakeEngine.PreparedArtifactObservationUpdate replacement =
                 client.prepareArtifactObservationUpdate(bundle, List.of());
+        Instant sampledAt = clock.instant();
+        clock.advance(Duration.ofSeconds(1));
         HandshakeAction firstAccepted = sendObservationFrames(replacement.frames());
         assertEquals(1, firstAccepted.outboundFrames().size());
+        assertEquals(1L, latest.get().observationSequence());
+        assertEquals(sampledAt, latest.get().authenticatedAt());
+        assertEquals(clock.instant(), latest.get().receivedAt());
+        var receipt = server.artifactTelemetrySnapshot(playerId, Duration.ofSeconds(30)).orElseThrow();
+        assertTrue(receipt.matchesFreshReceipt(latest.get().sessionId(),
+                latest.get().observationSequence(), latest.get().receivedAt()));
         // Drop the first signed result and retry the exact payload under fresh transfer nonces.
         HandshakeAction retryAccepted = sendObservationFrames(
                 client.retryArtifactObservationUpdate(replacement));

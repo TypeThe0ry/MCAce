@@ -739,7 +739,8 @@ public final class ServerHandshakeCoordinator {
         context.lastArtifactObservationAcceptedAtEpochMs = now;
         notifyArtifactObservationUpdate(new AuthenticatedManifest(
                 context.session.playerId(), context.session.id(), context.policy, candidate,
-                Instant.ofEpochMilli(update.getObservedAtEpochMs())));
+                Instant.ofEpochMilli(update.getObservedAtEpochMs()), update.getUpdateSequence(),
+                Instant.ofEpochMilli(now)));
         return ArtifactObservationDecision.accept();
     }
 

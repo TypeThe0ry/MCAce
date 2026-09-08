@@ -20,6 +20,12 @@ public record ArtifactTelemetrySnapshot(
 
     public enum Freshness { FRESH, STALE, CLOCK_ANOMALY }
 
+    /** Point-in-time check for a queued report, not an authorization or an atomic action lease. */
+    public boolean matchesFreshReceipt(String session, long sequence, Instant receipt) {
+        return sessionId.equals(session) && updateSequence == sequence && receivedAt.equals(receipt)
+                && freshness() == Freshness.FRESH;
+    }
+
     public Freshness freshness() {
         if (evaluatedAt.isBefore(receivedAt)) return Freshness.CLOCK_ANOMALY;
         return Duration.between(receivedAt, evaluatedAt).compareTo(maximumAge) < 0

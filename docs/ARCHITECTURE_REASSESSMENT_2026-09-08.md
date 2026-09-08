@@ -190,8 +190,6 @@ configuration/observation-command tests, zero failures or skips. Velocity main
 and test sources compiled. The tests do not drive a live player's network or
 prove delivery of the optional notice; that remains a separate acceptance case.
 
-## Current runtime observation (2026-09-08, UTC+08)
-
 ## Execution-path audit and evidence clarification
 
 The source already contains Velocity routing and disconnect adapters. The missing
@@ -229,7 +227,40 @@ tests (37 total, zero failures/errors/skips). The new test covers every executor
 status's evidence classification. Velocity production and test sources compiled.
 This is not a new real-server/client acceptance run or a release-bundle build.
 
-## Retained GUI run details
+## Queued observation identity
+
+`AuthenticatedManifest` now carries a server acceptance timestamp (`receivedAt`)
+and accepted `observationSequence`, zero for initial authentication. Its legacy
+`authenticatedAt` field remains unchanged: for dynamic updates it is the client's
+sampling timestamp, not the server receipt. The coordinator supplies both new
+fields for accepted updates; the five-argument source constructor remains for
+compatibility. Modules must be rebuilt together because the record shape changed.
+No wire schema or client signature semantics changed.
+
+Both Velocity client-manifest audit paths now hand only the event, sequence and
+receipt time into the scheduler. Before advisory execution, a snapshot must match
+the session, sequence and exact server receipt and be FRESH under a three-refresh-
+interval window (currently 900 seconds). Otherwise the log records
+STALE_OBSERVATION with NO_NEW_EFFECT_CONFIRMED. A newer accepted report therefore
+invalidates an older queued report at this check. Provider/review events retain
+their separate trusted authorization path.
+
+This is a point-in-time advisory filter, not an atomic enforcement lease. An
+update can arrive after the snapshot check. A future inventory-admission executor
+must atomically bind its action to the current report and physical login rather
+than reusing this check as sufficient high-impact authorization. Bungee advisory
+scheduling has not gained this filter yet. No automatic prohibited-inventory
+disconnect or live GUI acceptance is claimed by this change.
+
+Validation: 34 handshake integration tests, 3 freshness snapshot tests, 1 manifest
+metadata test, and 13 Velocity executor tests passed (51 total; zero failures,
+errors or skips). The handshake test deliberately advances server time between
+client preparation and acceptance to prove the two timestamps remain distinct.
+Receipt matching covers session/sequence/time mismatch, exact expiry and a
+pre-receipt clock anomaly. Velocity and Bungee main sources compile against the
+new record. Scheduler/player end-to-end execution still requires live validation.
+
+## Retained GUI run details (2026-09-08, UTC+08)
 
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.
 Wrapper: `scripts/platform-load-smoke.ps1`, Fabric 26.2, WithFabricEvidence,

@@ -8,6 +8,21 @@ import org.junit.jupiter.api.Test;
 
 final class ArtifactTelemetrySnapshotTest {
     @Test
+    void queuedReceiptMustMatchSessionSequenceServerTimeAndFreshness() {
+        Instant receipt = Instant.EPOCH;
+        Duration ttl = Duration.ofSeconds(30);
+        var fresh = new ArtifactTelemetrySnapshot("current", 2, receipt, receipt, ttl);
+        assertTrue(fresh.matchesFreshReceipt("current", 2, receipt));
+        assertFalse(fresh.matchesFreshReceipt("old", 2, receipt));
+        assertFalse(fresh.matchesFreshReceipt("current", 1, receipt));
+        assertFalse(fresh.matchesFreshReceipt("current", 2, receipt.minusSeconds(1)));
+        assertFalse(new ArtifactTelemetrySnapshot("current", 2, receipt, receipt.plus(ttl), ttl)
+                .matchesFreshReceipt("current", 2, receipt));
+        assertFalse(new ArtifactTelemetrySnapshot("current", 2, receipt, receipt.minusNanos(1), ttl)
+                .matchesFreshReceipt("current", 2, receipt));
+    }
+
+    @Test
     void evaluatesExactExpiryAndClockRollbackWithoutOverflow() {
         Instant received = Instant.parse("2026-09-08T00:00:00Z");
         Duration ttl = Duration.ofSeconds(30);

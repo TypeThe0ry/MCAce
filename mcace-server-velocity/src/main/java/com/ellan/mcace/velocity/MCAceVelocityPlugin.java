@@ -1037,7 +1037,7 @@ public final class MCAceVelocityPlugin {
                 audit.evaluation().truncated());
         // The audit worker carries only immutable content-free data across this handoff. Player
         // lookup and all connection mutations happen in the Velocity scheduler task.
-        server.getScheduler().buildTask(this, () -> executeDisposition(event)).schedule();
+        scheduleManifestDisposition(manifest, event);
     }
 
     /**
@@ -1068,7 +1068,28 @@ public final class MCAceVelocityPlugin {
                 audit.consistencyIssues().size(), audit.evaluation().actionCounts(), audit.evaluation().refreshStatus()));
         // Keep this handoff content-free and session-bound; executeDisposition repeats the current
         // login, admission, route and policy checks on the Velocity scheduler thread.
-        server.getScheduler().buildTask(this, () -> executeDisposition(event)).schedule();
+        scheduleManifestDisposition(manifest, event);
+    }
+
+    private void scheduleManifestDisposition(
+            com.ellan.mcace.core.session.AuthenticatedManifest manifest,
+            AuthenticatedManifestDispositionEvent event) {
+        long sequence = manifest.observationSequence();
+        Instant receivedAt = manifest.receivedAt();
+        // Capture receipt identity only, never the raw inventory, in the scheduler closure.
+        server.getScheduler().buildTask(this, () -> {
+            var current = coordinator().artifactTelemetrySnapshot(event.playerId(),
+                    com.ellan.mcace.protocol.ProtocolConstants.ARTIFACT_OBSERVATION_INTERVAL.multipliedBy(3));
+            if (current.isEmpty() || !current.orElseThrow().matchesFreshReceipt(
+                    event.sessionId(), sequence, receivedAt)) {
+                logger.info("MCAce manifest disposition: result=STALE_OBSERVATION player={} "
+                        + "execution-evidence=NO_NEW_EFFECT_CONFIRMED", event.playerId());
+                return;
+            }
+            // Client-manifest events remain advisory. This point-in-time check is not a
+            // substitute for atomic report/action binding in a future admission executor.
+            executeDisposition(event);
+        }).schedule();
     }
 
     /**
