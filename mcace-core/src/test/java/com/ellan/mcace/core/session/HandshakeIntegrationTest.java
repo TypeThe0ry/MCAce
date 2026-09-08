@@ -420,6 +420,50 @@ final class HandshakeIntegrationTest {
     }
 
     @Test
+    void concurrentInventoryAdmissionHandoffsInvokeTheActionExactlyOnce() throws Exception {
+        var client = client(serverKeys);
+        var authentication = frames(client, server.begin(playerId));
+        server.receive(playerId, authentication.get(0));
+        server.receive(playerId, authentication.get(1));
+        Duration ttl = Duration.ofSeconds(30);
+        var receipt = server.artifactTelemetrySnapshot(playerId, ttl).orElseThrow();
+        AtomicInteger calls = new AtomicInteger();
+        var ready = new java.util.concurrent.CountDownLatch(8);
+        var start = new java.util.concurrent.CountDownLatch(1);
+        var executor = java.util.concurrent.Executors.newFixedThreadPool(8);
+        try {
+            var futures = new java.util.ArrayList<java.util.concurrent.Future<ServerHandshakeCoordinator.InventoryAdmissionExecution>>();
+            for (int index = 0; index < 8; index++) {
+                futures.add(executor.submit(() -> {
+                    ready.countDown();
+                    if (!start.await(5, java.util.concurrent.TimeUnit.SECONDS)) {
+                        throw new IllegalStateException("test start barrier timed out");
+                    }
+                    return server.executeInventoryAdmission(playerId, receipt.sessionId(), 0,
+                            receipt.receivedAt(), ttl, () -> { calls.incrementAndGet(); return true; });
+                }));
+            }
+            assertTrue(ready.await(5, java.util.concurrent.TimeUnit.SECONDS));
+            start.countDown();
+            int dispatched = 0;
+            int duplicate = 0;
+            for (var future : futures) {
+                var result = future.get(5, java.util.concurrent.TimeUnit.SECONDS);
+                if (result == ServerHandshakeCoordinator.InventoryAdmissionExecution.DISPATCHED) dispatched++;
+                else if (result == ServerHandshakeCoordinator.InventoryAdmissionExecution.DUPLICATE) duplicate++;
+                else org.junit.jupiter.api.Assertions.fail("unexpected concurrent result: " + result);
+            }
+            assertEquals(1, dispatched);
+            assertEquals(7, duplicate);
+            assertEquals(1, calls.get());
+        } finally {
+            start.countDown();
+            executor.shutdownNow();
+            assertTrue(executor.awaitTermination(5, java.util.concurrent.TimeUnit.SECONDS));
+        }
+    }
+
+    @Test
     void failedInventoryAdmissionIsNotRetriedAndReplacementHasIndependentClaim() throws Exception {
         for (int attempt = 0; attempt < 2; attempt++) {
             var client = client(serverKeys);
@@ -429,9 +473,14 @@ final class HandshakeIntegrationTest {
             Duration ttl = Duration.ofSeconds(30);
             var receipt = server.artifactTelemetrySnapshot(playerId, ttl).orElseThrow();
             AtomicInteger calls = new AtomicInteger();
+            boolean throwFailure = attempt == 0;
             assertEquals(ServerHandshakeCoordinator.InventoryAdmissionExecution.ACTION_FAILED,
                     server.executeInventoryAdmission(playerId, receipt.sessionId(), 0, receipt.receivedAt(), ttl,
-                            () -> { calls.incrementAndGet(); throw new IllegalStateException("test dispatch failed"); }));
+                            () -> {
+                                calls.incrementAndGet();
+                                if (throwFailure) throw new IllegalStateException("test dispatch failed");
+                                return false;
+                            }));
             assertEquals(ServerHandshakeCoordinator.InventoryAdmissionExecution.DUPLICATE,
                     server.executeInventoryAdmission(playerId, receipt.sessionId(), 0, receipt.receivedAt(), ttl,
                             () -> { calls.incrementAndGet(); return true; }));

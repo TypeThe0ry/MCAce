@@ -291,6 +291,15 @@ disabled defaults, selected-versus-installed matching, bounded exact selectors,
 stale/replaced receipts, one-shot dispatch, failure deduplication and independent
 claims after reconnect. This is not a live proxy/client disconnection test.
 
+Follow-up concurrency validation: eight threads released from a shared barrier
+submit the same receipt; exactly one returns DISPATCHED and seven return DUPLICATE,
+with one callback invocation. Failure/reconnect coverage now exercises both a
+false callback result and a thrown exception. The initial test compile failed on
+a missing assertion import; it was corrected before verification. The rerun passed
+36 handshake and 2 policy tests (38 executed, zero failures/errors/skips); the 15
+unchanged Velocity tests were UP-TO-DATE, not newly executed. This exercises the
+core synchronization boundary, not an actual network disconnect or GUI session.
+
 ## Retained GUI run details (2026-09-08, UTC+08)
 
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.
