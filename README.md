@@ -3,8 +3,13 @@
 Development: Velocity now has an opt-in administrator-defined inventory rejection
 path for exact loaded Mod IDs and selected resource-pack identifiers. It defaults
 off and is independent of signed-disposition MONITOR mode. This is not a cheating
-verdict, content-based Xray detection, or a guaranteed pre-entry barrier. Real
-disconnect acceptance and Bungee parity are pending. Read the
+verdict, content-based Xray detection, or a guaranteed pre-entry barrier.
+Real Paper 1.21.11/Velocity controls passed twice for a reported Mod identifier
+and once for a reported selected-pack identifier, including accepted authentication,
+disabled-rule admission and enabled-rule remote disconnection. These use a raw
+protocol peer, not genuine Fabric collection or a loaded cheat/Xray pack. Other
+versions, genuine GUI acceptance and Bungee parity remain pending. See the
+[test evidence and limits](docs/evidence/inventory-admission-2026-09-08.md). Read the
 [configuration, evidence semantics and limitations](docs/INVENTORY_ADMISSION.md)
 before enabling it.
 
