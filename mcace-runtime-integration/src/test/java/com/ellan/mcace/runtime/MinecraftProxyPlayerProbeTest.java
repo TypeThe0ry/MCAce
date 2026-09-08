@@ -197,6 +197,41 @@ final class MinecraftProxyPlayerProbeTest {
     }
 
     @Test
+    void failureReportPreservesObservedProtocolProgressWithoutPromotingAdmission() {
+        MinecraftWirePeer peer = new MinecraftWirePeer(null);
+        peer.tcpConnected = true;
+        peer.loginSuccess = true;
+        peer.configurationFinished = true;
+        peer.state = State.PLAY;
+        peer.channels.add("mcace:handshake");
+        peer.packetTrace.add("LOGIN:0x2");
+        ProbeReport report = ProbeReport.failure(ProxyKind.VELOCITY, BackendKind.FOLIA,
+                "1.21.11", 1, 2, List.of("SocketTimeoutException"))
+                .withFailureProgress(peer);
+        peer.packetTrace.clear();
+        assertTrue(report.tcpConnected());
+        assertTrue(report.loginSuccess());
+        assertTrue(report.configurationFinished());
+        assertTrue(!report.authAccepted());
+        assertTrue(!report.backendAdmission());
+        assertTrue(!report.backendContextShadowAudit());
+        assertTrue(report.packetTrace().contains("LOGIN:0x2"));
+        assertTrue(report.packetTrace().contains("FAILURE_STATE:PLAY"));
+        assertEquals(List.of("SocketTimeoutException"), report.limitations());
+    }
+
+    @Test
+    void failureReportBeforeConnectionDoesNotInventProgress() {
+        ProbeReport report = ProbeReport.failure(ProxyKind.VELOCITY, BackendKind.FOLIA,
+                "1.21.11", 1, 2, List.of("connect failed"))
+                .withFailureProgress(new MinecraftWirePeer(null));
+        assertTrue(!report.tcpConnected());
+        assertTrue(!report.loginSuccess());
+        assertTrue(!report.authAccepted());
+        assertTrue(report.packetTrace().contains("FAILURE_STATE:LOGIN"));
+    }
+
+    @Test
     @Timeout(600)
     @EnabledIfSystemProperty(named = "mcace.runtime.inventory-admission.enabled", matches = "true")
     void realVelocityInventoryAdmissionRejectsSelectedPackOnlyWhenEnabled() throws Exception {
@@ -780,15 +815,18 @@ final class MinecraftProxyPlayerProbeTest {
         Files.createDirectories(runRoot);
         ProbeHarness harness = new ProbeHarness(repository, runRoot, kind, backendKind);
         ProbeReport report = null;
+        MinecraftWirePeer peer = null;
         Exception failure = null;
         try {
             harness.prepare();
             harness.start();
-            report = new MinecraftWirePeer(harness).probe();
+            peer = new MinecraftWirePeer(harness);
+            report = peer.probe();
         } catch (Exception exception) {
             report = ProbeReport.failure(kind, backendKind, harness.backendMinecraftVersion,
                     harness.proxyPort, harness.paperPort,
                     List.of(exception.getClass().getSimpleName() + ": " + safeMessage(exception)));
+            if (peer != null) report = report.withFailureProgress(peer);
             failure = exception;
         } finally {
             harness.close();
@@ -3894,6 +3932,7 @@ final class MinecraftProxyPlayerProbeTest {
 
     private static final class MinecraftWirePeer {
         private final ProbeHarness harness;
+        private boolean tcpConnected;
         private final List<String> channels = new ArrayList<>();
         private final List<String> limitations = new ArrayList<>();
         private final List<String> packetTrace = new ArrayList<>();
@@ -3974,6 +4013,7 @@ final class MinecraftProxyPlayerProbeTest {
             MinecraftWireProfile.PlayPackets playPackets = harness.wireProfile.play();
             try (Socket connected = new Socket(InetAddress.getLoopbackAddress(), harness.proxyPort)) {
                 socket = connected;
+                tcpConnected = true;
                 advanceCleanReconnectStage(CleanReconnectStage.TCP_CONNECTED);
                 socket.setSoTimeout(10_000);
                 pushbackInput = new java.io.PushbackInputStream(socket.getInputStream(), 1);
@@ -5584,6 +5624,26 @@ final class MinecraftProxyPlayerProbeTest {
                     configurationFinished, serverHello, authResult, authAccepted, backendAdmission,
                     backendContextShadowAudit,
                     channels, packetTrace, limitations, List.copyOf(processIds), List.copyOf(remaining));
+        }
+
+        private ProbeReport withFailureProgress(MinecraftWirePeer peer) {
+            List<String> trace = new ArrayList<>(peer.packetTrace);
+            trace.add("FAILURE_STATE:" + peer.state.name());
+            trace.add("FAILURE_HANDSHAKE:hello=" + peer.serverHelloStage.name()
+                    + ":outbound=" + peer.authOutboundStage.name()
+                    + ":result=" + peer.authResultStage.name());
+            trace.add("FAILURE_PLAY:join=" + peer.playJoinSeen
+                    + ":registration=" + peer.playChannelRegistrationSent);
+            trace.add("FAILURE_AUTH_TIMING:work_ms=" + peer.authenticationWorkMillis
+                    + ":policy_ms=" + peer.policyPrepareMillis
+                    + ":frames_ms=" + peer.authenticationFramesMillis);
+            return new ProbeReport(proxy, backend, backendMinecraftVersion,
+                    forwardingMode, peer.harness == null ? forwardingConfigured
+                            : peer.harness.forwardingConfigured, proxyPort, paperPort,
+                    peer.tcpConnected, peer.loginSuccess, peer.compressionSeen,
+                    peer.configurationFinished, peer.serverHelloSeen, peer.authResultSeen,
+                    peer.authAccepted, false, false, List.copyOf(peer.channels),
+                    List.copyOf(trace), limitations, cleanupProcessIds, remainingRunProcesses);
         }
 
         private String toJson() {
