@@ -7,8 +7,9 @@ verdict, content-based Xray detection, or a guaranteed pre-entry barrier.
 Real Paper 1.21.11/Velocity controls passed twice for a reported Mod identifier
 and once for a reported selected-pack identifier, including accepted authentication,
 disabled-rule admission and enabled-rule remote disconnection. These use a raw
-protocol peer, not genuine Fabric collection or a loaded cheat/Xray pack. Other
-versions, genuine GUI acceptance and Bungee parity remain pending. See the
+protocol peer, not genuine Fabric collection or a loaded cheat/Xray pack. Both
+controls also passed once on Paper 26.1.2/JDK 25. The 26.2 run, genuine GUI
+acceptance and Bungee parity remain pending. See the
 [test evidence and limits](docs/evidence/inventory-admission-2026-09-08.md). Read the
 [configuration, evidence semantics and limitations](docs/INVENTORY_ADMISSION.md)
 before enabling it.

@@ -1,7 +1,8 @@
 # Inventory admission real-process control test — 2026-09-08
 
-Status: two passing Mod executions and one passing selected-pack execution;
-development evidence, not release-grade acceptance.
+Status: on 1.21.11, two passing Mod executions and one passing selected-pack
+execution; on 26.1.2, both controls passed once. Development evidence, not
+release-grade acceptance.
 
 ## Execution and provenance
 
@@ -100,3 +101,21 @@ MCACE_INVENTORY_RUNTIME_CASE_PASS|enabled=true|real_proxy=true|raw_protocol_peer
 
 The selected-pack identifier is a signed test report, not a loaded texture ZIP.
 This does not test Xray content, rendering, or genuine Fabric resource selection.
+
+## Paper 26.1.2 / JDK 25
+
+Both control methods completed with `--rerun`, protocol 775, Paper build 74,
+Velocity 3.5.1-615 and the explicitly bound JDK 25 server executable. Gradle exit
+0, one task executed and 34 up-to-date. JUnit: two tests, zero failures/errors/skips,
+466.483 seconds. Selected-pack control: 227.488 seconds; Mod control: 238.975
+seconds. All four disabled/enabled result markers were emitted and all assertion
+paths, including owned-process cleanup, passed.
+
+Paper input SHA-256:
+`1d70b1dab9cf4a6de615209a536f3a45a2186240253c428213ce2188ab95e5f7`.
+JUnit report SHA-256:
+`b5fd62aefc00b70803be86893d1655d6199f48b8e3888accb2c464fb911f405a`.
+The product/test implementation is the one committed in `8ea02b3`; subsequent
+commits during this run changed documentation only. This was not a formal release
+bundle build. The Mod/pack fixtures and all evidence limitations above apply.
+26.2 testing has started separately; its outcome is not inferred from this run.

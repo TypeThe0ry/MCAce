@@ -441,6 +441,12 @@ their prepared trees and JDK 25 are present. A 26.1.2/JDK 25 execution of both
 control tests has started, but no 26.x passing result is claimed yet. Current
 PR Windows checks were still running when inspected; this is not release approval.
 
+The 26.1.2/JDK 25 run subsequently finished successfully: two tests, all four
+disabled/enabled controls, zero failures/errors/skips. Its report hash and exact
+Paper input are recorded in the evidence summary. A separate 26.2 build 116,
+protocol 776, JDK 25 run is now active. Genuine Fabric collection and the remaining
+release gates are not satisfied by these raw-peer process tests.
+
 ## Retained GUI run details (2026-09-08, UTC+08)
 
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.

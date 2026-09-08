@@ -108,6 +108,11 @@ compiled and passed both controls once on Paper 1.21.11/Velocity/JDK 21; see the
 same evidence summary for report/source hashes. It does not load a texture pack or
 test Xray rendering/content recognition.
 
+Both Mod and selected-pack controls also passed once on Paper 26.1.2 build 74,
+Velocity and JDK 25 (two tests, four disabled/enabled cases, no skips). A separate
+26.2 run is in progress. These results cover exact tested versions and reported
+identifiers; they do not establish all 1.21.x/26.x versions or genuine GUI capture.
+
 Protocol integration coverage now drives the normal ClientHandshakeEngine signed
 authentication and bounded-update frames into ServerHandshakeCoordinator for two
 cases: a fixture loaded Mod ID and a fixture selected resource-pack identifier.
