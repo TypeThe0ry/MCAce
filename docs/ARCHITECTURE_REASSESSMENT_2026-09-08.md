@@ -192,6 +192,45 @@ prove delivery of the optional notice; that remains a separate acceptance case.
 
 ## Current runtime observation (2026-09-08, UTC+08)
 
+## Execution-path audit and evidence clarification
+
+The source already contains Velocity routing and disconnect adapters. The missing
+core outcome should not be described as a complete absence of action code:
+`DispositionEngine.provenanceAllows` excludes LIMIT and higher actions for
+CLIENT_REPORTED observations, `AuthenticatedManifestDispositionEvent` requires
+trusted authorization for them, and `VelocityDispositionExecutor` rechecks the
+policy, current session, authorization context, admission baseline, and enabled
+mode before invoking an adapter. Thus a client-only exact-hash match does not
+automatically produce a kick under the current design. Completing an external
+release receipt will not change that behavior.
+
+A future administrator-configured prohibited-inventory admission rule must be
+distinguished from an independently corroborated cheating verdict. Simply removing
+the trusted-origin checks would conflate those meanings. This audit leaves those
+checks intact while identifying that product decision and integration work.
+
+Velocity synchronous disposition results now expose `executionEvidence()` and the
+non-observe result log includes `execution-evidence` plus
+`client-receipt-confirmed=false`. Legacy status identifiers are retained for
+compatibility. NOTICE_SENT/WARN_SENT/CHALLENGE_AUDITED mean MESSAGE_API_ACCEPTED;
+LIMITED_DISPATCHED/QUARANTINED_DISPATCHED mean ROUTE_REQUEST_ACCEPTED; DENIED means
+DISCONNECT_API_ACCEPTED. A deferred intent is DEFERRED. All other statuses mean
+NO_NEW_EFFECT_CONFIRMED, not proof that no earlier action ever happened.
+
+These fields describe the synchronous call only. Route completion requires its
+separate asynchronous result, disconnection requires live lifecycle evidence,
+and client receipt requires actual client evidence. No screenshot challenge or
+remote delivery is proven by sending a prompt. Bungee result logs have not been
+changed by this patch.
+
+Local offline targeted validation on JDK 21 passed: 4 event-contract tests,
+8 trusted-authorization tests, 13 Velocity executor tests, and 12 deferred-route
+tests (37 total, zero failures/errors/skips). The new test covers every executor
+status's evidence classification. Velocity production and test sources compiled.
+This is not a new real-server/client acceptance run or a release-bundle build.
+
+## Retained GUI run details
+
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.
 Wrapper: `scripts/platform-load-smoke.ps1`, Fabric 26.2, WithFabricEvidence,
 RetainDiagnostics, ManualConsentTimeoutSeconds=300.

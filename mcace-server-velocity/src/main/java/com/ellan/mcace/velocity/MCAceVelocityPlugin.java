@@ -1196,10 +1196,11 @@ public final class MCAceVelocityPlugin {
         }
         if (result.status() != VelocityDispositionExecutor.Status.OBSERVE) {
             logger.info("MCAce manifest disposition: action={} result={} player={} authorization={} "
-                            + "session-bound=true execution-context-bound={}",
+                            + "session-bound=true execution-context-bound={} execution-evidence={} "
+                            + "client-receipt-confirmed=false",
                     result.action(), result.status(), event.playerId(),
                     event.authorizationId().map(Object::toString).orElse("none"),
-                    event.authorizationContextCommitmentSha256().isPresent());
+                    event.authorizationContextCommitmentSha256().isPresent(), result.executionEvidence());
         }
     }
 
