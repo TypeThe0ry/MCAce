@@ -251,6 +251,7 @@ final class MinecraftProxyPlayerProbeTest {
                         + "|dispatch_logged=" + proxyDiagnostics.contains("MCAce challenge dispatch")
                         + "|protocol_violation=" + proxyDiagnostics.contains("MCAce protocol violation")
                         + "|server_verified=" + proxyDiagnostics.contains("MCAce verified ")
+                        + "|session_timed_out=" + proxyDiagnostics.contains("; session is LIMITED")
                         + "|response_send_failed=" + proxyDiagnostics.contains("MCAce handshake response could not be sent")
                         + "|creation_failed=" + proxyDiagnostics.contains("Could not create MCAce challenge")
                         + "|strict_start_failed=" + proxyDiagnostics.contains("MCAce strict handshake could not start")
@@ -264,6 +265,8 @@ final class MinecraftProxyPlayerProbeTest {
                         + "|peer_disconnected=" + (peer != null && peer.limitations.contains("peer disconnected"))
                         + "|login_deadline_exceeded=" + (peer != null && peer.loginDeadlineExceeded)
                         + "|authentication_work_ms=" + (peer == null ? -1 : peer.authenticationWorkMillis)
+                        + "|policy_prepare_ms=" + (peer == null ? -1 : peer.policyPrepareMillis)
+                        + "|authentication_frames_ms=" + (peer == null ? -1 : peer.authenticationFramesMillis)
                         + "|phase=" + (peer == null ? "NONE" : peer.state)
                         + "|configuration_finished=" + (peer != null && peer.configurationFinished)
                         + "|play_join=" + (peer != null && peer.playJoinSeen)
@@ -3930,6 +3933,8 @@ final class MinecraftProxyPlayerProbeTest {
         private int compressionThreshold = -1;
         private boolean loginDeadlineExceeded;
         private long authenticationWorkMillis = -1;
+        private long policyPrepareMillis = -1;
+        private long authenticationFramesMillis = -1;
         private List<String> inventorySelectedPacks = List.of();
         private ClientHandshakeEngine engine;
         private byte[] federationFirstOuter;
@@ -5057,9 +5062,12 @@ final class MinecraftProxyPlayerProbeTest {
                 VerifiedPolicy verifiedPolicy = engine.prepareServerHello(payload.data(),
                         "127.0.0.1:" + harness.proxyPort,
                         new VerifiedPolicyCache(harness.runRoot.resolve("client-cache"), Clock.systemUTC()));
+                policyPrepareMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - authenticationStarted);
+                long framesStarted = System.nanoTime();
                 List<ClientHandshakeEngine.OutboundFrame> authenticationFrames = engine.createAuthenticationFrames(
                         authenticationBundle(verifiedPolicy), List.of(), inventorySelectedPacks, List.of(),
                         probeLoadedModGraph());
+                authenticationFramesMillis = TimeUnit.NANOSECONDS.toMillis(System.nanoTime() - framesStarted);
                 boolean allAuthenticationFramesDuringConfiguration = !authenticationFrames.isEmpty();
                 for (ClientHandshakeEngine.OutboundFrame frame : authenticationFrames) {
                     allAuthenticationFramesDuringConfiguration &= state == State.CONFIGURATION;

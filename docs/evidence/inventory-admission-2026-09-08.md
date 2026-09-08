@@ -119,3 +119,49 @@ The product/test implementation is the one committed in `8ea02b3`; subsequent
 commits during this run changed documentation only. This was not a formal release
 bundle build. The Mod/pack fixtures and all evidence limitations above apply.
 26.2 testing has started separately; its outcome is not inferred from this run.
+
+## Paper 26.2 / JDK 25: mixed result
+
+The forced two-method run from clean `43b5626` finished with Gradle exit 1:
+two tests, one failure, zero errors/skips, 308.229 seconds. The reported-Mod
+control passed both disabled/enabled cases (194.398 seconds). The selected-pack
+control failed in its disabled-rule baseline with a socket read timeout
+(113.811 seconds); its enabled-rule case was not reached.
+
+Paper build 116 SHA-256:
+`17eee738bc0f6b747646be4199672c4efcb2084efd7e291ec5254a45d5ae6f2e`.
+JUnit report SHA-256:
+`f1e9ef6ff42b9d3e8eadee07c954aa950cdab4e42d7666c3496c5220ddae8d14`.
+
+Failure diagnostics showed PLAY/GameJoin reached, ServerHello received and
+authentication sent, but no authentication result or server verification marker.
+Client authentication preparation/send took 7,266 ms against the harness's
+configured five-second handshake timeout. This is evidence of a timing risk,
+not yet proof of which operation consumed the time or that the server expired
+this particular session. The failure stack contained only the asynchronous
+federation audit worker, not the earlier policy/ACL blocking stack.
+
+Test-only phase timings and a fixed server-timeout marker were added for a
+selected-pack rerun. No timeout, permission check, consent rule or product
+acceptance criterion was relaxed. The 26.2 pack path remains unverified until
+that run completes; a later pass will not erase this failed run.
+
+### Selected-pack diagnostic rerun
+
+The selected-pack-only forced rerun completed with Gradle exit 0: one test,
+zero failures/errors/skips, 177.731 seconds. Both disabled/enabled result markers
+and cleanup assertions passed. Gradle executed two tasks (test compilation and
+test) with 33 up-to-date tasks. Product code was unchanged; only the eight lines
+of test diagnostics described above were added to `43b5626`.
+
+Test-source SHA-256 at execution:
+`70d618b40ac0d2449518958603c250bec8d81b2f2d653a4131f220193a1bf281`.
+JUnit report SHA-256:
+`bddc7abd39e036c90d0fee112a439b6140918eefa444fa8ef4b017a60f440016`.
+
+This establishes a passing selected-pack process control on 26.2, but does not
+resolve the first run's intermittent timeout. The extra diagnostics are emitted
+only on failure, so this passing run does not identify the slow phase in the
+earlier run. No genuine Fabric GUI, loaded texture ZIP, or external cheat was
+used. All three exact versions now have passing controls, not a clean repeated
+reliability result or release acceptance.
