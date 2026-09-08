@@ -2197,7 +2197,7 @@ final class MinecraftProxyPlayerProbeTest {
             return backendKind.name().toLowerCase(java.util.Locale.ROOT);
         }
 
-        private int proxyListenerTimeoutSeconds = 30;
+        private int proxyListenerTimeoutSeconds = 90;
 
         private void start() throws Exception {
             startProxy();
@@ -3186,37 +3186,18 @@ final class MinecraftProxyPlayerProbeTest {
                 processes.removeLast();
                 processes.addFirst(proxy);
             }
-            if (kind == ProxyKind.VELOCITY) {
-                // On Windows a live child may buffer or exclusively hold both console and rolling
-                // log files. The identity pin is created by the MCAce plugin after its phase-2
-                // initialization, so it is a stronger startup barrier than a text marker.
-                waitForPath(proxy, proxyDataDirectory().resolve("identity/server-public-key.txt"), 90);
-            } else {
-                waitFor(proxy, "MCAce BungeeCord adapter enabled", 90);
-            }
-            // Do not infer bind readiness from logging. Probe the actual loopback socket so a
-            // restart or a buffered log cannot make the next phase race the listener.
+            // Identity files exist before initialization completes (and survive restarts).
+            // Give the actual listener the startup budget, independent of files or log buffering.
             waitForLoopbackListener(proxy, proxyPort, proxyListenerTimeoutSeconds);
         }
 
         private void waitForLoopbackListener(OwnedProcess process, int port, int seconds)
                 throws Exception {
-            long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(seconds);
-            while (System.nanoTime() < deadline) {
-                try (Socket socket = new Socket()) {
-                    socket.connect(new InetSocketAddress(InetAddress.getLoopbackAddress(), port), 250);
-                    return;
-                } catch (IOException ignored) {
-                    // The listener is still booting or the port is not bound yet.
-                }
-                if (!process.process().isAlive()) {
-                    throw new IOException(process.name() + " exited before listener " + port
-                            + "\n" + readStartupOutput(process));
-                }
-                Thread.sleep(250L);
+            try {
+                LoopbackListenerBarrier.await(port, Duration.ofSeconds(seconds), process.process()::isAlive);
+            } catch (IOException failure) {
+                throw new IOException(failure.getMessage() + "\n" + readStartupOutput(process), failure);
             }
-            throw new IOException(process.name() + " did not bind loopback listener " + port
-                    + "\n" + readStartupOutput(process));
         }
 
         private String bungeeConfig() {
