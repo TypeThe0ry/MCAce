@@ -522,3 +522,38 @@ PowerShell 5.1. New tests cover UUID name case, malformed input, missing/stale
 responses, invalid counts/timestamps, duplicate responses, old-log exclusion,
 log rotation and stopped process. The new test is wired into both CI shell lanes.
 No real GUI client was launched in this change; runtime acceptance is pending.
+
+## Current-source GUI attempt: 0927339
+
+Run `20260908T110358460Z-26_2-4b78a7209eb3004fa62b47614d7044b8`
+used clean source `092733942fb87c540f09bef2f17ed49036f87cf7` and
+`platform-load-smoke.ps1 -FabricTarget 26.2 -WithFabricEvidence
+-RetainDiagnostics -ManualConsentTimeoutSeconds 300`.
+Root JDK 21 and modern JDK 25 builds, smoke artifact checks, isolated Velocity
+and Paper startup completed. Native Computer Use observed the separate real
+Fabric enablement screen; the existing user Minecraft window was not operated.
+
+The prompt rendered at 19:12:03 UTC+08. No accepted enablement marker was
+observed. At 19:17:03 the server disconnected the client because MCAce client
+authentication was required. The wrapper exited 1 for the unapproved
+300-second enablement timeout, not for a failed inventory rule assertion.
+No authenticated inventory diagnostic or render-frame transfer was produced.
+The initial permission was not clicked by automation and is not assumed from
+previous conversation consent.
+
+Final report: `fabric_authenticated=false`, `enablement_consent_accepted=false`,
+`cleanup_completed=true`, `cleanup_ports_free=true`,
+`remaining_owned_process_count=0`. The client required forced termination after
+its graceful shutdown timeout. Report SHA-256:
+`046f397b5507619b2b7e62efb598628a138e30d13613463715890938f5700cb3`.
+Raw diagnostics remain in the local run directory; private test identity files
+were not uploaded. This is a disabled-path observation, not GUI acceptance.
+
+An additional issue was observed at disconnect: Fabric reported a screen change
+from `Netty NIO IO #0` rather than the render thread. Source inspection finds
+the DISCONNECT callback calling `cancelAuthentication`, which invokes the consent
+controllers' screen-restoring cancellation methods directly. Both Fabric source
+variants contain this call pattern. A fix should invalidate connection authority
+immediately while scheduling only UI work on the render thread, with stale-work
+guards so cleanup cannot overwrite a new connection's UI. No fix or successful
+retest is claimed yet. Do not automatically restart a consent-waiting GUI loop.
