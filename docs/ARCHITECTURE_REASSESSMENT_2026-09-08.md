@@ -56,6 +56,31 @@ Recommended implementation order:
 
 This note does not modify existing release scripts or mark any gate passed.
 
+## First implementation: core receipt-freshness query
+
+`ServerHandshakeCoordinator.artifactTelemetrySnapshot(playerId, maximumAge)` now
+returns a read-only `ArtifactTelemetrySnapshot` for the current authenticated
+session. Sequence zero uses the initial authentication receipt time; subsequent
+sequences use the server's accepted-update time, not the client's timestamp.
+The caller must provide a positive maximum age. Exact expiry is STALE; an
+evaluation time before the receipt is CLOCK_ANOMALY. This wall-clock comparison
+does not detect every possible clock adjustment and is not a monotonic timer.
+
+Missing, replaced, or removed authenticated sessions return no snapshot. Retries
+that receive an idempotent ACK and semantically rejected updates do not refresh
+the receipt time. Authentication/admission is deliberately unchanged by this
+query. This is not yet exposed by a server command or connected to enforcement;
+the client update cadence and operator-configured policy remain integration work.
+
+Verification: targeted `ArtifactTelemetrySnapshotTest` and the complete
+`HandshakeIntegrationTest` suite passed (35 tests, zero failures). Coverage includes
+exact TTL boundary, pre-receipt clock anomaly, extreme Instant values, invalid
+inputs, missing/pre-auth states, initial and dynamic receipts, lost-ACK retry,
+rejected update, unchanged VERIFIED admission, replacement and removal.
+The first test attempt incorrectly retried a client update after consuming its
+ACK; the test was corrected to model a genuinely lost ACK before retrying.
+No real-client runtime or complete repository test pass is claimed for this change.
+
 ## Current runtime observation (2026-09-08, UTC+08)
 
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.

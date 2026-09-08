@@ -411,6 +411,48 @@ final class HandshakeIntegrationTest {
     }
 
     @Test
+    void exposesReceiptFreshnessWithoutRenewalOnRetryOrLeakingReplacedSession() throws Exception {
+        Duration ttl = Duration.ofSeconds(2);
+        assertTrue(server.artifactTelemetrySnapshot(playerId, ttl).isEmpty());
+        assertThrows(IllegalArgumentException.class,
+                () -> server.artifactTelemetrySnapshot(playerId, Duration.ZERO));
+        ClientHandshakeEngine client = client(serverKeys);
+        var authentication = frames(client, server.begin(playerId));
+        assertTrue(server.artifactTelemetrySnapshot(playerId, ttl).isEmpty());
+        server.receive(playerId, authentication.get(0));
+        var authenticated = server.receive(playerId, authentication.get(1));
+        client.receiveAuthResult(authenticated.outboundFrames().getFirst());
+        var initial = server.artifactTelemetrySnapshot(playerId, ttl).orElseThrow();
+        assertEquals(0L, initial.updateSequence());
+        assertEquals(clock.instant(), initial.receivedAt());
+        assertEquals(ArtifactTelemetrySnapshot.Freshness.FRESH, initial.freshness());
+
+        clock.advance(ttl);
+        assertEquals(ArtifactTelemetrySnapshot.Freshness.STALE,
+                server.artifactTelemetrySnapshot(playerId, ttl).orElseThrow().freshness());
+        assertEquals(AdmissionStatus.VERIFIED, api.snapshot(playerId).orElseThrow().admissionStatus());
+        var update = client.prepareArtifactObservationUpdate(emptyBundle(), List.of());
+        var accepted = sendObservationFrames(update.frames());
+        assertEquals(1, accepted.outboundFrames().size());
+        // Simulate losing the first ACK; the client can retry while it is still pending.
+        var fresh = server.artifactTelemetrySnapshot(playerId, ttl).orElseThrow();
+        assertEquals(1L, fresh.updateSequence());
+        assertEquals(clock.instant(), fresh.receivedAt());
+        assertEquals(ArtifactTelemetrySnapshot.Freshness.FRESH, fresh.freshness());
+
+        clock.advance(ttl);
+        var retry = sendObservationFrames(client.retryArtifactObservationUpdate(update));
+        assertTrue(client.receiveArtifactObservationResult(retry.outboundFrames().getFirst(), update).accepted());
+        var afterRetry = server.artifactTelemetrySnapshot(playerId, ttl).orElseThrow();
+        assertEquals(fresh.receivedAt(), afterRetry.receivedAt());
+        assertEquals(ArtifactTelemetrySnapshot.Freshness.STALE, afterRetry.freshness());
+        server.begin(playerId);
+        assertTrue(server.artifactTelemetrySnapshot(playerId, ttl).isEmpty());
+        server.remove(playerId);
+        assertTrue(server.artifactTelemetrySnapshot(playerId, ttl).isEmpty());
+    }
+
+    @Test
     void bindsSelectedPackIdsToInitialAndDynamicAuthenticatedObservations() throws Exception {
         AtomicReference<AuthenticatedManifest> update = new AtomicReference<>();
         server = new ServerHandshakeCoordinator(
@@ -464,6 +506,8 @@ final class HandshakeIntegrationTest {
         ClientHandshakeEngine.PreparedArtifactObservationUpdate prepared =
                 client.prepareArtifactObservationUpdate(emptyBundle(), List.of());
         ArtifactObservationUpdate exact = observationUpdate(prepared);
+        var initialReceipt = server.artifactTelemetrySnapshot(playerId, Duration.ofMinutes(1)).orElseThrow();
+        clock.advance(Duration.ofSeconds(1));
 
         ArtifactObservationUpdate invalid = exact.toBuilder()
                 .addSelectedResourcePacks(" invalid-leading-space")
@@ -476,6 +520,8 @@ final class HandshakeIntegrationTest {
         assertArrayEquals(MessageDigest.getInstance("SHA-256").digest(invalid.toByteArray()),
                 invalidResult.getUpdateSha256().toByteArray());
         assertEquals(0, updates.get(), "a semantic rejection cannot advance server state");
+        assertEquals(initialReceipt.receivedAt(), server.artifactTelemetrySnapshot(
+                playerId, Duration.ofMinutes(1)).orElseThrow().receivedAt());
 
         HandshakeAction acceptedButResultDropped = sendObservationFrames(prepared.frames());
         assertTrue(verifiedObservationResult(acceptedButResultDropped).getAccepted());

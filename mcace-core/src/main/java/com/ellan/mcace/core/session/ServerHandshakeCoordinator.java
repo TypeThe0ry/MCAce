@@ -338,6 +338,29 @@ public final class ServerHandshakeCoordinator {
     }
 
     /**
+     * Read-only telemetry freshness, separate from authenticated identity and admission.
+     * Sequence zero represents the initial manifest. Only a newly accepted update renews
+     * receipt time; retries, rejected updates and heartbeats do not. Empty means no current
+     * authenticated manifest, including disconnected and replacement handshakes.
+     */
+    public synchronized Optional<ArtifactTelemetrySnapshot> artifactTelemetrySnapshot(
+            UUID playerId, Duration maximumAge) {
+        Objects.requireNonNull(playerId, "playerId");
+        Objects.requireNonNull(maximumAge, "maximumAge");
+        if (maximumAge.isZero() || maximumAge.isNegative()) {
+            throw new IllegalArgumentException("maximumAge must be positive");
+        }
+        SessionContext context = sessions.get(playerId);
+        if (context == null || context.session.stage() != SessionStage.AUTHENTICATED
+                || context.authenticatedAt == null) return Optional.empty();
+        Instant receivedAt = context.lastArtifactObservationSequence == 0L
+                ? context.authenticatedAt
+                : Instant.ofEpochMilli(context.lastArtifactObservationAcceptedAtEpochMs);
+        return Optional.of(new ArtifactTelemetrySnapshot(context.session.id(),
+                context.lastArtifactObservationSequence, receivedAt, clock.instant(), maximumAge));
+    }
+
+    /**
      * Returns the narrow local-authentication binding needed by the opt-in, client-carried
      * federation flow. This is a read-only view: querying it never publishes an SDK snapshot,
      * invokes risk/admission/disposition logic, or extends the lifetime of the session.
