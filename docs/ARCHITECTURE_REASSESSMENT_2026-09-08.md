@@ -404,6 +404,22 @@ The new focused snapshot test and the real-process inventory test have been
 started; compilation succeeded, but successful runtime recovery is not yet
 claimed. The change applies to Velocity, not BungeeCord's policy provider.
 
+### Snapshot verification results
+
+The focused snapshot test completed: one executed, zero failures/errors/skips.
+It checks reading while another thread holds the manager monitor, the exact
+120-second lease boundary, clock rollback, failed refresh invalidation, recovery,
+and successful forced rotation publishing a different signer snapshot.
+
+The real-process inventory test also completed but failed its authentication
+acceptance assertion in the disabled control. Unlike the previous attempts, the
+peer now observed ServerHello and sent authentication frames; configuration and
+GameJoin were observed. The proxy recorded challenge creation and dispatch in the
+same second with `sent=true`. No AuthResult was observed by the peer. Thus the
+pre-hello blocking stage advanced, but end-to-end authentication, accepted ModList,
+and enabled-rule disconnect remain unproven. The next investigation is the
+authentication ingress/response and peer deadline, not the old pre-hello timeout.
+
 ## Retained GUI run details (2026-09-08, UTC+08)
 
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.
