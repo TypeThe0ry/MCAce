@@ -66,6 +66,30 @@ No low-latency or fail-closed entry guarantee is claimed.
 
 ## Remaining acceptance
 
+An opt-in real-process case now exists:
+`MinecraftProxyPlayerProbeTest.realVelocityInventoryAdmissionRejectsReportedModOnlyWhenEnabled`.
+Set `mcace.runtime.inventory-admission.enabled=true` and supply the existing
+`mcace.runtime` backend/proxy/JDK/prepared-tree paths, SHA-256 bindings, version and
+protocol properties required by `RuntimeProcessAssets`. Gradle forwards the opt-in
+to the test JVM. This creates two isolated Velocity/Paper environments: disabled
+control must reach verified backend admission; enabled configuration prohibits
+the raw peer's reported `fabricloader` ID and must produce both a disconnect API
+log and protocol-disconnect/remote-EOF evidence. Do not copy that fixture rule into
+a real server. This is a raw protocol peer, not Fabric GUI or real cheat detection.
+
+2026-09-08 local result: **FAILED, not release evidence**. Paper 1.21.11 build 132,
+Velocity 3.5.1-615 and JDK 21 assets passed content-binding preflight. The first run
+had a cleanup-root mismatch that masked its startup error; the test now recognizes
+its own dedicated work root and preserves original failures when cleanup fails.
+The next attempt exposed the 30-second listener timeout while Windows private-path
+ACL checks were still executing. Only this new case now allows 120 seconds for
+listener readiness, retaining ACL checks and socket probing. The third attempt
+started Velocity (54.21 seconds) and Paper (30.845 seconds), but the disabled
+control timed out in the raw peer's frame read before passing its assertions.
+The enabled case was not reached. That attempt's owned processes/work tree were
+cleaned; the first failed cleanup left a diagnostic directory, not passing evidence.
+Fixed-field handshake-stage diagnostics have since been added for the next rerun.
+
 Protocol integration coverage now drives the normal ClientHandshakeEngine signed
 authentication and bounded-update frames into ServerHandshakeCoordinator for two
 cases: a fixture loaded Mod ID and a fixture selected resource-pack identifier.

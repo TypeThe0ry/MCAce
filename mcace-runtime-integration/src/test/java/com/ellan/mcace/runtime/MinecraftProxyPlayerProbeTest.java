@@ -189,6 +189,74 @@ final class MinecraftProxyPlayerProbeTest {
         assertPassingPlayerProbe(run(ProxyKind.BUNGEE, BackendKind.FOLIA));
     }
 
+    @Test
+    @Timeout(600)
+    @EnabledIfSystemProperty(named = "mcace.runtime.inventory-admission.enabled", matches = "true")
+    void realVelocityInventoryAdmissionRejectsReportedModOnlyWhenEnabled() throws Exception {
+        for (boolean enabled : new boolean[] {false, true}) {
+            Path repository = repositoryRoot();
+            Path work = repository.resolve("build/runtime-inventory-admission/work/" + UUID.randomUUID());
+            Files.createDirectories(work);
+            ProbeHarness harness = null;
+            MinecraftWirePeer peer = null;
+            Throwable primaryFailure = null;
+            try {
+                harness = new ProbeHarness(repository, work, ProxyKind.VELOCITY);
+                // Cold Windows private-path checks may still be running after the identity
+                // file appears. Retain socket readiness; do not bypass the ACL checks.
+                harness.proxyListenerTimeoutSeconds = 120;
+                harness.prepare();
+                Files.writeString(harness.proxyDataDirectory().resolve("inventory-admission.properties"),
+                        "enabled=" + enabled + "\ndenied-mod-ids=fabricloader\n", StandardCharsets.UTF_8);
+                harness.start();
+                peer = new MinecraftWirePeer(harness);
+                peer.activeInventoryAdmissionProbe = enabled;
+                peer.activeDenyProbe = enabled;
+                ProbeReport report = peer.probe();
+                assertTrue(report.authAccepted(), "signed probe authentication must be accepted");
+                String log = harness.proxyLogs();
+                if (enabled) {
+                    assertTrue(inventoryDisconnectDispatched(log), "inventory disconnect API result missing");
+                    assertTrue(peer.inlineDenyObservation != null
+                                    && peer.inlineDenyObservation.disconnectEvidence() != DisconnectEvidence.NONE,
+                            "remote protocol disconnect or EOF evidence missing");
+                } else {
+                    assertTrue(report.backendAdmission(), "disabled control must reach verified backend admission");
+                    assertTrue(!inventoryDisconnectDispatched(log), "disabled rule dispatched disconnect");
+                }
+                System.out.println("MCACE_INVENTORY_RUNTIME_CASE_PASS|enabled=" + enabled
+                        + "|real_proxy=true|raw_protocol_peer=true|fabric_gui=false");
+            } catch (Exception | AssertionError failure) {
+                System.out.println("MCACE_INVENTORY_RUNTIME_CASE_FAILED|enabled=" + enabled
+                        + "|peer_created=" + (peer != null)
+                        + "|server_hello=" + (peer != null && peer.serverHelloSeen)
+                        + "|authentication_sent=" + (peer != null && peer.authenticationSent)
+                        + "|auth_result=" + (peer != null && peer.authResultSeen));
+                primaryFailure = failure;
+                throw failure;
+            } finally {
+                try {
+                    if (harness != null) {
+                        harness.close();
+                        assertTrue(harness.remainingRunProcesses().isEmpty(), "owned process cleanup incomplete");
+                    }
+                    deleteOwnedWorkTree(work);
+                } catch (Exception | AssertionError cleanupFailure) {
+                    if (primaryFailure != null) primaryFailure.addSuppressed(cleanupFailure);
+                    else throw cleanupFailure;
+                }
+            }
+        }
+    }
+
+    private static boolean inventoryDisconnectDispatched(String log) {
+        return log.lines().anyMatch(line -> line.contains("MCAce inventory admission:")
+                && line.contains("finding=PROHIBITED_LOADED_MOD")
+                && line.contains("result=DISPATCHED")
+                && line.contains("authority=ADMIN_CONFIGURED_INVENTORY")
+                && line.contains("execution-evidence=DISCONNECT_API_ACCEPTED"));
+    }
+
     private static void assertPassingPlayerProbe(ProbeReport report) {
         assertTrue(report.forwardingConfigured(), report.toJson());
         assertTrue(report.loginSuccess(), report.toJson());
@@ -1348,6 +1416,8 @@ final class MinecraftProxyPlayerProbeTest {
         Path normalized = workRoot.toAbsolutePath().normalize();
         Path repository = repositoryRoot();
         List<Path> expectedParents = List.of(
+                repository.resolve("build/runtime-inventory-admission/work")
+                        .toAbsolutePath().normalize(),
                 repository.resolve("build/runtime-disposition-matrix/work")
                         .toAbsolutePath().normalize(),
                 repository.resolve("build/runtime-trusted-disposition/work")
@@ -2047,6 +2117,8 @@ final class MinecraftProxyPlayerProbeTest {
         private String backendProcessName() {
             return backendKind.name().toLowerCase(java.util.Locale.ROOT);
         }
+
+        private int proxyListenerTimeoutSeconds = 30;
 
         private void start() throws Exception {
             startProxy();
@@ -3045,7 +3117,7 @@ final class MinecraftProxyPlayerProbeTest {
             }
             // Do not infer bind readiness from logging. Probe the actual loopback socket so a
             // restart or a buffered log cannot make the next phase race the listener.
-            waitForLoopbackListener(proxy, proxyPort, 30);
+            waitForLoopbackListener(proxy, proxyPort, proxyListenerTimeoutSeconds);
         }
 
         private void waitForLoopbackListener(OwnedProcess process, int port, int seconds)
@@ -3796,6 +3868,7 @@ final class MinecraftProxyPlayerProbeTest {
         private boolean trustedReviewCommandSent;
         private RemoteLiveness remoteLiveness = RemoteLiveness.NOT_ATTEMPTED;
         private boolean activeDenyProbe;
+        private boolean activeInventoryAdmissionProbe;
         private boolean activeTrustedDenyProbe;
         private DenyWireObservation inlineDenyObservation;
         private boolean activeCleanReconnectProbe;
@@ -4174,7 +4247,8 @@ final class MinecraftProxyPlayerProbeTest {
             // bounded frame read so a short quiet tick can never desynchronise a partial frame.
             socket.setSoTimeout(10_000);
             while (System.nanoTime() < deadline) {
-                denied |= harness.denyDispositionObserved();
+                denied |= activeInventoryAdmissionProbe
+                        ? inventoryDisconnectDispatched(harness.proxyLogs()) : harness.denyDispositionObserved();
                 try {
                     if (input.available() == 0) {
                         if (denied && evidence != DisconnectEvidence.NONE) break;

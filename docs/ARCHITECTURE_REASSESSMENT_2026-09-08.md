@@ -311,6 +311,19 @@ also verifies disabled rules do not match. Local offline JDK 21 validation passe
 This verifies the in-process protocol/policy/receipt chain without loading a cheat,
 running a Minecraft GUI, or proving Velocity network effects.
 
+## Real inventory runtime attempt (2026-09-08)
+
+Added a separately opt-in Velocity/Paper process test with disabled/enabled
+inventory rules and real remote disconnect evidence requirements. This is a raw
+protocol peer, not a Fabric GUI. Latest actual execution failed in the disabled
+control's frame read after both proxy and backend started; no enabled-rule
+disconnect success is claimed. Earlier attempts exposed and corrected this new
+test's cleanup-root handling and its cold Windows listener wait. ACL validation
+remains intact. The latest executed run cleaned its owned processes and work tree.
+See [runtime details](INVENTORY_ADMISSION.md) for the failure sequence and the
+required property bindings. New fixed-field stage diagnostics are compiled for
+the next attempt, not represented as a completed successful rerun.
+
 ## Retained GUI run details (2026-09-08, UTC+08)
 
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.

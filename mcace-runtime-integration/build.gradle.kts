@@ -53,6 +53,7 @@ tasks.test {
         "mcace.folia.player-probe.hold-millis",
         "mcace.admission-probe.mode",
         "mcace.runtime.player-probe.enabled",
+        "mcace.runtime.inventory-admission.enabled",
         "mcace.runtime.folia-context.enabled",
         "mcace.runtime.backend-kind",
         "mcace.runtime.backend.jar",
