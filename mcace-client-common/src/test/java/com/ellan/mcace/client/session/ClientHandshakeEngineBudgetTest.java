@@ -74,6 +74,29 @@ final class ClientHandshakeEngineBudgetTest {
     @TempDir Path temporaryDirectory;
 
     @Test
+    void policyPreparationTimingIsContentFreeAndResetsOnFailure() throws Exception {
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine client = readyClient(server);
+        var complete = client.policyPreparationTimings();
+        assertTrue(complete.envelopeNanos() >= 0);
+        assertTrue(complete.decodeNanos() >= 0);
+        assertTrue(complete.cacheNanos() >= 0);
+        assertTrue(complete.stateNanos() >= 0);
+        assertTrue(complete.totalNanos() >= complete.envelopeNanos() + complete.decodeNanos()
+                + complete.cacheNanos() + complete.stateNanos());
+        assertThrows(EnvelopeException.class, () -> client.prepareServerHello(new byte[0],
+                "budget.example:25565", new VerifiedPolicyCache(temporaryDirectory, CLOCK)));
+        var failed = client.policyPreparationTimings();
+        assertEquals(-1, failed.envelopeNanos());
+        assertEquals(-1, failed.decodeNanos());
+        assertEquals(-1, failed.cacheNanos());
+        assertEquals(-1, failed.stateNanos());
+        assertTrue(failed.totalNanos() >= 0);
+        assertTrue(java.util.Arrays.stream(complete.getClass().getRecordComponents())
+                .allMatch(component -> component.getType() == long.class));
+    }
+
+    @Test
     void exposesOnlyTheVerifiedHelloSessionForAdapterGenerationGuards() throws Exception {
         KeyPair server = Ed25519Keys.generate(new SecureRandom());
         ClientHandshakeEngine client = readyClient(server);

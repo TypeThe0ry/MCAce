@@ -4260,11 +4260,20 @@ final class MinecraftProxyPlayerProbeTest {
 
         private List<String> authenticationTimingTrace() {
             List<String> trace = new ArrayList<>(packetTrace);
+            appendPolicyPhaseTrace(trace);
             trace.add("AUTH_TIMING:work_ms=" + authenticationWorkMillis
                     + ":engine_ms=" + engineInitializationMillis
                     + ":policy_ms=" + policyPrepareMillis
                     + ":frames_ms=" + authenticationFramesMillis);
             return List.copyOf(trace);
+        }
+
+        private void appendPolicyPhaseTrace(List<String> trace) {
+            if (engine == null) return;
+            ClientHandshakeEngine.PolicyPreparationTimings timing = engine.policyPreparationTimings();
+            trace.add("POLICY_PHASE_NANOS:envelope=" + timing.envelopeNanos()
+                    + ":decode=" + timing.decodeNanos() + ":cache=" + timing.cacheNanos()
+                    + ":state=" + timing.stateNanos() + ":total=" + timing.totalNanos());
         }
 
         private DispositionPeerResult dispositionProbe(DispositionScenario scenario) throws Exception {
@@ -5649,6 +5658,7 @@ final class MinecraftProxyPlayerProbeTest {
 
         private ProbeReport withFailureProgress(MinecraftWirePeer peer) {
             List<String> trace = new ArrayList<>(peer.packetTrace);
+            peer.appendPolicyPhaseTrace(trace);
             trace.add("FAILURE_STATE:" + peer.state.name());
             trace.add("FAILURE_HANDSHAKE:hello=" + peer.serverHelloStage.name()
                     + ":outbound=" + peer.authOutboundStage.name()

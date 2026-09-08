@@ -98,6 +98,20 @@ public final class ClientHandshakeEngine {
     private String sessionId;
     private ServerHello acceptedHello;
     private VerifiedPolicy verifiedPolicy;
+    private long policyEnvelopeNanos = -1;
+    private long policyDecodeNanos = -1;
+    private long policyCacheNanos = -1;
+    private long policyStateNanos = -1;
+    private long policyTotalNanos = -1;
+
+    /** Content-free diagnostics; -1 denotes a phase which did not finish. */
+    public record PolicyPreparationTimings(long envelopeNanos, long decodeNanos,
+            long cacheNanos, long stateNanos, long totalNanos) { }
+
+    public synchronized PolicyPreparationTimings policyPreparationTimings() {
+        return new PolicyPreparationTimings(policyEnvelopeNanos, policyDecodeNanos,
+                policyCacheNanos, policyStateNanos, policyTotalNanos);
+    }
     /** Frozen only after a complete local AuthRequest has been prepared for this session. */
     private HeartbeatBinding pendingHeartbeatBinding;
     /** Present only once the server has signed an accepted AuthResult for that request. */
@@ -215,11 +229,25 @@ public final class ClientHandshakeEngine {
             VerifiedPolicyCache policyCache)
             throws EnvelopeException {
         Objects.requireNonNull(policyCache, "policyCache");
+        policyEnvelopeNanos = policyDecodeNanos = policyCacheNanos = policyStateNanos = -1;
+        long preparationStarted = System.nanoTime();
+        try {
+            return prepareServerHelloMeasured(encodedFrame, serverAddress, policyCache);
+        } finally {
+            policyTotalNanos = System.nanoTime() - preparationStarted;
+        }
+    }
+
+    private VerifiedPolicy prepareServerHelloMeasured(byte[] encodedFrame,
+            String serverAddress, VerifiedPolicyCache policyCache) throws EnvelopeException {
+        long phaseStarted = System.nanoTime();
         SignedEnvelope envelope = envelopeCodec.parse(encodedFrame);
         envelopeCodec.verify(envelope, serverPublicKey, replayGuard);
         if (envelope.getHeader().getPacketType() != PacketType.SERVER_HELLO || sessionId != null) {
             throw new EnvelopeException("unexpected server handshake packet");
         }
+        policyEnvelopeNanos = System.nanoTime() - phaseStarted;
+        phaseStarted = System.nanoTime();
         try {
             ServerHello hello = ServerHello.parseFrom(envelope.getPayload());
             if (hello.getChallengeNonce().size() != ProtocolConstants.NONCE_BYTES
@@ -227,7 +255,11 @@ public final class ClientHandshakeEngine {
                     || !hello.hasSignedPolicy()) {
                 throw new EnvelopeException("unsupported or malformed server challenge");
             }
+            policyDecodeNanos = System.nanoTime() - phaseStarted;
+            phaseStarted = System.nanoTime();
             VerifiedPolicy accepted = policyCache.accept(serverAddress, hello.getSignedPolicy(), serverPublicKey);
+            policyCacheNanos = System.nanoTime() - phaseStarted;
+            phaseStarted = System.nanoTime();
             if (!hello.getServerId().equals(accepted.policy().getServerId())
                     || !hello.getPolicyVersion().equals(accepted.policy().getPolicyVersion())
                     || hello.getRequiredLevel() != accepted.policy().getRequiredLevel()
@@ -253,6 +285,7 @@ public final class ClientHandshakeEngine {
             pendingEvidenceServerSequences.clear();
             pendingFederationConsentRequests.clear();
             evidenceRequestVerifier = new EvidenceRequestVerifier(clock);
+            policyStateNanos = System.nanoTime() - phaseStarted;
             return accepted;
         } catch (InvalidProtocolBufferException exception) {
             throw new EnvelopeException("malformed server hello", exception);
