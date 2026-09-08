@@ -66,6 +66,17 @@ No low-latency or fail-closed entry guarantee is claimed.
 
 ## Remaining acceptance
 
+Protocol integration coverage now drives the normal ClientHandshakeEngine signed
+authentication and bounded-update frames into ServerHandshakeCoordinator for two
+cases: a fixture loaded Mod ID and a fixture selected resource-pack identifier.
+Each starts clean, reports prohibited state, restores clean state and verifies the
+old finding cannot dispatch, then reports prohibited state again and verifies one
+current-receipt action callback. Disabled-policy evaluations remain NONE and the
+test does not manufacture a risk-score or SERVER_CONFIRMED verdict. No executable
+cheat or Xray texture is loaded: these are explicitly named fixture identifiers.
+The action callback is a counter, not Velocity's Player.disconnect; this test is
+protocol integration evidence, not GUI or actual disconnection evidence.
+
 Verify a real enabled client with normal inventory, each prohibited input, removal
 and reconnect, reporting delay, replaced report, and actual disconnect result.
 Test all supported Minecraft versions and proxy parity before broad release

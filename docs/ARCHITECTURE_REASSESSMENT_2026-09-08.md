@@ -300,6 +300,17 @@ a missing assertion import; it was corrected before verification. The rerun pass
 unchanged Velocity tests were UP-TO-DATE, not newly executed. This exercises the
 core synchronization boundary, not an actual network disconnect or GUI session.
 
+Protocol-to-policy follow-up: the real client handshake engine generates signed
+authentication and bounded dynamic reports for controlled Mod ID and selected
+resource-pack identifier fixtures. The test starts clean, matches prohibited
+state, replaces it with clean state (old action rejected), then reports prohibited
+state again (one current-receipt action callback). Both cases preserve VERIFIED
+SDK admission because the callback is a counter, not a real disconnect. The test
+also verifies disabled rules do not match. Local offline JDK 21 validation passed
+37 handshake and 2 policy tests (39 executed, zero failures/errors/skips).
+This verifies the in-process protocol/policy/receipt chain without loading a cheat,
+running a Minecraft GUI, or proving Velocity network effects.
+
 ## Retained GUI run details (2026-09-08, UTC+08)
 
 Source: `885e98dc4b0672147057955b5423b3bb3f7c0165`.

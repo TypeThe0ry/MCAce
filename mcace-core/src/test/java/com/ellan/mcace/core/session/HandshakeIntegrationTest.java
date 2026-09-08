@@ -420,6 +420,73 @@ final class HandshakeIntegrationTest {
     }
 
     @Test
+    void signedInventoryReportsDrivePolicyAndSuppressSupersededFindings() throws Exception {
+        for (boolean modCase : new boolean[] {true, false}) {
+            AtomicReference<AuthenticatedManifest> latest = new AtomicReference<>();
+            server = new ServerHandshakeCoordinator(
+                    clock, new SecureRandom(), serverKeys, new RiskEngine(RiskPolicy.defaults()), api,
+                    Duration.ofSeconds(5), () -> signedPolicy,
+                    SecurityAuditSink.noop(), ignored -> { }, latest::set, latest::set,
+                    com.ellan.mcace.core.evidence.EvidenceContentStore.discard(),
+                    com.ellan.mcace.core.evidence.EvidenceAuditSink.noop());
+            var policy = new InventoryAdmissionPolicy(true, java.util.Set.of("fixture_prohibited"),
+                    java.util.Set.of("file/fixture-prohibited.zip"));
+            var normal = new LoadedModObservation("fabricloader", "0.19.3",
+                    LoadedModObservation.OriginKind.BUILTIN_OR_CLASSPATH, "", "");
+            var prohibited = new LoadedModObservation("fixture_prohibited", "1",
+                    LoadedModObservation.OriginKind.BUILTIN_OR_CLASSPATH, "", "");
+            var client = client(serverKeys);
+            client.prepareServerHello(server.begin(playerId), "test.example:25565",
+                    new VerifiedPolicyCache(temporaryDirectory.resolve("admission-chain-" + modCase), clock));
+            var authentication = client.createAuthenticationFrames(emptyBundle(), List.of(),
+                    List.of(), List.of(), List.of(normal));
+            server.receive(playerId, authentication.get(0).data());
+            var authenticated = server.receive(playerId, authentication.get(1).data());
+            client.receiveAuthResult(authenticated.outboundFrames().getFirst());
+            assertEquals(InventoryAdmissionPolicy.Finding.NONE, policy.evaluate(latest.get().request()));
+            assertEquals(0, latest.get().observationSequence());
+            AtomicInteger disconnectCalls = new AtomicInteger();
+            AuthenticatedManifest blocked = null;
+            for (int sequence = 1; sequence <= 3; sequence++) {
+                if (sequence > 1) clock.advance(ProtocolConstants.ARTIFACT_OBSERVATION_INTERVAL);
+                boolean prohibitedState = sequence != 2;
+                var prepared = client.prepareArtifactObservationUpdate(emptyBundle(), List.of(),
+                        prohibitedState && !modCase ? List.of("file/fixture-prohibited.zip") : List.of(),
+                        List.of(), prohibitedState && modCase ? List.of(normal, prohibited) : List.of(normal));
+                var accepted = sendObservationFrames(prepared.frames());
+                assertTrue(client.receiveArtifactObservationResult(
+                        accepted.outboundFrames().getFirst(), prepared).accepted());
+                client.commitArtifactObservationUpdate(prepared);
+                var report = latest.get();
+                assertEquals(sequence, report.observationSequence());
+                var expected = modCase ? InventoryAdmissionPolicy.Finding.PROHIBITED_LOADED_MOD
+                        : InventoryAdmissionPolicy.Finding.PROHIBITED_SELECTED_RESOURCE_PACK;
+                assertEquals(prohibitedState ? expected : InventoryAdmissionPolicy.Finding.NONE,
+                        policy.evaluate(report.request()));
+                assertEquals(InventoryAdmissionPolicy.Finding.NONE,
+                        InventoryAdmissionPolicy.disabled().evaluate(report.request()));
+                if (sequence == 1) blocked = report;
+                if (sequence == 2) {
+                    assertEquals(ServerHandshakeCoordinator.InventoryAdmissionExecution.STALE_REPORT,
+                            server.executeInventoryAdmission(playerId, blocked.sessionId(),
+                                    blocked.observationSequence(), blocked.receivedAt(), Duration.ofMinutes(15),
+                                    () -> { disconnectCalls.incrementAndGet(); return true; }));
+                    assertEquals(0, disconnectCalls.get());
+                }
+                if (sequence == 3) {
+                    assertEquals(ServerHandshakeCoordinator.InventoryAdmissionExecution.DISPATCHED,
+                            server.executeInventoryAdmission(playerId, report.sessionId(),
+                                    report.observationSequence(), report.receivedAt(), Duration.ofMinutes(15),
+                                    () -> { disconnectCalls.incrementAndGet(); return true; }));
+                    assertEquals(1, disconnectCalls.get());
+                }
+            }
+            assertEquals(AdmissionStatus.VERIFIED, api.snapshot(playerId).orElseThrow().admissionStatus());
+            server.remove(playerId);
+        }
+    }
+
+    @Test
     void concurrentInventoryAdmissionHandoffsInvokeTheActionExactlyOnce() throws Exception {
         var client = client(serverKeys);
         var authentication = frames(client, server.begin(playerId));
