@@ -34,6 +34,7 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
     private BehaviorAlertPipeline behaviorPipeline;
     private MCAceRuntimeScheduler runtimeScheduler;
     private BackendLocalSessionActionAdapter sessionActions;
+    private BackendInteractionGuard interactionGuard;
     private PaperBackendContextPublisher backendContextPublisher;
     private PaperServerAuthorityRuntime serverAuthorityRuntime;
     private PaperServerAuthorityChannelLease<PaperServerAuthorityRuntime> serverAuthorityLease;
@@ -48,6 +49,13 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
         BackendLocalSessionActionAdapter localSessionActions =
                 new BackendLocalSessionActionAdapter(sessionActionConfiguration, getLogger());
         sessionActions = localSessionActions;
+        Object guardSetting = getConfig().get("admission-guard.enabled");
+        if (guardSetting != null && !(guardSetting instanceof Boolean)) {
+            throw new IllegalArgumentException("admission-guard.enabled must be a boolean");
+        }
+        BackendInteractionGuard localInteractionGuard = new BackendInteractionGuard(
+                Boolean.TRUE.equals(guardSetting), Clock.systemUTC());
+        interactionGuard = localInteractionGuard;
         backendContextPublisher = new PaperBackendContextPublisher(this, Clock.systemUTC(), getLogger());
         PublicKey proxyPublicKey;
         ProxyIdentityPinPaths.Selection selectedPin = ProxyIdentityPinPaths.select(getDataFolder().toPath());
@@ -72,6 +80,7 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
                     @Override public void accept(org.bukkit.entity.Player carrier,
                             PaperAdmissionReceiver.AcceptedAdmission update) {
                         localSessionActions.accept(carrier, update);
+                        localInteractionGuard.accept(carrier, update);
                         backendContextPublisher.accept(carrier, update);
                         if (serverAuthorityRuntime != null) {
                             serverAuthorityRuntime.acceptAdmission(carrier, update);
@@ -79,6 +88,7 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
                     }
                     @Override public void remove(java.util.UUID playerId) {
                         localSessionActions.remove(playerId);
+                        localInteractionGuard.remove(playerId);
                         backendContextPublisher.remove(playerId);
                         if (serverAuthorityRuntime != null) {
                             serverAuthorityRuntime.remove(playerId);
@@ -90,6 +100,7 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
         getServer().getMessenger().registerOutgoingPluginChannel(
                 this, ProtocolConstants.BACKEND_CONTEXT_CHANNEL);
         getServer().getPluginManager().registerEvents(this, this);
+        getServer().getPluginManager().registerEvents(localInteractionGuard, this);
         runtimeScheduler.repeatGlobal(admissionReceiver::expire, 20L, 20L);
         if (serverAuthorityRuntime != null) {
             runtimeScheduler.repeatGlobal(serverAuthorityRuntime::expire, 20L, 20L);
@@ -107,6 +118,10 @@ public final class MCAcePaperPlugin extends JavaPlugin implements Listener {
 
     @Override
     public void onDisable() {
+        if (interactionGuard != null) {
+            interactionGuard.clear();
+            interactionGuard = null;
+        }
         for (AutoCloseable integration : behaviorIntegrations.reversed()) {
             try {
                 integration.close();

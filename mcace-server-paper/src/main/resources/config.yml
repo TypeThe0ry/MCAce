@@ -58,3 +58,7 @@ cloud:
   private-key-path: "cloud-server-private-key.pk8"
   queue-capacity: 1024
   request-timeout-ms: 5000
+## Opt-in: block common interactions until this connection has fresh signed VERIFIED admission.
+## This does not freeze movement or replace a dedicated waiting backend. /mcace stays available.
+admission-guard:
+  enabled: false
