@@ -341,7 +341,10 @@ the mutable Java `user.name` property. On Windows, the native NT runtime
 principal must own each protected path and every directory/file DACL must be
 protected, contain no inherited ACE, and contain exactly `FullControl` entries
 for that principal and `SYSTEM` (with the exact directory inheritance flags and
-no file inheritance flags). Broad or unverifiable DACLs fail closed. The
+no file inheritance flags). When the service itself runs as `SYSTEM`, those two
+identities are the same SID and the contract uses one explicit `SYSTEM`
+`FullControl` ACE instead of a duplicate entry. Broad or unverifiable DACLs
+fail closed. The
 provisioner protects the two generated runtime private-key files for the current
 user plus `SYSTEM` on Windows (or mode `0600` outside Windows), commits the
 output with one directory rename, and removes a partial staging tree if that

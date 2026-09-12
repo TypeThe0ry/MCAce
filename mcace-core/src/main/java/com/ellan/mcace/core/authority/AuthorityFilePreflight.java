@@ -86,16 +86,21 @@ public final class AuthorityFilePreflight {
                     + "else{$acl=New-Object Security.AccessControl.FileSecurity}",
             "$acl.SetOwner($current)",
             "$acl.SetAccessRuleProtection($true,$false)",
+            // A service may legitimately run as LOCAL SYSTEM. In that case the
+            // runtime principal and SYSTEM are the same SID and must be represented
+            // by one explicit ACE rather than a duplicate entry.
+            "$identities=@($current)",
+            "if($system.Value -ne $current.Value){$identities += $system}",
             "if($d -ceq 'true'){"
                     + "$inheritance=[Security.AccessControl.InheritanceFlags]::ContainerInherit"
                     + " -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit;"
-                    + "foreach($identity in @($current,$system)){"
+                    + "foreach($identity in $identities){"
                     + "$rule=New-Object Security.AccessControl.FileSystemAccessRule("
                     + "$identity,[Security.AccessControl.FileSystemRights]::FullControl,"
                     + "$inheritance,[Security.AccessControl.PropagationFlags]::None,"
                     + "[Security.AccessControl.AccessControlType]::Allow);"
                     + "[void]$acl.AddAccessRule($rule)}}else{"
-                    + "foreach($identity in @($current,$system)){"
+                    + "foreach($identity in $identities){"
                     + "$rule=New-Object Security.AccessControl.FileSystemAccessRule("
                     + "$identity,[Security.AccessControl.FileSystemRights]::FullControl,"
                     + "[Security.AccessControl.AccessControlType]::Allow);"
@@ -692,11 +697,16 @@ public final class AuthorityFilePreflight {
             throw new IOException(description + " is not owned by the effective Windows principal");
         }
         List<AclEntry> acl = view.getAcl();
-        if (acl.size() != 2) {
-            throw new IOException(description + " Windows DACL must contain exactly two ACEs");
+        boolean runtimeIsSystem = samePrincipal(
+                security.effectivePrincipal(), security.systemPrincipal());
+        int expectedAceCount = runtimeIsSystem ? 1 : 2;
+        if (acl.size() != expectedAceCount) {
+            throw new IOException(description + " Windows DACL must contain exactly "
+                    + expectedAceCount + (expectedAceCount == 1 ? " ACE when the runtime is SYSTEM"
+                            : " ACEs"));
         }
         boolean currentSeen = false;
-        boolean systemSeen = false;
+        boolean systemSeen = runtimeIsSystem;
         Set<AclEntryFlag> expectedFlags = directory ? PRIVATE_DIRECTORY_ACL_FLAGS : Set.of();
         for (AclEntry entry : acl) {
             if (entry.type() != AclEntryType.ALLOW
@@ -709,7 +719,8 @@ public final class AuthorityFilePreflight {
                     throw new IOException(description + " has a duplicate runtime-principal ACE");
                 }
                 currentSeen = true;
-            } else if (samePrincipal(entry.principal(), security.systemPrincipal())) {
+            } else if (!runtimeIsSystem
+                    && samePrincipal(entry.principal(), security.systemPrincipal())) {
                 if (systemSeen) {
                     throw new IOException(description + " has a duplicate SYSTEM ACE");
                 }
