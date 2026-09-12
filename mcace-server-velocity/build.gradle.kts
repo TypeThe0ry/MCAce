@@ -2,6 +2,30 @@ plugins {
     id("com.gradleup.shadow") version "9.2.2"
 }
 
+val mcaceProductVersion = project.version.toString()
+
+val generateMCAcePluginVersionSource = tasks.register<Copy>("generateMCAcePluginVersionSource") {
+    val destination = layout.buildDirectory.dir("generated/sources/mcacePluginVersion")
+    outputs.dir(destination)
+    inputs.property("mcaceProductVersion", mcaceProductVersion)
+    from(layout.projectDirectory.dir("src/main/templates"))
+    into(destination)
+    filter(
+        org.apache.tools.ant.filters.ReplaceTokens::class,
+        mapOf("tokens" to mapOf("mcaceVersion" to mcaceProductVersion)),
+    )
+}
+
+sourceSets {
+    named("main") {
+        java.srcDir(generateMCAcePluginVersionSource)
+    }
+}
+
+tasks.withType<JavaCompile>().configureEach {
+    dependsOn(generateMCAcePluginVersionSource)
+}
+
 dependencies {
     implementation(project(":mcace-core"))
     implementation(project(":mcace-sdk"))

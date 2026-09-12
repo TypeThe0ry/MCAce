@@ -3,6 +3,7 @@ package com.ellan.mcace.core.authority;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNull;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
@@ -33,7 +34,8 @@ final class DurableServerAuthorityIssuerTest {
         KeyPair backendKeys = AuthorityTestFixtures.keyPair();
         ServerAuthorityObservationCodec codec = new ServerAuthorityObservationCodec(
                 AuthorityTestFixtures.CLOCK, new SecureRandom());
-        Path path = directory.resolve("issuance.log");
+        Path path = AuthorityJournalTestFixture.privateDirectory(
+                directory, "durable-authority").resolve("issuance.log");
         AuthorityJournalTestFixture.initializeEmpty(path);
 
         DurablyIssuedServerAuthorityObservation issued;
@@ -42,10 +44,16 @@ final class DurableServerAuthorityIssuerTest {
             RecoveredServerAuthoritySequence recovered = issuer.recover(
                     AuthorityTestFixtures.verifiedGrant());
             assertEquals(0L, recovered.lastSequence());
+            assertTrue(recovered.lastObservedAt().isEmpty());
+            assertTrue(recovered.lastIssuedAt().isEmpty());
             assertTrue(recovered.matches(AuthorityTestFixtures.verifiedGrant()));
             issued = issueNext(issuer, backendKeys);
-            assertEquals(1L, issuer.recover(
-                    AuthorityTestFixtures.verifiedGrant()).lastSequence());
+            RecoveredServerAuthoritySequence afterIssue = issuer.recover(
+                    AuthorityTestFixtures.verifiedGrant());
+            assertEquals(1L, afterIssue.lastSequence());
+            assertEquals(AuthorityTestFixtures.NOW.minusSeconds(1),
+                    afterIssue.lastObservedAt().orElseThrow());
+            assertEquals(issued.issuedAt(), afterIssue.lastIssuedAt().orElseThrow());
         }
 
         assertEquals(1L, issued.observationSequence());
@@ -71,6 +79,12 @@ final class DurableServerAuthorityIssuerTest {
         assertEquals(issued.attestationId(), verified.attestationId());
         assertEquals(1L, verified.observationSequence());
         assertEquals(issued.signedFrameSha256(), verified.signedFrameSha256());
+        assertEquals(issued.authorityProfileSha256(), verified.authorityProfileSha256());
+        assertEquals(issued.providerEvidenceCommitmentSha256(),
+                verified.providerEvidenceCommitmentSha256());
+        assertNotEquals(verified.authorityProfileSha256(),
+                verified.providerEvidenceCommitmentSha256());
+        assertTrue(raw.contains(issued.providerEvidenceCommitmentSha256()));
         byte[] copy = issued.frame();
         copy[0] ^= 1;
         assertFalse(Arrays.equals(copy, issued.frame()));
@@ -81,7 +95,8 @@ final class DurableServerAuthorityIssuerTest {
         KeyPair backendKeys = AuthorityTestFixtures.keyPair();
         ServerAuthorityObservationCodec codec = new ServerAuthorityObservationCodec(
                 AuthorityTestFixtures.CLOCK, new SecureRandom());
-        Path path = directory.resolve("restart.log");
+        Path path = AuthorityJournalTestFixture.privateDirectory(
+                directory, "restart-authority").resolve("restart.log");
         AuthorityJournalTestFixture.initializeEmpty(path);
 
         try (DurableServerAuthorityIssuer first = new DurableServerAuthorityIssuer(

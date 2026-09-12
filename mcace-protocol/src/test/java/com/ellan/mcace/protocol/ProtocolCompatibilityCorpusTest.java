@@ -80,7 +80,8 @@ final class ProtocolCompatibilityCorpusTest {
         assertEquals(PacketType.FEDERATION_PRESENTATION, PacketType.forNumber(20));
         assertEquals(PacketType.BACKEND_AUTHORITY_GRANT, PacketType.forNumber(21));
         assertEquals(PacketType.SERVER_AUTHORITY_OBSERVATION, PacketType.forNumber(22));
-        assertEquals(null, PacketType.forNumber(23));
+        assertEquals(PacketType.ARTIFACT_OBSERVATION_RESULT, PacketType.forNumber(23));
+        assertEquals(null, PacketType.forNumber(24));
     }
 
     @Test

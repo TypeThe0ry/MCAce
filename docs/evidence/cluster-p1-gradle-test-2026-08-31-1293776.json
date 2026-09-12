@@ -1,0 +1,29 @@
+{
+  "schema": "MCACE_CLUSTER_GRADLE_TEST_EVIDENCE_V1",
+  "generated_at": "2026-08-31T12:13:59Z",
+  "source_commit": "1293776418b7fde862bdae6e7c5b231ba129441b",
+  "artifact_source_commit": "5e60d2a8d89102ee9b3dbd09e05dfa92cdbbe29d",
+  "execution_node": "p1",
+  "profile": "linux",
+  "job_id": "20260831-mcace-1293776-gradle21-final",
+  "worker_checkout": "/srv/codex-worker/jobs/20260831-mcace-1293776-gradle21-final/repo",
+  "container": {
+    "image": "eclipse-temurin:21-jdk",
+    "image_digest": "sha256:85f00967bcc624fc19fa9c2cf124ea426a5363898e267141726f31f358c2e14b"
+  },
+  "command": "bash ./gradlew test --no-daemon --no-configuration-cache --stacktrace",
+  "gradle": "BUILD SUCCESSFUL in 4m 15s",
+  "passed": true,
+  "exit_code": 0,
+  "actionable_tasks": 71,
+  "retries": 0,
+  "logs": {
+    "stdout_log_sha256": "a8b460979a76c78b55e8149382de253ff05bcf5864a760acd5a87e572933f294",
+    "stdout_log_size": 10689
+  },
+  "notes": [
+    "Independent Linux/Java 21 regression for the current feature commit.",
+    "The checkout was cloned from GitHub and pinned to the exact source commit before execution.",
+    "This evidence covers the Gradle test suite only; it does not close GUI, federation, licensed Vulcan, production authority, or protected-main release gates."
+  ]
+}

@@ -1,14 +1,15 @@
 package com.ellan.mcace.client.integrity;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.ByteBuffer;
 import java.nio.channels.FileChannel;
 import java.nio.channels.SeekableByteChannel;
 import java.nio.charset.StandardCharsets;
+import java.nio.file.FileVisitResult;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.SimpleFileVisitor;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.security.MessageDigest;
@@ -16,11 +17,9 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 public final class ScopedIntegrityScanner {
     private static final byte[] MANIFEST_DOMAIN = "mcace-manifest-v1\0".getBytes(StandardCharsets.UTF_8);
@@ -71,19 +70,42 @@ public final class ScopedIntegrityScanner {
         }
 
         List<Path> files = new ArrayList<>();
-        try (Stream<Path> stream = Files.walk(scope)) {
-            Iterator<Path> paths = stream.iterator();
-            while (paths.hasNext()) {
-                cancellation.check();
-                Path path = paths.next();
-                if (Files.isRegularFile(path, LinkOption.NOFOLLOW_LINKS) && allowed(path, policy)) {
-                    files.add(path);
-                    if (files.size() > policy.maxEntries()) {
-                        throw new IntegrityScanException("scan scope exceeds maximum entry count");
+        try {
+            Files.walkFileTree(scope, new SimpleFileVisitor<>() {
+                @Override
+                public FileVisitResult preVisitDirectory(Path directory, BasicFileAttributes attributes)
+                        throws IOException {
+                    checkTraversalCancellation(cancellation);
+                    if (!attributes.isDirectory() || attributes.isSymbolicLink() || attributes.isOther()) {
+                        throw traversalRejected("reparse/special directories are not allowed in integrity scopes");
                     }
+                    return FileVisitResult.CONTINUE;
                 }
-            }
-        } catch (IOException | UncheckedIOException exception) {
+
+                @Override
+                public FileVisitResult visitFile(Path file, BasicFileAttributes attributes)
+                        throws IOException {
+                    checkTraversalCancellation(cancellation);
+                    if (attributes.isSymbolicLink() || attributes.isOther()) {
+                        throw traversalRejected("reparse/special files are not allowed in integrity scopes");
+                    }
+                    if (attributes.isRegularFile() && allowed(file, policy)) {
+                        files.add(file);
+                        if (files.size() > policy.maxEntries()) {
+                            throw traversalRejected("scan scope exceeds maximum entry count");
+                        }
+                    }
+                    return FileVisitResult.CONTINUE;
+                }
+
+                @Override
+                public FileVisitResult visitFileFailed(Path file, IOException exception) throws IOException {
+                    throw exception;
+                }
+            });
+        } catch (TraversalRejected exception) {
+            throw exception.integrityFailure;
+        } catch (IOException exception) {
             throw new IntegrityScanException("failed to enumerate scan scope", exception);
         }
         files.sort(Comparator.comparing(path -> portable(scope.relativize(path))));
@@ -308,9 +330,41 @@ public final class ScopedIntegrityScanner {
         Path relative = root.relativize(file);
         for (Path segment : relative) {
             current = current.resolve(segment);
-            if (Files.isSymbolicLink(current)) {
-                throw new IntegrityScanException("symbolic links are not allowed in integrity scopes: " + relative);
+            final BasicFileAttributes attributes;
+            try {
+                attributes = Files.readAttributes(
+                        current, BasicFileAttributes.class, LinkOption.NOFOLLOW_LINKS);
+            } catch (IOException exception) {
+                throw new IntegrityScanException(
+                        "could not verify an integrity-scope path segment: " + relative, exception);
             }
+            if (attributes.isSymbolicLink() || attributes.isOther()) {
+                throw new IntegrityScanException(
+                        "reparse/special path segments are not allowed in integrity scopes: " + relative);
+            }
+        }
+    }
+
+    private static void checkTraversalCancellation(IntegrityScanCancellation cancellation)
+            throws TraversalRejected {
+        try {
+            cancellation.check();
+        } catch (IntegrityScanException exception) {
+            throw new TraversalRejected(exception);
+        }
+    }
+
+    private static TraversalRejected traversalRejected(String message) {
+        return new TraversalRejected(new IntegrityScanException(message));
+    }
+
+    private static final class TraversalRejected extends IOException {
+        private static final long serialVersionUID = 1L;
+        private final IntegrityScanException integrityFailure;
+
+        private TraversalRejected(IntegrityScanException integrityFailure) {
+            super(integrityFailure.getMessage(), integrityFailure);
+            this.integrityFailure = integrityFailure;
         }
     }
 

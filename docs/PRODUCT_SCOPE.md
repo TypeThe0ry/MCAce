@@ -76,7 +76,7 @@ does not automatically ban, punish, or create a confirmed-cheat label.
 ## Evidence boundary
 
 - Evidence capture is Fabric-only and currently supports one `GAME_RENDER_FRAME`
-  after a visible, signed, per-request `Allow once` consent. It does not add a
+  after the connection-level visible, signed `Enable MCAce` consent. It does not add a
   reusable permission, client-side screenshot file, or desktop/window API.
 - A legacy request that omits retention fields means `raw_content_retained=false`,
   `retention_seconds=0`, and empty policy/purpose. A retained request must be
@@ -93,10 +93,12 @@ does not automatically ban, punish, or create a confirmed-cheat label.
   loopback-only, console-issued local reviewer; it has no public raw-image portal.
   Real Minecraft UI/proxy evidence-flow smoke remains a
   release gate. Server-only startup and asset prewarm have passed for all three
-  targets; visible explicit-file plus frame consent still requires two human
-  decisions per target (six total).
+  targets; the single enablement decision covers explicit-file, frame, and
+  federation operations for the current connection.
 
 The three-version server process matrix itself is current and passed 12/12 under
-the August 20 Execute+ReportOnly record. Separately, all three Fabric clients now
-contain distinct source-export and target-import federation consent screens, but
-the real human-carried source-to-target GUI run remains pending.
+the Helio Execute+ReportOnly record bound to code commit `f404971…` (see
+`evidence/server-version-process-matrix-2026-08-25-f404971.json`). Separately, all three Fabric clients now
+contain one connection-level federation enablement decision inherited by source
+export and target import, but the real human-carried source-to-target GUI run
+remains pending.

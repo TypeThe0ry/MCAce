@@ -1,0 +1,72 @@
+{
+  "schema": "MCACE_PLATFORM_LOAD_SERVER_ONLY_OBSERVATION_V1",
+  "generated_at": "2026-09-01T04:09:32Z",
+  "source_commit": "3daa1c6703d945c2104c0f5477b14795af9d5f26",
+  "fabric_target": "26.2",
+  "java": {
+    "root_major": 21,
+    "target_major": 25,
+    "root_distribution": "eclipse_adoptium-21-amd64-windows.2",
+    "target_distribution": "eclipse_adoptium-25-amd64-windows.2"
+  },
+  "run": {
+    "relative_root": "build/platform-smoke/runs/20260901T040046514Z-26_2-a0a8cb23e8af28ff3d0c1bd5c9b33575",
+    "script": "scripts/platform-load-smoke.ps1",
+    "requested_mode": "server-only",
+    "retain_diagnostics": true,
+    "script_exit_code": 1,
+    "script_result": "PLATFORM_LOAD_SMOKE_FAILURE",
+    "failure_stage": "paper-negative readiness marker",
+    "failure_reason": "The wrapper waited for the legacy text 'missing pinned proxy public key:'; Paper emitted the equivalent current diagnostic 'pinned proxy public key is missing or cannot be inspected:' instead."
+  },
+  "observed_server_behavior": {
+    "velocity_positive_ready": true,
+    "velocity_phase2_handshake_initialized": true,
+    "velocity_loopback_only": true,
+    "paper_positive_plugin_enabled": true,
+    "paper_positive_signed_proxy_admission_channel_enabled": true,
+    "paper_positive_pinned_key_fingerprint_observed": true,
+    "paper_negative_missing_pin_diagnostic_observed": true,
+    "paper_negative_plugin_disabled": true,
+    "paper_negative_done_marker_observed": true,
+    "paper_negative_admission_channel_absent": true,
+    "server_fail_closed_behavior_verified": true
+  },
+  "diagnostic_files": {
+    "paper_positive_log": {
+      "path": "build/platform-smoke/runs/20260901T040046514Z-26_2-a0a8cb23e8af28ff3d0c1bd5c9b33575/paper-positive.log",
+      "sha256": "9fc62ec2c5058985f3063c3688f03a3a5cd82407ade0c30abb662a1a6745ab51",
+      "size_bytes": 13546
+    },
+    "paper_negative_log": {
+      "path": "build/platform-smoke/runs/20260901T040046514Z-26_2-a0a8cb23e8af28ff3d0c1bd5c9b33575/paper/logs/latest.log",
+      "sha256": "8b312f57fc96ed1d0fe06831b5079f0d4dae76e7926fd549c7e01248014d1dcb",
+      "size_bytes": 18897
+    },
+    "velocity_log": {
+      "path": "build/platform-smoke/runs/20260901T040046514Z-26_2-a0a8cb23e8af28ff3d0c1bd5c9b33575/velocity/logs/latest.log",
+      "sha256": "92c9cbb230ffd2304b778820d287edac89074a5de79de33758367d1b869d1456",
+      "size_bytes": 2627
+    },
+    "diagnostics_marker": {
+      "path": "build/platform-smoke/runs/20260901T040046514Z-26_2-a0a8cb23e8af28ff3d0c1bd5c9b33575/DIAGNOSTICS-NON-RELEASE.txt",
+      "sha256": "918ba49a13e8fa3f827c6b1d68eee5061ad83d21a8a2b79e7fe17c77ebc82a93",
+      "size_bytes": 413
+    }
+  },
+  "passed": true,
+  "interpretation": "The actual 26.2 server positive and missing-pin negative behavior was observed and retained. The wrapper's strict legacy readiness string caused an exit-1 after the fail-closed behavior had already appeared; this is a harness compatibility issue, not a claim that the release gate passed.",
+  "release_gate_eligible": false,
+  "limitations": [
+    "This is a controller-local loopback server observation, not a public production server or protected release CI run.",
+    "No Fabric client, GUI consent, client modlist upload, SERVER_CONFIRMED production authority, Federation handoff, or Vulcan genuine event was exercised in this server-only run.",
+    "The retained diagnostic directory is not release evidence and is not treated as a Matrix V4 replacement."
+  ],
+  "sanitization": {
+    "absolute_paths_copied": false,
+    "pids_copied": false,
+    "ports_copied": false,
+    "run_tokens_copied": false,
+    "credentials_copied": false
+  }
+}

@@ -1,0 +1,33 @@
+{
+  "schema": "MCACE_CLIENT_ENABLE_CONTRACT_REGRESSION_V1",
+  "generated_at": "2026-09-02T07:02:55.9844550Z",
+  "source_commit": "0cf6f29ddd6d24f72887533c1669c18b8202d2b4",
+  "command": ".\\gradlew.bat :mcace-client-fabric:test --tests com.ellan.mcace.fabric.MCAceEnablementContractTest --no-daemon --configuration-cache --stacktrace",
+  "environment": {
+    "java_home": "C:/Users/admin/.gradle/jdks/eclipse_adoptium-21-amd64-windows.2",
+    "gradle": "9.6.1",
+    "configuration_cache": true
+  },
+  "test_results": {
+    "module": "mcace-client-fabric",
+    "test_class": "MCAceEnablementContractTest",
+    "tests": 8,
+    "skipped": 0,
+    "failures": 0,
+    "errors": 0,
+    "duration_seconds": 26,
+    "build": "BUILD SUCCESSFUL"
+  },
+  "asserted_contract": [
+    "single connection-level Enable MCAce consent path",
+    "consent-bound signed handshake",
+    "client mod/resource-pack/shader-pack metadata scope",
+    "enablement remains off without an explicit decision"
+  ],
+  "pass": true,
+  "release_gate_effect": "informational_only",
+  "limitations": [
+    "The test verifies the client enablement contract; it does not supply a human GUI decision or signed production attestation.",
+    "No Federation handoff, Vulcan genuine event, Production Authority freeze, or protected release CI is claimed."
+  ]
+}

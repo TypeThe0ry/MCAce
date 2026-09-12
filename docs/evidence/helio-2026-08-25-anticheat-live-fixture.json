@@ -1,0 +1,58 @@
+{
+  "schema": "MCACE_HELIO_ANTICHEAT_LIVE_FIXTURE_V1",
+  "passed": true,
+  "node": "helio",
+  "profile": "windows",
+  "source_commit": "1e84cd5b15ae08d07d417050d799f90fc23f803e",
+  "job": "C:\\CodexWorker\\jobs\\20260825-1114-1e84cd5-anticheat-live",
+  "java_home": "C:\\Program Files\\Java\\jdk-21.0.10",
+  "command": "scripts/anticheat-live-fixture-smoke.ps1 -Execute",
+  "exit_code": 0,
+  "elapsed_seconds": 194.7400753,
+  "fixture_mode": "CONTROLLED_EXECUTABLE_CLIENT_AND_SERVER_CORRELATION",
+  "test_class": "com.ellan.mcace.runtime.AntiCheatLiveFixtureIntegrationTest",
+  "minecraft_versions": [
+    "1.21.11",
+    "26.1.2",
+    "26.2"
+  ],
+  "client_executable_code_loaded": true,
+  "client_modlist_reported": true,
+  "server_behavior_signal_independent": true,
+  "correlated_same_session": true,
+  "server_confirmed_count": 3,
+  "server_confirmed_action": "QUARANTINE",
+  "clean_false_positive_count": 0,
+  "signed_lab_policy": true,
+  "negative_boundary": {
+    "clean_client_no_mod_observation": true,
+    "clean_client_no_impossible_movement": true,
+    "clean_client_no_server_confirmed_event": true
+  },
+  "third_party_code_loaded": false,
+  "third_party_network_access": false,
+  "public_server": false,
+  "actual_fabric_client": false,
+  "cleanup_all_zero": true,
+  "test_xml_pass_marker": "ANTICHEAT_LIVE_FIXTURE_INTEGRATION_PASS|versions=3|executed=true|server_confirmed=3|clean_false_positive=0",
+  "raw_report_sha256": "4146d47a1dcf80aeb662aca539eb0fb408d6e46956adea0124eee767d1dd60fa",
+  "raw_log_sha256": "39c6039610fc5deadf5085a9f538342ccb01a6792a3ea5a9d5110ff7354ac521",
+  "raw_log_bytes": 240,
+  "raw_report_path": "C:\\CodexWorker\\jobs\\20260825-1114-1e84cd5-anticheat-live\\repo\\build\\anticheat-live-fixtures\\evidence-runs\\20260825T110938805Z\\report.json",
+  "raw_log_path": "C:\\CodexWorker\\jobs\\20260825-1114-1e84cd5-anticheat-live\\logs\\anticheat-live-fixture.log",
+  "limitations": [
+    "The executable fixture is an MCAce-owned test JAR, not third-party cheat code.",
+    "The client process loads the fixture through an isolated URLClassLoader; it is not a full Fabric GUI client session.",
+    "The server signal is derived independently from movement deltas in the loopback harness.",
+    "QUARANTINE is emitted by the signed lab policy runtime; production authority and live kick/deny/ban remain separate release gates.",
+    "This evidence does not claim kernel, injection, DMA, public-server precision/recall, or ACE-level coverage."
+  ],
+  "sanitization": {
+    "absolute_paths_copied": false,
+    "pids_copied": false,
+    "ports_copied": false,
+    "uuids_copied": false,
+    "fixture_bytes_copied": false,
+    "remaining_job_java_cmd_gradle_processes": 0
+  }
+}

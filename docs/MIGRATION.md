@@ -104,6 +104,71 @@ accepting players. The old `plugins/MCAce/velocity-public-key.txt` name is read
 only if the preferred `proxy-public-key.txt` does not exist. Once the preferred
 pin is verified, remove the old file rather than relying on fallback behavior.
 
+### Mandatory key-file permission migration
+
+Current builds fail closed on linked/reparse key paths, oversized key files,
+foreign-owned material, and writable-by-other-principal key storage. Before the
+first restart after upgrading an existing proxy/backend, stop that process and
+repair the existing files **as the service account**; do not delete an identity
+or rotate a key merely to bypass a permission error.
+
+On POSIX, the proxy identity and Velocity delegated-key directories are private
+stores. Both the private and public halves are 0600 because each public half
+shares a directory with its signing key:
+
+```bash
+chown -R mcace:mcace \
+  plugins/<MCAce-data>/identity \
+  plugins/<MCAce-data>/policy/delegated-key
+chmod 700 \
+  plugins/<MCAce-data>/identity \
+  plugins/<MCAce-data>/policy/delegated-key
+chmod 600 \
+  plugins/<MCAce-data>/identity/server-private-key.pk8 \
+  plugins/<MCAce-data>/identity/server-public-key.txt \
+  plugins/<MCAce-data>/policy/delegated-key/delegated-private-key.pk8 \
+  plugins/<MCAce-data>/policy/delegated-key/delegated-public-key.x509
+```
+
+For BungeeCord, substitute its `plugins/MCAce/` data path. The Paper/Folia
+`proxy-public-key.txt` is public but integrity-sensitive: its containing path and
+leaf must be owned by the runtime account and must not be group/world writable;
+0755/0644 is accepted. An optional `cloud.private-key-path` must remain relative
+to `plugins/MCAce`, every directory from that data root must be owner-controlled
+and not writable by another principal, and the PKCS#8 leaf must be 0600. When
+Paper `authority.enabled: true`, follow the stricter authority provisioning guide:
+the Paper data/authority tree and `config.yml`, both backend key files, and the
+preprovisioned journal use the documented 0700/0600 private contract.
+
+On Windows, remove inherited write grants before restart. The exact private
+identity/delegated-key directories and leaves must grant FullControl only to the
+service identity and SYSTEM. The Paper public pin may additionally grant read-only
+access, but no other identity may have Modify/Write/Delete/ChangePermissions/
+TakeOwnership. Example (replace the paths and account):
+
+```powershell
+$service = 'DOMAIN\mcace-service'
+$identity = 'C:\server\plugins\mcace\identity'
+$delegate = 'C:\server\plugins\mcace\policy\delegated-key'
+foreach ($directory in @($identity, $delegate)) {
+  icacls $directory /setowner $service
+  icacls $directory /inheritance:r /grant:r `
+    "${service}:(OI)(CI)F" '*S-1-5-18:(OI)(CI)F'
+}
+foreach ($file in @(
+  "$identity\server-private-key.pk8",
+  "$identity\server-public-key.txt",
+  "$delegate\delegated-private-key.pk8",
+  "$delegate\delegated-public-key.x509")) {
+  icacls $file /setowner $service
+  icacls $file /inheritance:r /grant:r "${service}:F" '*S-1-5-18:F'
+}
+```
+
+Back up and hash the pair before changing ACLs/modes, then restart once and verify
+that the logged root/delegated/public-pin fingerprints match the pre-migration
+values. A mismatch is a restore event, not an instruction to accept a new pin.
+
 The proxy sends a signed admission snapshot after terminal authentication or a
 server switch, refreshes it every five seconds, and Paper/Folia expires it after
 15 seconds without a valid refresh. Unsigned or stale snapshots do not replace
@@ -129,7 +194,7 @@ For Folia, do not replace MCAce's scheduler path with direct asynchronous player
 access. The plugin routes player-facing work through the entity scheduler and
 expiry/cleanup through the global scheduler. Before deploying any supported
 version, run the authoritative three-version process matrix and confirm the exact
-target row. Folia 26.2 build 4 is a BETA lane and requires an explicit rollout
+target row. Folia 26.2 build 6 is a BETA lane and requires an explicit rollout
 decision; 1.21.11 and 26.1.2 use the reviewed STABLE Folia builds.
 
 ### Phase 1 verification and rollback
@@ -222,10 +287,12 @@ Then make all of the following true before changing either mode property:
    the selected proxy, and have each been tested with known-good Fabric clients.
 2. The policy has passed preview and validation and operators have reviewed the
    explicit selected action, scope, reason, and false-positive notes.
-3. Initial observations, dynamic observation refreshes, evidence failures, and
-   heartbeat events have been reviewed as non-punitive signals. In particular,
-   a declined, unavailable, expired, or failed evidence request never produces
-   a disposition event.
+3. Initial and dynamic client observations have been reviewed as
+   `CLIENT_REPORTED` inputs: signed policy may allow only low-impact
+   NOTICE/WARN/CHALLENGE messaging, while LIMIT/QUARANTINE/DENY remains blocked
+   without durable trusted authority. Evidence failures and heartbeat events are
+   non-punitive signals; a declined, unavailable, expired, or failed evidence
+   request never produces a disposition event.
 4. Operators understand that `DENY` disconnects only the current connection and
    that `LIMITED_ROUTE` is required for LIMIT/QUARANTINE execution.
 5. The proxy has initialized `trusted-disposition-authorizations.log`, and operators
@@ -326,7 +393,8 @@ reason.
 
 The current transport is Begin/Chunk/Commit. Images must not use the old
 single-field `EvidenceResponse.content` path. The Fabric Mod supports one
-`GAME_RENDER_FRAME` only after a visible, signed, per-request `Allow once`.
+`GAME_RENDER_FRAME` only after the connection-level visible `Enable MCAce`
+decision; the render request does not open a second prompt.
 `GAME_WINDOW` and `DESKTOP` remain unsupported zero-content results; they do not
 call an operating-system capture API.
 
@@ -393,17 +461,22 @@ same approved retention policy. An optional local reviewer, when separately
 enabled, is loopback-only and console-issued; it is not a public raw-image
 portal.
 
-The manual real Fabric UI evidence gate is still required for a release that
-depends on that flow:
+Run the three versions as non-promoting compatibility smokes:
 
 ```powershell
-.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence
-.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2 -WithFabricEvidence
-.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2 -WithFabricEvidence
+.\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.2
 ```
 
-Each target requires a graphical local Fabric run and two distinct human clicks: one explicit-file decision and one frame decision. Across three targets that is six clicks. The script does not
-automate consent, mouse input, window capture, desktop capture, or account login.
+After those smokes, select exactly one representative version for the release
+flow. The Federation V5 wrapper obtains one visible source-side
+connection-level `Enable MCAce` decision and consumes it during source export;
+target import opens no second prompt. A standalone `platform-load-smoke.ps1
+-WithFabricEvidence` run on either unselected version is an optional
+non-promoting UI compatibility diagnostic and cannot mint or replace the one V5
+release approval. The scripts do not automate consent, mouse input, window
+capture, desktop capture, or account login.
 
 ## Phase 5: enable federation only after both operators pin each other
 
@@ -459,9 +532,10 @@ states are returned only after the audit worker confirms the durable file
 append; an accepted queue item is never treated as durable evidence.
 
 `issue` is an explicit source-operator action for a player that is currently
-locally `VERIFIED`. Fabric displays exact source/target information, short key
-fingerprints, expiry, and the observation-only disclosure with `Allow once` and
-`Decline`. Only a one-time visible allow can produce the signed consent. The
+locally `VERIFIED`. Fabric includes exact source/target information, short key fingerprints, expiry,
+and the observation-only disclosure in the already accepted connection-level
+`Enable MCAce` / `Decline` decision. Only that one visible enablement can produce
+the signed consent. The
 client carries the grant and short-lived source session key in memory only; it
 may survive a completed source disconnect until expiry, but is cleared on use,
 expiry, discard, or client shutdown.
@@ -469,10 +543,9 @@ expiry, discard, or client shutdown.
 At the target, the player must independently complete local `VERIFIED`
 authentication with that same short-lived client key before the target accepts a
 session/challenge-bound proof of possession. Fabric reserves that exact prepared
-presentation and shows a separate target-import prompt containing the exact
-source/target identities, fingerprints, disclosure, and expiry. The source
-decision is not reused: only a second visible target `Allow once` sends the
-presentation. Decline, close, connection change, or expiry sends nothing and
+presentation using the accepted connection-level enablement; no separate
+target-import prompt is rendered. The source decision is reused for this exact
+connection and only the prepared presentation is sent. Decline, close, connection change, or expiry sends nothing and
 cannot alter local admission. An accepted remote statement is
 only `FEDERATION_SOURCE_LOCALLY_VERIFIED` / remote corroboration. It cannot
 change local trust, risk, disposition, route, message, disconnect, ban, evidence
@@ -511,14 +584,19 @@ test-only raw peer, not a rendered Fabric consent UI. Real Fabric federation
 consent and the complete privacy scan remain release gates; do not treat the
 matrix as proof of those rows.
 
-The current `scripts/fabric-federation-gui-handoff-smoke.ps1` is a fail-closed V2
+The current `scripts/fabric-federation-gui-handoff-smoke.ps1` is a fail-closed V5
 wrapper for all three supported Fabric targets. Its PowerShell 7 and Windows
-PowerShell 5 static contract tests pass, and both source-export and target-import
-screens are implemented. A migration still needs a real human execution: approve
-source export, disconnect and use Direct Connection for the exact target, approve
-target import, then keep that connection alive through signed expiry while the
-wrapper verifies target observation, Paper admission, unchanged local state,
-cleanup, and privacy. No static or raw-peer record substitutes for that run.
+PowerShell 5 parser/static contract tests pass. A migration still needs one real,
+externally attested `Enable MCAce` decision at the source, then source issue,
+disconnect and Direct Connection to the exact target with no second prompt, and
+a live target connection through signed expiry while the wrapper verifies target
+observation, Paper admission, unchanged local state, cleanup, privacy, required
+negative attempts, and the sealed runtime ledger. The durable set is exactly eight
+regular files: report, binding, commit, the runner-generated GUI signing request,
+the independently signed V3 GUI attestation, the frozen PNG, the sealed runtime
+ledger, and the independently signed post-run receipt. The GUI and post-run keys
+come from distinct out-of-band approved roots. No static, fixture, self-signed,
+legacy V4, or raw-peer record substitutes for that V5 evidence set.
 
 ## Completion checklist and rollback order
 

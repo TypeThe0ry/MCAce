@@ -75,10 +75,12 @@ public record FederationConfiguration(
             throw new IllegalArgumentException("too many federation peer pins");
         }
         Map<String, FederationPeerPin> copy = new LinkedHashMap<>();
+        Set<String> peerKeyIds = new HashSet<>();
         for (Map.Entry<String, FederationPeerPin> entry : peers.entrySet()) {
             FederationPeerPin pin = Objects.requireNonNull(entry.getValue(), "peer pin");
             if (!entry.getKey().equals(pin.networkId()) || localNetworkId.equals(pin.networkId())
-                    || copy.put(pin.networkId(), pin) != null) {
+                    || copy.put(pin.networkId(), pin) != null
+                    || !peerKeyIds.add(HexFormat.of().formatHex(pin.keyIdSha256()))) {
                 throw new IllegalArgumentException("invalid or duplicate federation peer pin");
             }
         }

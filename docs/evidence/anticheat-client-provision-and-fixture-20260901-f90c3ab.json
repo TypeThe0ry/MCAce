@@ -1,0 +1,84 @@
+{
+  "schema": "MCACE_ANTICHEAT_CLIENT_PROVISION_AND_FIXTURE_EVIDENCE_V3",
+  "generated_at": "2026-09-01T10:29:04.9980638+08:00",
+  "source_commit": "f90c3abc12a294ae5c25d6cfab7f0946bd6656d2",
+  "artifact_source_commit": "df5504cd9ba04535040c2e368dbbb0a6859beb87",
+  "product_version": "0.0.1",
+  "automatic_client_provision": {
+    "source_client": "E:/Ellan艾尔岚-客户端-26.2",
+    "target_root": "D:/MCAce-gui-client-26.2",
+    "minecraft_version": "26.2",
+    "loader": "Fabric",
+    "source_mod_jar_count": 60,
+    "target_mod_jar_count": 61,
+    "source_resource_pack_file_count": 0,
+    "target_resource_pack_file_count": 0,
+    "source_shader_pack_file_count": 7,
+    "target_shader_pack_file_count": 7,
+    "mcace_artifact_present": true,
+    "mcace_artifact_sha256": "49dcfd7d33247069bc2c10211ce69c052151b5a7e2b41b304aaad553550c3aed",
+    "provision_manifest_sha256": "86d421d7567b3a14f581d42ad03d198f38167c94ee1538d5763cd675e1515b28",
+    "launch_recipe_sha256": "0dee5fc2e066dea7938840a1c8fce5303d1cdd2ffdc99df26808c25cd38bdc8a",
+    "offline_identity": true,
+    "source_credentials_copied": false,
+    "rollback_backup_reused": "D:/MCAce-gui-client-26.2.backup-20260901T015827Z",
+    "provision_result": "MCACE_ISOLATED_CLIENT_PROVISION_PASS"
+  },
+  "visible_process_smoke": {
+    "report_path": "build/isolated-fabric-client-smoke/report-current-f90c3ab.json",
+    "report_sha256": "30d8ed086779275edc2a3a661edf5522049cb2ddcaef2f13f610b75bea3202ab",
+    "latest_log_path": "D:/MCAce-gui-client-26.2/.minecraft/versions/EllanTOP-26.2/logs/latest.log",
+    "latest_log_sha256": "1d37abe0aca4e60a9dbc92d8c616d9d480f4cb7b659d9b907d31b18ad181f011",
+    "java_process_count": 1,
+    "visible_window_count": 1,
+    "visible_window_title": "Minecraft* 26.2",
+    "responding": true,
+    "fabric_modlist_contains_mcace": true,
+    "exact_artifact_loaded_marker": true,
+    "client_initialized": true,
+    "cleanup_result": "TARGET_CLEANUP_PASS",
+    "computer_use": {
+      "requested": true,
+      "callable_surface_exposed": false,
+      "fallback_used": "direct_process_launch_and_log_observation",
+      "screenshot_captured": false,
+      "human_enablement_click": false,
+      "server_handshake_observed": false
+    },
+    "smoke_result": "MCACE_ISOLATED_CLIENT_GUI_PROCESS_SMOKE_PASS"
+  },
+  "controlled_anticheat_fixture": {
+    "report_path": "build/anticheat-live-fixtures/evidence-runs/20260901T020946309Z/report.json",
+    "report_sha256": "a8c304373cabf85dd4a3b6d44fb2562d5cd803c414987e955d68b335b87a70bb",
+    "versions": ["1.21.11", "26.1.2", "26.2"],
+    "client_executable_code_loaded": true,
+    "client_modlist_reported": true,
+    "server_behavior_signal_independent": true,
+    "correlated_same_session": true,
+    "server_confirmed_count": 3,
+    "server_confirmed_action": "QUARANTINE",
+    "clean_false_positive_count": 0,
+    "negative_boundary": {
+      "clean_client_no_mod_observation": true,
+      "clean_client_no_impossible_movement": true,
+      "clean_client_no_server_confirmed_event": true
+    },
+    "fixture_code_is_project_owned": true,
+    "third_party_code_loaded": false,
+    "public_server": false,
+    "actual_fabric_client": false
+  },
+  "interpretation": "This rerun records automatic MCAce mod installation, exact artifact loading in a visible isolated Fabric process, and the repeatable controlled client/server correlation fixture across all three target versions. It does not claim a Computer Use click or screenshot, a public production server action, a genuine licensed Vulcan event, or kernel/DMA protection.",
+  "limitations": [
+    "The current thread exposes no callable Computer Use node_repl/@oai/sky surface, so the GUI smoke used direct process launch and log observation.",
+    "The isolated GUI smoke was offline and did not establish a server handshake.",
+    "The anti-cheat executable is a project-owned controlled fixture, not third-party cheat code.",
+    "Federation V5, Vulcan V3, Production Authority V4, and protected exact-release CI remain separate release gates."
+  ],
+  "sanitization": {
+    "absolute_paths_copied": false,
+    "pids_copied": false,
+    "ports_copied": false,
+    "credentials_copied": false
+  }
+}

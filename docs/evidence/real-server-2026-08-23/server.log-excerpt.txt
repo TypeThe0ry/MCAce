@@ -1,0 +1,9 @@
+MCAce real-server loopback evidence (sanitized excerpt)
+Leaf 1.21.11-135 / Minecraft 1.21.11 started successfully.
+GrimAC 2.3.74-155abaf enabled and registered packet checks.
+MCAce 0.1.0-SNAPSHOT enabled; signed proxy admission channel enabled.
+MCAce backend session actions mode=MONITOR.
+MCAce Grim behavior adapter enabled (observational, no automatic punishment).
+Server ready: Done (55.191s)! For help, type "help"
+Grim provider emitted AimDuplicateLook (x20) for the probe session.
+Probe session disconnected cleanly; MCAce player state cleanup completed.

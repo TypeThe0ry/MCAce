@@ -2,6 +2,7 @@ package com.ellan.mcace.velocity;
 
 import com.ellan.mcace.core.policy.SignedPolicyProvider;
 import com.ellan.mcace.protocol.generated.DelegatedSigningKey;
+import com.ellan.mcace.protocol.generated.ClientCapability;
 import com.ellan.mcace.protocol.generated.IntegrityScopeRule;
 import com.ellan.mcace.protocol.generated.LoaderType;
 import com.ellan.mcace.protocol.generated.PolicyTrustStatement;
@@ -38,6 +39,10 @@ final class ServerPolicyManager implements SignedPolicyProvider {
     private final KeyPair rootIdentity;
     private final SecureRandom random;
     private final VelocityAdmissionConfig.PolicyConfig policyConfiguration;
+    private record HandshakeSnapshot(SignedPolicyDocument document, long checkedAt) { }
+    private volatile HandshakeSnapshot handshakeSnapshot;
+    private final java.util.concurrent.atomic.AtomicBoolean refreshRunning =
+            new java.util.concurrent.atomic.AtomicBoolean();
 
     ServerPolicyManager(Path path, Clock clock, KeyPair rootIdentity) {
         this(path, clock, rootIdentity, new SecureRandom(), defaultPolicyConfiguration());
@@ -71,11 +76,53 @@ final class ServerPolicyManager implements SignedPolicyProvider {
 
     @Override
     public synchronized SignedPolicyDocument current() throws PolicyException {
-        return issue(false);
+        return issueAndPublish(false);
     }
 
     synchronized SignedPolicyDocument rotateDelegatedKey() throws PolicyException {
-        return issue(true);
+        handshakeSnapshot = null;
+        return issueAndPublish(true);
+    }
+
+    /** No filesystem work or manager monitor acquisition on the handshake path. */
+    SignedPolicyDocument currentForHandshake() throws PolicyException {
+        HandshakeSnapshot snapshot = handshakeSnapshot;
+        long now = clock.millis();
+        if (snapshot == null || now < snapshot.checkedAt()
+                || now - snapshot.checkedAt() >= Duration.ofMinutes(2).toMillis()) {
+            throw new PolicyException("server policy snapshot is unavailable or stale");
+        }
+        SecurityPolicy policy = PolicyDocuments.verify(
+                snapshot.document(), rootIdentity.getPublic(), clock, Duration.ZERO);
+        if (!matchesReleaseConfiguration(policy)) {
+            throw new PolicyException("server policy snapshot configuration mismatch");
+        }
+        // A concurrent failed refresh or rotation may have invalidated this snapshot.
+        if (handshakeSnapshot != snapshot) {
+            throw new PolicyException("server policy snapshot changed during verification");
+        }
+        return snapshot.document();
+    }
+
+    void refreshForHandshake() throws PolicyException {
+        if (!refreshRunning.compareAndSet(false, true)) return;
+        try {
+            current();
+        } finally {
+            refreshRunning.set(false);
+        }
+    }
+
+    private SignedPolicyDocument issueAndPublish(boolean rotate) throws PolicyException {
+        try {
+            SignedPolicyDocument document = issue(rotate);
+            PolicyDocuments.verify(document, rootIdentity.getPublic(), clock, Duration.ZERO);
+            handshakeSnapshot = new HandshakeSnapshot(document, clock.millis());
+            return document;
+        } catch (PolicyException | RuntimeException failure) {
+            handshakeSnapshot = null;
+            throw failure;
+        }
     }
 
     private SignedPolicyDocument issue(boolean forceRotation) throws PolicyException {
@@ -185,6 +232,8 @@ final class ServerPolicyManager implements SignedPolicyProvider {
                 .addAllAllowedMinecraftVersions(policyConfiguration.minecraftVersions())
                 .addAllowedLoaders(LoaderType.FABRIC)
                 .addAllAllowedBuildIds(policyConfiguration.clientBuildIds())
+                .addRequiredClientCapabilities(
+                        ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1)
                 .setSignerKeyIdSha256(ByteString.copyFrom(PolicyDocuments.keyId(delegate.getPublic())))
                 .addIntegrityScopes(directory("mods", true, "mods", 4096, 512L * 1024 * 1024,
                         List.of(".jar", ".disabled")))
@@ -208,7 +257,9 @@ final class ServerPolicyManager implements SignedPolicyProvider {
         return policyConfiguration.serverId().equals(policy.getServerId())
                 && policyConfiguration.minecraftVersions().equals(policy.getAllowedMinecraftVersionsList())
                 && policyConfiguration.clientBuildIds().equals(policy.getAllowedBuildIdsList())
-                && policy.getAllowedLoadersList().equals(List.of(LoaderType.FABRIC));
+                && policy.getAllowedLoadersList().equals(List.of(LoaderType.FABRIC))
+                && policy.getRequiredClientCapabilitiesList().equals(List.of(
+                        ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1));
     }
 
     private boolean trustMatchesServerId(SignedPolicyTrustStatement signed) throws PolicyException {

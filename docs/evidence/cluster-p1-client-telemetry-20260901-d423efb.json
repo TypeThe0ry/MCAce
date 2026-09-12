@@ -1,0 +1,74 @@
+{
+  "schema": "MCACE_CLUSTER_BUILD_EVIDENCE_V1",
+  "generated_at": "2026-09-01T02:05:00Z",
+  "job_id": "20260901-0204-mcace-d423efb-client-telemetry",
+  "node": "p1",
+  "profile": "linux/build",
+  "source_commit": "d423efb492cafd9c320dbfcd197bdc85f0ac8cbb",
+  "checkout": {
+    "type": "independent-detached-git-checkout",
+    "worktree_clean": true,
+    "remote": "https://github.com/TypeThe0ry/MCAce.git"
+  },
+  "toolchain": {
+    "container_image": "mcace-releasebundle-dual-jdk-git-20260831-213945:latest",
+    "container_image_id": "sha256:cdf44354d80ebfcc64da2743ec50173c500e8abe50d9a5f200ace81a8d3c3f96",
+    "java": "Temurin 21.0.12",
+    "gradle": "9.6.1",
+    "daemon": false,
+    "configuration_cache": false,
+    "parallel": false
+  },
+  "command": "bash ./gradlew :mcace-client-common:test :mcace-client-fabric:test :mcace-runtime-integration:test --tests com.ellan.mcace.runtime.AntiCheatLiveFixtureIntegrationTest --no-daemon --no-configuration-cache --stacktrace --console=plain",
+  "attempts": [
+    {
+      "command_variant": "./gradlew",
+      "exit_code": 126,
+      "result": "permission_denied_executable_bit",
+      "log_sha256": "ac557cc3b143cb4e329a6e4a673b0b8f1779696d2c820a93e9d77229883ef14a"
+    },
+    {
+      "command_variant": "bash ./gradlew",
+      "exit_code": 0,
+      "result": "BUILD_SUCCESSFUL",
+      "log_sha256": "722a098e94c2bf845db3ef4a8102993585fe2975ba9c21b8ea74a910cd10eaeb",
+      "result_sha256": "c8b2a5b9865b0249595eda5d622e7a474506a46b06525ec62ce546b1b14e41e4"
+    }
+  ],
+  "tests": {
+    "client_common": "passed",
+    "client_fabric": "passed",
+    "runtime_integration_anti_cheat_live_fixture": "passed",
+    "runtime_fixture_versions": [
+      "1.21.11",
+      "26.1.2",
+      "26.2"
+    ],
+    "server_confirmed_count": 3,
+    "clean_false_positive_count": 0
+  },
+  "artifacts": [
+    {
+      "role": "client-fabric",
+      "path": "mcace-client-fabric/build/libs/mcace-client-fabric-0.1.0-SNAPSHOT.jar",
+      "sha256": "7416c3a2fc13c1919be438620cc144541b4609d2d496a650c35f17a8fddc4909"
+    },
+    {
+      "role": "server-paper",
+      "path": "mcace-server-paper/build/libs/mcace-server-paper-0.1.0-SNAPSHOT.jar",
+      "sha256": "e3a3b5c8dd8112e0930ac74cf9ca4110fce4b39604082d3370a93e9268d3c5e6"
+    },
+    {
+      "role": "server-velocity",
+      "path": "mcace-server-velocity/build/libs/mcace-server-velocity-0.1.0-SNAPSHOT.jar",
+      "sha256": "952624dc5d01d2215d14febd02a767fca004f9a6f06b2ca8e4583d3146d07e87"
+    }
+  ],
+  "remote_log": "/srv/codex-worker/jobs/20260901-0204-mcace-d423efb-client-telemetry/logs/gradle-rerun.log",
+  "interpretation": "P1 independently built the current feature commit and ran the client common, Fabric client, and executable anti-cheat fixture integration tests successfully. This is cluster build/test evidence, not protected-main release CI and not a public production server acceptance.",
+  "limitations": [
+    "The first attempt exposed a checkout executable-bit mismatch and was retained as a failed attempt; the corrected bash invocation passed.",
+    "P1 is Linux and does not provide the Windows Computer Use or real GUI process surface.",
+    "The anti-cheat integration test uses the project-owned controlled fixture and does not load third-party cheat code."
+  ]
+}

@@ -19,7 +19,17 @@ record VelocityAdmissionConfig(
         Duration handshakeTimeout,
         HeartbeatMissingConfig heartbeatMissing,
         StorageConfig storage,
-        PolicyConfig policy) {
+        PolicyConfig policy,
+        ClientRequirement clientRequirement,
+        com.ellan.mcace.core.session.ArtifactTelemetryNoticePolicy telemetryNotice) {
+    VelocityAdmissionConfig(Mode mode, Optional<String> limitedServer, Optional<String> quarantineServer,
+            Duration handshakeTimeout, HeartbeatMissingConfig heartbeatMissing, StorageConfig storage,
+            PolicyConfig policy, ClientRequirement clientRequirement) {
+        this(mode, limitedServer, quarantineServer, handshakeTimeout, heartbeatMissing, storage,
+                policy, clientRequirement, com.ellan.mcace.core.session.ArtifactTelemetryNoticePolicy.disabled());
+    }
+    private static final int MIN_HANDSHAKE_TIMEOUT_SECONDS = 2;
+    private static final int MAX_HANDSHAKE_TIMEOUT_SECONDS = 300;
     private static final String DEFAULT_CONTENT = """
             # MONITOR records state only. LIMITED_ROUTE is enabled only when both distinct targets
             # below are explicitly configured and registered with this Velocity proxy.
@@ -29,11 +39,17 @@ record VelocityAdmissionConfig(
             # QUARANTINE never inherits the LIMIT target; configure a separate registered backend.
             # disposition.quarantine.server=quarantine-backend
             handshake.timeout.seconds=5
+            # A newly generated configuration requires a live MCAce client. Existing files that
+            # predate this key retain the legacy OPTIONAL profile until an operator opts in.
+            client.requirement=REQUIRE_CLIENT
             # Disabled by default. STALE never acts; after this many continuous MISSING polls,
             # action is only NOTICE or LIMITED_ROUTE and a valid heartbeat reverses it.
             heartbeat.missing.enabled=false
             heartbeat.missing.consecutive-polls=3
             heartbeat.missing.action=NOTICE
+            # Opt-in content-free notice only. This does not change admission or punish players.
+            telemetry.notice.enabled=false
+            telemetry.notice.max-age-seconds=900
             # These values are signed into the Fabric client policy. Change them before
             # publishing a release build; comma-separated lists are supported.
             policy.server-id=mcace-velocity
@@ -55,9 +71,11 @@ record VelocityAdmissionConfig(
         Objects.requireNonNull(heartbeatMissing, "heartbeatMissing");
         Objects.requireNonNull(storage, "storage");
         Objects.requireNonNull(policy, "policy");
-        if (handshakeTimeout.compareTo(Duration.ofSeconds(2)) < 0
-                || handshakeTimeout.compareTo(Duration.ofSeconds(30)) > 0) {
-            throw new IllegalArgumentException("handshake timeout must be between 2 and 30 seconds");
+        Objects.requireNonNull(clientRequirement, "clientRequirement");
+        Objects.requireNonNull(telemetryNotice, "telemetryNotice");
+        if (handshakeTimeout.compareTo(Duration.ofSeconds(MIN_HANDSHAKE_TIMEOUT_SECONDS)) < 0
+                || handshakeTimeout.compareTo(Duration.ofSeconds(MAX_HANDSHAKE_TIMEOUT_SECONDS)) > 0) {
+            throw new IllegalArgumentException("handshake timeout must be between 2 and 300 seconds");
         }
     }
 
@@ -83,6 +101,7 @@ record VelocityAdmissionConfig(
                 properties, "disposition.limited.server", "limited.server");
         Optional<String> quarantineServer = configuredServer(
                 properties, "disposition.quarantine.server", "quarantine.server");
+        ClientRequirement clientRequirement = parseClientRequirement(properties);
         int timeoutSeconds;
         try {
             timeoutSeconds = Integer.parseInt(properties.getProperty("handshake.timeout.seconds", "5").trim());
@@ -110,7 +129,10 @@ record VelocityAdmissionConfig(
                             Integer.parseInt(properties.getProperty("heartbeat.missing.consecutive-polls", "3").trim()),
                             com.ellan.mcace.core.session.HeartbeatMissingPolicy.Action.valueOf(
                                     properties.getProperty("heartbeat.missing.action", "NOTICE").trim().toUpperCase(Locale.ROOT))),
-                    storage, policy);
+                    storage, policy, clientRequirement,
+                    new com.ellan.mcace.core.session.ArtifactTelemetryNoticePolicy(
+                            parseBoolean(properties.getProperty("telemetry.notice.enabled", "false"), "telemetry.notice.enabled"),
+                            Duration.ofSeconds(Long.parseLong(properties.getProperty("telemetry.notice.max-age-seconds", "900").trim()))));
         } catch (IllegalArgumentException exception) {
             throw new IOException("invalid MCAce admission configuration", exception);
         }
@@ -119,6 +141,16 @@ record VelocityAdmissionConfig(
     enum Mode {
         MONITOR,
         LIMITED_ROUTE
+    }
+
+    /** Controls whether a player without a completed MCAce client handshake is safe to admit. */
+    enum ClientRequirement {
+        OPTIONAL,
+        REQUIRE_CLIENT
+    }
+
+    boolean requireClient() {
+        return clientRequirement == ClientRequirement.REQUIRE_CLIENT;
     }
 
     record HeartbeatMissingConfig(boolean enabled, int consecutivePolls,
@@ -172,6 +204,23 @@ record VelocityAdmissionConfig(
             throw new IOException("invalid MCAce " + name);
         }
         return List.copyOf(values);
+    }
+
+    /**
+     * The generated configuration is strict, while files written before the profile existed are
+     * intentionally left on the legacy optional behavior until the operator changes them.
+     * STRICT is accepted as a readable alias for REQUIRE_CLIENT.
+     */
+    private static ClientRequirement parseClientRequirement(Properties properties) throws IOException {
+        String configured = properties.getProperty("client.requirement", "OPTIONAL");
+        if (configured == null || configured.isBlank()) {
+            throw new IOException("invalid MCAce client.requirement");
+        }
+        return switch (configured.trim().toUpperCase(Locale.ROOT)) {
+            case "OPTIONAL", "MONITOR" -> ClientRequirement.OPTIONAL;
+            case "REQUIRE_CLIENT", "STRICT" -> ClientRequirement.REQUIRE_CLIENT;
+            default -> throw new IOException("invalid MCAce client.requirement: " + configured);
+        };
     }
 
     record PolicyConfig(String serverId, List<String> minecraftVersions, List<String> clientBuildIds) {

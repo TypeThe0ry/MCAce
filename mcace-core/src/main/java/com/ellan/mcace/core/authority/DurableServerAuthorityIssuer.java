@@ -12,8 +12,8 @@ import java.util.Objects;
  * Public durable-journal primitive for an exact verified authority grant.
  *
  * <p>It validates the exact grant and expected durable sequence, signs, appends the content-free
- * record, forces that append, and only then creates a capability. The raw frame remains
- * package-private until a future committed transport facade is implemented.</p>
+ * record, forces that append, and only then creates a transport capability. Only that durable
+ * capability can expose the exact frame to a platform sender.</p>
  */
 public final class DurableServerAuthorityIssuer implements AutoCloseable {
     private final ServerAuthorityObservationCodec codec;
@@ -90,10 +90,12 @@ public final class DurableServerAuthorityIssuer implements AutoCloseable {
         }
         byte[] frame = signed.frame();
         String frameSha256 = AuthorityProtocolSupport.sha256(frame);
+        String providerEvidenceCommitment = AuthorityIssuanceCommitments.providers(request);
         ServerAuthorityIssuanceRecord record = new ServerAuthorityIssuanceRecord(
                 signed.attestationId(), request.backendKeyIdSha256(),
                 observationSequence, lifecycleCommitment,
-                AuthorityIssuanceCommitments.providers(request), request.observedAt(),
+                request.authorityProfileSha256(), providerEvidenceCommitment,
+                request.observedAt(),
                 signed.issuedAt(), signed.expiresAt(), frameSha256);
         try {
             journal.appendAndForce(record);
@@ -101,7 +103,8 @@ public final class DurableServerAuthorityIssuer implements AutoCloseable {
                     frame, signed.attestationId(), observationSequence, signed.issuedAt(),
                     signed.expiresAt(), frameSha256, request.grantId(),
                     request.grantCommitmentSha256(), lifecycleCommitment,
-                    backendKeyIdSha256);
+                    backendKeyIdSha256, request.authorityProfileSha256(),
+                    providerEvidenceCommitment);
         } catch (IOException exception) {
             throw poison(exception);
         } catch (RuntimeException exception) {
@@ -139,7 +142,7 @@ public final class DurableServerAuthorityIssuer implements AutoCloseable {
         String lifecycleCommitment = AuthorityIssuanceCommitments.lifecycle(grant);
         return new RecoveredServerAuthoritySequence(
                 grant, lifecycleCommitment, backendKeyIdSha256,
-                recoverLastSequence(lifecycleCommitment));
+                recoverState(lifecycleCommitment));
     }
 
     @Override
@@ -168,14 +171,19 @@ public final class DurableServerAuthorityIssuer implements AutoCloseable {
     }
 
     private long recoverLastSequence(String lifecycleCommitment) throws IOException {
+        return recoverState(lifecycleCommitment).lastSequence();
+    }
+
+    private ServerAuthorityIssuanceRecovery recoverState(String lifecycleCommitment)
+            throws IOException {
         try {
-            long recovered = journal.lastSequence(lifecycleCommitment);
-            if (recovered < 0L) {
-                throw new IOException("authority issuance journal returned a negative sequence");
-            }
+            ServerAuthorityIssuanceRecovery recovered = journal.recover(lifecycleCommitment);
             return recovered;
-        } catch (IOException exception) {
-            throw poison(exception);
+        } catch (IOException | IllegalArgumentException exception) {
+            IOException failure = exception instanceof IOException ioException
+                    ? ioException
+                    : new IOException("authority issuance journal returned invalid recovery", exception);
+            throw poison(failure);
         }
     }
 

@@ -56,6 +56,19 @@ final class ExplicitFileConsentScreenTest {
     }
 
     @Test
+    void enableDecisionFailsClosedUntilTheDisclosureHasRendered() {
+        OneShotRenderMarker marker = new OneShotRenderMarker(() -> { });
+
+        assertFalse(ExplicitFileConsentScreen.visibleDecision(true, marker));
+        assertFalse(ExplicitFileConsentScreen.visibleDecision(false, marker));
+
+        marker.markRendered();
+
+        assertTrue(ExplicitFileConsentScreen.visibleDecision(true, marker));
+        assertFalse(ExplicitFileConsentScreen.visibleDecision(false, marker));
+    }
+
+    @Test
     void compactMaximumPathContentKeepsEveryButtonVisibleAndScrollable() {
         ExplicitFileConsentScreen.ButtonLayout buttons =
                 ExplicitFileConsentScreen.buttonLayout(320, 240, true, true);

@@ -62,6 +62,21 @@ public final class TrustedDispositionCommitments {
         return HEX.formatHex(digest.digest());
     }
 
+    static String serverInput(
+            UUID authorizationId,
+            EvaluationContext context,
+            ServerConfirmedDispositionInput input) {
+        Objects.requireNonNull(input, "input");
+        MessageDigest digest = sha256();
+        field(digest, "mcace/trusted-disposition/server-input/v1");
+        field(digest, authorizationId.toString());
+        field(digest, input.serverObservation().provider());
+        field(digest, input.serverObservation().signal());
+        field(digest, input.serverObservation().observedAt().toString());
+        field(digest, reviewInput(authorizationId, context, input.correlatedObservation()));
+        return HEX.formatHex(digest.digest());
+    }
+
     /**
      * Commits to the mutable execution scope without binding the review timestamp.
      *

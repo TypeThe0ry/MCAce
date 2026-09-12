@@ -1,0 +1,53 @@
+{
+  "schema": "MCACE_GITHUB_FEATURE_CI_EVIDENCE_V1",
+  "generated_at": "2026-09-01T04:37:45Z",
+  "repository": "TypeThe0ry/MCAce",
+  "branch": "feature/active-pack-integrity",
+  "source_commit": "71cb1125637be4f71152b03a1393add6bcf28b4d",
+  "artifact_source_commit": "df5504cd9ba04535040c2e368dbbb0a6859beb87",
+  "runs": {
+    "push": {
+      "run_id": 33469342699,
+      "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/33469342699",
+      "conclusion": "success",
+      "windows_contracts_job_id": 99735710004,
+      "build_job_id": 99737085664,
+      "windows_contracts": "success",
+      "build_and_test": "success",
+      "local_verification_bundle": {
+        "name": "mcace-local-verification-bundle-71cb1125637be4f71152b03a1393add6bcf28b4d",
+        "size_bytes": 22743815,
+        "expired": false
+      }
+    },
+    "pull_request": {
+      "run_id": 33469345624,
+      "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/33469345624",
+      "conclusion": "success",
+      "windows_contracts_job_id": 99735719111,
+      "build_job_id": 99737054420,
+      "windows_contracts": "success",
+      "build_and_test": "success",
+      "local_verification_bundle": {
+        "name": "mcace-local-verification-bundle-efc002690ae14837cd8e8fcdb68d7b1427ff3449",
+        "size_bytes": 22743814,
+        "expired": false
+      }
+    }
+  },
+  "release_only_steps": {
+    "exact_release_candidate": "skipped_on_feature_branch",
+    "compatibility_contract": "skipped_on_feature_branch",
+    "release_readiness_gate": "skipped_on_feature_branch",
+    "exact_eight_file_release_bundle": "skipped_on_feature_branch"
+  },
+  "release_identity": false,
+  "release_ready": false,
+  "publish_performed": false,
+  "interpretation": "Both push and pull-request workflows for the exact current feature HEAD passed Windows PowerShell contracts, JDK 21/25 build and test, and the local verification bundle. The workflow intentionally skipped protected release-only steps because this is not main or a version tag; these green feature checks do not establish v0.0.1 release readiness.",
+  "sanitization": {
+    "credentials_copied": false,
+    "tokens_copied": false,
+    "private_keys_copied": false
+  }
+}

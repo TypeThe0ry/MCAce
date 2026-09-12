@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="640" viewBox="0 0 1400 640" role="img" aria-labelledby="title desc">
+  <title id="title">MCAce federation authentication binding</title>
+  <desc id="desc">One explicit enablement confirmation authorizes a source-to-target handoff. The signed federation assertion is hashed as H A and bound through ClientHello, AuthRequest, AuthResult, target session state, and post-run release evidence.</desc>
+  <defs>
+    <marker id="arrow" markerWidth="11" markerHeight="11" refX="9" refY="4" orient="auto"><path d="M0 0 L0 8 L10 4 Z" fill="#64748b"/></marker>
+    <linearGradient id="bg" x1="0" x2="1"><stop stop-color="#07111f"/><stop offset="1" stop-color="#111b31"/></linearGradient>
+  </defs>
+  <rect width="1400" height="640" rx="24" fill="url(#bg)"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="52" y="62" fill="#f8fafc" font-size="31" font-weight="700">Federation AUTH binding · one confirmation, one immutable handoff</text>
+    <text x="52" y="94" fill="#94a3b8" font-size="17">No confirmation → federation stays disabled; no second prompt is introduced.</text>
+
+    <rect x="54" y="145" width="220" height="170" rx="18" fill="#10243b" stroke="#38bdf8" stroke-width="2"/>
+    <text x="164" y="190" text-anchor="middle" fill="#7dd3fc" font-size="22" font-weight="700">Client / GUI</text>
+    <text x="164" y="228" text-anchor="middle" fill="#e0f2fe" font-size="17">Enable MCAce</text>
+    <text x="164" y="258" text-anchor="middle" fill="#e0f2fe" font-size="17">exactly one click</text>
+    <rect x="90" y="279" width="148" height="25" rx="12" fill="#075985"/>
+    <text x="164" y="297" text-anchor="middle" fill="#e0f2fe" font-size="13" font-weight="700">EXPLICIT CONSENT</text>
+
+    <path d="M274 230 H337" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="338" y="145" width="245" height="170" rx="18" fill="#172554" stroke="#60a5fa" stroke-width="2"/>
+    <text x="460" y="187" text-anchor="middle" fill="#bfdbfe" font-size="22" font-weight="700">Source proxy</text>
+    <text x="460" y="226" text-anchor="middle" fill="#dbeafe" font-size="17">Signed assertion A</text>
+    <text x="460" y="255" text-anchor="middle" fill="#dbeafe" font-size="17">subject · target · expiry</text>
+    <text x="460" y="284" text-anchor="middle" fill="#93c5fd" font-size="16">H_A = SHA-256(A bytes)</text>
+
+    <path d="M583 230 H646" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="647" y="129" width="300" height="202" rx="18" fill="#27154b" stroke="#c084fc" stroke-width="2"/>
+    <text x="797" y="171" text-anchor="middle" fill="#e9d5ff" font-size="22" font-weight="700">Signed AUTH transcript</text>
+    <g fill="#f3e8ff" font-size="17">
+      <text x="680" y="210">ClientHello.H_A · exactly 32 bytes</text>
+      <text x="680" y="242">AuthRequest.H_A · exactly 32 bytes</text>
+      <text x="680" y="274">AuthResult.H_A · exactly 32 bytes</text>
+      <text x="680" y="306">all equal SHA-256(A)</text>
+    </g>
+
+    <path d="M947 230 H1010" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="1011" y="145" width="334" height="170" rx="18" fill="#102a1b" stroke="#4ade80" stroke-width="2"/>
+    <text x="1178" y="187" text-anchor="middle" fill="#86efac" font-size="22" font-weight="700">Target proxy / session</text>
+    <text x="1178" y="226" text-anchor="middle" fill="#f0fdf4" font-size="17">verify A + H_A before replay mutation</text>
+    <text x="1178" y="255" text-anchor="middle" fill="#f0fdf4" font-size="17">bind presentation and session</text>
+    <text x="1178" y="284" text-anchor="middle" fill="#bbf7d0" font-size="16">mismatch → fail closed</text>
+
+    <path d="M1178 315 V384 H797" fill="none" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="507" y="384" width="580" height="150" rx="18" fill="#2a1d12" stroke="#f59e0b" stroke-width="2"/>
+    <text x="797" y="425" text-anchor="middle" fill="#fcd34d" font-size="22" font-weight="700">Native post-run evidence</text>
+    <text x="797" y="460" text-anchor="middle" fill="#fef3c7" font-size="17">GUI receipt + report + binding + handoff ledger + bundle hashes</text>
+    <text x="797" y="491" text-anchor="middle" fill="#fef3c7" font-size="17">detached post-run supervisor signature and approved public-key pins</text>
+    <text x="797" y="519" text-anchor="middle" fill="#fde68a" font-size="15">fixture/self-approved roots are never release eligible</text>
+    <text x="700" y="592" text-anchor="middle" fill="#64748b" font-size="14">The assertion hash is authentication context, not optional telemetry.</text>
+  </g>
+</svg>

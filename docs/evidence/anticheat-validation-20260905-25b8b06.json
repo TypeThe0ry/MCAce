@@ -1,0 +1,135 @@
+{
+  "schema": "MCACE_ANTICHEAT_VALIDATION_SUMMARY_V1",
+  "generated_at": "2026-09-05T10:13:52.8631783Z",
+  "tested_source_commit": "25b8b0623975d0c16bd2db4747899c4295787a40",
+  "release_eligible": false,
+  "overall_status": "DIAGNOSTIC_PASS_WITH_RELEASE_BINDING_FAILURE",
+  "evidence_classes": [
+    {
+      "evidence_class": "REAL_FABRIC_CLEAN",
+      "minecraft_version": "26.2",
+      "topology": "Fabric 26.2 client -> Velocity -> Paper",
+      "run_id": "20260905T095818212Z-26_2-2101a812b81c4a0542d0232390933bb5",
+      "endpoint": "127.0.0.1:59671",
+      "observed_player_name": "Player981",
+      "observed_player_uuid": "6601b320-c3a2-386d-b620-ed0b5821b8de",
+      "user_visible_consent": {
+        "requested": true,
+        "rendered": true,
+        "accepted": true
+      },
+      "client_result": {
+        "loaded_mod_count": 52,
+        "explicit_file_entries": 1,
+        "scoped_manifest_count": 4,
+        "active_external_resource_packs": 0,
+        "trust": "VERIFIED",
+        "risk": 0
+      },
+      "server_result": {
+        "manifest_observations": 53,
+        "actions": {
+          "OBSERVE": 53
+        },
+        "issues": 0,
+        "velocity_trust": "VERIFIED",
+        "paper_admission": "VERIFIED"
+      },
+      "raw_evidence": [
+        {
+          "path": "build/platform-smoke/runs/20260905T095818212Z-26_2-2101a812b81c4a0542d0232390933bb5/fabric-client/fabric-client-console.log",
+          "sha256": "6bdcd4164137b1ea23beb3c639293ef6543615657bbf92aeefe52337c6f98964"
+        },
+        {
+          "path": "build/platform-smoke/runs/20260905T095818212Z-26_2-2101a812b81c4a0542d0232390933bb5/velocity/velocity-restart-console.log",
+          "sha256": "51b9626794e2866324d2ee7d353a182e15c28ce82964a81117db1a0870390efc"
+        },
+        {
+          "path": "build/platform-smoke/runs/20260905T095818212Z-26_2-2101a812b81c4a0542d0232390933bb5/paper/paper-console.log",
+          "sha256": "410d70a9dfe15a333b2b7fcb78027b87fab588c735e8ee7e70185e12bcfd892f"
+        },
+        {
+          "path": "build/platform-smoke/runs/20260905T095818212Z-26_2-2101a812b81c4a0542d0232390933bb5/report.json",
+          "sha256": "858ce5b6c28ab61cc92d1fdafbcfdb8b57370aba15fc495f9668e3c8b554b984"
+        }
+      ],
+      "release_binding_failure": "Supplied FabricEvidencePlayerName does not match the observed local development profile",
+      "report_status": "failed",
+      "report_release_evidence": false
+    },
+    {
+      "evidence_class": "CONTROLLED_METADATA",
+      "minecraft_version": "26.2",
+      "executable_code_loaded": false,
+      "third_party_network_access": false,
+      "detections": [
+        {
+          "kind": "CHEAT_MOD_METADATA",
+          "id": "meteor-client",
+          "version": "26.2-86",
+          "sha256": "c286a140ba5e872a30e115fd1c60bc5f1c4f7081f21e72951266a2c0b399850e",
+          "origin": "CLIENT_REPORTED",
+          "confidence": "LOW",
+          "action": "OBSERVE"
+        },
+        {
+          "kind": "XRAY_RESOURCE_PACK_METADATA",
+          "sha256": "f932cd181cea83559784e1d9c2ca2eed6c72d5015ab28014916b30191f45d227",
+          "origin": "CLIENT_REPORTED",
+          "confidence": "LOW",
+          "action": "OBSERVE"
+        }
+      ],
+      "server_correlation": {
+        "client_observations": 2,
+        "independent_server_signals": 2,
+        "same_session": true,
+        "server_confirmed": 2,
+        "action": "OBSERVE_ONLY_UNTIL_SIGNED_POLICY",
+        "false_positive": false
+      },
+      "report": {
+        "path": "build/anticheat-fixtures/evidence-runs/20260905T100434227Z/report.json",
+        "sha256": "cf5e0486be48701ece9a8fe62f3d60f98cf8253e897b8b664e2397bd2126d403"
+      },
+      "junit_sha256": "e53b5b3812233517a2de2335965ad11f8600968633530ddda03dabe4decf238b"
+    },
+    {
+      "evidence_class": "CONTROLLED_EXECUTABLE_LOOPBACK",
+      "versions": [
+        "1.21.11",
+        "26.1.2",
+        "26.2"
+      ],
+      "fixture_owner": "MCAce project",
+      "actual_fabric_client": false,
+      "public_server": false,
+      "third_party_code_loaded": false,
+      "client_modlist_reported": true,
+      "client_executable_code_loaded": true,
+      "independent_server_behavior_signal": true,
+      "same_session_correlation": true,
+      "server_confirmed_count": 3,
+      "server_confirmed_action": "QUARANTINE",
+      "clean_false_positive_count": 0,
+      "clean_baseline_action": "OBSERVE",
+      "fixture_26_2_sha256": "a9ef857fe9ff83b4ff5fe18da3ee75e5f7ec31aaff79981d66c5cd6d6a717df5",
+      "report": {
+        "path": "build/anticheat-live-fixtures/evidence-runs/20260905T100153368Z/report.json",
+        "sha256": "0903c68262530f7696fdd5f0a1c59ac3f0999caeeaa4bdf0a8bc33a8c089ea4e"
+      },
+      "junit_sha256": "c4881e06733a821b48a8b52da5a51010406e4ec74142456bbc2d7c310d882d41"
+    }
+  ],
+  "verified_claims": [
+    "A real Fabric 26.2 client sent its clean mod graph and scoped manifests to Velocity, and Paper consumed the signed VERIFIED admission state.",
+    "Controlled Meteor-like metadata and an Xray resource-pack fixture were classified and correlated with independent server signals.",
+    "An MCAce-owned executable fixture was correlated with an independent movement signal and produced SERVER_CONFIRMED/QUARANTINE while the clean control did not correlate."
+  ],
+  "unverified_claims": [
+    "A third-party cheat was executed inside the real Fabric GUI session.",
+    "An Xray resource pack was activated inside the real Fabric GUI session.",
+    "MCAce scans arbitrary operating-system processes, process memory, debuggers, injection, kernel state, or DMA devices.",
+    "This diagnostic package satisfies the protected release GUI, federation, Vulcan, production-authority, or exact-bundle gates."
+  ]
+}

@@ -142,7 +142,14 @@ final class RuntimeNetworkIntegrationTest {
         command.add(classpath);
         command.add(RuntimeNetworkMain.class.getName());
         command.addAll(List.of(arguments));
-        return new ProcessBuilder(command).redirectErrorStream(true);
+        ProcessBuilder processBuilder = new ProcessBuilder(command).redirectErrorStream(true);
+        // Gradle/CI launchers may inject JVM option environment variables into the
+        // parent test process. The protocol child processes must have a clean stdout
+        // contract so their first line is READY|... rather than a launcher diagnostic.
+        processBuilder.environment().remove("JAVA_TOOL_OPTIONS");
+        processBuilder.environment().remove("_JAVA_OPTIONS");
+        processBuilder.environment().remove("JDK_JAVA_OPTIONS");
+        return processBuilder;
     }
 
     private static Map<String, Result> parseResults(List<String> lines) {

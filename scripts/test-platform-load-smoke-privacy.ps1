@@ -11,6 +11,7 @@ function Assert-True([bool]$Condition, [string]$Message) {
 }
 
 $target = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot 'platform-load-smoke.ps1'))
+$targetText = Get-Content -LiteralPath $target -Raw
 $tokens = $null
 $parseErrors = $null
 $ast = [System.Management.Automation.Language.Parser]::ParseFile(
@@ -106,6 +107,15 @@ $runTokenStopProcessCalls = @($runTokenStopper.Body.FindAll({
 Assert-True ($stopProcessCalls.Count -eq 2 -and $treeStopProcessCalls.Count -eq 1 -and
         $runTokenStopProcessCalls.Count -eq 1) `
     'PID-based forced stops must remain inside the tree or unique run-token stoppers'
+
+# PowerShell exposes the automatic, read-only `$PID` variable case-insensitively.
+# A loop/local named `$pid` therefore emits a runtime assignment warning and can
+# strand cleanup after a timeout. Keep cleanup locals distinct from that variable.
+$pidAssignmentText = [regex]::Matches(
+    $targetText,
+    '(?im)(?:^|[;{])\s*(?:foreach\s*\(\s*)?\$pid\b\s*(?:=|\bin\b)')
+Assert-True ($pidAssignmentText.Count -eq 0) `
+    'platform smoke must not assign or iterate a local named `$pid` (automatic variable collision)'
 
 $selectorText = $treeSelector.Extent.Text
 foreach ($requiredCleanupBoundary in @(
@@ -209,6 +219,9 @@ $expectedKeys = @(
     'fabric_release_jar_loaded',
     'fabric_client_requested',
     'fabric_evidence_requested',
+    'enablement_consent_requested',
+    'enablement_consent_rendered',
+    'enablement_consent_accepted',
     'explicit_file_fixture_present',
     'explicit_file_manifest_entries',
     'explicit_file_manifest_entries_observed',
@@ -219,6 +232,7 @@ $expectedKeys = @(
     'game_render_frame_requested',
     'game_render_frame_consent_rendered',
     'game_render_frame_consent_allowed',
+    'game_render_frame_consent_inherited',
     'game_render_frame_completed',
     'fabric_gui_coverage',
     'fabric_evidence_coverage',
@@ -322,6 +336,14 @@ foreach ($required in @(
         '(Get-Item -LiteralPath $explicitFileFixture).Length -gt 0',
         'MCAce explicit-file manifest prepared entries=1',
         'explicit_file_manifest_entries_observed',
+        'function Normalize-FabricConsentEvidence',
+        "throw 'PLATFORM_SMOKE_GAME_RENDER_FRAME_RENDERED_AND_INHERITED'",
+        "throw 'PLATFORM_SMOKE_REPORT_GAME_RENDER_FRAME_RENDERED_AND_INHERITED'",
+        "throw 'PLATFORM_SMOKE_REPORT_GAME_RENDER_FRAME_RENDERED_INVALID'",
+        "`$Evidence['explicit_file_requested'] = [bool]`$Evidence['enablement_requested']",
+        "`$Evidence['game_render_frame_rendered'] = `$false",
+        "`$Evidence['game_render_frame_allowed'] = `$true",
+        "-not [bool]`$Evidence['game_render_frame_rendered']",
         "`$fabricArtifactClass = 'sanitized-final-fabric-gui-evidence'",
         'artifact_class = $fabricArtifactClass',
         'release_evidence = $false',
@@ -330,14 +352,14 @@ foreach ($required in @(
         'diagnostics_retained = [bool]$RetainDiagnostics',
         "fabric_runtime_mode = `$fabricRuntimeMode",
         'fabric_release_jar_loaded = $FabricReleaseJarLoaded',
-        "`$reportSchema = 7",
+        "`$reportSchema = 8",
         "runtime_mode = 'LOOM_FINAL_REMAP_ARTIFACT'",
         "runtime_mode = 'LOOM_FINAL_NAMED_JAR_ARTIFACT'",
         "artifact_kind = 'FINAL_REMAP_JAR'",
         "artifact_kind = 'FINAL_NAMED_JAR'",
         "paper_build = '132'",
         "paper_build = '74'",
-        "paper_build = '112'",
+        "paper_build = '116'",
         '$fabricSmokeBuildId = "platform-smoke-$runId"',
         '"MCACE_FABRIC_ARTIFACT_LOADED version=$fabricArtifactVersion build_id=$fabricSmokeBuildId"',
         '" code_source_sha256=$($currentEvidenceBinding.fabric_runtime_artifact_sha256)"',
@@ -357,7 +379,7 @@ foreach ($required in @(
         'velocity_policy_minecraft_versions = $Current.velocity_policy_minecraft_versions',
         'velocity_policy_client_build_ids = $Current.velocity_policy_client_build_ids',
         'fabric_artifact_marker_observed = [bool]$Report.fabric_runtime_jar_loaded',
-        "`$bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V5'",
+        "`$bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6'",
         'function Set-ExactVelocityPolicyTuple',
         "'policy.minecraft-versions' = `$MinecraftVersion",
         "'policy.client-build-ids' = `$ClientBuildId",
@@ -365,8 +387,11 @@ foreach ($required in @(
         'PLATFORM_SMOKE_VELOCITY_POLICY_READBACK_COUNT_INVALID',
         'PLATFORM_SMOKE_VELOCITY_POLICY_READBACK_VALUE_INVALID',
         '$velocityPolicyTuple = Set-ExactVelocityPolicyTuple',
-        '$velocityHandshakeTimeoutSeconds = [Math]::Min(30, $manualConsentHandshakeTimeoutSeconds)',
+        '$serverHandshakeSafetyMarginSeconds = if ($WithFabricEvidence) { 30 } else { 0 }',
+        '$velocityHandshakeTimeoutSeconds = [Math]::Min(',
+        '300, $manualConsentHandshakeTimeoutSeconds + $serverHandshakeSafetyMarginSeconds)',
         'handshake.timeout.seconds=$velocityHandshakeTimeoutSeconds',
+        '"-PmcaceSmokeConsentTimeoutSeconds=$manualConsentHandshakeTimeoutSeconds"',
         'manual_consent_handshake_timeout_seconds = $manualConsentHandshakeTimeoutSeconds',
         'velocity_policy_minecraft_versions = [string]$VelocityPolicyTuple',
         'velocity_policy_client_build_ids = [string]$VelocityPolicyTuple',
@@ -494,6 +519,112 @@ function Get-TargetFunctionAst([string]$Name) {
     }, $true)
 }
 
+# Exercise the schema-8 single-screen producer contract directly.  The one visible
+# connection enablement must back both the legacy explicit_file_* aliases and the
+# inherited GAME_RENDER_FRAME decision.  No separate frame prompt marker is accepted.
+foreach ($name in @('Test-TextContains', 'Normalize-FabricConsentEvidence',
+        'Update-FabricConsentEvidence', 'Test-FabricGuiCoverage',
+        'Test-FabricEvidenceCoverage')) {
+    $functionAst = Get-TargetFunctionAst $name
+    Assert-True ($null -ne $functionAst) "Fabric consent helper is missing: $name"
+    Invoke-Expression $functionAst.Extent.Text
+}
+
+function New-FabricConsentEvidenceFixture {
+    return [ordered]@{
+        explicit_file_manifest_entries = 0
+        enablement_requested = $false
+        enablement_rendered = $false
+        enablement_accepted = $false
+        explicit_file_requested = $false
+        explicit_file_rendered = $false
+        explicit_file_accepted = $false
+        authenticated = $false
+        game_render_frame_requested = $false
+        game_render_frame_rendered = $false
+        game_render_frame_allowed = $false
+        game_render_frame_inherited = $false
+        game_render_frame_completed = $false
+    }
+}
+
+$consentFixtureRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
+    'mcace-platform-consent-' + [Guid]::NewGuid().ToString('N'))
+try {
+    $null = New-Item -ItemType Directory -Path $consentFixtureRoot -ErrorAction Stop
+    $positiveLog = Join-Path $consentFixtureRoot 'positive.log'
+    $positiveMarkers = @(
+        'MCAce explicit-file manifest prepared entries=1',
+        'MCAce enablement consent requested for signed policy; explicit-file paths=1',
+        'MCAce enablement consent screen rendered',
+        'MCAce enablement accepted for the current connection',
+        'MCAce session verified at trust level VERIFIED',
+        'MCAce evidence request accepted under connection enablement; no second consent screen',
+        'MCAce evidence consent inherited from connection enablement',
+        'MCAce evidence transfer COMPLETE request=fixture'
+    ) -join "`n"
+    [System.IO.File]::WriteAllText(
+        $positiveLog, $positiveMarkers, [System.Text.UTF8Encoding]::new($false))
+    $positiveEvidence = New-FabricConsentEvidenceFixture
+    Update-FabricConsentEvidence $positiveEvidence $positiveLog
+    Assert-True ([bool]$positiveEvidence.enablement_requested -and
+            [bool]$positiveEvidence.enablement_rendered -and
+            [bool]$positiveEvidence.enablement_accepted) `
+        'single enablement marker chain was not observed'
+    Assert-True ([bool]$positiveEvidence.explicit_file_requested -and
+            [bool]$positiveEvidence.explicit_file_rendered -and
+            [bool]$positiveEvidence.explicit_file_accepted) `
+        'explicit_file compatibility fields did not map to the enablement screen'
+    Assert-True ([bool]$positiveEvidence.game_render_frame_requested -and
+            -not [bool]$positiveEvidence.game_render_frame_rendered -and
+            [bool]$positiveEvidence.game_render_frame_allowed -and
+            [bool]$positiveEvidence.game_render_frame_inherited -and
+            [bool]$positiveEvidence.game_render_frame_completed) `
+        'inherited GAME_RENDER_FRAME fields are not fixed to rendered=false/allowed=true/inherited=true'
+    Assert-True (Test-FabricGuiCoverage $positiveEvidence) `
+        'single enablement fixture did not satisfy GUI coverage'
+    Assert-True (Test-FabricEvidenceCoverage $positiveEvidence) `
+        'inherited frame fixture did not satisfy evidence coverage'
+
+    $legacyAliasLog = Join-Path $consentFixtureRoot 'legacy-alias-only.log'
+    [System.IO.File]::WriteAllText(
+        $legacyAliasLog,
+        (@(
+            'MCAce explicit-file consent requested for fixture',
+            'MCAce explicit-file consent screen rendered',
+            'MCAce explicit-file authorization accepted for the current connection'
+        ) -join "`n"),
+        [System.Text.UTF8Encoding]::new($false))
+    $legacyAliasEvidence = New-FabricConsentEvidenceFixture
+    Update-FabricConsentEvidence $legacyAliasEvidence $legacyAliasLog
+    Assert-True (-not [bool]$legacyAliasEvidence.explicit_file_requested -and
+            -not [bool]$legacyAliasEvidence.explicit_file_rendered -and
+            -not [bool]$legacyAliasEvidence.explicit_file_accepted) `
+        'legacy explicit-file markers were mistaken for a second visible screen'
+
+    $contradictoryLog = Join-Path $consentFixtureRoot 'contradictory.log'
+    [System.IO.File]::WriteAllText(
+        $contradictoryLog,
+        (@(
+            'MCAce evidence consent screen rendered for signed GAME_RENDER_FRAME request',
+            'MCAce evidence consent inherited from connection enablement'
+        ) -join "`n"),
+        [System.Text.UTF8Encoding]::new($false))
+    $contradictoryEvidence = New-FabricConsentEvidenceFixture
+    $contradictionRejected = $false
+    try { Update-FabricConsentEvidence $contradictoryEvidence $contradictoryLog }
+    catch {
+        $contradictionRejected = $_.Exception.Message -ceq
+            'PLATFORM_SMOKE_GAME_RENDER_FRAME_RENDERED_AND_INHERITED'
+    }
+    Assert-True $contradictionRejected `
+        'rendered=true/inherited=true GAME_RENDER_FRAME evidence was accepted'
+} finally {
+    if (Test-Path -LiteralPath $consentFixtureRoot) {
+        Remove-Item -LiteralPath $consentFixtureRoot -Recurse -Force
+    }
+}
+
 # Lock the three reviewed target identities.  These values are the immutable Mojang
 # version-info and asset-index identities consumed by Assert-FabricAssetCache; the
 # per-object manifest is then derived from every unique, SHA-1-verified cache object.
@@ -509,25 +640,25 @@ $expectedTargetPins = [ordered]@{
     '1.21.11' = [ordered]@{
         java_major = 21
         asset_index = '29'
-        version_info_sha1 = '4b5fd518c8f06ea3f9fdef2895f729c204f0bf5e'
-        version_info_sha256 = 'f6ce577abd648a59766f2236dcaa76b5a3817a8122fc704713976f5cc6895962'
-        asset_index_sha1 = '34c7bef563edad4d5e3ae8157e904690afb1fa50'
+        version_info_sha1 = '6b6c2d7f875539647774da3e334b27d0a67331a4'
+        version_info_sha256 = 'bd39d85072a5bc178f5407a99db783fbe8dfdda85261d25287bb276224c4a47e'
+        asset_index_sha1 = '7c7f5df63dfd676251babde8fd2b05af54ca77dd'
         asset_index_size = 529966L
     }
     '26.1.2' = [ordered]@{
         java_major = 25
         asset_index = '30'
-        version_info_sha1 = 'edcfd100a4856650b6e9797bac8f7fd76821979e'
-        version_info_sha256 = '92dc2a84d8151cf8ff26b4be4c0b1d3b9e88f0c28a860e1cae1a5b3fbdefee9a'
-        asset_index_sha1 = 'aa83698cef26e50089d85218e55bd402f38c7821'
+        version_info_sha1 = '09c3ffc1d9d1182a1083a868595d98f22687e5d5'
+        version_info_sha256 = '2a19d93dc404c4f3d9ebedc437ab3b11c5a272b41c45d74266a64005125b0a72'
+        asset_index_sha1 = '1c325980cb885aabe2602f94993eb2d82dd44a82'
         asset_index_size = 548391L
     }
     '26.2' = [ordered]@{
         java_major = 25
         asset_index = '32'
-        version_info_sha1 = 'dc69be58cf16ad99f4b1ae7360c9a29c8c819ca5'
-        version_info_sha256 = 'd4a21bea5568a8e194ff8fc94081489cf2b694a9d04c7bc4e673add58a10955f'
-        asset_index_sha1 = 'cf75b185cb35b32e299b0c8e674fa202d7911a3c'
+        version_info_sha1 = 'ef815ab76bce3f1a4c2d7fe712527304923bbe3a'
+        version_info_sha256 = 'c09c6d5d17181cd1827665946452781668da2d84a98f4bff38a1f63dc332c15d'
+        asset_index_sha1 = 'c12254a593cdebaf8e8102250a71d8f40124a0b5'
         asset_index_size = 586366L
     }
 }
@@ -540,6 +671,21 @@ foreach ($targetName in @($expectedTargetPins.Keys)) {
             "Fabric target pin drifted: $targetName/$field"
     }
 }
+$legacyBuild = [System.IO.File]::ReadAllText((Join-Path $repoRoot 'mcace-client-fabric\build.gradle.kts'))
+$legacyConsentProperty = '"mcace.client.enablement-decision-timeout-seconds"'
+$runClientOffset = $legacyBuild.IndexOf('val runClientTask = tasks.named<org.gradle.api.tasks.JavaExec>("runClient")',
+    [StringComparison]::Ordinal)
+$legacyRunConsentOffset = $legacyBuild.IndexOf($legacyConsentProperty, $runClientOffset,
+    [StringComparison]::Ordinal)
+$legacyLoomOffset = $legacyBuild.IndexOf('loom {', [StringComparison]::Ordinal)
+$legacyLoomConsentOffset = $legacyBuild.IndexOf($legacyConsentProperty, $legacyLoomOffset,
+    [StringComparison]::Ordinal)
+Assert-True ($runClientOffset -ge 0 -and $legacyRunConsentOffset -gt $runClientOffset) `
+    'legacy runClient must propagate the supervised consent timeout into the client JVM'
+Assert-True ($legacyLoomOffset -ge 0 -and $legacyLoomConsentOffset -gt $legacyLoomOffset) `
+    'legacy Loom client run must propagate the supervised consent timeout'
+Assert-True (([regex]::Matches($legacyBuild, [regex]::Escape($legacyConsentProperty))).Count -ge 3) `
+    'legacy build must retain both development and release consent propagation paths'
 Assert-True (@($fabricTargets.Values.version_info_sha1 | Sort-Object -Unique).Count -eq 3) `
     'each Fabric target must pin a unique version-info SHA-1'
 Assert-True (@($fabricTargets.Values.version_info_sha256 | Sort-Object -Unique).Count -eq 3) `
@@ -1029,7 +1175,7 @@ foreach ($requiredModernArtifactModeClosure in @(
         'loomExtension.mods.configureEach',
         'modFiles.setFrom(emptyList<Any>())',
         'loomExtension.mods.maybeCreate("mcace")',
-        'modFiles.setFrom(deployableJar)',
+        'modFiles.setFrom(smokeRuntimeArtifact)',
         'modernMainOutputRoots.get() + stagedRootJarPaths.get()',
         'check(nonEmptyMods == listOf("mcace" to setOf(artifact)))',
         'check(leakedOrigins.isEmpty())',

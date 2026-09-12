@@ -1,0 +1,42 @@
+{
+  "negative_boundary": {
+    "clean_client_no_mod_observation": true,
+    "clean_client_no_impossible_movement": true,
+    "clean_client_no_server_confirmed_event": true
+  },
+  "passed": true,
+  "fixture_mode": "CONTROLLED_EXECUTABLE_CLIENT_AND_SERVER_CORRELATION",
+  "versions": [
+    "1.21.11",
+    "26.1.2",
+    "26.2"
+  ],
+  "clean_false_positive_count": 0,
+  "server_confirmed_count": 3,
+  "correlated_same_session": true,
+  "generated_at": "2026-09-08T02:12:42.8312127+00:00",
+  "client_executable_code_loaded": true,
+  "client_modlist_reported": true,
+  "schema": "MCACE_ANTICHEAT_LIVE_FIXTURE_V1",
+  "sanitization": {
+    "absolute_paths_copied": false,
+    "pids_copied": false,
+    "ports_copied": false,
+    "uuids_copied": false,
+    "fixture_bytes_copied": false
+  },
+  "public_server": false,
+  "source_commit": "5ccb9d62104817f4ff66d7087e5fcea0aff87142",
+  "limitations": [
+    "The executable fixture is an MCAce-owned test JAR, not third-party cheat code.",
+    "The harness is a loopback protocol/client-server integration, not a public server or a full Minecraft GUI session.",
+    "Quarantine is emitted by the signed lab policy runtime; production authority and live kick/ban remain separate release gates."
+  ],
+  "third_party_network_access": false,
+  "server_behavior_signal_independent": true,
+  "signed_lab_policy": true,
+  "third_party_code_loaded": false,
+  "test_class": "com.ellan.mcace.runtime.AntiCheatLiveFixtureIntegrationTest",
+  "actual_fabric_client": false,
+  "server_confirmed_action": "QUARANTINE"
+}

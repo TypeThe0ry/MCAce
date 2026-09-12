@@ -1,0 +1,28 @@
+{
+  "schema": "MCACE_CLUSTER_STATIC_EVIDENCE_V1",
+  "generated_at": "2026-08-23T18:19:58.1150340Z",
+  "source_commit": "b64587fcfe86b08059648238c9fb78002a51b714",
+  "execution_node": "helio",
+  "profile": "windows",
+  "job_id": "20260823-helio-b64587f-static",
+  "command": "PowerShell 5.1: scripts/test-*.ps1 (sorted)",
+  "passed": true,
+  "passed_count": 15,
+  "failed_count": 0,
+  "exit_code": 0,
+  "runtime": {
+    "powershell": "5.1.26100.9168",
+    "os": "Windows"
+  },
+  "log": {
+    "sha256": "1fab373f18da81e44d3d9f5a281c4216b2535c42ea6811793f451d4f4e6b2ced",
+    "worker_path": "C:\\CodexWorker\\jobs\\20260823-helio-b64587f-static\\static.log"
+  },
+  "changed_script_sha256": "f517cfdd79c24b35af90aca66e5f2506e93c93a5fbd579bc568cb1e8385a970b",
+  "test_wrapper_sha256": "749b6c86461b4102949c35bd5399f8c0f8030304cc0f95d69227c66cf822002d",
+  "notes": [
+    "All 15 repository test wrappers passed on the Helio Windows PowerShell 5.1 runtime.",
+    "Exact artifact policy generation and OutputPath write path are covered under the compatibility wrapper.",
+    "This is static evidence only and does not close GUI, federation, licensed Vulcan, production authority, or protected-main release gates."
+  ]
+}

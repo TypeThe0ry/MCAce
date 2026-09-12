@@ -1,0 +1,35 @@
+{
+  "schema": "MCACE_GITHUB_FEATURE_CI_EVIDENCE_V2",
+  "generated_at": "2026-08-24T22:01:38.0219118+00:00",
+  "repository": "TypeThe0ry/MCAce",
+  "pull_request": 17,
+  "source_commit": "8db8634e62a4c6f208ba07c284be399b2ae76464",
+  "branch": "feature/active-pack-integrity",
+  "runs": [
+    {
+      "run_id": 32781778301,
+      "job_id": 97605210058,
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32781778301"
+    },
+    {
+      "run_id": 32781782319,
+      "job_id": 97605222108,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32781782319"
+    }
+  ],
+  "steps": {
+    "build_and_test": "success",
+    "local_verification_bundle": "success",
+    "exact_eight_local_bundle_upload": "success",
+    "release_bundle": "skipped_on_feature_branch",
+    "release_bundle_upload": "skipped_on_feature_branch",
+    "fail_closed_release_readiness": "skipped_on_feature_branch"
+  },
+  "interpretation": "Both push and pull_request checks passed exact checkout, build/test, local verification bundle, and exact-eight upload for 8db8634. The feature branch intentionally skips releaseBundle and the main-only fail-closed readiness gate; protected-main exact-commit releaseBundle remains open."
+}

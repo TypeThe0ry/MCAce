@@ -1,0 +1,65 @@
+{
+  "schema": "MCACE_ISOLATED_CLIENT_PROVISION_PARITY_V1",
+  "generated_at": "2026-09-01T03:52:19.2254080Z",
+  "source_commit": "79077c40e92943a93bd4ecb61cc3ad32c2ab2308",
+  "source_client": "E:/Ellan艾尔岚-客户端-26.2",
+  "target_root": "D:/MCAce-gui-client-26.2",
+  "game_directory": "D:/MCAce-gui-client-26.2/.minecraft/versions/EllanTOP-26.2",
+  "minecraft_version": "26.2",
+  "loader": "Fabric",
+  "comparison": {
+    "mods": {
+      "source_count": 60,
+      "target_count": 61,
+      "same_count": 60,
+      "source_only_count": 0,
+      "target_only_count": 1,
+      "content_mismatch_count": 0,
+      "target_only_paths": [
+        "mcace-client-fabric-26.2.jar"
+      ],
+      "source_map_sha256": "3d8423bc5f25b709417b25234586daa28ebaa9a8af56f507705e047045723a39",
+      "target_map_sha256": "cd0a288f72cdbb937cf1300773c0744eb048cdd320929ef13eb5a36d48e02559"
+    },
+    "resourcepacks": {
+      "source_count": 0,
+      "target_count": 0,
+      "same_count": 0,
+      "source_only_count": 0,
+      "target_only_count": 0,
+      "content_mismatch_count": 0,
+      "target_only_paths": [],
+      "source_map_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+      "target_map_sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b"
+    },
+    "shaderpacks": {
+      "source_count": 7,
+      "target_count": 7,
+      "same_count": 7,
+      "source_only_count": 0,
+      "target_only_count": 0,
+      "content_mismatch_count": 0,
+      "target_only_paths": [],
+      "source_map_sha256": "8baa684abe4d878d47accadcea0de6a16a92513d83d6bcf1da1d0c662feb8c9d",
+      "target_map_sha256": "8baa684abe4d878d47accadcea0de6a16a92513d83d6bcf1da1d0c662feb8c9d"
+    }
+  },
+  "artifact": {
+    "file": "mcace-client-fabric-26.2.jar",
+    "sha256": "49dcfd7d33247069bc2c10211ce69c052151b5a7e2b41b304aaad553550c3aed",
+    "size_bytes": 3041446,
+    "target_path": "D:/MCAce-gui-client-26.2/.minecraft/versions/EllanTOP-26.2/mods/mcace-client-fabric-26.2.jar"
+  },
+  "parity_rule": "target = source for version-level mods/resourcepacks/shaderpacks plus exactly one MCAce artifact",
+  "passed": true,
+  "limitations": [
+    "Only the available 26.2 external client was compared; no 1.21.11 or 26.1.2 external client tree is present.",
+    "The comparison covers version-level packs and mods; it does not prove server handshake, GUI consent, or production authority."
+  ],
+  "sanitization": {
+    "absolute_paths_copied": false,
+    "credentials_copied": false,
+    "pids_copied": false,
+    "ports_copied": false
+  }
+}

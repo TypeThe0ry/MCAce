@@ -1,0 +1,66 @@
+{
+  "schema": "MCACE_RELEASE_BUNDLE_EVIDENCE_V2",
+  "generated_at": "2026-08-25T02:11:16.1137480Z",
+  "source": "cluster_helio_releaseBundle",
+  "node": "helio",
+  "profile": "windows",
+  "job_id": "20260825-helio-63ae400-release-bundle",
+  "source_commit": "63ae400adc8d09d8349ca599c9d6a4866a189d04",
+  "conclusion": "success",
+  "protected_main_exact_commit_ci": false,
+  "release_identity": true,
+  "bundle_profile": "RELEASE",
+  "product_version": "0.0.1",
+  "deployable_count": 6,
+  "bundle_entry_count": 8,
+  "bundle_materialized_remote": true,
+  "remote_bundle_root": "C:\\CodexWorker\\jobs\\20260825-helio-63ae400-release-bundle\\repo\\build\\release-bundle",
+  "manifest_sha256": "21e662ff782cf9dfb314d5e962c467a88530443c6af48d2ad4411fd469f39090",
+  "sha256sums_sha256": "83834249d0c06d00e62687e3fa3d9bbb652ee25e4631e9f00f6232adc03650fc",
+  "sha256sums_verified": true,
+  "compatibility_report": "C:\\CodexWorker\\jobs\\20260825-helio-63ae400-release-bundle\\repo\\build\\compatibility-contract\\report.json",
+  "compatibility_report_sha256": "812c1101ae6dc2581fd999110c362c315bbd53a686ec8d0dafab950d557a37e1",
+  "compatibility_passed": true,
+  "build_log": "C:\\CodexWorker\\jobs\\20260825-helio-63ae400-release-bundle\\logs\\release-bundle-retry-gradle-jvmargs.log",
+  "build_log_sha256": "96a06d958aa0cbd9518142ce8803ff1d73f172ee9282db0bd65e66d613c2f6b7",
+  "result_json": "C:\\CodexWorker\\jobs\\20260825-helio-63ae400-release-bundle\\result-retry-gradle-jvmargs.json",
+  "result_json_sha256": "80181cc0bb649b0f8415c784f14ba28c7bf87b29344754a6cc80bc3a65b73010",
+  "runtime": {
+    "root_java": "21.0.10",
+    "modern_java": "25.0.4.1",
+    "gradle": "9.6.1",
+    "gradle_jvm_args": "-Xmx2G -Dfile.encoding=UTF-8 -XX:TieredStopAtLevel=1 -XX:CICompilerCount=1 -XX:+UseSerialGC -XX:UseAVX=2"
+  },
+  "artifacts": {
+    "mcace-client-fabric-1.21.11.jar": {
+      "size_bytes": 3411905,
+      "sha256": "55fd2e09944e99fed0205db4d4466a389d7b1c9bb56d890f04eb59985568aad9"
+    },
+    "mcace-client-fabric-26.1.2.jar": {
+      "size_bytes": 3517013,
+      "sha256": "0c5e144730b2913a5543fd2b8e7312fca1f7620d44ec4aa0bdc92a8893e66956"
+    },
+    "mcace-client-fabric-26.2.jar": {
+      "size_bytes": 3517011,
+      "sha256": "6bc9fb7cc292cafa7041b6343c226cac1852ef6ff9cc495fd92e3fddce833f30"
+    },
+    "mcace-server-velocity.jar": {
+      "size_bytes": 5039053,
+      "sha256": "088559253a4ec9dc79f110e911d58accd8b05893c74cefba31cebc1a90cb373e"
+    },
+    "mcace-server-bungeecord.jar": {
+      "size_bytes": 3584691,
+      "sha256": "163554963a73a422e9ea2cf31b008ae90051ef180356ce5f3947adbe8a32ddbd"
+    },
+    "mcace-server-paper.jar": {
+      "size_bytes": 5946745,
+      "sha256": "9bb12776d16fc72b20dcb8f3c1ad4da4eb4f6148902296ffc75fba80814e52b3"
+    }
+  },
+  "interpretation": "Helio built the exact 63ae400 checkout with product_version=0.0.1. The remote eight-entry RELEASE bundle passed release identity, SHA256SUMS, and the three exact compatibility tuples. The successful attempt removed JAVA_TOOL_OPTIONS so runtime child stdout remained parseable, and constrained only the Gradle daemon through org.gradle.jvmargs.",
+  "limitations": [
+    "Feature-branch Helio candidate; protected-main exact-commit releaseBundle/readiness gate remains open.",
+    "The bundle remains on the job-owned Helio path; this repository evidence records hashes and provenance, not a transferred ZIP.",
+    "GUI consent, Fabric federation handoff, licensed Vulcan genuine event, and production authority freeze remain separate release gates."
+  ]
+}

@@ -1,0 +1,62 @@
+{
+  "schema": "MCACE_ANTICHEAT_FIXTURE_CLASSIFICATION_EVIDENCE_V1",
+  "generated_at": "2026-09-01T06:36:32.7067466+00:00",
+  "source_commit": "867ec19ff4ecb962573194941f4f301f9e311708",
+  "fixture_mode": "CONTROLLED_LAB_FIXTURE_METADATA_AND_SERVER_CORRELATION",
+  "runs": [
+    {
+      "minecraft_version": "1.21.11",
+      "report_path": "build/anticheat-fixtures/evidence-runs/20260901T063613999Z/report.json",
+      "report_sha256": "a8afc15ef0f722e3d09219bc3bd2500965c1efd399b06e136869392883199ecd",
+      "meteor_sha256": "490315ead082ba90ee4876ca1434545176c6a82e6a86f1388db67b645c383eff",
+      "xray_sha256": "f932cd181cea83559784e1d9c2ca2eed6c72d5015ab28014916b30191f45d227",
+      "passed": true,
+      "client_observation_count": 2,
+      "independent_server_signal_count": 2,
+      "correlated_same_session": true,
+      "server_confirmed_count": 2,
+      "server_confirmed_action": "OBSERVE_ONLY_UNTIL_SIGNED_POLICY",
+      "false_positive": false
+    },
+    {
+      "minecraft_version": "26.1.2",
+      "report_path": "build/anticheat-fixtures/evidence-runs/20260901T063623505Z/report.json",
+      "report_sha256": "4ed36dffc28e9924912cf671f7ececdd509b1bdbd34a1163ac4a8b915f2e47db",
+      "meteor_sha256": "ffda87fe613f971d1f91976421f02c4cdbb187f38cdbcd74d5403aa71ee32ac1",
+      "xray_sha256": "f932cd181cea83559784e1d9c2ca2eed6c72d5015ab28014916b30191f45d227",
+      "passed": true,
+      "client_observation_count": 2,
+      "independent_server_signal_count": 2,
+      "correlated_same_session": true,
+      "server_confirmed_count": 2,
+      "server_confirmed_action": "OBSERVE_ONLY_UNTIL_SIGNED_POLICY",
+      "false_positive": false
+    },
+    {
+      "minecraft_version": "26.2",
+      "report_path": "build/anticheat-fixtures/evidence-runs/20260901T063632700Z/report.json",
+      "report_sha256": "f13d688c0e8ea6c39d6d3130f8430d0c3fdb884b39bfd689e625da5785f83e89",
+      "meteor_sha256": "3975509f3aab676926e0ebe3422fa22c61909c71879b7a949fd6cd4ed83ad1a2",
+      "xray_sha256": "f932cd181cea83559784e1d9c2ca2eed6c72d5015ab28014916b30191f45d227",
+      "passed": true,
+      "client_observation_count": 2,
+      "independent_server_signal_count": 2,
+      "correlated_same_session": true,
+      "server_confirmed_count": 2,
+      "server_confirmed_action": "OBSERVE_ONLY_UNTIL_SIGNED_POLICY",
+      "false_positive": false
+    }
+  ],
+  "interpretation": "All three supported versions passed bounded metadata classification and same-session client/server correlation. The classifier keeps the observed result at LOW-confidence CLIENT_REPORTED/OBSERVE_ONLY_UNTIL_SIGNED_POLICY; it does not execute a cheat module or claim a production kick/ban.",
+  "limitations": [
+    "The Meteor and Xray inputs are small locally reviewed fixtures; no third-party executable code was loaded.",
+    "No public server, real cheat feature, or production authority was involved.",
+    "This evidence validates detection-boundary behavior and version routing, not Tencent ACE kernel/DMA protection."
+  ],
+  "sanitization": {
+    "absolute_paths_copied": false,
+    "pids_copied": false,
+    "ports_copied": false,
+    "raw_fixture_paths_copied": false
+  }
+}

@@ -1,0 +1,54 @@
+{
+  "schema": "MCACE_HELIO_ANTICHEAT_SYNC_V1_SANITIZED",
+  "node": "helio",
+  "source_commit": "57b14244c570a127417f6e15eed6c54f1bf10d47",
+  "root_fabric_test_exit": 0,
+  "versions": [
+    {
+      "minecraft_version": "1.21.11",
+      "passed": true,
+      "report_sha256": "ed660283516882c3ab890f4d4a8628ee4f8543f09ab80415db10a9640e4fe0b9",
+      "meteor_fixture_sha256": "dab17e5d1780cc3bfbfa0254b872cbaa6129e9f9231ea7b39980ee28a1cfd257",
+      "xray_fixture_sha256": "5d01855cb31daa771a6c4cd7f27cb74d59dba5e31251316a33b1fffac9d9b675"
+    },
+    {
+      "minecraft_version": "26.1.2",
+      "passed": true,
+      "report_sha256": "5d0c228e220f287b6ce669916d6c98a6d9e38b6e43b1702b3bbdf6779cbea062",
+      "meteor_fixture_sha256": "9c56d684c6dcbc281fbf07ab874bcbca04c437b17f71a6ab5c8f890c0c835524",
+      "xray_fixture_sha256": "5867de671be63d445b5af5bb0cb6c3ed45c0095b35e669aaa9081fd482b31298"
+    },
+    {
+      "minecraft_version": "26.2",
+      "passed": true,
+      "report_sha256": "fad483325cf15b29e2aaafe2d3abf53a352a336099a94fb8ea5e72159b716afa",
+      "meteor_fixture_sha256": "56bb7d0c91b65653e7bd380f714b8cf1ed8996d770d826fcc1adb992f75145a1",
+      "xray_fixture_sha256": "6f7f0eba5e18a141766af949ced49eadac8107ed6fffed266ce40bbf5d085a81"
+    }
+  ],
+  "client_observations_total": 6,
+  "independent_server_signals_total": 6,
+  "same_session_correlated": true,
+  "server_confirmed_total": 6,
+  "action": "OBSERVE_ONLY_UNTIL_SIGNED_POLICY",
+  "false_positive": false,
+  "executable_code_loaded": false,
+  "third_party_network_access": false,
+  "cleanup_follow_up": {
+    "cleanup_all_zero": true,
+    "java_process_count": 0,
+    "verification_sha256": "fbdb5d52d5e2a92704cda8a610872806e274783f9374e90adab0e38ba356c0a3"
+  },
+  "raw_evidence": [
+    "docs/evidence/helio/anticheat-sync/summary.json",
+    "docs/evidence/helio/anticheat-sync/cleanup-verification.json",
+    "docs/evidence/helio/anticheat-sync/anticheat-1.21.11-report.json",
+    "docs/evidence/helio/anticheat-sync/anticheat-26.1.2-report.json",
+    "docs/evidence/helio/anticheat-sync/anticheat-26.2-report.json"
+  ],
+  "limitations": [
+    "The fixture is metadata-only and has no executable cheat entrypoint; no third-party cheat code was loaded.",
+    "The server signal is an independent same-session test signal, not a public Paper/Fabric network session.",
+    "No kernel-level memory, injection, precision/recall, kick, deny, or ban efficacy is claimed."
+  ]
+}

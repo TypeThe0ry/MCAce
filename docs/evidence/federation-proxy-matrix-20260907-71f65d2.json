@@ -1,0 +1,50 @@
+{
+  "schema": "MCACE_FEDERATION_PROXY_MATRIX_EVIDENCE_V1",
+  "observed_at": "2026-09-07T05:51:56.2869172+08:00",
+  "source_commit": "71f65d2b23aa2f3ee137fa6531d046ab86768312",
+  "artifact_source_commit": "2a6274a9200f2aa195e1238eaddf43650f549a0a",
+  "product_version": "0.0.1",
+  "runner": {
+    "script": "scripts/federation-proxy-matrix-smoke.ps1",
+    "pair": "All",
+    "java_home": "D:\\MCAceTools\\jdk\\jdk-21",
+    "raw_report": "build/runtime-federation-matrix/evidence-runs/2026-09-06T21-51-56-3719656Z/report.json",
+    "raw_report_sha256": "F0313C11824BB0F3C0ECF6EB81F365B0BF9574134AE3E324FDF6CD52A84F5FEF",
+    "exit_code": 0
+  },
+  "result": {
+    "schema": "MCACE_FEDERATION_PROXY_MATRIX_EXECUTED_V3",
+    "expected_case_count": 4,
+    "observed_case_count": 4,
+    "all_cases_passed": true,
+    "pairs": [
+      "VelocityToVelocity",
+      "VelocityToBungee",
+      "BungeeToVelocity",
+      "BungeeToBungee"
+    ],
+    "source_authenticated": true,
+    "target_locally_authenticated": true,
+    "presentation_shape_valid": true,
+    "same_assertion_replay_rejected": true,
+    "content_free_audit": true,
+    "source_audit_healthy": true,
+    "target_audit_healthy": true,
+    "target_paper_admission_verified": true,
+    "local_trust_risk_admission_unchanged": true
+  },
+  "scope_and_limits": {
+    "transfer_model": "CLIENT_CARRIED_PROCESS_MEMORY_ONLY",
+    "source_to_target_broker_present": false,
+    "explicit_consent_required": true,
+    "target_restart_residual_covered": false,
+    "fabric_gui_coverage": false,
+    "external_supervisor_receipt": false,
+    "release_gate_status": "LOCAL_MATRIX_CONFIRMED_EXTERNAL_FEDERATION_V5_STILL_PENDING",
+    "notes": [
+      "The raw runner report left source_commit and product_version blank; this evidence file binds the run to the clean checkout and release bundle recorded above.",
+      "The four cases exercised local real proxy/backend processes and the Minecraft wire probe in MONITOR/shadow-only mode.",
+      "This result is not a real Fabric source-to-target GUI handoff, independent post-run receipt, Vulcan event, production authority receipt, or Tencent ACE-equivalent kernel/DMA result."
+    ]
+  }
+}

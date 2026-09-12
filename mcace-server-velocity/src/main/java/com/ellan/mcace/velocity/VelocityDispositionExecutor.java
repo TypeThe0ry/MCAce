@@ -87,6 +87,25 @@ final class VelocityDispositionExecutor {
             Objects.requireNonNull(action, "action");
             Objects.requireNonNull(status, "status");
         }
+
+        /** The synchronous adapter cannot prove remote receipt or completed disconnection. */
+        ExecutionEvidence executionEvidence() {
+            return switch (status) {
+                case NOTICE_SENT, WARN_SENT, CHALLENGE_AUDITED -> ExecutionEvidence.MESSAGE_API_ACCEPTED;
+                case LIMITED_DISPATCHED, QUARANTINED_DISPATCHED -> ExecutionEvidence.ROUTE_REQUEST_ACCEPTED;
+                case DENIED -> ExecutionEvidence.DISCONNECT_API_ACCEPTED;
+                case DEFERRED_ROUTE -> ExecutionEvidence.DEFERRED;
+                default -> ExecutionEvidence.NO_NEW_EFFECT_CONFIRMED;
+            };
+        }
+    }
+
+    enum ExecutionEvidence {
+        MESSAGE_API_ACCEPTED,
+        ROUTE_REQUEST_ACCEPTED,
+        DISCONNECT_API_ACCEPTED,
+        DEFERRED,
+        NO_NEW_EFFECT_CONFIRMED
     }
 
     private final VelocityAdmissionConfig.Mode mode;

@@ -30,6 +30,7 @@ import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.IntStream;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -63,6 +64,37 @@ final class SharedProxyDispositionPolicyRuntimeTest {
         assertEquals(velocity.activePolicySequence(), bungee.activePolicySequence());
         assertEquals(ProxyPolicyRefreshStatus.ACTIVE, velocity.refreshStatus());
         assertEquals(ProxyFamily.BUNGEECORD, bungee.proxyFamily());
+    }
+
+    @Test
+    void aggregateWinnerSurvivesTheSixtyFourEvaluationAuditBudget() throws Exception {
+        DispositionPolicyDocument document = policy(1, null,
+                com.ellan.mcace.protocol.generated.DispositionAction.DISPOSITION_WARN,
+                NOW - 1_000, NOW + 86_400_000);
+        AtomicReference<SignedDispositionPolicyDocument> source = new AtomicReference<>(signed(document));
+        SharedProxyDispositionPolicyRuntime runtime = runtime(ProxyFamily.BUNGEECORD, source);
+        assertEquals(ProxyPolicyRefreshStatus.ACTIVE, runtime.refresh());
+
+        java.util.List<ArtifactObservation> observations = new java.util.ArrayList<>(65);
+        IntStream.range(0, 64).forEach(index -> observations.add(new ArtifactObservation(
+                ArtifactType.MOD, "benign.mod." + index, "1.0.0", "01".repeat(32), Map.of(),
+                ObservationOrigin.CLIENT_REPORTED, Confidence.HIGH, false)));
+        observations.add(observation());
+
+        ProxyPolicyBatchEvaluation batch = runtime.evaluateCachedBatch(context(), observations, 64);
+        AuthenticatedManifestDispositionEvent event = new AuthenticatedManifestAuditResult(
+                context().playerId(), "session-a", CLOCK.instant(), batch, java.util.List.of())
+                .dispositionEvent();
+
+        assertTrue(batch.truncated());
+        assertEquals(64, batch.retainedEvaluations().size());
+        assertEquals(DispositionAction.WARN, batch.highestAction());
+        assertEquals("example-mod", batch.winningRuleId().orElseThrow());
+        assertEquals(document.getVersion(), batch.activePolicyVersion().orElseThrow());
+        assertEquals(document.getSequence(), batch.activePolicySequence().orElseThrow());
+        assertEquals(DispositionAction.WARN, event.highestAction());
+        assertEquals("example-mod", event.winningRuleId().orElseThrow());
+        assertTrue(event.hasBoundActivePolicyIdentity());
     }
 
     @Test

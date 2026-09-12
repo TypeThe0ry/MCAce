@@ -27,13 +27,18 @@ final class AuthenticatedManifestDispositionEventTest {
         AuthenticatedManifestAuditResult audit = new AuthenticatedManifestAuditResult(
                 PLAYER, "session-a", NOW,
                 new ProxyPolicyBatchEvaluation(
-                        ProxyPolicyRefreshStatus.ACTIVE, 5, counts, 0, List.of(), true),
+                        ProxyPolicyRefreshStatus.ACTIVE, 5, counts,
+                        DispositionAction.DENY, Optional.of("rule-a"),
+                        Optional.of("policy-a"), Optional.of(1L), Optional.of(NOW.plusSeconds(60)),
+                        0, List.of(), true),
                 List.of());
 
         AuthenticatedManifestDispositionEvent first = audit.dispositionEvent();
         AuthenticatedManifestDispositionEvent second = audit.dispositionEvent();
 
         assertEquals(DispositionAction.DENY, first.highestAction());
+        assertEquals("rule-a", first.winningRuleId().orElseThrow());
+        assertEquals("policy-a", first.activePolicyVersion().orElseThrow());
         assertEquals(first.idempotencyKey(), second.idempotencyKey());
         assertTrue(first.policyIsActive());
         assertFalse(first.hasAdmissionEffect());

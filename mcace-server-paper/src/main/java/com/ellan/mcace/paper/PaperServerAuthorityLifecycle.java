@@ -15,10 +15,10 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Default-disabled Paper/Folia lifecycle seam for a future authority producer.
+ * Default-disabled Paper/Folia lifecycle seam for the configured authority producer.
  *
- * <p>This class registers no plugin channel, signs and sends no frame, has no provider adapter,
- * and has no disposition/executor dependency. Even when enabled by a future complete
+ * <p>This class itself registers no plugin channel, signs or sends no frame, and has no
+ * disposition/executor dependency. When its owning runtime is enabled by a complete
  * configuration, it only retains already-verified grants and prepares one sequence lease under a
  * lifecycle lock. A lease advances in-memory state only after an exact commit; abort makes it
  * reusable. The durable journal remains the source of the recovered sequence, and the actual
@@ -39,6 +39,10 @@ final class PaperServerAuthorityLifecycle {
     }
 
     static PaperServerAuthorityLifecycle enabledForTests(Clock clock) {
+        return new PaperServerAuthorityLifecycle(true, clock);
+    }
+
+    static PaperServerAuthorityLifecycle enabled(Clock clock) {
         return new PaperServerAuthorityLifecycle(true, clock);
     }
 
@@ -223,7 +227,7 @@ final class PaperServerAuthorityLifecycle {
 
         /**
          * Checks that a caller-supplied observation request is for this exact grant and lease.
-         * Provider/profile semantics remain the responsibility of the disabled authority library;
+         * Provider/profile semantics remain the responsibility of the authority codec and profile;
          * this method binds only the already-verified physical lifecycle.
          */
         boolean matchesRequest(

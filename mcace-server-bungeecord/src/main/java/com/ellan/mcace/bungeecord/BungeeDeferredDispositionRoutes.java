@@ -216,6 +216,18 @@ final class BungeeDeferredDispositionRoutes {
             UUID playerId, String sessionId, Object playerIdentity, LoginTicket loginTicket) {
         Objects.requireNonNull(playerId, "playerId");
         Objects.requireNonNull(sessionId, "sessionId");
+        return markDeniedPhysical(playerId, playerIdentity, loginTicket);
+    }
+
+    /**
+     * Marks the exact physical login denied when no authenticated session exists yet (for
+     * example, a client that never completed the initial MCAce handshake).
+     */
+    synchronized boolean markDeniedPhysical(
+            UUID playerId, Object playerIdentity, LoginTicket loginTicket) {
+        Objects.requireNonNull(playerId, "playerId");
+        Objects.requireNonNull(playerIdentity, "playerIdentity");
+        Objects.requireNonNull(loginTicket, "loginTicket");
         if (!isCurrent(playerId, playerIdentity, loginTicket)) {
             return false;
         }

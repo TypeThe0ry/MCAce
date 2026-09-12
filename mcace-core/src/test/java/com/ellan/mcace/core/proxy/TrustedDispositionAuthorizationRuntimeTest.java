@@ -303,6 +303,33 @@ final class TrustedDispositionAuthorizationRuntimeTest {
                 .anyMatch(ArtifactObservation.class::equals));
     }
 
+    @Test
+    void serverConfirmationPersistsProviderBoundAuthorization() throws Exception {
+        KeyPair identity = Ed25519Keys.generate(new SecureRandom());
+        SignedDispositionPolicyDocument signed = signed(identity, DispositionAction.QUARANTINE);
+        ArrayList<TrustedDispositionAuthorizationRecord> records = new ArrayList<>();
+        TrustedDispositionAuthorizationRuntime runtime = new TrustedDispositionAuthorizationRuntime(
+                policyRuntime(identity, signed), records::add);
+        ServerBehaviorObservation provider = new ServerBehaviorObservation(
+                PLAYER, "session-a", "grim", "Simulation", NOW.minusSeconds(1));
+        ArtifactObservation correlated = new ArtifactObservation(
+                ArtifactType.MOD, "example.mod", "1.0.0", "00".repeat(32),
+                Map.of("correlated_provider", "grim", "correlated_signal", "Simulation",
+                        "client_origin", ObservationOrigin.CLIENT_REPORTED.name()),
+                ObservationOrigin.SERVER_CONFIRMED, Confidence.CONFIRMED, false);
+
+        AuthenticatedManifestDispositionEvent event = runtime.authorizeServerConfirmation(
+                PLAYER, "session-a", context(),
+                new ServerConfirmedDispositionInput(provider, correlated));
+
+        assertEquals(ObservationOrigin.SERVER_CONFIRMED, event.authorityOrigin());
+        assertTrue(event.hasAdmissionEffect());
+        assertTrue(event.reviewTicket().isEmpty());
+        assertEquals(ObservationOrigin.SERVER_CONFIRMED, records.getFirst().origin());
+        assertTrue(records.getFirst().operatorId().isEmpty());
+        assertEquals(64, records.getFirst().reviewInputCommitmentSha256().length());
+    }
+
     private static final class MutableClock extends Clock {
         private final AtomicReference<Instant> current;
 

@@ -1,6 +1,7 @@
 package com.ellan.mcace.velocity;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertSame;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -57,6 +58,25 @@ final class VelocityLoginLifecycleTest {
 
         assertFalse(MCAceVelocityPlugin.removeTicketBoundChallenge(challenges, PLAYER, oldTicket));
         assertTrue(challenges.containsValue(newTicket));
+    }
+
+    @Test
+    void strictHandshakeRetirementClearsChallengeAndCoordinatorBeforeLateCallbacks() {
+        Map<UUID, VelocityLoginLifecycle.LoginTicket> challenges = new HashMap<>();
+        Map<UUID, VelocityLoginLifecycle.LoginTicket> terminalTickets = new HashMap<>();
+        VelocityLoginLifecycle lifecycle = new VelocityLoginLifecycle();
+        VelocityLoginLifecycle.LoginTicket ticket = lifecycle.beginLogin(PLAYER, new Object());
+        assertTrue(MCAceVelocityPlugin.installTicketBoundChallenge(challenges, PLAYER, ticket));
+        AtomicBoolean coordinatorRemoved = new AtomicBoolean();
+
+        assertTrue(MCAceVelocityPlugin.retireTicketBoundHandshake(
+                challenges, terminalTickets, PLAYER, ticket, () -> coordinatorRemoved.set(true)));
+        assertTrue(coordinatorRemoved.get(), "strict retirement removes coordinator state");
+        assertFalse(MCAceVelocityPlugin.isTicketBoundTerminal(terminalTickets, PLAYER, new VelocityLoginLifecycle.LoginTicket(99L)));
+        assertTrue(MCAceVelocityPlugin.isTicketBoundTerminal(terminalTickets, PLAYER, ticket));
+        assertFalse(challenges.containsKey(PLAYER),
+                "the challenge map is no longer armed after terminal retirement");
+        assertEquals(ticket, terminalTickets.get(PLAYER));
     }
 
     @Test

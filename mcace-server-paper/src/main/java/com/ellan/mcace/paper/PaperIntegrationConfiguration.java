@@ -1,13 +1,16 @@
 package com.ellan.mcace.paper;
 
 import com.ellan.mcace.cloudclient.CloudClientConfiguration;
+import com.ellan.mcace.core.authority.AuthorityFilePreflight;
 import com.ellan.mcace.protocol.crypto.Ed25519Keys;
 import com.ellan.mcace.protocol.crypto.EnvelopeException;
 import java.io.IOException;
 import java.net.URI;
-import java.nio.file.Files;
 import java.nio.file.Path;
+import java.security.PrivateKey;
 import java.time.Duration;
+import java.util.Arrays;
+import java.util.Objects;
 import org.bukkit.configuration.file.FileConfiguration;
 
 record PaperIntegrationConfiguration(
@@ -21,20 +24,31 @@ record PaperIntegrationConfiguration(
         CloudClientConfiguration cloud,
         BackendSessionActionConfiguration sessionActions) {
 
+    private static final int MAXIMUM_CLOUD_PRIVATE_KEY_FILE_BYTES = 4096;
+
     static PaperIntegrationConfiguration load(FileConfiguration config, Path dataDirectory)
             throws IOException, EnvelopeException {
         boolean cloudEnabled = config.getBoolean("cloud.enabled", false);
         CloudClientConfiguration cloud = null;
         if (cloudEnabled) {
+            Path root = Objects.requireNonNull(dataDirectory, "dataDirectory")
+                    .toAbsolutePath().normalize();
             String configuredPath = config.getString("cloud.private-key-path", "cloud-server-private-key.pk8");
-            Path privateKeyPath = Path.of(configuredPath);
-            if (!privateKeyPath.isAbsolute()) {
-                privateKeyPath = dataDirectory.resolve(privateKeyPath).normalize();
+            Path privateKeyPath = AuthorityFilePreflight.resolveRelative(
+                    root, configuredPath, "cloud private key path");
+            byte[] privateKeyBytes = AuthorityFilePreflight.readBoundedPrivateLeafRegularFile(
+                    root, privateKeyPath, MAXIMUM_CLOUD_PRIVATE_KEY_FILE_BYTES,
+                    "Paper cloud private key");
+            PrivateKey privateKey;
+            try {
+                privateKey = Ed25519Keys.decodePrivate(privateKeyBytes);
+            } finally {
+                Arrays.fill(privateKeyBytes, (byte) 0);
             }
             cloud = new CloudClientConfiguration(
                     URI.create(required(config, "cloud.endpoint")),
                     required(config, "cloud.server-id"),
-                    Ed25519Keys.decodePrivate(Files.readAllBytes(privateKeyPath)),
+                    privateKey,
                     config.getInt("cloud.queue-capacity", 1024),
                     Duration.ofMillis(config.getLong("cloud.request-timeout-ms", 5000L)));
         }

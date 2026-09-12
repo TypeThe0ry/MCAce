@@ -1,0 +1,90 @@
+{
+  "schema": "MCACE_SERVER_VERSION_PROCESS_MATRIX_EVIDENCE_INDEX_V1",
+  "generated_at": "2026-08-25T10:31:28.1143839Z",
+  "source_commit": "65c85c2b6b3492eec4bf74e6cfe9315935c67670",
+  "worker": {
+    "node": "helio",
+    "profile": "windows",
+    "job_directory": "C:\\CodexWorker\\jobs\\20260825-1705-65c85c2-server-matrix",
+    "checkout_commit": "65c85c2b6b3492eec4bf74e6cfe9315935c67670",
+    "checkout_status": "HEAD (no branch), clean",
+    "command": "scripts/server-version-process-matrix.ps1 -Execute",
+    "report_only_command": "scripts/server-version-process-matrix.ps1 -ReportOnly",
+    "report_only_transport_exit": 0
+  },
+  "result": {
+    "expected_case_count": 12,
+    "observed_case_count": 12,
+    "stable_case_count": 10,
+    "beta_case_count": 2,
+    "all_cases_passed": true,
+    "cleanup_all_zero": true,
+    "residual_minecraft_java_processes": 0,
+    "product_build": "BUILD SUCCESSFUL",
+    "product_build_tasks": 27,
+    "static_test": "SERVER_VERSION_PROCESS_MATRIX_STATIC_TEST_PASS"
+  },
+  "canonical_run": "2026-08-25T10-10-54-9361913Z",
+  "canonical_evidence": {
+    "report": {
+      "path": "docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/report.json",
+      "sha256": "aa95198ef37ec9a049f18ef10b68ebedc6b39de069b7d9654e7a4da0abb1b573",
+      "size_bytes": 18532
+    },
+    "binding": {
+      "path": "docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/binding.json",
+      "sha256": "5ff07738248a5bdb8ed22f9608a0fb7077978618751d18c4d136b9b334fd3f31",
+      "size_bytes": 14221
+    },
+    "commit": {
+      "path": "docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/commit.json",
+      "sha256": "eee5d27dc3a1ab4e8e76e023c7421be3ad0e308cb2bcbf793af897552232718e",
+      "size_bytes": 424
+    },
+    "product_build_log": {
+      "path": "docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/00-product-build.log",
+      "sha256": "31bfe299a29a872ab4dc1057a752c400a7bc4a9b7346c8b8d80b3beda24ece7c",
+      "size_bytes": 3055
+    }
+  },
+  "binding": {
+    "source_manifest_sha256": "d7aa092565399893814849ca024cd2a40e9f3ae694cabed67a4d43e800c67202",
+    "source_file_count": 692,
+    "prepared_manifest_sha256": "e2ae046455a62a6f9f745ed6bbee8e5bc24f4598876d18e4a83dcb29b1ac4b41",
+    "wrapper_sha256": "a150cfc48a87f2357df3f123abf566906daf8743545ca8e0855a41696fa997b5",
+    "wrapper_test_sha256": "2dcf2ae67c5f6f38c5520045adae24e1ec4303d62f6c137bf64c957039588481",
+    "runtime_assets_manifest_sha256": "d2c06bd1ffbd37cbabd1236057c5cac3f8db0058ac98377b4661c50b633dd921",
+    "product_jars": {
+      "velocity": {
+        "relative": "mcace-server-velocity/build/libs/mcace-server-velocity-0.1.0-SNAPSHOT.jar",
+        "sha256": "088559253a4ec9dc79f110e911d58accd8b05893c74cefba31cebc1a90cb373e",
+        "size": 5039053
+      },
+      "bungee": {
+        "relative": "mcace-server-bungeecord/build/libs/mcace-server-bungeecord-0.1.0-SNAPSHOT.jar",
+        "sha256": "163554963a73a422e9ea2cf31b008ae90051ef180356ce5f3947adbe8a32ddbd",
+        "size": 3584691
+      },
+      "paper": {
+        "relative": "mcace-server-paper/build/libs/mcace-server-paper-0.1.0-SNAPSHOT.jar",
+        "sha256": "9bb12776d16fc72b20dcb8f3c1ad4da4eb4f6148902296ffc75fba80814e52b3",
+        "size": 5946745
+      }
+    },
+    "binding_current_sha256": "4e24f93bf113c71f3c842122c9817b04d0b3b59e0cf3ff3b8d5746debe2a8b7c"
+  },
+  "retry_note": "Helio Execute completed on the isolated 65c85c2 checkout with all 12 cases passing; a subsequent ReportOnly run on the same checkout returned transport exit 0 and revalidated the committed triplet.",
+  "limitations": [
+    "This proves the signed admission/proxy-to-backend process path and cleanup across the named 12-case matrix on the exact 65c85c2 product checkout.",
+    "It does not prove visible GUI human consent, a licensed Vulcan genuine event, Fabric federation GUI handoff, production SERVER_CONFIRMED authority freeze, or ACE kernel/DMA/injection protection.",
+    "The matrix is loopback/offline and uses raw peer probes; it is not a standalone Fabric client or public online-mode enforcement test."
+  ],
+  "report_only": {
+    "command": "scripts/server-version-process-matrix.ps1 -ReportOnly",
+    "result": "SERVER_VERSION_PROCESS_MATRIX_REPORT_ONLY_PASS",
+    "report": "docs/evidence/server-version-process-matrix/2026-08-25T10-10-54-9361913Z/report.json",
+    "worker": "helio",
+    "transport_exit": 0,
+    "observed_at": "2026-08-25T10:31:28.1143839Z"
+  }
+}

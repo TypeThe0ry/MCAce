@@ -139,13 +139,12 @@ final class BungeeDispositionExecutor implements AutoCloseable {
         this.maxAppliedKeys = maxAppliedKeys;
     }
 
-    boolean offer(AuthenticatedManifestDispositionEvent event) {
+    synchronized boolean offer(AuthenticatedManifestDispositionEvent event) {
         Objects.requireNonNull(event, "event");
         if (closed.get() || !queue.offer(event)) {
             return false;
         }
-        scheduleDrain();
-        return true;
+        return scheduleDrain();
     }
 
     /** Runs on the Bungee scheduler lane, never on the audit worker. */
@@ -284,15 +283,17 @@ final class BungeeDispositionExecutor implements AutoCloseable {
         }
     }
 
-    private void scheduleDrain() {
+    private boolean scheduleDrain() {
         if (!drainScheduled.compareAndSet(false, true)) {
-            return;
+            return true;
         }
         try {
             schedulerSubmitter.accept(this::drain);
+            return true;
         } catch (RuntimeException exception) {
             drainScheduled.set(false);
             queue.clear();
+            return false;
         }
     }
 

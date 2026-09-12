@@ -1,0 +1,65 @@
+{
+  "schema": "MCACE_FABRIC_FEDERATION_GUI_HANDOFF_EVIDENCE_INDEX_V5",
+  "generated_at": "2026-09-05T03:52:38.5077326+00:00",
+  "source_commit": "6b1fa2607293e0ae81c5ca1596ef69d67368b172",
+  "artifact_source_commit": "7f7ad9a3de03fc1e4fda8b519e4f8b3e494fc9f3",
+  "release_bundle_source_commit": "6b1fa2607293e0ae81c5ca1596ef69d67368b172",
+  "fabric_target": "26.2",
+  "source_proxy": "VELOCITY",
+  "target_proxy": "VELOCITY",
+  "gui_attempt_id": "a335e21560fb5908c7e7c0ac91b0c11d",
+  "gui_challenge_nonce": "f9bc32a94e6501423275e76d74459dba78b5b060730be4b6c94bb95fb97ee6ce",
+  "postrun_operation_attempt_id": "78e651b9bf94258aa23260776ccfa8a5",
+  "postrun_challenge_nonce": "1cc67c67ad6fc2dda8d2daca99d4fa2f8b8606d1a675c28d354181a60dadbaeb",
+  "visible_gui_trust_root_sha256": "733f5fd7951247c04a061c2499f23601902da55ebc44fab26fc4bce03a4aa10f",
+  "postrun_supervisor_trust_root_sha256": "70850e87eaa2ee8e9c53da91e4403fa36efbd03774ac95019657fec299b5208c",
+  "postrun_signer_key_id": "mcace-federation-postrun-v5-20260826-eb807852a8e3",
+  "release_bundle_manifest_sha256": "d11f57131a13f6ae0b0689fe4a758de83f4a549dfc5df837f872791dbcfd132d",
+  "release_bundle_fabric_jar_file": "mcace-client-fabric-26.2.jar",
+  "release_bundle_fabric_jar_sha256": "ae0acc333af0b18e27dec6c9a23e661c62567bb29648bd681b86d9af5ae6ddaa",
+  "release_bundle_paper_jar_sha256": "267ab74e7760d344bc154b7ae1051539bb3eeb0c3f17111801aec3142d3156bb",
+  "release_bundle_source_proxy_jar_sha256": "a8adc9081b10dc72cc2df7f61f1818ead7bb8f50524a7ad90859587f46e08e16",
+  "release_bundle_target_proxy_jar_sha256": "a8adc9081b10dc72cc2df7f61f1818ead7bb8f50524a7ad90859587f46e08e16",
+  "canonical_evidence": {
+    "report": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260905T0352385077326Z-26.2-velocity-to-velocity-6b1fa26/report.json",
+      "sha256": "a73a54ea8b6baf5bf90a83a06c548fdc20383182b41b52804c4646ce44450e4c",
+      "size_bytes": 6751
+    },
+    "binding": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260905T0352385077326Z-26.2-velocity-to-velocity-6b1fa26/binding.json",
+      "sha256": "1a79dabc76dc1614c6caadbbd111d6dd3f1456aa4aab6eb3a9cd33d704aaa04d",
+      "size_bytes": 4301
+    },
+    "commit": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260905T0352385077326Z-26.2-velocity-to-velocity-6b1fa26/commit.json",
+      "sha256": "bce0f269593e6bf736eeec80caad0cf2bc8cedd1f9b096aa44e2d242998b79a7",
+      "size_bytes": 1718
+    },
+    "visible_gui_attestation": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260905T0352385077326Z-26.2-velocity-to-velocity-6b1fa26/visible-gui-attestation.json",
+      "sha256": "dbb05db9ed95f546fe5dbf3c72d181541a1c77b8a2236bcc62b2b379e771acdd",
+      "size_bytes": 2195
+    },
+    "visible_gui_signing_request": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260905T0352385077326Z-26.2-velocity-to-velocity-6b1fa26/visible-gui-signing-request.json",
+      "sha256": "e596581ecdb1b14c4e27f40e058b91f7fa4936a2860c08fc559235a7f32ba17b",
+      "size_bytes": 3647
+    },
+    "visible_gui_screenshot": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260905T0352385077326Z-26.2-velocity-to-velocity-6b1fa26/visible-gui.png",
+      "sha256": "8b8bbc4009a3b1ae263eb0e753182ae7d84097a5d83354ab7cb393f91660226a",
+      "size_bytes": 304244
+    },
+    "runtime_event_ledger": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260905T0352385077326Z-26.2-velocity-to-velocity-6b1fa26/runtime-events.jsonl",
+      "sha256": "0892ceeccc4f69ec03820786a50e3308a2050d8bc24aaf41eaf2854c523d4b83",
+      "size_bytes": 20259
+    },
+    "post_run_receipt": {
+      "path": "docs/evidence/federation-gui-handoff/federation-gui-handoff-20260905T0352385077326Z-26.2-velocity-to-velocity-6b1fa26/post-run-receipt.json",
+      "sha256": "207f787d728a52393d1350b3af9b58cd18642a60ae0763d588604e20129cd302",
+      "size_bytes": 3611
+    }
+  }
+}

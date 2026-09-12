@@ -1,11 +1,13 @@
 package com.ellan.mcace.core.authority;
 
+import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import com.ellan.mcace.protocol.ProtocolConstants;
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
 import java.security.MessageDigest;
@@ -136,5 +138,39 @@ final class BackendAuthorityRegistryTest {
 
         assertThrows(IllegalArgumentException.class,
                 () -> new BackendAuthorityRegistry(Map.of("other-backend", pin)));
+    }
+
+    @Test
+    void providerThresholdMatchesTheSharedCorrelatorCapacityBoundary() {
+        assertDoesNotThrow(() -> new BackendAuthorityProfile.ProviderContract(
+                "grim-domain", "grim", "1.0.0", "movement-stable",
+                ProtocolConstants.MAX_BACKEND_AUTHORITY_OBSERVATIONS_PER_PROVIDER));
+        assertThrows(IllegalArgumentException.class,
+                () -> new BackendAuthorityProfile.ProviderContract(
+                        "grim-domain", "grim", "1.0.0", "movement-stable",
+                        ProtocolConstants.MAX_BACKEND_AUTHORITY_OBSERVATIONS_PER_PROVIDER + 1));
+    }
+
+    @Test
+    void providerProfileTextBoundsMatchThePaperAdapterContract() {
+        assertDoesNotThrow(() -> new BackendAuthorityProfile.ProviderContract(
+                "grim-domain", "g".repeat(
+                ProtocolConstants.MAX_BACKEND_AUTHORITY_PROVIDER_ID_CHARS),
+                "v".repeat(ProtocolConstants.MAX_BACKEND_AUTHORITY_PROVIDER_VERSION_CHARS),
+                "f".repeat(ProtocolConstants.MAX_BACKEND_AUTHORITY_STABLE_CHECK_FAMILY_CHARS), 1));
+        assertThrows(IllegalArgumentException.class,
+                () -> new BackendAuthorityProfile.ProviderContract(
+                        "grim-domain", "g".repeat(
+                        ProtocolConstants.MAX_BACKEND_AUTHORITY_PROVIDER_ID_CHARS + 1),
+                        "1.0", "movement-stable", 1));
+        assertThrows(IllegalArgumentException.class,
+                () -> new BackendAuthorityProfile.ProviderContract(
+                        "grim-domain", "grim", "v".repeat(
+                        ProtocolConstants.MAX_BACKEND_AUTHORITY_PROVIDER_VERSION_CHARS + 1),
+                        "movement-stable", 1));
+        assertThrows(IllegalArgumentException.class,
+                () -> new BackendAuthorityProfile.ProviderContract(
+                        "grim-domain", "grim", "1.0", "f".repeat(
+                        ProtocolConstants.MAX_BACKEND_AUTHORITY_STABLE_CHECK_FAMILY_CHARS + 1), 1));
     }
 }

@@ -13,10 +13,26 @@ import net.kyori.adventure.text.Component;
 final class MCAceObservationCommand implements SimpleCommand {
     private static final String PERMISSION = "mcace.admin.audit";
     private final ArtifactObservationAuditSink audit;
-    MCAceObservationCommand(ArtifactObservationAuditSink audit) { this.audit = Objects.requireNonNull(audit, "audit"); }
+    private final com.ellan.mcace.core.proxy.ArtifactTelemetryQuery telemetry;
+    private final com.ellan.mcace.core.proxy.InventoryTelemetryQuery inventory;
+    MCAceObservationCommand(ArtifactObservationAuditSink audit,
+            com.ellan.mcace.core.proxy.ArtifactTelemetryQuery telemetry,
+            com.ellan.mcace.core.proxy.InventoryTelemetryQuery inventory) {
+        this.audit = Objects.requireNonNull(audit, "audit");
+        this.telemetry = Objects.requireNonNull(telemetry, "telemetry");
+        this.inventory = Objects.requireNonNull(inventory, "inventory");
+    }
     @Override public void execute(Invocation invocation) {
         if (!hasPermission(invocation)) { invocation.source().sendMessage(Component.text("MCAce: missing permission " + PERMISSION)); return; }
         String[] args = invocation.arguments();
+        if (args.length > 0 && "inventory".equalsIgnoreCase(args[0])) {
+            invocation.source().sendMessage(Component.text(inventory.execute(java.util.Arrays.copyOfRange(args, 1, args.length))));
+            return;
+        }
+        if (args.length > 0 && "freshness".equalsIgnoreCase(args[0])) {
+            invocation.source().sendMessage(Component.text(telemetry.execute(java.util.Arrays.copyOfRange(args, 1, args.length))));
+            return;
+        }
         if (args.length == 1 && "status".equalsIgnoreCase(args[0])) {
             ArtifactObservationAuditStatus status = audit.status();
             invocation.source().sendMessage(Component.text("MCAce: dynamic audit enabled=" + status.enabled()
@@ -36,7 +52,7 @@ final class MCAceObservationCommand implements SimpleCommand {
             } catch (RuntimeException exception) { invocation.source().sendMessage(Component.text("MCAce: invalid player UUID or limit")); }
             return;
         }
-        invocation.source().sendMessage(Component.text("Usage: /mcaceobservation status | player <uuid> [1-100]"));
+        invocation.source().sendMessage(Component.text("Usage: /mcaceobservation status | player <uuid> [1-100] | freshness <uuid> [seconds] | inventory <uuid>"));
     }
     @Override public boolean hasPermission(Invocation invocation) { return invocation.source().hasPermission(PERMISSION); }
 }

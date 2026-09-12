@@ -1,0 +1,37 @@
+{
+  "schema": "MCACE_CURRENT_CLIENT_ASSOCIATION_DIAGNOSTIC_V2",
+  "observed_at_utc": "2026-09-06T15:43:44Z",
+  "release_eligible": false,
+  "authoritative_source_commit": "398c9e2006c3e018aa3516fc564b61e459e17b22",
+  "authoritative_artifact_source_commit": "2a6274a9200f2aa195e1238eaddf43650f549a0a",
+  "target_version": "26.2",
+  "pre_existing_user_client": {
+    "preserved": true,
+    "installed_artifact_sha256": "159f4aa8bb2bdc4a223239c9319b86e2ef957030d8c0e9d8c7531a2a925380cc",
+    "installed_artifact_size_bytes": 3043077,
+    "installed_build_id": "fabric-26.2-4bb3b57ba3e6c5653c377903b47de7d569afa90f",
+    "matches_authoritative_artifact": false,
+    "live_log_mcace_match_count": 0,
+    "consent_recorded": false,
+    "server_hello_recorded": false,
+    "loaded_modlist_frame_recorded": false,
+    "active_resource_pack_frame_recorded": false,
+    "server_confirmed_observed": false
+  },
+  "isolated_current_bundle_provision": {
+    "target_root": "D:\\MCAce-gui-client-26.2",
+    "artifact_sha256": "0680a528c38d9f456363488e80ea390615b5ba289714790583a434e2c95b0fe9",
+    "artifact_size_bytes": 3043203,
+    "manifest_source_commit": "398c9e2006c3e018aa3516fc564b61e459e17b22",
+    "manifest_artifact_source_commit": "2a6274a9200f2aa195e1238eaddf43650f549a0a",
+    "checksum_verified": true,
+    "launch_identity": "offline-test-identity",
+    "rollback_backup_created": true
+  },
+  "result": "NO_CURRENT_SOURCE_GUI_SESSION_ASSOCIATED",
+  "limitations": [
+    "The user's pre-existing client was not modified, restarted, or treated as a release candidate.",
+    "The operator's chat Enable statement cannot replace a visible Computer Use screenshot and signed GUI attestation.",
+    "The isolated current bundle is prepared for the next visible GUI run but has not produced a release-grade GUI/Federation V5 package."
+  ]
+}

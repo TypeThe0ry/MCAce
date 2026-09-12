@@ -1,0 +1,70 @@
+{
+  "schema": "MCACE_CLIENT_INTEGRITY_TARGETED_REGRESSION_V1",
+  "generated_at": "2026-09-02T07:00:05.3743220Z",
+  "source_commit": "33c27c65da9095d616805692f0b933d4bd583ac4",
+  "command": ".\\gradlew.bat :mcace-client-common:test --tests com.ellan.mcace.client.observation.ArtifactObservationCollectorTest --tests com.ellan.mcace.client.session.ClientHandshakeEngineBudgetTest --tests com.ellan.mcace.client.integrity.PolicyDrivenIntegrityCollectorTest --tests com.ellan.mcace.client.observation.ShaderPackObservationTest --no-daemon --configuration-cache --stacktrace",
+  "environment": {
+    "java_home": "C:/Users/admin/.gradle/jdks/eclipse_adoptium-21-amd64-windows.2",
+    "gradle": "9.6.1",
+    "configuration_cache": true
+  },
+  "test_results": {
+    "module": "mcace-client-common",
+    "test_class_count": 4,
+    "test_count": 39,
+    "skipped": 0,
+    "failures": 0,
+    "errors": 0,
+    "duration_seconds": 37,
+    "build": "BUILD SUCCESSFUL"
+  },
+  "classes": [
+    {
+      "name": "ArtifactObservationCollectorTest",
+      "tests": 3,
+      "passed": 3,
+      "coverage": [
+        "installed mod manifest observation",
+        "resource-pack manifest observation",
+        "malformed and oversized artifact bounds"
+      ]
+    },
+    {
+      "name": "ClientHandshakeEngineBudgetTest",
+      "tests": 29,
+      "passed": 29,
+      "coverage": [
+        "loaded-mod origin binding",
+        "selected resource/shader pack propagation",
+        "duplicate and path-leaking loaded-mod rejection",
+        "payload and observation budgets"
+      ]
+    },
+    {
+      "name": "PolicyDrivenIntegrityCollectorTest",
+      "tests": 5,
+      "passed": 5,
+      "coverage": [
+        "required mods scope",
+        "optional resource-pack scope",
+        "bounded policy collection",
+        "missing optional directory fail-closed representation"
+      ]
+    },
+    {
+      "name": "ShaderPackObservationTest",
+      "tests": 2,
+      "passed": 2,
+      "coverage": [
+        "active shader observation",
+        "absent optional provider fail-closed behavior"
+      ]
+    }
+  ],
+  "pass": true,
+  "release_gate_effect": "informational_only",
+  "limitations": [
+    "This is a local client-common regression suite, not a public-server or production-authority run.",
+    "It does not create a GUI Enable MCAce decision, Federation handoff, Vulcan genuine event, or protected release bundle."
+  ]
+}

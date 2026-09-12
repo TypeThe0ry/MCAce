@@ -52,7 +52,10 @@ final class FederationDocumentsTest {
         FederationVerification verified = verify(fixture, FederationDocuments.newReplayGuard(fixture.clock()));
         assertEquals(FederationLocalClaim.FEDERATION_SOURCE_LOCALLY_VERIFIED, verified.remoteClaim());
         assertEquals(SOURCE_SESSION, verified.sourceAuthenticatedSessionId());
+        assertEquals(NOW, verified.sourceAuthorizedAtEpochMs());
+        assertEquals(NOW, verified.verifiedAtEpochMs());
         assertArrayEquals(keyId(fixture.client().getPublic()), verified.clientPublicKeySha256());
+        assertArrayEquals(signedAssertionHash(fixture), verified.signedAssertionSha256());
         assertArrayEquals(keyId(fixture.source().getPublic()), fixture.request().getSourceKeyIdSha256().toByteArray());
         assertArrayEquals(keyId(fixture.target().getPublic()), fixture.request().getTargetKeyIdSha256().toByteArray());
 
@@ -63,13 +66,30 @@ final class FederationDocumentsTest {
     }
 
     @Test
+    void rejectsWrongTargetAuthAssertionHashWithoutConsumingReplay() throws Exception {
+        Fixture fixture = fixture();
+        NonceReplayGuard replay = FederationDocuments.newReplayGuard(fixture.clock());
+        byte[] wrong = signedAssertionHash(fixture);
+        wrong[0] ^= 1;
+
+        assertThrows(FederationException.class, () -> FederationDocuments.verify(
+                fixture.encoded(), fixture.source().getPublic(), fixture.target().getPublic(),
+                keyId(fixture.client().getPublic()), SOURCE, TARGET, PLAYER, TARGET_SESSION,
+                fixture.challenge(), wrong, fixture.clock(), Duration.ZERO, replay));
+
+        FederationVerification verified = verify(fixture, replay);
+        assertArrayEquals(signedAssertionHash(fixture), verified.signedAssertionSha256());
+    }
+
+    @Test
     void rejectsWrongAudienceWithoutConsumingReplayThenAcceptsValidPresentation() throws Exception {
         Fixture fixture = fixture();
         NonceReplayGuard replay = FederationDocuments.newReplayGuard(fixture.clock());
         assertThrows(FederationException.class, () -> FederationDocuments.verify(
                 fixture.encoded(), fixture.source().getPublic(), fixture.target().getPublic(),
                 keyId(fixture.client().getPublic()), SOURCE, "other-network", PLAYER,
-                TARGET_SESSION, fixture.challenge(), fixture.clock(), Duration.ZERO, replay));
+                TARGET_SESSION, fixture.challenge(), signedAssertionHash(fixture),
+                fixture.clock(), Duration.ZERO, replay));
         verify(fixture, replay);
 
         NonceReplayGuard playerReplay = FederationDocuments.newReplayGuard(fixture.clock());
@@ -77,7 +97,8 @@ final class FederationDocumentsTest {
                 fixture.encoded(), fixture.source().getPublic(), fixture.target().getPublic(),
                 keyId(fixture.client().getPublic()), SOURCE, TARGET,
                 "00000000-0000-0000-0000-000000000002", TARGET_SESSION,
-                fixture.challenge(), fixture.clock(), Duration.ZERO, playerReplay));
+                fixture.challenge(), signedAssertionHash(fixture),
+                fixture.clock(), Duration.ZERO, playerReplay));
         verify(fixture, playerReplay);
     }
 
@@ -88,7 +109,8 @@ final class FederationDocumentsTest {
         assertThrows(FederationException.class, () -> FederationDocuments.verify(
                 fixture.encoded(), fixture.source().getPublic(), fixture.target().getPublic(),
                 keyId(fixture.client().getPublic()), SOURCE, TARGET, PLAYER,
-                "attacker-session", fixture.challenge(), fixture.clock(), Duration.ZERO, sessionReplay));
+                "attacker-session", fixture.challenge(), signedAssertionHash(fixture),
+                fixture.clock(), Duration.ZERO, sessionReplay));
         verify(fixture, sessionReplay);
 
         NonceReplayGuard challengeReplay = FederationDocuments.newReplayGuard(fixture.clock());
@@ -97,7 +119,8 @@ final class FederationDocumentsTest {
         assertThrows(FederationException.class, () -> FederationDocuments.verify(
                 fixture.encoded(), fixture.source().getPublic(), fixture.target().getPublic(),
                 keyId(fixture.client().getPublic()), SOURCE, TARGET, PLAYER,
-                TARGET_SESSION, wrongChallenge, fixture.clock(), Duration.ZERO, challengeReplay));
+                TARGET_SESSION, wrongChallenge, signedAssertionHash(fixture),
+                fixture.clock(), Duration.ZERO, challengeReplay));
         verify(fixture, challengeReplay);
     }
 
@@ -117,12 +140,21 @@ final class FederationDocumentsTest {
         assertThrows(FederationException.class, () -> FederationDocuments.verify(
                 newSessionEncoded, fixture.source().getPublic(), fixture.target().getPublic(),
                 keyId(fixture.client().getPublic()), SOURCE, TARGET, PLAYER, "target-session-2",
-                newChallenge, fixture.clock(), Duration.ZERO, replay));
+                newChallenge, signedAssertionHash(fixture), fixture.clock(), Duration.ZERO, replay));
     }
 
     @Test
     void rejectsExpiredPresentationAndStaleGrant() throws Exception {
         Fixture fixture = fixture();
+        Clock exactExpiry = fixed(fixture.request().getExpiresAtEpochMs());
+        assertThrows(FederationException.class, () -> FederationDocuments.verifyGrant(
+                FederationDocuments.encodeGrant(fixture.grant()), fixture.request(), fixture.client().getPublic(),
+                fixture.source().getPublic(), exactExpiry, Duration.ZERO));
+        assertThrows(FederationException.class, () -> FederationDocuments.verify(
+                fixture.encoded(), fixture.source().getPublic(), fixture.target().getPublic(),
+                keyId(fixture.client().getPublic()), SOURCE, TARGET, PLAYER, TARGET_SESSION,
+                fixture.challenge(), signedAssertionHash(fixture), exactExpiry, Duration.ZERO,
+                FederationDocuments.newReplayGuard(exactExpiry)));
         Clock expired = fixed(fixture.request().getExpiresAtEpochMs() + 1L);
         assertThrows(FederationException.class, () -> FederationDocuments.verifyGrant(
                 FederationDocuments.encodeGrant(fixture.grant()), fixture.request(), fixture.client().getPublic(),
@@ -130,7 +162,37 @@ final class FederationDocumentsTest {
         assertThrows(FederationException.class, () -> FederationDocuments.verify(
                 fixture.encoded(), fixture.source().getPublic(), fixture.target().getPublic(),
                 keyId(fixture.client().getPublic()), SOURCE, TARGET, PLAYER, TARGET_SESSION,
-                fixture.challenge(), expired, Duration.ZERO, FederationDocuments.newReplayGuard(expired)));
+                fixture.challenge(), signedAssertionHash(fixture), expired, Duration.ZERO,
+                FederationDocuments.newReplayGuard(expired)));
+    }
+
+    @Test
+    void expirationIsStrictEvenWhenFutureIssueClockSkewIsAllowed() throws Exception {
+        Fixture fixture = fixture();
+        Clock afterSignedExpiry = fixed(fixture.request().getExpiresAtEpochMs() + 1L);
+        FederationPresentation freshlyPresentedButExpired = FederationDocuments.presentation(
+                fixture.grant(), fixture.client().getPrivate(), TARGET_SESSION,
+                fixture.challenge(), afterSignedExpiry);
+
+        assertThrows(FederationException.class, () -> FederationDocuments.verify(
+                FederationDocuments.encode(freshlyPresentedButExpired),
+                fixture.source().getPublic(), fixture.target().getPublic(),
+                keyId(fixture.client().getPublic()), SOURCE, TARGET, PLAYER, TARGET_SESSION,
+                fixture.challenge(), signedAssertionHash(fixture), afterSignedExpiry, Duration.ofSeconds(30),
+                FederationDocuments.newReplayGuard(afterSignedExpiry, Duration.ofSeconds(30))));
+    }
+
+    @Test
+    void sourceAuthorizationTimeIsSignedWhenConsentIsActuallyGranted() throws Exception {
+        Fixture fixture = fixture();
+        Clock later = fixed(NOW + 2_000L);
+        SignedFederationAssertion signedLater = FederationDocuments.signAssertion(
+                fixture.request(), fixture.consent(), fixture.client().getPublic(),
+                fixture.source().getPrivate(), fixture.source().getPublic(), later, Duration.ZERO);
+        FederationAssertion assertion = FederationAssertion.parseFrom(signedLater.getAssertion());
+
+        assertEquals(NOW, assertion.getIssuedAtEpochMs());
+        assertEquals(NOW + 2_000L, assertion.getSourceAuthorizedAtEpochMs());
     }
 
     @Test
@@ -145,7 +207,7 @@ final class FederationDocumentsTest {
         assertThrows(FederationException.class, () -> FederationDocuments.verify(
                 FederationDocuments.encode(tampered), fixture.source().getPublic(), fixture.target().getPublic(),
                 keyId(fixture.client().getPublic()), SOURCE, TARGET, PLAYER, TARGET_SESSION,
-                fixture.challenge(), fixture.clock(), Duration.ZERO, replay));
+                fixture.challenge(), signedAssertionHash(fixture), fixture.clock(), Duration.ZERO, replay));
         verify(fixture, replay);
     }
 
@@ -159,11 +221,13 @@ final class FederationDocumentsTest {
         assertThrows(FederationException.class, () -> FederationDocuments.verify(
                 fixture.encoded(), fixture.source().getPublic(), wrong.getPublic(),
                 keyId(fixture.client().getPublic()), SOURCE, TARGET, PLAYER, TARGET_SESSION,
-                fixture.challenge(), fixture.clock(), Duration.ZERO, FederationDocuments.newReplayGuard(fixture.clock())));
+                fixture.challenge(), signedAssertionHash(fixture), fixture.clock(), Duration.ZERO,
+                FederationDocuments.newReplayGuard(fixture.clock())));
         assertThrows(FederationException.class, () -> FederationDocuments.verify(
                 fixture.encoded(), fixture.source().getPublic(), fixture.target().getPublic(),
                 keyId(wrong.getPublic()), SOURCE, TARGET, PLAYER, TARGET_SESSION,
-                fixture.challenge(), fixture.clock(), Duration.ZERO, FederationDocuments.newReplayGuard(fixture.clock())));
+                fixture.challenge(), signedAssertionHash(fixture), fixture.clock(), Duration.ZERO,
+                FederationDocuments.newReplayGuard(fixture.clock())));
     }
 
     @Test
@@ -183,7 +247,8 @@ final class FederationDocumentsTest {
         assertThrows(FederationException.class, () -> FederationDocuments.verify(
                 new byte[ProtocolConstants.MAX_FEDERATION_PRESENTATION_BYTES + 1],
                 first.source().getPublic(), first.target().getPublic(), keyId(first.client().getPublic()),
-                SOURCE, TARGET, PLAYER, TARGET_SESSION, first.challenge(), first.clock(), Duration.ZERO,
+                SOURCE, TARGET, PLAYER, TARGET_SESSION, first.challenge(), signedAssertionHash(first),
+                first.clock(), Duration.ZERO,
                 FederationDocuments.newReplayGuard(first.clock())));
     }
 
@@ -216,6 +281,17 @@ final class FederationDocumentsTest {
     }
 
     @Test
+    void rejectsSourceAndTargetNetworksThatReuseTheSameIdentityKey() throws Exception {
+        SecureRandom random = new SecureRandom();
+        KeyPair client = Ed25519Keys.generate(random);
+        KeyPair sharedNetworkIdentity = Ed25519Keys.generate(random);
+        assertThrows(FederationException.class, () -> FederationDocuments.issueConsentRequest(
+                SOURCE, TARGET, PLAYER, client.getPublic(), sharedNetworkIdentity.getPublic(),
+                sharedNetworkIdentity.getPublic(), SOURCE_SESSION, "policy-v1", new byte[32],
+                fixed(NOW), Duration.ofMinutes(2), random));
+    }
+
+    @Test
     void enforcesExactPacketDirections() throws Exception {
         FederationPacketDirections.require(PacketType.FEDERATION_CONSENT_REQUEST,
                 FederationEndpoint.SOURCE_SERVER, FederationEndpoint.CLIENT);
@@ -236,7 +312,11 @@ final class FederationDocumentsTest {
         return FederationDocuments.verify(
                 fixture.encoded(), fixture.source().getPublic(), fixture.target().getPublic(),
                 keyId(fixture.client().getPublic()), SOURCE, TARGET, PLAYER, TARGET_SESSION,
-                fixture.challenge(), fixture.clock(), Duration.ZERO, replay);
+                fixture.challenge(), signedAssertionHash(fixture), fixture.clock(), Duration.ZERO, replay);
+    }
+
+    private static byte[] signedAssertionHash(Fixture fixture) throws Exception {
+        return FederationDocuments.signedAssertionSha256(fixture.grant());
     }
 
     private static Fixture fixture() throws Exception {

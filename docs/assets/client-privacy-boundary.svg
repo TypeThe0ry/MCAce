@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="560" viewBox="0 0 1200 560" role="img" aria-labelledby="title desc">
+  <title id="title">MCAce deployable client privacy boundary</title>
+  <desc id="desc">The old and modern Fabric client artifacts contain only four explicitly allowlisted core observation model classes. Server authority, signing, journal, policy, and private material remain server side.</desc>
+  <defs><marker id="stop" markerWidth="12" markerHeight="12" refX="6" refY="6"><circle cx="6" cy="6" r="5" fill="#ef4444"/><path d="M3 3 L9 9 M9 3 L3 9" stroke="#fff" stroke-width="1.5"/></marker></defs>
+  <rect width="1200" height="560" rx="24" fill="#0b1220"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="52" y="62" fill="#f8fafc" font-size="31" font-weight="700">Deployable client privacy boundary</text>
+    <text x="52" y="94" fill="#94a3b8" font-size="17">Both Fabric generations are tested against an exact class allowlist.</text>
+    <rect x="52" y="136" width="514" height="336" rx="20" fill="#10243b" stroke="#38bdf8" stroke-width="2"/>
+    <text x="82" y="180" fill="#7dd3fc" font-size="23" font-weight="700">Fabric client JAR · exact four-class core slice</text>
+    <g font-size="17">
+      <rect x="82" y="211" width="454" height="45" rx="10" fill="#0c3153"/><text x="103" y="240" fill="#e0f2fe">ArtifactObservation</text>
+      <rect x="82" y="269" width="454" height="45" rx="10" fill="#0c3153"/><text x="103" y="298" fill="#e0f2fe">ArtifactType</text>
+      <rect x="82" y="327" width="454" height="45" rx="10" fill="#0c3153"/><text x="103" y="356" fill="#e0f2fe">Confidence</text>
+      <rect x="82" y="385" width="454" height="45" rx="10" fill="#0c3153"/><text x="103" y="414" fill="#e0f2fe">ObservationOrigin</text>
+    </g>
+    <path d="M600 160 V450" stroke="#ef4444" stroke-width="3" stroke-dasharray="9 8"/>
+    <circle cx="600" cy="305" r="30" fill="#7f1d1d" stroke="#fca5a5" stroke-width="2"/>
+    <path d="M585 290 L615 320 M615 290 L585 320" stroke="#fff" stroke-width="5"/>
+    <rect x="634" y="136" width="514" height="336" rx="20" fill="#2b1720" stroke="#fb7185" stroke-width="2"/>
+    <text x="664" y="180" fill="#fda4af" font-size="23" font-weight="700">Server-only authority surface</text>
+    <g fill="#ffe4e6" font-size="18">
+      <text x="684" y="231">• Ed25519 private/public authority configuration</text>
+      <text x="684" y="275">• SERVER_CONFIRMED issuance and verification</text>
+      <text x="684" y="319">• Durable sequence journal and recovery</text>
+      <text x="684" y="363">• Provider quorum, cooldown, action ceiling</text>
+      <text x="684" y="407">• Production evidence supervisor and release pins</text>
+    </g>
+    <text x="600" y="520" text-anchor="middle" fill="#94a3b8" font-size="16">Build-time staging plus deployable-JAR inspection fails if an authority class crosses this boundary.</text>
+  </g>
+</svg>

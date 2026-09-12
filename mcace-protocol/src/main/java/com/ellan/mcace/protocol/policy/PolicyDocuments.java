@@ -1,6 +1,8 @@
 package com.ellan.mcace.protocol.policy;
 
+import com.ellan.mcace.protocol.ProtocolConstants;
 import com.ellan.mcace.protocol.generated.DelegatedSigningKey;
+import com.ellan.mcace.protocol.generated.ClientCapability;
 import com.ellan.mcace.protocol.generated.IntegrityScopeRule;
 import com.ellan.mcace.protocol.generated.LoaderType;
 import com.ellan.mcace.protocol.generated.PolicyTrustStatement;
@@ -321,6 +323,19 @@ public final class PolicyDocuments {
         if (policy.getAllowedLoadersList().stream()
                 .anyMatch(loader -> loader == LoaderType.LOADER_UNSPECIFIED || loader == LoaderType.UNRECOGNIZED)) {
             throw new PolicyException("policy contains an invalid loader");
+        }
+        if (policy.getRequiredClientCapabilitiesCount() > ProtocolConstants.MAX_CLIENT_CAPABILITIES) {
+            throw new PolicyException("policy capability count is invalid");
+        }
+        Set<ClientCapability> capabilities = new HashSet<>();
+        int previousCapability = -1;
+        for (ClientCapability capability : policy.getRequiredClientCapabilitiesList()) {
+            if (capability == ClientCapability.CLIENT_CAPABILITY_UNSPECIFIED
+                    || capability == ClientCapability.UNRECOGNIZED
+                    || !capabilities.add(capability) || capability.getNumber() <= previousCapability) {
+                throw new PolicyException("policy contains an invalid or non-canonical client capability");
+            }
+            previousCapability = capability.getNumber();
         }
         if (policy.getIntegrityScopesCount() == 0 || policy.getIntegrityScopesCount() > MAX_SCOPES) {
             throw new PolicyException("policy scope count is invalid");

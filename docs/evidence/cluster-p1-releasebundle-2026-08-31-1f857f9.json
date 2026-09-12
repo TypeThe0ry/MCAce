@@ -1,0 +1,88 @@
+{
+  "schema": "MCACE_CLUSTER_RELEASE_BUNDLE_EVIDENCE_V1",
+  "generated_at": "2026-08-31T13:39:45Z",
+  "source_commit": "1f857f997d492f8fb60936f0f0a961970d42d262",
+  "artifact_source_commit": "5e60d2a8d89102ee9b3dbd09e05dfa92cdbbe29d",
+  "execution_node": "p1",
+  "profile": "linux",
+  "job_id": "20260831-213945-mcace-1f857f9-releasebundle-dual-jdk-git",
+  "worker_checkout": "/srv/codex-worker/jobs/20260831-213945-mcace-1f857f9-releasebundle-dual-jdk-git/repo",
+  "container": {
+    "base_image": "mcace-releasebundle-dual-jdk-20260831-212148",
+    "base_image_digest": "sha256:f7fb2776e031aa24ae1c9f121b9f3a4e00b080635d1d811cb601a2c7509171f7",
+    "image": "mcace-releasebundle-dual-jdk-git-20260831-213945",
+    "image_digest": "sha256:cdf44354d80ebfcc64da2743ec50173c500e8abe50d9a5f200ace81a8d3c3f96",
+    "dockerfile_sha256": "2caddfe6dba6c4ce7d673302b7c3fb697cd5af2b4756e7dca99e41b47e7df3a2",
+    "git_version": "2.34.1",
+    "root_java_version": "21.0.12",
+    "modern_java_version": "25.0.4",
+    "gradle_version": "9.6.1"
+  },
+  "command": "bash ./gradlew clean build releaseBundle -PmcaceSourceCommit=1f857f997d492f8fb60936f0f0a961970d42d262 -PmcaceArtifactSourceCommit=5e60d2a8d89102ee9b3dbd09e05dfa92cdbbe29d -PmcaceProductVersion=0.0.1 -PmcaceModernJavaHome=/opt/java25 --dependency-verification=strict --rerun-tasks --no-build-cache --no-configuration-cache --no-daemon --no-parallel --max-workers=1 --console=plain",
+  "build": {
+    "exit_code": 0,
+    "successful": true,
+    "gradle_summary": "BUILD SUCCESSFUL in 1m 58s",
+    "actionable_tasks": 120,
+    "modern_fabric_loom": "1.17.19"
+  },
+  "compatibility": {
+    "exit_code": 0,
+    "passed": true,
+    "marker": "MCACE_VERSION_COMPATIBILITY_EXECUTE_PASS",
+    "report_sha256": "647704eb08b3f3872005a3ff14b43d7a9b5d2fa3093df4bbcf4cabbccb44de4d"
+  },
+  "artifacts": [
+    {
+      "file": "mcace-client-fabric-1.21.11.jar",
+      "size_bytes": 2974487,
+      "sha256": "6ba9cd082af49a92e9a934a234f3576edd10cb4931dd007fdf788edd3e2267e7"
+    },
+    {
+      "file": "mcace-client-fabric-26.1.2.jar",
+      "size_bytes": 3041447,
+      "sha256": "0961ae3e62b4e5beb621c58bbcaf0b953d4e409eb3ded2ec5e136096929dfdc1"
+    },
+    {
+      "file": "mcace-client-fabric-26.2.jar",
+      "size_bytes": 3041445,
+      "sha256": "13cf3850d41b446e15077865d06a8fbe745fb82eef9922db66bc5e03ba3d6317"
+    },
+    {
+      "file": "mcace-server-velocity.jar",
+      "size_bytes": 5155714,
+      "sha256": "f6d6dcac5d300c7588b392b386084d40c884ab241c4fdc990756461e6f510162"
+    },
+    {
+      "file": "mcace-server-bungeecord.jar",
+      "size_bytes": 3699844,
+      "sha256": "2390a03f8e4490d0690d44add2eab9e4c0a37a054e59aec8bdd5045d98493884"
+    },
+    {
+      "file": "mcace-server-paper.jar",
+      "size_bytes": 6127856,
+      "sha256": "267ab74e7760d344bc154b7ae1051539bb3eeb0c3f17111801aec3142d3156bb"
+    }
+  ],
+  "control_files": {
+    "sha256sums_size_bytes": 565,
+    "sha256sums_sha256": "66204c10eed716333450264d966e9a74cc502442d73b8253ce61af720ee9912b",
+    "release_manifest_size_bytes": 1965,
+    "release_manifest_sha256": "7f531152d4ed4adb3fbc84c325dfddd9f1ca410aaf426fc3ebce1bf19a698c4b"
+  },
+  "logs": {
+    "job_root": "/srv/codex-worker/jobs/20260831-213945-mcace-1f857f9-releasebundle-dual-jdk-git",
+    "build_log": "logs/releasebundle-build.log",
+    "compatibility_log": "logs/compatibility-smoke.log",
+    "artifact_inventory": "artifact-inventory.txt",
+    "artifact_hashes": "logs/artifacts-all.sha256",
+    "docker_image_build_log": "logs/docker-git-image-build.log"
+  },
+  "notes": [
+    "Independent Linux/p1 release-bundle build from a clean checkout pinned to the exact source commit.",
+    "The derived image installs git from the public Ubuntu package source; no private credentials were used.",
+    "The six deployable JAR bytes and SHA256SUMS set match the Matrix V4 artifact bindings.",
+    "This worker used Temurin 21.0.12 and 25.0.4; the protected GitHub runner pins its own JDK versions, so release-manifest runtime-version metadata and its byte hash are environment-specific.",
+    "This evidence covers remote build and compatibility only; it does not close GUI, federation, licensed Vulcan, production authority, or protected-main/tag release gates."
+  ]
+}

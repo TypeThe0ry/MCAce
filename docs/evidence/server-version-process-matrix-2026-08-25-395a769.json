@@ -1,0 +1,88 @@
+{
+  "schema": "MCACE_SERVER_VERSION_PROCESS_MATRIX_EVIDENCE_INDEX_V1",
+  "generated_at": "2026-08-24T20:42:53.7267967+00:00",
+  "source_commit": "395a7693e67a5f9048c03e0b40a78202cf6b34ab",
+  "worker": {
+    "node": "helio",
+    "profile": "windows",
+    "job_directory": "C:\\CodexWorker\\jobs\\20260825-helio-42f80b7-server-matrix-current",
+    "checkout_commit": "395a7693e67a5f9048c03e0b40a78202cf6b34ab",
+    "checkout_status": "HEAD (no branch), clean",
+    "command": "scripts/server-version-process-matrix.ps1 -Execute",
+    "host_last_boot": "2026-08-24T22:20:52+08:00"
+  },
+  "result": {
+    "expected_case_count": 12,
+    "observed_case_count": 12,
+    "stable_case_count": 10,
+    "beta_case_count": 2,
+    "all_cases_passed": true,
+    "cleanup_all_zero": true,
+    "residual_minecraft_java_processes": 0,
+    "product_build": "BUILD SUCCESSFUL",
+    "product_build_tasks": 27,
+    "static_test": "SERVER_VERSION_PROCESS_MATRIX_STATIC_TEST_PASS"
+  },
+  "canonical_run": "2026-08-24T20-23-23-6783068Z",
+  "canonical_evidence": {
+    "report": {
+      "path": "docs/evidence/server-version-process-matrix/2026-08-24T20-23-23-6783068Z/report.json",
+      "sha256": "f35f0fd4bbd0ce3da703f89ef8e2f0b3af8653d98936f4ed9977c66a81f3b7c0",
+      "size_bytes": 18532
+    },
+    "binding": {
+      "path": "docs/evidence/server-version-process-matrix/2026-08-24T20-23-23-6783068Z/binding.json",
+      "sha256": "b473a62eaea8f8eaefc94fb344b957567cceee92307d2165cfd1663371fedff1",
+      "size_bytes": 14221
+    },
+    "commit": {
+      "path": "docs/evidence/server-version-process-matrix/2026-08-24T20-23-23-6783068Z/commit.json",
+      "sha256": "278d2040b0fb754e8b0354de149d0f6d237823010ce03843646ca1f7f6640c32",
+      "size_bytes": 424
+    },
+    "product_build_log": {
+      "path": "docs/evidence/server-version-process-matrix/2026-08-24T20-23-23-6783068Z/00-product-build.log",
+      "sha256": "8558f8a95a050f53a23f88908111db7441cde3896521dee6e0da0f913567175f",
+      "size_bytes": 2798
+    }
+  },
+  "binding": {
+    "source_manifest_sha256": "bcc0ead261ab3ee5924aeca7c54340753e94a515a3d683b768d445bda4aaf45d",
+    "source_file_count": 688,
+    "prepared_manifest_sha256": "e2ae046455a62a6f9f745ed6bbee8e5bc24f4598876d18e4a83dcb29b1ac4b41",
+    "wrapper_sha256": "a150cfc48a87f2357df3f123abf566906daf8743545ca8e0855a41696fa997b5",
+    "wrapper_test_sha256": "2dcf2ae67c5f6f38c5520045adae24e1ec4303d62f6c137bf64c957039588481",
+    "runtime_assets_manifest_sha256": "d2c06bd1ffbd37cbabd1236057c5cac3f8db0058ac98377b4661c50b633dd921",
+    "product_jars": {
+      "velocity": {
+        "relative": "mcace-server-velocity/build/libs/mcace-server-velocity-0.1.0-SNAPSHOT.jar",
+        "sha256": "088559253a4ec9dc79f110e911d58accd8b05893c74cefba31cebc1a90cb373e",
+        "size": 5039053
+      },
+      "bungee": {
+        "relative": "mcace-server-bungeecord/build/libs/mcace-server-bungeecord-0.1.0-SNAPSHOT.jar",
+        "sha256": "163554963a73a422e9ea2cf31b008ae90051ef180356ce5f3947adbe8a32ddbd",
+        "size": 3584691
+      },
+      "paper": {
+        "relative": "mcace-server-paper/build/libs/mcace-server-paper-0.1.0-SNAPSHOT.jar",
+        "sha256": "9bb12776d16fc72b20dcb8f3c1ad4da4eb4f6148902296ffc75fba80814e52b3",
+        "size": 5946745
+      }
+    }
+  },
+  "retry_note": "The first current-source build attempt with JAVA_TOOL_OPTIONS contaminated child-server stdout and caused the targeted RuntimeNetworkIntegrationTest to time out; the test was rerun without JAVA_TOOL_OPTIONS and passed. A clean -Execute matrix rerun without JAVA_TOOL_OPTIONS then completed the canonical 12/12 triplet. The canonical triplet contains only the final successful run.",
+  "limitations": [
+    "This proves the signed admission/proxy-to-backend process path and cleanup across the named matrix on the exact current checkout.",
+    "It does not prove visible GUI human consent, a licensed Vulcan genuine event, Fabric federation GUI handoff, production SERVER_CONFIRMED authority freeze, or ACE kernel/DMA protection.",
+    "The matrix ran on Helio Windows and the final run reported zero remaining MCAce server Java processes."
+  ],
+  "report_only": {
+    "command": "scripts/server-version-process-matrix.ps1 -ReportOnly",
+    "result": "SERVER_VERSION_PROCESS_MATRIX_REPORT_ONLY_PASS",
+    "report": "build/server-version-process-matrix/runs/2026-08-24T20-23-23-6783068Z/report.json",
+    "worker": "helio",
+    "transport_exit": 0,
+    "observed_at": "2026-08-24T20:42:53.7501727+00:00"
+  }
+}

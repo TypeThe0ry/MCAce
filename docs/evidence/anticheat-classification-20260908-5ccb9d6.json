@@ -1,0 +1,53 @@
+{
+  "fixture_mode": "CONTROLLED_LAB_FIXTURE_METADATA_AND_SERVER_CORRELATION",
+  "executable_code_loaded": false,
+  "sanitization": {
+    "absolute_paths_copied": false,
+    "pids_copied": false,
+    "ports_copied": false,
+    "uuids_copied": false,
+    "raw_fixture_paths_copied": false
+  },
+  "passed": true,
+  "generated_at": "2026-09-08T02:13:52.1869775+00:00",
+  "xray_resource_pack": {
+    "sha256": "f932cd181cea83559784e1d9c2ca2eed6c72d5015ab28014916b30191f45d227",
+    "bytes": 193,
+    "identifier": "unknown",
+    "metadata_status": "not-applicable",
+    "origin": "CLIENT_REPORTED",
+    "confidence": "LOW",
+    "action": "OBSERVE"
+  },
+  "schema": "MCACE_ANTICHEAT_FIXTURE_CLASSIFICATION_V1",
+  "test": {
+    "passed": true,
+    "test_name": "AntiCheatFixtureClassificationTest",
+    "tests": 3,
+    "client_observation_count": 2,
+    "server_signal_count": 2,
+    "server_client_correlated": true,
+    "server_confirmed_count": 2,
+    "server_confirmed_action": "OBSERVE_ONLY_UNTIL_SIGNED_POLICY",
+    "executable_code_loaded": false
+  },
+  "synchronization": {
+    "client_reported_observations": 2,
+    "independent_server_signals": 2,
+    "correlated_same_session": true,
+    "server_confirmed_observations": 2,
+    "server_confirmed_action": "OBSERVE_ONLY_UNTIL_SIGNED_POLICY",
+    "false_positive": false
+  },
+  "third_party_network_access": false,
+  "meteor": {
+    "sha256": "c286a140ba5e872a30e115fd1c60bc5f1c4f7081f21e72951266a2c0b399850e",
+    "bytes": 251,
+    "id": "meteor-client",
+    "version": "26.2-86",
+    "origin": "CLIENT_REPORTED",
+    "confidence": "LOW",
+    "action": "OBSERVE"
+  },
+  "minecraft_version": "26.2"
+}

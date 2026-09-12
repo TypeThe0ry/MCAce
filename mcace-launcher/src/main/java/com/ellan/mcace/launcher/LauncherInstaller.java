@@ -184,7 +184,11 @@ public final class LauncherInstaller {
     }
 
     private static void moveAtomic(Path source, Path target) throws IOException {
-        try { Files.move(source, target, StandardCopyOption.ATOMIC_MOVE); }
+        // Windows can retain the destination directory entry during a rapid
+        // backup->activate rotation.  Keep the operation atomic while asking
+        // the provider to replace that empty destination when present.
+        try { Files.move(source, target, StandardCopyOption.ATOMIC_MOVE,
+                StandardCopyOption.REPLACE_EXISTING); }
         catch (AtomicMoveNotSupportedException exception) {
             throw new IOException("launcher installation requires same-volume atomic moves", exception);
         }

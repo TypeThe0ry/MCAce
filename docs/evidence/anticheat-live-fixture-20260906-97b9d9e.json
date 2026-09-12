@@ -1,0 +1,35 @@
+{
+  "schema": "MCACE_ANTICHEAT_LIVE_FIXTURE_V1",
+  "source_commit": "97b9d9e5f15cc4eacac3acc947a06cb29ae27a8a",
+  "node": "helio",
+  "job_id": "20260906-mcace-97b9d9e-final-doc-bundle",
+  "generated_at": "2026-09-06T14:49:03.5036553+00:00",
+  "report_sha256": "9477025e200d267dd9d20fea490ef3649a15746c15a25c6c21ebf8499466c288",
+  "execute_result": "ANTICHEAT_LIVE_FIXTURE_EXECUTE_PASS",
+  "report_only_result": "ANTICHEAT_LIVE_FIXTURE_REPORT_ONLY_PASS",
+  "passed": true,
+  "fixture_mode": "CONTROLLED_EXECUTABLE_CLIENT_AND_SERVER_CORRELATION",
+  "client_executable_code_loaded": true,
+  "client_modlist_reported": true,
+  "server_behavior_signal_independent": true,
+  "correlated_same_session": true,
+  "server_confirmed_count": 3,
+  "server_confirmed_action": "QUARANTINE",
+  "clean_false_positive_count": 0,
+  "signed_lab_policy": true,
+  "negative_boundary": {
+    "clean_client_no_mod_observation": true,
+    "clean_client_no_impossible_movement": true,
+    "clean_client_no_server_confirmed_event": true
+  },
+  "versions": ["1.21.11", "26.1.2", "26.2"],
+  "third_party_code_loaded": false,
+  "third_party_network_access": false,
+  "public_server": false,
+  "actual_fabric_client": false,
+  "limitations": [
+    "The executable fixture is MCAce-owned test code, not third-party cheat code.",
+    "The harness is a loopback protocol/client-server integration, not a public server or a full Minecraft GUI session.",
+    "Quarantine is emitted by signed lab policy; production authority and live kick/ban remain separate release gates."
+  ]
+}

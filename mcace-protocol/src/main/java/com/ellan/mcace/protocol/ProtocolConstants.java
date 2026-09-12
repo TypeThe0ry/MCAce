@@ -19,6 +19,16 @@ public final class ProtocolConstants {
     public static final long MAX_ARTIFACT_OBSERVATION_TRANSFER_BYTES = 256L * 1024L;
     public static final int MAX_ARTIFACT_OBSERVATION_TRANSFER_CHUNKS = 16;
     public static final int MAX_ARTIFACT_OBSERVATION_COUNT = 512;
+    /** Fabric Loader runtime graph bound; independent from installed files in the mods scope. */
+    public static final int MAX_LOADED_MODS = 256;
+    public static final int MAX_LOADED_MOD_ID_CHARS = 128;
+    public static final int MAX_LOADED_MOD_VERSION_CHARS = 128;
+    public static final int MAX_LOADED_MOD_FILENAME_CHARS = 256;
+    public static final int MAX_LOADED_MOD_PARENT_ID_CHARS = 128;
+    public static final int MAX_CLIENT_CAPABILITIES = 16;
+    /** Bound for the signed list of Minecraft resource/shader pack IDs enabled at runtime. */
+    public static final int MAX_SELECTED_PACKS = 64;
+    public static final int MAX_SELECTED_PACK_ID_CHARS = 256;
     /** Dynamic snapshots are deliberately low-frequency and never run on the render thread. */
     public static final Duration ARTIFACT_OBSERVATION_INTERVAL = Duration.ofMinutes(5);
     public static final Duration MAX_ARTIFACT_OBSERVATION_AGE = Duration.ofMinutes(1);
@@ -50,7 +60,7 @@ public final class ProtocolConstants {
     /** Reserved for the disabled-by-default backend authority protocol library. */
     public static final String BACKEND_AUTHORITY_CHANNEL = "mcace:authority";
     public static final String PAYLOAD_CHANNEL = "mcace:payload";
-    public static final int FEDERATION_SCHEMA_VERSION = 1;
+    public static final int FEDERATION_SCHEMA_VERSION = 2;
     public static final Duration MAX_FEDERATION_ASSERTION_TTL = Duration.ofMinutes(5);
     /** Presentation is deliberately well below the common proxy plugin-message budget. */
     public static final int MAX_FEDERATION_PRESENTATION_BYTES = 8 * 1024;
@@ -62,6 +72,14 @@ public final class ProtocolConstants {
     public static final Duration MAX_BACKEND_AUTHORITY_TTL = Duration.ofSeconds(30);
     public static final Duration MAX_BACKEND_AUTHORITY_OBSERVATION_AGE = Duration.ofSeconds(30);
     public static final int MAX_BACKEND_AUTHORITY_PROVIDERS = 8;
+    /** Per-provider in-memory/durable summary bound shared by profile and correlator. */
+    public static final int MAX_BACKEND_AUTHORITY_OBSERVATIONS_PER_PROVIDER = 256;
+    /** Must remain compatible with the bounded Paper behavior-adapter provider field. */
+    public static final int MAX_BACKEND_AUTHORITY_PROVIDER_ID_CHARS = 32;
+    /** Must remain compatible with the bounded Paper behavior-adapter version field. */
+    public static final int MAX_BACKEND_AUTHORITY_PROVIDER_VERSION_CHARS = 32;
+    /** Must remain compatible with the bounded Paper stable check-family field. */
+    public static final int MAX_BACKEND_AUTHORITY_STABLE_CHECK_FAMILY_CHARS = 96;
     public static final int MAX_BACKEND_AUTHORITY_TEXT_CHARS = 128;
 
     private ProtocolConstants() {

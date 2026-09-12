@@ -1,0 +1,33 @@
+{
+  "schema": "MCACE_CLUSTER_REGRESSION_EVIDENCE_V1",
+  "generated_at": "2026-09-02T09:31:00Z",
+  "node": {
+    "name": "p1",
+    "os": "linux",
+    "workspace": "/srv/codex-worker",
+    "job_root": "/srv/codex-worker/jobs/20260902-mcace-2a739c7",
+    "container_image": "eclipse-temurin:21-jdk",
+    "container_image_id": "sha256:85f00967bcc624fc19fa9c2cf124ea426a5363898e267141726f31f358c2e14b"
+  },
+  "source": {
+    "repository": "https://github.com/TypeThe0ry/MCAce.git",
+    "commit": "2a739c752c08fb71d0fe279a4f6705b1a7bdf506",
+    "artifact_source_commit": "43f5a661dc2ec21696ecba42cf42187720b01b91"
+  },
+  "execution": {
+    "command": "bash ./gradlew test --no-daemon --no-configuration-cache --stacktrace",
+    "exit_code": 0,
+    "result": "BUILD_SUCCESSFUL",
+    "actionable_tasks": 71,
+    "log_path": "/srv/codex-worker/jobs/20260902-mcace-2a739c7/container-test.log",
+    "log_size_bytes": 10688,
+    "log_sha256": "e61f751a731de770ccdd95a1c48b1c70ff32bec92b1fa876700a518311b4ced6"
+  },
+  "interpretation": "The complete Gradle test task passed in an isolated Temurin 21 container from the immutable source commit. Tests that require real Folia, proxy, PostgreSQL, GUI, Vulcan, or production authority infrastructure remain project-design SKIPPED cases and are not represented as real-environment acceptance.",
+  "sanitization": {
+    "passwords_copied": false,
+    "private_keys_copied": false,
+    "player_identifiers_copied": false,
+    "process_ids_copied": false
+  }
+}

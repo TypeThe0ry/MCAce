@@ -23,6 +23,23 @@ final class VelocityDispositionExecutorTest {
     private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
     @Test
+    void everySynchronousResultSeparatesApiAcceptanceFromObservedClientEffect() {
+        for (VelocityDispositionExecutor.Status status : VelocityDispositionExecutor.Status.values()) {
+            VelocityDispositionExecutor.ExecutionEvidence expected = switch (status) {
+                case NOTICE_SENT, WARN_SENT, CHALLENGE_AUDITED ->
+                        VelocityDispositionExecutor.ExecutionEvidence.MESSAGE_API_ACCEPTED;
+                case LIMITED_DISPATCHED, QUARANTINED_DISPATCHED ->
+                        VelocityDispositionExecutor.ExecutionEvidence.ROUTE_REQUEST_ACCEPTED;
+                case DENIED -> VelocityDispositionExecutor.ExecutionEvidence.DISCONNECT_API_ACCEPTED;
+                case DEFERRED_ROUTE -> VelocityDispositionExecutor.ExecutionEvidence.DEFERRED;
+                default -> VelocityDispositionExecutor.ExecutionEvidence.NO_NEW_EFFECT_CONFIRMED;
+            };
+            assertEquals(expected, new VelocityDispositionExecutor.Result(
+                    DispositionAction.DENY, status).executionEvidence(), status.name());
+        }
+    }
+
+    @Test
     void noticeAndWarnSendOnlyContentFreeMessagesOnce() {
         FakeActions actions = new FakeActions();
         VelocityDispositionExecutor executor = new VelocityDispositionExecutor(

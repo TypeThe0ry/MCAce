@@ -40,7 +40,8 @@ public record FederationObservation(
                 || sourcePolicyVersion.isBlank()
                 || sourcePolicyVersion.length() > ProtocolConstants.MAX_FEDERATION_ID_CHARS
                 || sourcePolicyVersion.codePoints().anyMatch(Character::isISOControl)
-                || !expiresAt.isAfter(issuedAt)) {
+                || !expiresAt.isAfter(issuedAt)
+                || !observedAt.isBefore(expiresAt)) {
             throw new IllegalArgumentException("invalid federation observation");
         }
     }

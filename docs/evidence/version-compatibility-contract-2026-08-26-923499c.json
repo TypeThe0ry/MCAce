@@ -1,0 +1,48 @@
+{
+  "schema": "MCACE_VERSION_COMPATIBILITY_CONTRACT_V2",
+  "generated_at": "2026-08-26T20:29:05.0259632Z",
+  "source_commit": "923499c73cdb53e35079f32fee22b0587f7610e1",
+  "artifact_source_commit": "923499c73cdb53e35079f32fee22b0587f7610e1",
+  "target_count": 3,
+  "exact_bundle_entry_count": 8,
+  "unsupported_versions_are_fail_closed": true,
+  "unsupported_examples": [
+    "1.21.1",
+    "1.21.10",
+    "26.1",
+    "26.3"
+  ],
+  "targets": [
+    {
+      "minecraft_version": "1.21.11",
+      "protocol": 774,
+      "java_major": 21,
+      "artifact_mode": "FINAL_REMAP_JAR",
+      "artifact": "mcace-client-fabric-1.21.11.jar",
+      "sha256": "be153c5ee27ef611bdafd99b19eb711e43af58fc636979dc1ce1bb87f05de7e0",
+      "nested_jar_count": 5,
+      "passed": true
+    },
+    {
+      "minecraft_version": "26.1.2",
+      "protocol": 775,
+      "java_major": 25,
+      "artifact_mode": "FINAL_NAMED_JAR",
+      "artifact": "mcace-client-fabric-26.1.2.jar",
+      "sha256": "b8637200fa094d3a308bb1c1e7276f4a7b7fb6c3e6cc32e23637112b3dad02ff",
+      "nested_jar_count": 1,
+      "passed": true
+    },
+    {
+      "minecraft_version": "26.2",
+      "protocol": 776,
+      "java_major": 25,
+      "artifact_mode": "FINAL_NAMED_JAR",
+      "artifact": "mcace-client-fabric-26.2.jar",
+      "sha256": "40f45794e9a20ff34814c92b552521654df666e019e564fadd0d0c2164891d83",
+      "nested_jar_count": 1,
+      "passed": true
+    }
+  ],
+  "passed": true
+}

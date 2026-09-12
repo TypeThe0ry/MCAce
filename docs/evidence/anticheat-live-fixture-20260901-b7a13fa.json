@@ -1,0 +1,44 @@
+{
+  "schema": "MCACE_ANTICHEAT_LIVE_FIXTURE_V1",
+  "generated_at": "2026-09-01T03:56:26.2416665+00:00",
+  "source_commit": "b7a13fa0a169d30a489b21f0e85427293d5a1ca0",
+  "report_path": "build/anticheat-live-fixtures/evidence-runs/20260901T035626234Z/report.json",
+  "report_sha256": "7e736770392cb6725d2f4c6327e9873047d3cce62109d03e45cbe84186747c15",
+  "fixture_mode": "CONTROLLED_EXECUTABLE_CLIENT_AND_SERVER_CORRELATION",
+  "versions": [
+    "1.21.11",
+    "26.1.2",
+    "26.2"
+  ],
+  "client_executable_code_loaded": true,
+  "client_modlist_reported": true,
+  "server_behavior_signal_independent": true,
+  "correlated_same_session": true,
+  "server_confirmed_count": 3,
+  "server_confirmed_action": "QUARANTINE",
+  "clean_false_positive_count": 0,
+  "negative_boundary": {
+    "clean_client_no_mod_observation": true,
+    "clean_client_no_impossible_movement": true,
+    "clean_client_no_server_confirmed_event": true
+  },
+  "signed_lab_policy": true,
+  "third_party_code_loaded": false,
+  "third_party_network_access": false,
+  "actual_fabric_client": false,
+  "public_server": false,
+  "passed": true,
+  "interpretation": "The exact-head controlled fixture confirms client executable telemetry, modlist reporting, an independent server behavior signal, same-session correlation, SERVER_CONFIRMED authorization, and signed-lab QUARANTINE for all three target versions with zero clean false positives.",
+  "limitations": [
+    "This is an MCAce-owned loopback fixture, not a third-party cheat process or public production server.",
+    "The fixture does not prove kernel, DMA, memory-injection, or Tencent ACE-equivalent system protection.",
+    "Production Authority, real GUI consent, Federation V5 handoff, and genuine Vulcan provider evidence remain separate release gates."
+  ],
+  "sanitization": {
+    "absolute_paths_copied": false,
+    "pids_copied": false,
+    "ports_copied": false,
+    "credentials_copied": false,
+    "fixture_bytes_copied": false
+  }
+}

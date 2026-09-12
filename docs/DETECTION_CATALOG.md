@@ -31,7 +31,9 @@ used.
 The distributable [`disposition-catalog.textproto`](../examples/disposition-catalog.textproto)
 contains only three upstream Fabric manifest identities: `wurst`, `liquidbounce`,
 and `meteor-client`. Each is a `MOD_ID_VERSION`, `LOW`-confidence, `OBSERVE`
-suggestion with `default_enabled: false` and a matching disabled selection. It
+suggestion that additionally requires client-reported `loaded=true`, with
+`default_enabled: false` and a matching disabled selection. Consequently, a dormant
+JAR that is merely present in `mods/` does not match these starter identities. It
 contains no artifact hash, content-root, binary, Baritone, or Freecam identity.
 An administrator must make a separate, reviewed selection before any catalog rule
 can be published. Its provenance is pinned to the official manifest revisions
@@ -94,15 +96,21 @@ This catalog separates three different claims:
 
 1. **Project identity:** an upstream project publicly describes a client, mod, bot,
    camera tool, renderer, shader loader, overlay, or controller utility.
-2. **Observed installation:** the resolved client reports a mod ID/version, file
-   path, configuration, signer, SHA-256, or content root.
+2. **Observed installation/runtime load:** the resolved client separately reports
+   bounded installed-file identity and the `FabricLoader.getAllMods()` runtime
+   graph. Direct `mods/` origins may be bound to a basename/size/SHA-256 tuple;
+   nested origins expose only a parent Mod ID, a non-direct `PATH` origin is
+   classified as `UNKNOWN`, and built-in/classpath or unknown origins expose no
+   path. Default proxy policy requires the signed loaded-graph capability, but the
+   entire claim remains client-controlled.
 3. **Confirmed security finding:** the server independently verifies bytes and/or
    authoritative behavior, correlates the result with the authenticated session,
    and obtains the required human review.
 
-A project name, mod ID, filename, version, or client-reported manifest is not a
-confirmed malicious hash. A client can remove, rename, forge, or selectively omit
-its report. Name/ID/version matches in this catalog therefore recommend at most
+A project name, mod ID, filename, version, `loaded=true`, or client-reported
+manifest is not a confirmed malicious hash. A client can remove, rename, forge, or
+selectively omit its report. Name/ID/version/load-state matches in this catalog
+therefore recommend at most
 `OBSERVE`, `NOTICE`, or a narrowly scoped `WARN`; they must never directly produce
 `DENY`, `QUARANTINE`, or a ban. `DENY` is still current-connection-only in MCAce,
 and requires an independently verified, exact artifact finding under the signed
@@ -118,8 +126,9 @@ cheating.
 
 | Signal | Minimum collection rule | Trust and use |
 | --- | --- | --- |
-| Mod ID / version | Parse bounded `fabric.mod.json`; retain exact resolved values and Minecraft/loader constraints. | `CLIENT_REPORTED`; identity only. Use `OBSERVE`/`NOTICE`, never `DENY`. |
-| Jar SHA-256 | Hash the exact received jar bytes on the trusted collection path; bind hash to player, session, path, and capture time. | Strong artifact identity only. A hash is “confirmed malicious” only when it is independently reviewed and the policy names that exact hash. |
+| Installed Mod ID / version | Parse bounded `fabric.mod.json` from the policy-scoped installed manifest; retain exact resolved values and Minecraft/loader constraints. | `CLIENT_REPORTED`; installed identity only. A dormant JAR is not a runtime-loaded Mod. |
+| Loaded ModList identity | Enumerate at most 256 entries from `FabricLoader.getAllMods()`; canonicalize unique ID/version/origin tuples; bind a direct `mods/` origin to the exact installed manifest entry; classify every other `PATH` origin as `UNKNOWN`; omit local paths for nested/built-in/classpath/unknown origins; require the signed loaded-graph capability and one-to-one installed-scope binding. | `CLIENT_REPORTED`; `loaded=true` may narrow an identity selector to the runtime graph, but still permits only advisory handling without independent evidence. |
+| Jar SHA-256 | Hash the exact received jar bytes on the trusted collection path; bind hash to player, session, path, and capture time. A direct loaded-origin hash is an on-disk scan-time binding, not proof of the bytes already defined in the JVM. | Strong artifact identity only. A hash is “confirmed malicious” only when it is independently reviewed and the policy names that exact hash. |
 | Content root | Canonicalize the approved manifest/file set, record the root and file-count/size bounds, and verify the signed policy binding. | Detects changed content or a missing file; it does not prove intent. |
 | Signature / signer | Record the JAR signature chain or signer metadata only when present and independently parsed. | Missing or unknown signer is not automatically malicious; compare to an approved signer set. |
 | Configuration | Hash or record bounded config keys and enabled modules, with path containment and version binding. | Useful corroboration; configuration is client-controlled and may be absent or forged. Do not collect unrelated files. |

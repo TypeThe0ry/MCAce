@@ -1,0 +1,74 @@
+{
+  "schema": "MCACE_ANTICHEAT_CLIENT_PROVISION_AND_SMOKE_EVIDENCE_V1",
+  "generated_at": "2026-09-01T05:07:06.0685338Z",
+  "source_commit": "157e1f4200a53a2935c67dc9b0bf96fbb09acf41",
+  "artifact_source_commit": "df5504cd9ba04535040c2e368dbbb0a6859beb87",
+  "product_version": "0.0.1",
+  "automatic_client_provision": {
+    "source_client": "E:/Ellan艾尔岚-客户端-26.2",
+    "target_root": "D:/MCAce-gui-client-26.2",
+    "game_directory": "D:/MCAce-gui-client-26.2/.minecraft/versions/EllanTOP-26.2",
+    "minecraft_version": "26.2",
+    "loader": "Fabric",
+    "source_mod_jar_count": 60,
+    "target_mod_jar_count": 61,
+    "mcace_artifact_present": true,
+    "mcace_artifact_sha256": "49DCFD7D33247069BC2C10211CE69C052151B5A7E2B41B304AAAD553550C3AED",
+    "mcace_artifact_size_bytes": 3041446,
+    "provision_manifest_sha256": "DDD7FC684D31E8A4B932816312DC76314E51F891A945C6D90D85EAEB873C47AF",
+    "copy_exit_codes": {
+      "libraries": 0,
+      "assets": 0,
+      "version": 3
+    },
+    "offline_identity": true,
+    "source_credentials_copied": false,
+    "rollback_backup": null,
+    "provision_result": "MCACE_ISOLATED_CLIENT_PROVISION_PASS"
+  },
+  "visible_process_smoke": {
+    "report_path": "build/isolated-fabric-client-smoke/report-current-157e1f4.json",
+    "report_sha256": "41CB8033FDB30214CDEC8260A6AB8469194F9F3390C538BBFE3830210203B138",
+    "latest_log_path": "D:/MCAce-gui-client-26.2/.minecraft/versions/EllanTOP-26.2/logs/latest.log",
+    "latest_log_sha256_after_cleanup": "c30f49ce73261f2bbb9c2f145e3760a80224b73782df984f8cce5e54f41589da",
+    "latest_log_size_bytes_after_cleanup": 122575,
+    "java_process_count": 1,
+    "visible_window_count": 1,
+    "visible_window_title": "Minecraft* 26.2",
+    "responding": true,
+    "fabric_modlist_contains_mcace": true,
+    "exact_artifact_loaded_marker": true,
+    "client_initialized": true,
+    "screenshot": {
+      "path": "docs/evidence/anticheat-client-gui-window-20260901-157e1f4.png",
+      "sha256": "CCD891F7172D81DF6048D7950626F7B14CBE76D3862F029C6B23815F52B505CE",
+      "size_bytes": 1088604,
+      "capture_method": "native PrintWindow fallback; window handle selected from target D\\MCAce-gui-client-26.2 Java process"
+    },
+    "cleanup_result": "TARGET_CLEANUP_PASS",
+    "computer_use": {
+      "requested": true,
+      "callable_surface_exposed": false,
+      "required_node_repl_sky_surface": "not exposed in current text thread",
+      "fallback_used": "direct process launch, native window capture, and log observation",
+      "computer_use_click_performed": false,
+      "human_enablement_click": false,
+      "visible_enablement_consent_rendered": false,
+      "server_handshake_observed": false
+    },
+    "smoke_result": "MCACE_ISOLATED_CLIENT_GUI_PROCESS_SMOKE_PASS"
+  },
+  "interpretation": "Exact-head 157e1f4 rerun proves automatic installation of one MCAce Fabric mod into the available 26.2 client, matching artifact hash, visible responsive Minecraft startup, Fabric mod discovery, MCAce artifact loading, initialization, and target cleanup. The PNG is a visible startup capture, not a Computer Use click attestation.",
+  "limitations": [
+    "Only the 26.2 external client tree is present on the controller; 1.21.11 and 26.1.2 external client trees are absent, so no three-version GUI provision claim is made.",
+    "The current text thread exposes no callable Computer Use node_repl/@oai/sky surface; no Computer Use click or attestation is claimed.",
+    "The client smoke uses an offline identity without server key pins; no client modlist upload, server handshake, SERVER_CONFIRMED event, public-server enforcement, or production action is claimed.",
+    "The process smoke is an isolated visible-process observation, not a production GUI attestation or a genuine third-party cheat execution."
+  ],
+  "sanitization": {
+    "absolute_paths_copied": false,
+    "pids_copied": false,
+    "ports_copied": false,
+    "credentials_copied": false
+  }
+}

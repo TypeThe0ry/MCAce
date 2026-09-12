@@ -1,0 +1,49 @@
+{
+  "schema": "MCACE_CUA_CLIENT_LAUNCH_OBSERVATION_V1",
+  "generated_at": "2026-09-02T08:49:41.881Z",
+  "source_commit": "4f29889d03da25cbd15de18e4889eedd0a5b90b4",
+  "artifact_source_commit": "43f5a661dc2ec21696ecba42cf42187720b01b91",
+  "product_version": "0.0.1",
+  "target_version": "26.2",
+  "client_root": "D:\\MCAce-gui-client-26.2",
+  "provision_manifest": "D:\\MCAce-gui-client-26.2\\provision-manifest.json",
+  "isolated_client_smoke_report": "build/isolated-fabric-client-smoke/report-20260902-current.json",
+  "artifact": {
+    "file": "mcace-client-fabric-26.2.jar",
+    "sha256": "DEA167E2589FCF6DC07DE63008B7C2FEDA87FBE9E8BF8D6D19522E32BFF0829B",
+    "source_mod_jar_count": 60,
+    "target_mod_jar_count": 61
+  },
+  "computer_use": {
+    "surface": "@oai/sky",
+    "window_app": "process:C:\\Users\\admin\\AppData\\Local\\Packages\\Microsoft.4297127D64EC6_8wekyb3d8bbwe\\LocalCache\\Local\\runtime\\java-runtime-epsilon\\windows-x64\\java-runtime-epsilon\\bin\\java.exe",
+    "window_id": 27605218,
+    "window_title": "Minecraft* 26.2",
+    "launcher_window_observed": true,
+    "minecraft_window_observed": true,
+    "screenshot_id": "screenshot-0",
+    "screenshot_width": 1026,
+    "screenshot_height": 607,
+    "screenshot_sha256": "ee2675169b68a084ea66e59def13170e8826563a9e369fe625d34fa473b61fa5",
+    "screenshot_persisted": false,
+    "human_enablement_click": false,
+    "connection_bound_attestation": false
+  },
+  "observations": {
+    "mcace_loaded": true,
+    "artifact_loaded": true,
+    "client_initialized": true,
+    "consent": false,
+    "handshake": false,
+    "server_connect": false,
+    "client_enablement_state": "OFF_UNTIL_EXPLICIT_CONFIRMATION"
+  },
+  "pass": true,
+  "release_gate_effect": "informational_only",
+  "limitations": [
+    "The screenshot was observed through Computer Use but not persisted as a signed release artifact.",
+    "The offline launch recipe has no server key pin and did not perform a server handshake.",
+    "No Enable MCAce decision was made; this record cannot satisfy the GUI/Federation release gate.",
+    "This record proves exact client provisioning and visible startup only, not production anti-cheat enforcement."
+  ]
+}

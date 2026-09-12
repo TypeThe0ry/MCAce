@@ -1,0 +1,57 @@
+{
+  "schema": "MCACE_ACTIVE_PACK_INTEGRITY_ITERATION_V1",
+  "captured_at": "2026-08-22",
+  "source_commit": "50a537a78da9f705ff85ebc4cd0dc5c3edd3996a",
+  "branch": "feature/active-pack-integrity",
+  "release_actions": {
+    "tag_created": false,
+    "github_release_created": false,
+    "v0_0_1_published": false
+  },
+  "implemented": [
+    "signed selected_resource_packs and selected_shader_packs in initial and dynamic observations",
+    "bounded immediate refresh when the runtime resource-pack repository changes",
+    "server-derived selected=true|false metadata and exact artifact/content-root policy inputs",
+    "fail-closed exact artifact policy generator with disabled catalog selection",
+    "trusted Grim/Vulcan provider correlation with durable SERVER_CONFIRMED authorization",
+    "Velocity provider handoff that schedules only an already-authorized disposition event",
+    "transparent Fabric CodeSource SHA-256 self-integrity documentation"
+  ],
+  "local_verification": {
+    "exact_policy_script": { "command": "scripts/test-exact-artifact-policy.ps1", "exit_code": 0 },
+    "mcace_core_full_test": { "task": ":mcace-core:test", "exit_code": 0 },
+    "velocity_compile_and_test": { "tasks": [":mcace-server-velocity:compileJava", ":mcace-server-velocity:test"], "exit_code": 0 },
+    "fabric_1_21_11_test": { "task": ":mcace-client-fabric:test", "exit_code": 0 },
+    "modern_26_1_2_26_2_build": { "task": ":modernFabricBuild", "jdk": 25, "exit_code": 0 }
+  },
+  "cluster": {
+    "worker": "helio",
+    "profile": "windows-build",
+    "checkout": "C:\\CodexWorker\\jobs\\20260822-50a537a-core-test\\repo",
+    "checkout_sha": "50a537a78da9f705ff85ebc4cd0dc5c3edd3996a",
+    "command": ":mcace-core:test (offline, strict dependency verification, single worker)",
+    "exit_code": 1,
+    "result": "JVM_CRASH_DURING_FABRIC_LOOM_SOURCE_REMAP",
+    "log": "hs_err_pid34024.log",
+    "interpretation": "Helio attempt is retained as a failed remote verification; local and GitHub results are not promoted from it."
+  },
+  "github_ci": {
+    "run_id": 32578975989,
+    "head_sha": "50a537a78da9f705ff85ebc4cd0dc5c3edd3996a",
+    "status_at_capture": "in_progress",
+    "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32578975989"
+  },
+  "remaining_external_gates": [
+    "three-version GUI human consent remains paused",
+    "real-server rerun for this exact commit remains pending",
+    "genuine licensed Vulcan event remains pending",
+    "Fabric federation source-to-target handoff remains pending",
+    "final README evidence refresh and release decision remain pending"
+  ],
+  "sanitization": {
+    "worker_passwords_copied": false,
+    "absolute_controller_paths_copied": false,
+    "raw_client_identity_copied": false,
+    "secrets_copied": false
+  }
+}

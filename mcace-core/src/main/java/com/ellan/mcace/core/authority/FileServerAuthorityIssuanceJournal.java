@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 
@@ -34,8 +35,9 @@ import java.util.UUID;
  * <p>The journal owns one no-follow read/write handle and one exclusive lock for its entire
  * lifetime. On the supported Windows/OpenJDK runtime it additionally disables delete and write
  * sharing, so the named file cannot be replaced or externally written while an issuer is live.
- * Every append decodes the complete existing journal, writes through that same handle, calls
- * {@code force(true)}, and decodes the complete handle again before a sendable token can escape.
+ * Startup decodes the complete bounded journal exactly once into an authenticated in-process
+ * recovery index. Each append validates against that index, writes through the same handle, calls
+ * {@code force(true)}, and re-reads only the exact appended record before the index is advanced.
  * It never opens and closes a second channel to the same file while locked: on some POSIX systems
  * doing so releases all process locks for that inode. Path identity is instead checked through
  * no-follow attributes before and after each same-handle read. Windows additionally relies on the
@@ -48,10 +50,10 @@ import java.util.UUID;
 final class FileServerAuthorityIssuanceJournal
         extends ServerAuthorityIssuanceJournal implements AutoCloseable {
     static final long MAX_QUOTA_BYTES = 64L * 1024L * 1024L;
-    private static final String HEADER = "MCACE_SERVER_AUTHORITY_ISSUANCE_JOURNAL_V1";
+    private static final String HEADER = "MCACE_SERVER_AUTHORITY_ISSUANCE_JOURNAL_V2";
     private static final byte[] INITIAL_CONTENT = (HEADER + "\n")
             .getBytes(StandardCharsets.US_ASCII);
-    private static final String VERSION = "v1";
+    private static final String VERSION = "v2";
 
     private final Path path;
     private final Path canonicalPath;
@@ -60,6 +62,9 @@ final class FileServerAuthorityIssuanceJournal
     private final FileChannel channel;
     private final FileLock fileLock;
     private final List<PathIdentity> identities;
+    private final JournalState state;
+    private long committedSize;
+    private int fullDecodePasses;
     private boolean poisoned;
     private boolean closed;
 
@@ -71,6 +76,9 @@ final class FileServerAuthorityIssuanceJournal
         this.maxBytes = maxBytes;
         this.windows = System.getProperty("os.name", "")
                 .toLowerCase(Locale.ROOT).startsWith("windows");
+        AuthorityFilePreflight.requirePrivateRegularFile(
+                Objects.requireNonNull(this.path.getParent(), "journal parent"), this.path,
+                "authority issuance journal");
         List<PathIdentity> beforeOpen = inspectPathChain(this.path, this.windows, false);
         this.canonicalPath = this.path.toRealPath(LinkOption.NOFOLLOW_LINKS);
 
@@ -89,7 +97,10 @@ final class FileServerAuthorityIssuanceJournal
             this.channel = opened;
             this.fileLock = acquired;
             this.identities = List.copyOf(beforeOpen);
-            verifyIdentityAndReadState();
+            byte[] startupBytes = readVerifiedBytes();
+            this.state = decode(startupBytes);
+            this.committedSize = startupBytes.length;
+            this.fullDecodePasses = 1;
         } catch (IOException | RuntimeException exception) {
             if (acquired != null) {
                 try {
@@ -119,37 +130,39 @@ final class FileServerAuthorityIssuanceJournal
         Objects.requireNonNull(record, "record");
         ensureHealthy();
 
-        JournalState state;
-        byte[] before;
         try {
-            before = readVerifiedBytes();
-            state = decode(before);
+            validateSavedIdentity();
+            requireExpectedSize();
         } catch (IOException exception) {
             throw poison(exception);
         }
 
         // A rejected caller record did not mutate storage and therefore does not poison the
         // journal. Storage/identity failures below do.
-        state.accept(record);
+        state.validate(record);
         byte[] addition = encode(record);
-        if (before.length > maxBytes - addition.length) {
+        if (committedSize > maxBytes - addition.length) {
             throw new IOException("authority issuance journal quota exhausted");
         }
 
         try {
-            writeAll(channel, before.length, addition);
+            long appendOffset = committedSize;
+            writeAll(channel, appendOffset, addition);
             channel.force(true);
-            long expectedSize = Math.addExact(before.length, addition.length);
+            long expectedSize = Math.addExact(appendOffset, addition.length);
             if (channel.size() != expectedSize) {
                 throw new IOException("authority issuance journal changed during forced append");
             }
-            byte[] after = readVerifiedBytes();
-            if (after.length != expectedSize
-                    || !Arrays.equals(addition,
-                    Arrays.copyOfRange(after, before.length, after.length))) {
+            byte[] forcedAddition = readExact(channel, appendOffset, addition.length);
+            if (!Arrays.equals(addition, forcedAddition)) {
                 throw new IOException("authority issuance journal append verification failed");
             }
-            decode(after);
+            validateSavedIdentity();
+            if (channel.size() != expectedSize) {
+                throw new IOException("authority issuance journal changed after append verification");
+            }
+            state.commit(record);
+            committedSize = expectedSize;
         } catch (ArithmeticException exception) {
             throw poison(new IOException("authority issuance journal size overflow", exception));
         } catch (IOException exception) {
@@ -164,7 +177,24 @@ final class FileServerAuthorityIssuanceJournal
                 lifecycleCommitmentSha256, "lifecycleCommitmentSha256");
         ensureHealthy();
         try {
-            return verifyIdentityAndReadState().lastSequence(lifecycle);
+            validateSavedIdentity();
+            requireExpectedSize();
+            return state.lastSequence(lifecycle);
+        } catch (IOException exception) {
+            throw poison(exception);
+        }
+    }
+
+    @Override
+    synchronized ServerAuthorityIssuanceRecovery recover(String lifecycleCommitmentSha256)
+            throws IOException {
+        String lifecycle = BackendAuthorityPin.sha256(
+                lifecycleCommitmentSha256, "lifecycleCommitmentSha256");
+        ensureHealthy();
+        try {
+            validateSavedIdentity();
+            requireExpectedSize();
+            return state.recovery(lifecycle);
         } catch (IOException exception) {
             throw poison(exception);
         }
@@ -172,6 +202,10 @@ final class FileServerAuthorityIssuanceJournal
 
     Path path() {
         return path;
+    }
+
+    int fullDecodePassesForTests() {
+        return fullDecodePasses;
     }
 
     static String requiredHeaderLine() {
@@ -210,10 +244,6 @@ final class FileServerAuthorityIssuanceJournal
         }
     }
 
-    private JournalState verifyIdentityAndReadState() throws IOException {
-        return decode(readVerifiedBytes());
-    }
-
     private byte[] readVerifiedBytes() throws IOException {
         validateSavedIdentity();
         byte[] handleBytes = readBounded(channel);
@@ -238,6 +268,12 @@ final class FileServerAuthorityIssuanceJournal
                     && !expected.fileKey().equals(observed.fileKey()))) {
                 throw new IOException("authority issuance journal path identity changed");
             }
+        }
+    }
+
+    private void requireExpectedSize() throws IOException {
+        if (channel.size() != committedSize) {
+            throw new IOException("authority issuance journal size changed outside the writer");
         }
     }
 
@@ -345,6 +381,28 @@ final class FileServerAuthorityIssuanceJournal
         }
     }
 
+    private static byte[] readExact(FileChannel source, long position, int length)
+            throws IOException {
+        ByteBuffer destination = ByteBuffer.allocate(length);
+        long offset = position;
+        int zeroReads = 0;
+        while (destination.hasRemaining()) {
+            int count = source.read(destination, offset);
+            if (count < 0) {
+                throw new IOException("authority issuance journal append ended early");
+            }
+            if (count == 0) {
+                if (++zeroReads > 8) {
+                    throw new IOException("authority issuance journal append verification made no progress");
+                }
+            } else {
+                offset += count;
+                zeroReads = 0;
+            }
+        }
+        return destination.array();
+    }
+
     private static JournalState decode(byte[] encoded) throws IOException {
         String content;
         try {
@@ -367,14 +425,14 @@ final class FileServerAuthorityIssuanceJournal
             if (lines[index].isEmpty()) {
                 throw new IOException("authority issuance journal contains an empty record");
             }
-            state.accept(parse(lines[index]));
+            state.commit(parse(lines[index]));
         }
         return state;
     }
 
     private static ServerAuthorityIssuanceRecord parse(String line) throws IOException {
         String[] fields = line.split("\\t", -1);
-        if (fields.length != 10 || !VERSION.equals(fields[0])) {
+        if (fields.length != 11 || !VERSION.equals(fields[0])) {
             throw new IOException("invalid authority issuance journal record shape");
         }
         try {
@@ -384,9 +442,9 @@ final class FileServerAuthorityIssuanceJournal
             }
             return new ServerAuthorityIssuanceRecord(
                     attestationId, fields[2], Long.parseLong(fields[3]), fields[4], fields[5],
-                    Instant.ofEpochMilli(Long.parseLong(fields[6])),
-                    Instant.ofEpochMilli(Long.parseLong(fields[7])),
-                    Instant.ofEpochMilli(Long.parseLong(fields[8])), fields[9]);
+                    fields[6], Instant.ofEpochMilli(Long.parseLong(fields[7])),
+                    Instant.ofEpochMilli(Long.parseLong(fields[8])),
+                    Instant.ofEpochMilli(Long.parseLong(fields[9])), fields[10]);
         } catch (DateTimeException | IllegalArgumentException exception) {
             throw new IOException("invalid authority issuance journal record", exception);
         }
@@ -396,7 +454,8 @@ final class FileServerAuthorityIssuanceJournal
         String line = VERSION + "\t" + record.attestationId() + "\t"
                 + record.backendKeyIdSha256() + "\t" + record.observationSequence() + "\t"
                 + record.sessionBindingCommitmentSha256() + "\t"
-                + record.providerProfileCommitmentSha256() + "\t"
+                + record.authorityProfileSha256() + "\t"
+                + record.providerEvidenceCommitmentSha256() + "\t"
                 + record.observedAt().toEpochMilli() + "\t" + record.issuedAt().toEpochMilli()
                 + "\t" + record.expiresAt().toEpochMilli() + "\t"
                 + record.signedFrameSha256() + "\n";
@@ -416,11 +475,11 @@ final class FileServerAuthorityIssuanceJournal
         private final Map<String, Instant> lastObservedByBinding = new HashMap<>();
         private final Map<String, Instant> lastIssuedByBinding = new HashMap<>();
 
-        void accept(ServerAuthorityIssuanceRecord record) throws IOException {
-            if (!attestationIds.add(record.attestationId())) {
+        void validate(ServerAuthorityIssuanceRecord record) throws IOException {
+            if (attestationIds.contains(record.attestationId())) {
                 throw new IOException("duplicate authority attestation ID");
             }
-            if (!signedFrames.add(record.signedFrameSha256())) {
+            if (signedFrames.contains(record.signedFrameSha256())) {
                 throw new IOException("duplicate authority signed frame");
             }
             long previous = lastSequence(record.sessionBindingCommitmentSha256());
@@ -435,6 +494,12 @@ final class FileServerAuthorityIssuanceJournal
                     || (previousIssued != null && record.issuedAt().isBefore(previousIssued))) {
                 throw new IOException("authority issuance time moved backwards for binding");
             }
+        }
+
+        void commit(ServerAuthorityIssuanceRecord record) throws IOException {
+            validate(record);
+            attestationIds.add(record.attestationId());
+            signedFrames.add(record.signedFrameSha256());
             lastSequenceByBinding.put(
                     record.sessionBindingCommitmentSha256(), record.observationSequence());
             lastObservedByBinding.put(
@@ -445,6 +510,17 @@ final class FileServerAuthorityIssuanceJournal
 
         long lastSequence(String lifecycleCommitmentSha256) {
             return lastSequenceByBinding.getOrDefault(lifecycleCommitmentSha256, 0L);
+        }
+
+        ServerAuthorityIssuanceRecovery recovery(String lifecycleCommitmentSha256) {
+            long sequence = lastSequence(lifecycleCommitmentSha256);
+            if (sequence == 0L) {
+                return ServerAuthorityIssuanceRecovery.empty();
+            }
+            return new ServerAuthorityIssuanceRecovery(
+                    sequence,
+                    Optional.of(lastObservedByBinding.get(lifecycleCommitmentSha256)),
+                    Optional.of(lastIssuedByBinding.get(lifecycleCommitmentSha256)));
         }
     }
 }

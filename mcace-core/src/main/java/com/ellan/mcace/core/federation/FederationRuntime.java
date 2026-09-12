@@ -32,6 +32,7 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.LongSupplier;
 
 /**
  * Isolated runtime for the four-step, client-carried federation flow.
@@ -48,6 +49,12 @@ public final class FederationRuntime {
     private static final int DEFAULT_SWEEP_LIMIT = 256;
 
     private final Clock clock;
+    private final LongSupplier monotonicMillis;
+    private final LongSupplier acceptanceMillis;
+    private final long clockBaselineWallMillis;
+    private final long clockBaselineMonotonicMillis;
+    private long lastWallMillis;
+    private long lastMonotonicMillis;
     private final SecureRandom secureRandom;
     private final KeyPair localIdentity;
     private final FederationAuditSink auditSink;
@@ -58,6 +65,7 @@ public final class FederationRuntime {
     private final int maxPending;
     private final int maxObservations;
     private final AtomicBoolean auditFaulted = new AtomicBoolean();
+    private final AtomicBoolean clockFaulted = new AtomicBoolean();
     private final AtomicLong runtimeAuditCommitted = new AtomicLong();
     private final AtomicLong runtimeAuditFailures = new AtomicLong();
     private final Map<UUID, PendingConsent> pendingByPlayer = new LinkedHashMap<>();
@@ -81,12 +89,49 @@ public final class FederationRuntime {
             FederationAuditSink auditSink,
             int maxPending,
             int maxObservations) {
+        this(clock, secureRandom, localIdentity, configuration, auditSink,
+                maxPending, maxObservations, () -> System.nanoTime() / 1_000_000L,
+                clock::millis);
+    }
+
+    FederationRuntime(
+            Clock clock,
+            SecureRandom secureRandom,
+            KeyPair localIdentity,
+            FederationConfiguration configuration,
+            FederationAuditSink auditSink,
+            int maxPending,
+            int maxObservations,
+            LongSupplier monotonicMillis) {
+        this(clock, secureRandom, localIdentity, configuration, auditSink,
+                maxPending, maxObservations, monotonicMillis, clock::millis);
+    }
+
+    FederationRuntime(
+            Clock clock,
+            SecureRandom secureRandom,
+            KeyPair localIdentity,
+            FederationConfiguration configuration,
+            FederationAuditSink auditSink,
+            int maxPending,
+            int maxObservations,
+            LongSupplier monotonicMillis,
+            LongSupplier acceptanceMillis) {
         this.clock = Objects.requireNonNull(clock, "clock");
+        this.monotonicMillis = Objects.requireNonNull(monotonicMillis, "monotonicMillis");
+        this.acceptanceMillis = Objects.requireNonNull(acceptanceMillis, "acceptanceMillis");
+        this.clockBaselineWallMillis = clock.millis();
+        this.clockBaselineMonotonicMillis = monotonicMillis.getAsLong();
+        this.lastWallMillis = clockBaselineWallMillis;
+        this.lastMonotonicMillis = clockBaselineMonotonicMillis;
         this.secureRandom = Objects.requireNonNull(secureRandom, "secureRandom");
         this.localIdentity = Objects.requireNonNull(localIdentity, "localIdentity");
         Objects.requireNonNull(localIdentity.getPrivate(), "local identity private key");
         Objects.requireNonNull(localIdentity.getPublic(), "local identity public key");
-        this.configuration = new AtomicReference<>(Objects.requireNonNull(configuration, "configuration"));
+        FederationConfiguration initialConfiguration =
+                Objects.requireNonNull(configuration, "configuration");
+        validateIdentitySeparation(initialConfiguration);
+        this.configuration = new AtomicReference<>(initialConfiguration);
         this.auditSink = Objects.requireNonNull(auditSink, "auditSink");
         if (maxPending <= 0 || maxPending > ProtocolConstants.MAX_FEDERATION_REPLAY_ENTRIES
                 || maxObservations <= 0 || maxObservations > ProtocolConstants.MAX_FEDERATION_REPLAY_ENTRIES) {
@@ -107,19 +152,35 @@ public final class FederationRuntime {
 
     /** Atomically replaces a fully validated immutable configuration; replay state is preserved. */
     public void reload(FederationConfiguration next) {
-        configuration.set(Objects.requireNonNull(next, "next"));
+        FederationConfiguration validated = Objects.requireNonNull(next, "next");
+        validateIdentitySeparation(validated);
+        configuration.set(validated);
     }
 
     public FederationConfiguration configuration() {
         return configuration.get();
     }
 
+    private void validateIdentitySeparation(FederationConfiguration candidate) {
+        byte[] localKeyId = FederationPeerPin.sha256(localIdentity.getPublic().getEncoded());
+        for (FederationPeerPin peer : candidate.peers().values()) {
+            if (MessageDigest.isEqual(localKeyId, peer.keyIdSha256())) {
+                throw new IllegalArgumentException(
+                        "federation local identity key must differ from every peer identity key");
+            }
+        }
+    }
+
     public synchronized FederationRuntimeState status() {
+        boolean clockHealthy = clockAvailable();
         FederationAuditHealth auditHealth = effectiveAuditHealth();
-        expireInternal(DEFAULT_SWEEP_LIMIT);
+        if (clockHealthy) {
+            expireInternal(DEFAULT_SWEEP_LIMIT);
+        }
         FederationConfiguration current = configuration.get();
         return new FederationRuntimeState(
-                current.enabled() && auditHealth.available(), current.enabled(), auditHealth.available(),
+                current.enabled() && auditHealth.available() && clockHealthy,
+                current.enabled(), auditHealth.available(),
                 current.localNetworkId(), current.peers().size(), pendingByPlayer.size(), observations.size(),
                 auditHealth.pending(), auditHealth.committed(), auditHealth.failures());
     }
@@ -144,6 +205,9 @@ public final class FederationRuntime {
         Objects.requireNonNull(sourceSubject, "sourceSubject");
         if (!validOperator(operatorId)) {
             return FederationIssueResult.rejected(FederationRuntimeStatus.INTERNAL_ERROR);
+        }
+        if (!clockAvailable()) {
+            return FederationIssueResult.rejected(FederationRuntimeStatus.DISABLED);
         }
         expireInternal(DEFAULT_SWEEP_LIMIT);
         FederationConfiguration current = configuration.get();
@@ -206,6 +270,9 @@ public final class FederationRuntime {
             byte[] encodedOuterFrame) {
         Objects.requireNonNull(currentSourceSubject, "currentSourceSubject");
         Objects.requireNonNull(encodedOuterFrame, "encodedOuterFrame");
+        if (!clockAvailable()) {
+            return FederationGrantResult.rejected(FederationRuntimeStatus.DISABLED);
+        }
         expireInternal(DEFAULT_SWEEP_LIMIT);
         PendingConsent pending = pendingByPlayer.get(currentSourceSubject.playerId());
         if (pending == null) {
@@ -284,6 +351,9 @@ public final class FederationRuntime {
         if (!validOperator(operatorId)) {
             return FederationPresentationResult.rejected(FederationRuntimeStatus.INTERNAL_ERROR);
         }
+        if (!clockAvailable()) {
+            return FederationPresentationResult.rejected(FederationRuntimeStatus.DISABLED);
+        }
         expireInternal(DEFAULT_SWEEP_LIMIT);
         FederationConfiguration current = configuration.get();
         if (!current.enabled()) {
@@ -319,20 +389,29 @@ public final class FederationRuntime {
             if (!observations.containsKey(observationKey) && observations.size() >= maxObservations) {
                 return FederationPresentationResult.rejected(FederationRuntimeStatus.CAPACITY_REACHED);
             }
+            FederationAuthenticationBinding targetAuthBinding = targetSubject
+                    .targetAuthenticationBinding()
+                    .orElseThrow(() -> new FederationException(
+                            "federation target session has no signed-assertion AUTH binding"));
             FederationVerification verified = FederationDocuments.verify(
                     presentation, sourcePin.publicKey(), localIdentity.getPublic(),
                     sha256(targetSubject.clientPublicKey().getEncoded()), sourceNetworkId,
                     current.localNetworkId(), targetSubject.playerId().toString(),
                     targetSubject.authenticatedSessionId(), targetSubject.serverChallengeNonce(),
-                    clock, ProtocolConstants.DEFAULT_CLOCK_SKEW, presentationReplayGuard);
+                    targetAuthBinding.signedAssertionSha256(), clock,
+                    ProtocolConstants.DEFAULT_CLOCK_SKEW, presentationReplayGuard);
+            // This immutable instant is the synchronized acceptance linearization point. Durable
+            // audit I/O may complete later, but both the audit and observation retain this exact
+            // pre-expiry decision time; an audit failure still prevents success from escaping.
+            Instant decisionAt = strictAcceptanceInstant(verified, acceptanceMillis.getAsLong());
             UUID assertionId = canonicalUuid(verified.assertionId());
             Instant issuedAt = Instant.ofEpochMilli(verified.issuedAtEpochMs());
             Instant expiresAt = Instant.ofEpochMilli(verified.expiresAtEpochMs());
             FederationObservation observation = new FederationObservation(
                     targetSubject.playerId(), targetSubject.authenticatedSessionId(),
                     verified.sourceNetworkId(), verified.targetNetworkId(), assertionId,
-                    verified.policyVersion(), verified.remoteClaim(), issuedAt, expiresAt, clock.instant());
-            FederationAuditRecord audit = auditRecord(
+                    verified.policyVersion(), verified.remoteClaim(), issuedAt, expiresAt, decisionAt);
+            FederationAuditRecord audit = auditRecord(decisionAt,
                     FederationAuditEvent.PRESENTATION_ACCEPTED, FederationAuditOutcome.SUCCEEDED,
                     operatorId, targetSubject.playerId(), verified.sourceNetworkId(),
                     verified.targetNetworkId(), Optional.of(assertionId), Optional.of(auditKeyFingerprint(sourcePin)));
@@ -369,6 +448,9 @@ public final class FederationRuntime {
         Objects.requireNonNull(playerId, "playerId");
         if (limit <= 0 || limit > MAX_ADMIN_QUERY) {
             throw new IllegalArgumentException("federation observation query is outside bounds");
+        }
+        if (!clockAvailable()) {
+            return List.of();
         }
         if (!auditAvailable()) {
             return List.of();
@@ -422,6 +504,9 @@ public final class FederationRuntime {
     public synchronized int expire(int maximumEntries) {
         if (maximumEntries <= 0 || maximumEntries > ProtocolConstants.MAX_FEDERATION_REPLAY_ENTRIES) {
             throw new IllegalArgumentException("federation expiry sweep is outside bounds");
+        }
+        if (!clockAvailable()) {
+            return 0;
         }
         // Proxy adapters call this every second. Besides bounded cleanup, it is the periodic
         // fail-closed health poll that notices an asynchronous disk failure even when no player
@@ -488,7 +573,21 @@ public final class FederationRuntime {
                 && current.authenticatedSessionId().equals(issued.authenticatedSessionId())
                 && MessageDigest.isEqual(current.clientPublicKey().getEncoded(), issued.clientPublicKey().getEncoded())
                 && current.policyVersion().equals(issued.policyVersion())
-                && MessageDigest.isEqual(current.policySha256(), issued.policySha256());
+                && MessageDigest.isEqual(current.policySha256(), issued.policySha256())
+                && current.targetAuthenticationBinding().equals(issued.targetAuthenticationBinding());
+    }
+
+    static Instant strictAcceptanceInstant(
+            FederationVerification verified,
+            long decisionEpochMs) throws FederationException {
+        Objects.requireNonNull(verified, "verified");
+        if (decisionEpochMs < verified.verifiedAtEpochMs()) {
+            throw new FederationException("federation decision clock moved backwards");
+        }
+        if (decisionEpochMs >= verified.expiresAtEpochMs()) {
+            throw new FederationException("federation assertion expired before observation commit");
+        }
+        return Instant.ofEpochMilli(decisionEpochMs);
     }
 
     private void auditRejection(
@@ -517,7 +616,21 @@ public final class FederationRuntime {
             String targetNetworkId,
             Optional<UUID> assertionId,
             Optional<String> peerKeyId) {
-        return new FederationAuditRecord(clock.instant(), event, outcome, operatorId, playerId,
+        return auditRecord(clock.instant(), event, outcome, operatorId, playerId,
+                sourceNetworkId, targetNetworkId, assertionId, peerKeyId);
+    }
+
+    private FederationAuditRecord auditRecord(
+            Instant recordedAt,
+            FederationAuditEvent event,
+            FederationAuditOutcome outcome,
+            String operatorId,
+            UUID playerId,
+            String sourceNetworkId,
+            String targetNetworkId,
+            Optional<UUID> assertionId,
+            Optional<String> peerKeyId) {
+        return new FederationAuditRecord(recordedAt, event, outcome, operatorId, playerId,
                 sourceNetworkId, targetNetworkId, assertionId, peerKeyId);
     }
 
@@ -568,6 +681,47 @@ public final class FederationRuntime {
         return new FederationAuditHealth(
                 !auditFaulted.get() && sinkHealth.available(), sinkHealth.pending(),
                 committed, failures);
+    }
+
+    /**
+     * Detects wall-clock rollback or freeze relative to a monotonic process clock. The allowed
+     * skew absorbs normal clock slewing, but cumulative drift and any larger backward step trip a
+     * sticky fail-closed state for this runtime instance.
+     */
+    private boolean clockAvailable() {
+        if (clockFaulted.get()) {
+            return false;
+        }
+        try {
+            long wallNow = clock.millis();
+            long monotonicNow = monotonicMillis.getAsLong();
+            long tolerance = ProtocolConstants.DEFAULT_CLOCK_SKEW.toMillis();
+            long monotonicDelta = Math.subtractExact(
+                    monotonicNow, clockBaselineMonotonicMillis);
+            long wallDelta = Math.subtractExact(wallNow, clockBaselineWallMillis);
+            long directRollbackThreshold = Math.subtractExact(lastWallMillis, tolerance);
+            boolean monotonicRegressed = monotonicNow < lastMonotonicMillis || monotonicDelta < 0L;
+            boolean wallSteppedBack = wallNow < directRollbackThreshold;
+            boolean wallLaggedMonotonic = monotonicDelta > tolerance
+                    && wallDelta < Math.subtractExact(monotonicDelta, tolerance);
+            if (monotonicRegressed || wallSteppedBack || wallLaggedMonotonic) {
+                tripClockFault();
+                return false;
+            }
+            lastWallMillis = wallNow;
+            lastMonotonicMillis = monotonicNow;
+            return true;
+        } catch (RuntimeException exception) {
+            tripClockFault();
+            return false;
+        }
+    }
+
+    /** A clock fault is sticky until process restart and discards all ephemeral state. */
+    private void tripClockFault() {
+        clockFaulted.set(true);
+        pendingByPlayer.clear();
+        observations.clear();
     }
 
     /** A fault is sticky until process restart and discards all ephemeral federation state. */

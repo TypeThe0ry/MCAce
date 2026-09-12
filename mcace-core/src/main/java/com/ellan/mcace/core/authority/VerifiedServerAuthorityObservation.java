@@ -34,6 +34,7 @@ public final class VerifiedServerAuthorityObservation {
     private final String authorityProfileSha256;
     private final String signedFrameSha256;
     private final List<ProviderSummary> providers;
+    private final String providerEvidenceCommitmentSha256;
 
     VerifiedServerAuthorityObservation(
             UUID attestationId,
@@ -99,6 +100,8 @@ public final class VerifiedServerAuthorityObservation {
                 throw new IllegalArgumentException("authority providers are not independent or current");
             }
         }
+        this.providerEvidenceCommitmentSha256 =
+                AuthorityIssuanceCommitments.providers(this);
     }
 
     public UUID attestationId() { return attestationId; }
@@ -120,6 +123,10 @@ public final class VerifiedServerAuthorityObservation {
     public String authorityProfileSha256() { return authorityProfileSha256; }
     public String signedFrameSha256() { return signedFrameSha256; }
     public List<ProviderSummary> providers() { return providers; }
+    /** Exact content-free commitment to the verified provider evidence carried by this frame. */
+    public String providerEvidenceCommitmentSha256() {
+        return providerEvidenceCommitmentSha256;
+    }
 
     public record ProviderSummary(
             String trustDomainId,
