@@ -115,3 +115,29 @@ including both successful-trace and failed-report preservation of these
 counters and absence of invented timing before work begins. Gradle exited 0
 in 30 seconds. This static regression does not establish improved runtime
 performance; a fresh controlled run is required to interpret the new counters.
+
+## Matrix rerun result (2026-09-12)
+
+The rebuilt current bundle used source commit
+`b642f3b205bc5687add3dd326acaa345cb9aa158`. Cases 1 and 2 passed again:
+Paper 1.21.11 behind Velocity and BungeeCord. Case 3, Folia 1.21.11 behind
+Velocity, failed closed on a timeout and stopped the matrix; cases 4--12 were
+not executed.
+
+Failed raw report:
+`build/runtime-player-probe/runs/velocity-folia-2026-09-12T08-51-38-787614200Z/report.json`
+
+Report SHA-256:
+`9ad3dcbdf7da9edeb8805374b842bfcacdc4e8c1349c2a7755eb936d09421d54`
+
+The report observed TCP, login and SERVER_HELLO, but no accepted
+authentication or backend admission. `AUTH_FRAME_PHASE_NANOS` measured input
+construction 28.6 ms and frame creation 110.2 ms. Policy timing measured
+envelope parse/verification 1.309 s, decode 0.040 ms, cache acceptance 239.2
+ms, state 1.1 ms, total 1.590 s; outer authentication work was 3.643 s.
+The report records zero remaining run processes after cleanup.
+
+This is a current-source matrix failure, not release acceptance. It narrows the
+next investigation to cold envelope parse/verification and surrounding server
+startup scheduling; changing the deadline or skipping the case would invalidate
+the release gate.
