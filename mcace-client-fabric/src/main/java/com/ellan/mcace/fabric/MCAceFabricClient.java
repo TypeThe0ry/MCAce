@@ -15,6 +15,7 @@ import com.ellan.mcace.client.federation.FederationTokenVault;
 import com.ellan.mcace.client.session.ServerKeyPins;
 import com.ellan.mcace.protocol.ProtocolConstants;
 import com.ellan.mcace.protocol.crypto.EnvelopeException;
+import com.ellan.mcace.protocol.crypto.EnvelopeCodec;
 import com.ellan.mcace.protocol.generated.ArtifactObservationResultReason;
 import com.ellan.mcace.protocol.generated.PacketType;
 import com.ellan.mcace.protocol.generated.SignedEnvelope;
@@ -81,6 +82,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
 
     @Override
     public void onInitializeClient() {
+        EnvelopeCodec.prewarmEd25519Provider();
         FabricLoader fabricLoader = FabricLoader.getInstance();
         gameDirectory = fabricLoader.getGameDir();
         buildMetadata = FabricClientBuildMetadata.load(fabricLoader);
