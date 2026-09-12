@@ -14,6 +14,7 @@ import com.ellan.mcace.client.observation.LoadedModObservation;
 import com.ellan.mcace.client.session.ClientHandshakeEngine;
 import com.ellan.mcace.core.authority.AuthorityFilePreflight;
 import com.ellan.mcace.protocol.crypto.Ed25519Keys;
+import com.ellan.mcace.protocol.crypto.EnvelopeCodec;
 import com.ellan.mcace.protocol.generated.LoaderType;
 import com.ellan.mcace.protocol.generated.AuthResult;
 import com.ellan.mcace.protocol.generated.FederationGrant;
@@ -832,6 +833,9 @@ final class MinecraftProxyPlayerProbeTest {
     }
 
     private ProbeReport run(ProxyKind kind, BackendKind backendKind) throws Exception {
+        // Mirror the Fabric client's startup prewarm before the backend starts. This keeps the
+        // raw peer's runtime measurement representative of the production client path.
+        EnvelopeCodec.prewarmEd25519Provider();
         Path repository = repositoryRoot();
         String runId = Instant.now().toString().replace(':', '-').replace('.', '-');
         String runPrefix = kind.name().toLowerCase()
