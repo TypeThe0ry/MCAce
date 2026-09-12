@@ -141,3 +141,35 @@ This is a current-source matrix failure, not release acceptance. It narrows the
 next investigation to cold envelope parse/verification and surrounding server
 startup scheduling; changing the deadline or skipping the case would invalidate
 the release gate.
+
+## Prewarm rerun result (2026-09-12)
+
+The next rerun used source commit `2d3567f` (the full commit is recorded by the
+matrix invocation) after adding Ed25519 provider prewarming to both the Fabric
+client startup path and the runtime probe. The prewarm only initializes the JCA
+provider; it does not create keys or alter the wire protocol.
+
+Cases 1 and 2 passed again. Case 3, Folia 1.21.11 behind Velocity, reached the
+backend and logged the player join plus signed admission states, but the probe
+timed out before observing an accepted authentication result or backend
+admission. Cases 4--12 were not executed because the matrix fails closed.
+
+Failed raw report:
+`build/runtime-player-probe/runs/velocity-folia-2026-09-12T09-10-33-301679900Z/report.json`
+
+Report SHA-256:
+`60932f7a61af93dcc3409f26e38b9d321228592d5ccd5252e15a5996001b63ab`
+
+Observed fields: `tcp_connected=true`, `login_success=true`,
+`mcace_server_hello=true`, `mcace_auth_result=false`,
+`mcace_auth_accepted=false`, and `backend_admission=false`. The server log
+shows `VERIFYING` followed by `LIMITED` admission states. The report records
+`AUTH_FRAME_PHASE_NANOS inputs=1351.8 ms, creation=2076.5 ms` and
+`POLICY_PHASE_NANOS envelope=1063.8 ms, decode=0.5 ms, cache=2593.1 ms,
+state=559.3 ms, total=4732.5 ms`; outer authentication work was 8431 ms.
+No run processes remained after cleanup.
+
+This confirms that provider prewarming did not resolve the 1.21.11/Folia
+timeout. The next engineering step is to profile the Folia-specific admission
+state/cache path and frame construction under this exact frozen asset; changing
+the timeout or excluding Folia would not satisfy the matrix gate.
