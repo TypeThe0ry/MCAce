@@ -165,7 +165,7 @@ Observed fields: `tcp_connected=true`, `login_success=true`,
 `mcace_auth_accepted=false`, and `backend_admission=false`. The server log
 shows `VERIFYING` followed by `LIMITED` admission states. The report records
 `AUTH_FRAME_PHASE_NANOS inputs=1351.8 ms, creation=2076.5 ms` and
-`POLICY_PHASE_NANOS envelope=1063.8 ms, decode=0.5 ms, cache=2593.1 ms,
+`POLICY_PHASE_NANOS envelope=1063.8 ms, decode=516.3 ms, cache=2593.1 ms,
 state=559.3 ms, total=4732.5 ms`; outer authentication work was 8431 ms.
 No run processes remained after cleanup.
 
@@ -173,3 +173,29 @@ This confirms that provider prewarming did not resolve the 1.21.11/Folia
 timeout. The next engineering step is to profile the Folia-specific admission
 state/cache path and frame construction under this exact frozen asset; changing
 the timeout or excluding Folia would not satisfy the matrix gate.
+
+## KeyFactory prewarm rerun result (2026-09-12)
+
+Source commit `41de8782d5192f50c17622ef00b566bf224f2d2b` additionally prewarms
+the JCA `Ed25519` `KeyFactory` alongside the `Signature` provider. The frozen
+matrix was rebuilt from that commit and rerun without changing the handshake
+deadline or excluding any case.
+
+The first three cases all passed:
+
+* Paper 1.21.11 behind Velocity
+* Paper 1.21.11 behind BungeeCord
+* Folia 1.21.11 behind Velocity
+
+The Folia report is:
+`build/runtime-player-probe/runs/velocity-folia-2026-09-12T09-26-37-880510400Z/report.json`
+
+Its SHA-256 is
+`319a742a9ccdb6d651af9876564f25a72d9779bcc91be0ab0385b1f2e8cfff78`.
+It records `tcp_connected=true`, `login_success=true`,
+`mcace_server_hello=true`, `mcace_auth_accepted=true`, and
+`backend_admission=true`. The policy phase was
+`envelope=442.3 ms`, `decode=8.8 ms`, `cache=160.2 ms`, `state=0.5 ms`,
+`total=611.7 ms`; authentication completed successfully and cleanup left no
+run processes. This is the first current-source Folia pass after the two-stage
+Ed25519 prewarm.
