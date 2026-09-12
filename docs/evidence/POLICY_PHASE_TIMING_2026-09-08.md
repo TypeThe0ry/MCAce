@@ -73,6 +73,33 @@ warm retry alone will not establish that the cold-start failure is fixed.
 The complete version matrix remains incomplete; this failed diagnostic is not
 release acceptance or a claim of real cheat detection.
 
+## Warm/cold comparison follow-up
+
+A fresh rerun using source `20abf6f7c7274d8f2519c2bc3935b5613fcf159c`
+completed the same Folia 26.1.2 / Velocity path successfully. Report:
+`build/runtime-player-probe/runs/velocity-folia-2026-09-08T14-48-46-315858400Z/report.json`
+
+Report SHA-256:
+`b251c85a1f21338112274dbfed57e1a1fa7908ca91c615fc369662498624f0d1`
+
+The run had TCP/login/configuration/SERVER_HELLO, `mcace_auth_accepted=true`,
+`backend_admission=true`, and zero remaining run processes. Its phase trace was:
+
+| Interval | Nanoseconds |
+| --- | ---: |
+| Authentication input construction | 6,757,700 |
+| Authentication frame creation | 33,085,900 |
+| Envelope parse/verification | 173,452,900 |
+| Challenge decoding | 265,720 |
+| Policy cache acceptance | 126,842,400 |
+| Compatibility/state | 484,900 |
+| Policy total | 327,355,800 |
+
+This controlled success rules out authentication frame construction as the
+cause of the earlier multi-second interval. It also shows that a warm passing
+run does not by itself prove cold-start reliability. No timeout or verification
+rule was changed; the strict version matrix still needs its remaining cases.
+
 ## Frame-input diagnostic follow-up
 
 The runtime test peer now additionally records `AUTH_FRAME_PHASE_NANOS`, with
