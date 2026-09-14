@@ -39,11 +39,6 @@ function ReadProperties([string]$Path) {
 $head = (& git -C $repoRoot rev-parse HEAD).Trim().ToLowerInvariant()
 if ($head -cne $SourceCommit) { Fail 'HEAD_MISMATCH' }
 if (@(& git -C $repoRoot status --porcelain=v1 --untracked-files=all).Count -ne 0) { Fail 'WORKTREE_DIRTY' }
-& git -C $repoRoot cat-file -e "$ArtifactSourceCommit^{commit}" 2>$null
-if ($LASTEXITCODE -ne 0) { Fail 'ARTIFACT_SOURCE_UNKNOWN' }
-$base = (& git -C $repoRoot merge-base $ArtifactSourceCommit $SourceCommit).Trim().ToLowerInvariant()
-if ($base -cne $ArtifactSourceCommit) { Fail 'ARTIFACT_SOURCE_NOT_ANCESTOR' }
-
 $marker = Abs 'docs/evidence/release-artifact-source.txt'
 RequireFile $marker 'ARTIFACT_MARKER_REQUIRED'
 $markerText = [IO.File]::ReadAllText($marker, [Text.Encoding]::ASCII)
@@ -51,6 +46,10 @@ if ([string]::IsNullOrWhiteSpace($ArtifactSourceCommit)) {
     $ArtifactSourceCommit = $markerText.Trim()
 }
 if ($ArtifactSourceCommit -notmatch '^[0-9a-f]{40}$' -or $markerText -cne "$ArtifactSourceCommit`n") { Fail 'ARTIFACT_MARKER_MISMATCH' }
+& git -C $repoRoot cat-file -e "$ArtifactSourceCommit^{commit}" 2>$null
+if ($LASTEXITCODE -ne 0) { Fail 'ARTIFACT_SOURCE_UNKNOWN' }
+$base = (& git -C $repoRoot merge-base $ArtifactSourceCommit $SourceCommit).Trim().ToLowerInvariant()
+if ($base -cne $ArtifactSourceCommit) { Fail 'ARTIFACT_SOURCE_NOT_ANCESTOR' }
 
 $bundle = Abs $BundleRoot
 if (-not (Test-Path -LiteralPath $bundle -PathType Container)) { Fail 'BUNDLE_REQUIRED' }
