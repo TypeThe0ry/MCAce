@@ -302,6 +302,7 @@ jobs:
           $ErrorActionPreference = 'Stop'
           ./scripts/core-release-readiness.ps1 `
             -SourceCommit $env:MCACE_SOURCE_COMMIT `
+            -ArtifactSourceCommit $env:MCACE_ARTIFACT_SOURCE_COMMIT `
             -BundleRoot build/release-bundle `
             -CompatibilityReportPath build/compatibility-contract/report.json
       - name: Extended release evidence diagnostic (non-blocking)
