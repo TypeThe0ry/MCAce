@@ -103,8 +103,9 @@ exact-bundle manifest 的 `source_commit` 为准。Helio job
 bundle，同时保持 artifact source 为
 `2a6274a9200f2aa195e1238eaddf43650f549a0a`，六个产品 JAR 字节不变；1966
 字节 manifest、565 字节 `SHA256SUMS`、兼容性 Execute/ReportOnly 和 Matrix
-绑定 readiness 复核均通过。四个外部验收门以及受保护 exact-release CI 仍待完成；该
-job 之后的文档提交还需要最后一次 exact bundle 复核。
+绑定 readiness 复核均通过。四个外部验收门仍待后续外部证据；受保护 exact-release CI
+已经为已发布核心包通过。本次文档后代只修正 provenance 与状态文字，不改变六个产品
+JAR、`v0.0.1` tag 或 GitHub Release 资产。
 
 ### 当前可执行验证快照（v0.0.1 / `1007e55` source）
 
