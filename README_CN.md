@@ -40,12 +40,10 @@ Paper/Folia 后端插件。
 > 构成首发契约。GUI/Federation V5、licensed Vulcan、Production Authority
 > 证据保留为可选扩展认证，不再阻塞核心包安装与使用。
 
-可执行预览版：[v0.0.1-rc1](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc1)、
-[v0.0.1-rc2](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc2)，以及当前源码
-[v0.0.1-rc3](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc3)。rc3 由 GitHub CI
-从提交 `cf70818e86eabf4b62a88000183a6355a9510701` 构建。它们均明确标记为
-`LOCAL_VERIFICATION` / `release_identity=false`；校验和与构建来源见
-[RC 证据记录](docs/evidence/RELEASE_CANDIDATE_2026-09-14.md)。
+正式发布：[v0.0.1](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1)。
+正式包由受保护 GitHub CI 从提交
+`1007e55b7aae29bb0d761132a5fafad30e7e7351` 构建；精确八文件 bundle、manifest
+与 SHA-256 已附在 Release 中。早期 `rc1`–`rc3` 仍保留为历史预览。
 
 **2026-09-08 开发更新：** ZIP 材质包的有界 PNG 内容特征已接入客户端签名清单，
 服务端可将它与单独上报的材质包选中状态一起用于策略评估。它仍是低置信度遥测，
@@ -72,22 +70,21 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 | `fabric_federation_real_handoff` | Federation V5 source→target handoff、继承同一次确认且不弹第二次窗口、subject/route/session 绑定、expiry 与关联负例、runtime ledger、零自有残留，以及不同 post-run supervisor 的 receipt | **PENDING — 没有当前源码绑定的 V5 index/native package；旧 ce4f6 package 已被拒绝** |
 | `vulcan_genuine_event` | 已审查 licensed Vulcan JAR、真实非合成外部 provider event、精确发布产物绑定，以及仓库外已批准 supervisor 签名的 Vulcan V3 receipt/index | **PENDING** |
 | `production_server_confirmed_authority` | Authority V4 raw package，包含真实 Grim/Vulcan provider events、实际签名 grant/observation frames、进程与 journal ledgers、精确 V4 服务端 JAR、已批准外部 Ed25519 supervisor receipt 和 native release index | **PENDING** |
-| `protected_exact_release_bundle` | 受保护 `main` 或 `v0.0.1` tag-push CI 校验精确 `MCACE_RELEASE_BUNDLE_V4`、兼容性报告、canonical artifact-source marker、最终 HEAD 和八项发布内容 | **PENDING** |
+| `protected_exact_release_bundle` | 受保护 `main` 或 `v0.0.1` tag-push CI 校验精确 `MCACE_RELEASE_BUNDLE_V4`、兼容性报告、canonical artifact-source marker、最终 HEAD 和八项发布内容 | **PASS — tag-push CI `34902565978`，source `1007e55`，六个 JAR、八项 bundle 内容** |
 | `clean_worktree` | 最终精确发布 checkout 的 `git status --porcelain` 为空 | **当前 checkout 已通过；发布 commit 仍需复核** |
 
 最终 exact bundle 通过 `release-manifest.properties` 的 `source_commit` 字段绑定
-干净 checkout；不可变 artifact source 仍是
-`2a8f55eafce647fd52083a31f72898b667e7e1a0`。strict 本地构建、checksum 校验和三版本
-兼容性合同均通过，六个 JAR 哈希记录在[进度台账](docs/evidence/PROGRESS_2026-09-07.md)。
+干净 checkout；不可变 artifact source 是
+`73feacb6443c796c95885c3118a7c50ce4204a9b`。受保护 tag-push 构建、checksum 校验和三版本
+兼容性合同均通过；六个 JAR 哈希已发布在 [v0.0.1 Release](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1)。
 当前源码 Matrix V4 run 完成 12/12（10 stable + 2 beta），通过启动、登录、MCAce hello/auth、
 backend admission 和 cleanup zero 检查；外部 detached receipt 与 native 七文件 package 已
-跟踪在 `docs/evidence/server-version-process-matrix-20260915-v4-current.*`。因此 readiness 现在有五个 blocker：当前 GUI consent、Federation V5、Vulcan V3、Production Authority V4 和受保护
-exact-release CI。正式发布前必须核对输出的 `source_commit`、`observed_head` 与最终
-bundle 完全一致。
+跟踪在 `docs/evidence/server-version-process-matrix-20260915-v4-current.*`。因此 readiness 现在有四个可选扩展认证缺口：当前 GUI consent、Federation V5、Vulcan V3、Production Authority V4。
+核心包发布所需的 exact-release CI 已通过；`source_commit`、`observed_head` 与最终 bundle 已一致。
 
 历史 Matrix/Federation package 继续用于回归与 provenance，但不会被改名或冒充当前证据。
 当前仍没有 licensed Vulcan V3 genuine-event package、Production Authority V4 raw package/
-receipt，也没有运行受保护 exact-commit release CI。
+receipt；受保护 exact-commit release CI 已为核心包通过。
 
 随后 Helio job `20260906-mcace-5880460-final-doc-bundle` 又针对文档后代
 `5880460ac856ecd61cb81b2a8c3024f0bee29c71` 重建了 bundle，同时保持
@@ -106,15 +103,11 @@ bundle，同时保持 artifact source 为
 绑定 readiness 复核均通过。四个外部验收门以及受保护 exact-release CI 仍待完成；该
 job 之后的文档提交还需要最后一次 exact bundle 复核。
 
-### 当前可执行验证快照（当前分支 / `9619a50` source）
+### 当前可执行验证快照（v0.0.1 / `1007e55` source）
 
-截至最近一次复核，权威 checkout 是 `D:\Projects\MCAce`，分支为
-`feature/active-pack-integrity`；精确当前 HEAD 始终以最新 exact bundle manifest 的
-`source_commit` 字段为准；六个产品 JAR 仍按字节绑定 artifact source commit
-`2a6274a9200f2aa195e1238eaddf43650f549a0a`。
-GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) 仍是基于 `main` 的 open draft；
-当前 `build` 与 `windows-contracts` checks 为绿色；每次新的 evidence/documentation 后代
-仍必须重新通过它们。尚未创建 `v0.0.1` tag 或 GitHub Release。
+权威 checkout 是 `D:\Projects\MCAce`，分支为 `main`，正式 release HEAD 为
+`1007e55b7aae29bb0d761132a5fafad30e7e7351`。六个产品 JAR 按字节绑定 artifact source commit
+`73feacb6443c796c95885c3118a7c50ce4204a9b`。受保护 `v0.0.1` tag-push workflow 已通过，GitHub Release 已发布。
 
 审计基线 `live16` 启动了真实 Fabric 26.2 客户端并渲染 `Enable MCAce` prompt；但本机
 Computer Use 的 `sky` RPC 未配置，运行中没有捕获真人点击。runner 在生成可见截图前以
