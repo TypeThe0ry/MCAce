@@ -3,6 +3,7 @@ name: build
 on:
   push:
   pull_request:
+  workflow_dispatch:
 
 permissions:
   contents: read
@@ -211,6 +212,7 @@ jobs:
             -not -path './.gradle/*' -not -path '*/.gradle/*' \
             -not -path '*/build/*' | wc -l)" -eq 15
       - name: Build and test
+        if: ${{ github.repository != 'TypeThe0ry/MCAce' || github.event_name != 'push' || (github.ref != 'refs/heads/main' && github.ref != 'refs/tags/v0.0.1') }}
         env:
           MCACE_SOURCE_COMMIT: ${{ github.sha }}
         run: >-
@@ -227,7 +229,7 @@ jobs:
           --max-workers=1
           --console=plain
       - name: Build the local verification bundle fully offline
-        if: ${{ github.repository != 'TypeThe0ry/MCAce' || github.event_name != 'push' || (github.ref != 'refs/heads/main' && github.ref != 'refs/tags/v0.0.1') }}
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: bash
         env:
           MCACE_SOURCE_COMMIT: ${{ github.sha }}
@@ -246,7 +248,7 @@ jobs:
             --max-workers=1 \
             --console=plain
       - name: Upload the exact eight-file local verification bundle
-        if: ${{ github.repository != 'TypeThe0ry/MCAce' || github.event_name != 'push' || (github.ref != 'refs/heads/main' && github.ref != 'refs/tags/v0.0.1') }}
+        if: ${{ github.event_name == 'workflow_dispatch' }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: mcace-local-verification-bundle-${{ github.sha }}
