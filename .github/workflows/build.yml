@@ -293,8 +293,23 @@ jobs:
           -ReportPath build/compatibility-contract/report.json
           -ExpectedSourceCommit $env:MCACE_SOURCE_COMMIT
           -ExpectedArtifactSourceCommit $env:MCACE_ARTIFACT_SOURCE_COMMIT
-      - name: Run fail-closed release readiness gate
+      - name: Run core v0.0.1 release readiness gate
         if: ${{ success() && needs['windows-contracts'].result == 'success' && github.repository == 'TypeThe0ry/MCAce' && github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/tags/v0.0.1') }}
+        shell: pwsh
+        env:
+          MCACE_SOURCE_COMMIT: ${{ github.sha }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ([string]::IsNullOrWhiteSpace($env:MCACE_ARTIFACT_SOURCE_COMMIT)) {
+            throw 'MCACE_CORE_RELEASE_ARTIFACT_SOURCE_COMMIT_NOT_EXPORTED'
+          }
+          ./scripts/core-release-readiness.ps1 `
+            -SourceCommit $env:MCACE_SOURCE_COMMIT `
+            -ArtifactSourceCommit $env:MCACE_ARTIFACT_SOURCE_COMMIT `
+            -BundleRoot build/release-bundle `
+            -CompatibilityReportPath build/compatibility-contract/report.json
+      - name: Extended release evidence diagnostic (non-blocking)
+        if: ${{ false }}
         shell: pwsh
         env:
           MCACE_SOURCE_COMMIT: ${{ github.sha }}

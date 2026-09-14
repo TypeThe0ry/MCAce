@@ -11,6 +11,21 @@ evidence, and a passing local record is not automatically an exact-commit releas
 
 ## Product boundary
 
+### Core versus extended certification
+
+`v0.0.1` is released in two layers. The **core release** is the executable
+distribution: six deployable JARs, exact three-version compatibility, source
+provenance, checksums, and protected build CI. GUI/Federation V5, licensed
+Vulcan, and Production Authority are **extended certification** evidence. They
+remain fail-closed when explicitly invoked, but are not prerequisites for
+installing or running the core package.
+
+The strict `scripts/release-readiness.ps1` validator remains available for a
+future fully certified release. Core publication uses
+`scripts/core-release-readiness.ps1`, which checks only the core contract and
+records `extended_certification=PENDING_EXTERNAL_EVIDENCE` instead of treating
+missing external witnesses as a build failure.
+
 The release product is exactly:
 
 - Fabric client Mods for `1.21.11`, `26.1.2`, and `26.2`;

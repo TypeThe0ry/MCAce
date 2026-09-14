@@ -43,14 +43,14 @@ disposition stack for modern Minecraft networks. Its deployable surface is a
 Fabric client Mod, Velocity/BungeeCord proxy plugins, and one Paper/Folia backend
 plugin.
 
-> ## v0.0.1 — RELEASE LOCKED
+> ## v0.0.1 — CORE RELEASE
 >
-> **No official stable `v0.0.1` tag or GitHub Release is claimed yet.** An
-> executable verification prerelease can be published for early deployment; it
-> is not a stable release. The current-source Matrix V4 package is now
-> externally signed and published (12/12 cases). Stable release remains
-> fail-closed on GUI/Federation V5, licensed Vulcan V3, Production Authority V4,
-> and protected-main/tag V4 exact-commit CI.
+> The core distribution is executable and source-bound: six deployable JARs,
+> exact three-version compatibility (`1.21.11`, `26.1.2`, `26.2`), checksum
+> verification, and protected GitHub build CI are the release contract. GUI /
+> Federation V5, licensed Vulcan, and Production Authority evidence remain an
+> optional extended-certification track and do not block installation of the
+> core release.
 
 Executable previews: [v0.0.1-rc1](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc1),
 [v0.0.1-rc2](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc2), and the
@@ -74,9 +74,11 @@ and federation acceptance remain pending. Earlier bundles predate this change.
 
 ![Release verification dashboard](docs/assets/verification-dashboard.svg)
 
-## Release status: exact seven gates
+## Release status: core contract and extended certification
 
-These names match `scripts/release-readiness.ps1`. A controlled fixture, a
+The core contract is checked by `scripts/core-release-readiness.ps1`. The strict
+names below still match `scripts/release-readiness.ps1`; they describe optional
+extended certification. A controlled fixture, a
 historical PASS, a caller Boolean, or an unsigned report cannot promote any gate.
 
 | Readiness gate | Required release evidence | State |

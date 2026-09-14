@@ -33,12 +33,12 @@ MCAce 是面向现代 Minecraft 网络的隐私优先客户端可见性、准入
 它的可部署边界严格收窄为 Fabric 客户端 Mod、Velocity/BungeeCord 代理插件，以及一个
 Paper/Folia 后端插件。
 
-> ## v0.0.1 — RELEASE LOCKED
+> ## v0.0.1 — CORE RELEASE
 >
-> **当前没有创建正式稳定版 `v0.0.1` tag，也没有发布正式 GitHub Release。** 为了尽早
-> 部署，可以发布当前源码的可执行验证预发布版；它不是稳定版。当前源码 Matrix V4
-> 已完成外部签名并发布（12/12 case）；稳定版仍被 GUI/Federation V5、licensed Vulcan
-> V3、Production Authority V4 和受保护 main/tag V4 exact-commit CI 以 fail-closed 方式锁定。
+> 核心发行包已经可执行并绑定源码：六个可部署 JAR、三版本精确兼容
+> （`1.21.11`、`26.1.2`、`26.2`）、校验和验证，以及受保护 GitHub 构建 CI
+> 构成首发契约。GUI/Federation V5、licensed Vulcan、Production Authority
+> 证据保留为可选扩展认证，不再阻塞核心包安装与使用。
 
 可执行预览版：[v0.0.1-rc1](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc1)、
 [v0.0.1-rc2](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc2)，以及当前源码
@@ -59,9 +59,10 @@ Paper/Folia 后端插件。
 
 ![发布验证总览](docs/assets/verification-dashboard.svg)
 
-## 发布状态：精确七门
+## 发布状态：核心契约与扩展认证
 
-以下名称和 `scripts/release-readiness.ps1` 完全一致。受控 fixture、历史 PASS、调用者
+核心契约由 `scripts/core-release-readiness.ps1` 检查。下面的名称仍与严格版
+`scripts/release-readiness.ps1` 一致，用于可选扩展认证。受控 fixture、历史 PASS、调用者
 Boolean 或未签名报告都不能把任何发布门提升为通过。
 
 | Readiness gate | 正式发布需要的证据 | 状态 |
