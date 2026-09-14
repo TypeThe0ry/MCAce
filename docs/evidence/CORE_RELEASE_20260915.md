@@ -16,11 +16,13 @@ It is intentionally separate from the strict extended-certification ledger.
 
 ## Artifact source
 
-The six JAR bytes are produced from artifact source commit
-`7db0b7ff28cce534ecafa1d1f40b6541271a2f14`. The final release commit may be a
-documentation/evidence-only descendant; the bundle manifest records both
-identities and the canonical marker is
-`docs/evidence/release-artifact-source.txt`.
+The six JAR bytes for the final core bundle are produced from artifact source
+commit `d2d1aaafc09283598f005ab3dc5b70ab05f9d032`, which is the merged main
+release source recorded in the canonical marker
+`docs/evidence/release-artifact-source.txt`. The earlier build provenance
+commit `7db0b7ff28cce534ecafa1d1f40b6541271a2f14` remains historical evidence
+for the pre-merge candidate; it is not the source selector for the final
+bundle. The bundle manifest records the final release and artifact identities.
 
 ## Extended certification
 
