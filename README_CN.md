@@ -35,7 +35,9 @@ Paper/Folia 后端插件。
 
 > ## v0.0.1 — RELEASE LOCKED
 >
-> **当前没有创建正式 tag，也没有发布 GitHub Release。** 只有下面七个 fail-closed
+> **当前没有创建正式 `v0.0.1` tag，也没有发布正式 GitHub Release。** 为了尽早
+> 部署，可以发布可执行的验证预发布版 `v0.0.1-rc1`；它不是稳定版，也不会关闭
+> 任何外部证据门。只有下面七个 fail-closed
 > 发布门在同一个已审查精确源码上全部通过后才能放行。不可变的 `2a6274a` artifact
 > boundary 保留了一份历史外部签名 Matrix V4 包，但当前 readiness validator 因精确受保护
 > bundle 绑定失败而拒绝该 Matrix index（`MCACE_RELEASE_MATRIX_PROTECTED_BUNDLE_INVALID`）。

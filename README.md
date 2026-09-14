@@ -45,7 +45,10 @@ plugin.
 
 > ## v0.0.1 — RELEASE LOCKED
 >
-> **No tag or GitHub Release is claimed.** Release remains locked until all seven
+> **No official `v0.0.1` tag or GitHub Release is claimed.** An executable
+> verification prerelease `v0.0.1-rc1` may be published from the current
+> candidate for early deployment; it is not a stable release and does not close
+> any external evidence gate. Stable release remains locked until all seven
 > fail-closed gates below validate for one reviewed exact source. The immutable
 > `2a6274a` artifact boundary has a historical externally signed Matrix V4
 > package, but the current readiness validator rejects the tracked Matrix index
