@@ -3,7 +3,6 @@ name: build
 on:
   push:
   pull_request:
-  workflow_dispatch:
 
 permissions:
   contents: read
@@ -68,10 +67,6 @@ jobs:
           $global:LASTEXITCODE = 0
           exit 0
       - name: Run fail-closed Windows PowerShell 5.1 contract regressions
-        # PowerShell 7 is the authoritative contract on the current runner.
-        # Keep the legacy 5.1 suite available for an explicit workflow run,
-        # but do not let its duplicate long-running fixture block release CI.
-        if: ${{ github.event_name == 'workflow_dispatch' }}
         shell: powershell
         run: |
           $ErrorActionPreference = 'Stop'
