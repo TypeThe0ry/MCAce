@@ -110,7 +110,8 @@ with the same six JAR bytes and the required 1966-byte manifest control. Its
 compatibility `-Execute`/`-ReportOnly` checks passed, and a readiness rerun with
 the out-of-repository Matrix supervisor root confirmed
 `server_matrix_exact_source=true` and `clean_worktree=true`. That rerun still
-fails closed on the five gates listed above; it is not a release approval.
+fails closed on the four optional certification gaps listed above; it is not a
+release approval.
 
 The previous documentation/evidence descendants were `97b9d9e5` and `07c36f6e`;
 the authoritative current SHA is the `source_commit` in the latest exact-bundle

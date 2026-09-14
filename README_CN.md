@@ -92,7 +92,7 @@ artifact source 为 `2a6274a9200f2aa195e1238eaddf43650f549a0a` 和六个产品 J
 字节不变。该次 strict bundle 仍满足 1966-byte manifest 控制；兼容性
 `-Execute`/`-ReportOnly` 都通过。带仓库外 Matrix supervisor root 和 approved
 pin 的 readiness 重跑确认 `server_matrix_exact_source=true`、
-`clean_worktree=true`；其余五个门仍 fail-closed，这不是发布批准。
+`clean_worktree=true`；其余四个可选扩展认证缺口仍 fail-closed，这不是发布批准。
 
 之前的文档/证据后代是 `97b9d9e5` 和 `07c36f6`；权威当前 SHA 以最新
 exact-bundle manifest 的 `source_commit` 为准。Helio job
