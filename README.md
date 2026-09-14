@@ -59,10 +59,10 @@ plugin.
 > the consent prompt but failed closed before a visible screenshot/accepted
 > event was created; it is not an accepted release decision.
 
-Executable preview: [v0.0.1-rc1](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc1)
-(`701c56f1465cadcff58456aec77bfd77213a0786`). The attached bundle is marked
-`LOCAL_VERIFICATION` / `release_identity=false`; its SHA-256 is recorded in
-[the RC evidence note](docs/evidence/RELEASE_CANDIDATE_2026-09-14.md).
+Executable previews: [v0.0.1-rc1](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc1)
+and current-source rc2 (built from `5a509ae2d268a7753fcb7963f68ca0f27c62459e`)
+are marked `LOCAL_VERIFICATION` / `release_identity=false`; checksums and build
+provenance are recorded in [the RC evidence note](docs/evidence/RELEASE_CANDIDATE_2026-09-14.md).
 
 [中文 README](README_CN.md) · [architecture](docs/ARCHITECTURE.md) ·
 [security model](docs/SECURITY.md) · [release gates](docs/RELEASE_GATES.md) ·

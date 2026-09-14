@@ -45,9 +45,9 @@ Paper/Folia 后端插件。
 > Authority V4，以及受保护 main/tag 的 V4 exact-commit CI 阻塞。当前 `live16` 只渲染了同意
 > 页面，随后在没有生成可见截图/accepted event 前 fail-closed，并不是已接受的发布决定。
 
-可执行预览版：[v0.0.1-rc1](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc1)
-（精确提交 `701c56f1465cadcff58456aec77bfd77213a0786`）。附件明确标记为
-`LOCAL_VERIFICATION` / `release_identity=false`；bundle 的 SHA-256 见
+可执行预览版：[v0.0.1-rc1](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc1)，另有当前源码
+`5a509ae2d268a7753fcb7963f68ca0f27c62459e` 构建的 rc2。两者均明确标记为
+`LOCAL_VERIFICATION` / `release_identity=false`；校验和与构建来源见
 [RC 证据记录](docs/evidence/RELEASE_CANDIDATE_2026-09-14.md)。
 
 **2026-09-08 开发更新：** ZIP 材质包的有界 PNG 内容特征已接入客户端签名清单，
