@@ -7,9 +7,9 @@ import java.util.UUID;
 /**
  * A durable issuance capability created only after its matching record was forced to disk.
  *
- * <p>The constructor and raw-frame accessor are package-private so an adapter cannot manufacture
- * or transmit a pre-commit claim. This token contains no disposition action and is not accepted by
- * any proxy executor.</p>
+ * <p>The constructor and undurable codec result are package-private so an adapter cannot
+ * manufacture a pre-commit capability. The public transport accessor exists only on this durable
+ * token. It contains no disposition action and is not accepted by any proxy executor.</p>
  */
 public final class DurablyIssuedServerAuthorityObservation {
     private final byte[] frame;
@@ -22,6 +22,8 @@ public final class DurablyIssuedServerAuthorityObservation {
     private final String grantCommitmentSha256;
     private final String lifecycleCommitmentSha256;
     private final String backendKeyIdSha256;
+    private final String authorityProfileSha256;
+    private final String providerEvidenceCommitmentSha256;
 
     DurablyIssuedServerAuthorityObservation(
             byte[] frame,
@@ -33,7 +35,9 @@ public final class DurablyIssuedServerAuthorityObservation {
             UUID grantId,
             String grantCommitmentSha256,
             String lifecycleCommitmentSha256,
-            String backendKeyIdSha256) {
+            String backendKeyIdSha256,
+            String authorityProfileSha256,
+            String providerEvidenceCommitmentSha256) {
         this.frame = Objects.requireNonNull(frame, "frame").clone();
         this.attestationId = Objects.requireNonNull(attestationId, "attestationId");
         if (observationSequence <= 0) {
@@ -54,6 +58,10 @@ public final class DurablyIssuedServerAuthorityObservation {
                 lifecycleCommitmentSha256, "lifecycleCommitmentSha256");
         this.backendKeyIdSha256 = BackendAuthorityPin.sha256(
                 backendKeyIdSha256, "backendKeyIdSha256");
+        this.authorityProfileSha256 = BackendAuthorityPin.sha256(
+                authorityProfileSha256, "authorityProfileSha256");
+        this.providerEvidenceCommitmentSha256 = BackendAuthorityPin.sha256(
+                providerEvidenceCommitmentSha256, "providerEvidenceCommitmentSha256");
     }
 
     byte[] frame() { return frame.clone(); }
@@ -64,6 +72,25 @@ public final class DurablyIssuedServerAuthorityObservation {
     public String signedFrameSha256() { return signedFrameSha256; }
     public String lifecycleCommitmentSha256() { return lifecycleCommitmentSha256; }
     public String backendKeyIdSha256() { return backendKeyIdSha256; }
+    public String authorityProfileSha256() { return authorityProfileSha256; }
+    /**
+     * Content-free commitment to the exact profile plus provider quorum/window evidence signed
+     * into this frame. This is intentionally distinct from the static authority profile hash.
+     */
+    public String providerEvidenceCommitmentSha256() {
+        return providerEvidenceCommitmentSha256;
+    }
+
+    /**
+     * Returns the exact signed frame only after its issuance record has been forced and verified.
+     *
+     * <p>This accessor deliberately lives on the durable capability rather than on the codec's
+     * undurable signing result. Platform adapters can therefore transport only a frame whose
+     * matching issuance record crossed the journal durability boundary.</p>
+     */
+    public byte[] frameForTransport() {
+        return frame.clone();
+    }
 
     /** True only for the exact verified grant and physical lifecycle signed into this frame. */
     public boolean matches(BackendAuthorityGrantCodec.VerifiedGrant grant) {

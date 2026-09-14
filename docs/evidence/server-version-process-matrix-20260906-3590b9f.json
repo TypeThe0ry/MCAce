@@ -1,0 +1,73 @@
+{
+  "schema": "MCACE_MATRIX_V4_DIAGNOSTIC_RUN_V1",
+  "artifact_class": "HELIO_MATRIX_V4_DIAGNOSTIC_RUN",
+  "release_eligible": false,
+  "source_commit": "3590b9f7aed34445a743282a0502a0a275347e34",
+  "artifact_source_commit": "3590b9f7aed34445a743282a0502a0a275347e34",
+  "product_version": "0.0.1",
+  "job_id": "20260906-mcace-3590b9f-final-bundle",
+  "node": "helio",
+  "platform": "Windows",
+  "prepared_assets": {
+    "paper": ["1.21.11/132", "26.1.2/74", "26.2/116"],
+    "folia": ["1.21.11/14", "26.1.2/8", "26.2/6"],
+    "velocity": "3.5.1-615",
+    "bungeecord": "2085"
+  },
+  "release_bundle": {
+    "schema": "MCACE_RELEASE_BUNDLE_V4",
+    "manifest_sha256": "e6ea1467c8e7f95e8ee472643a63e82bd6e3616152f0b5c65e4710d7772c47e7",
+    "manifest_size_bytes": 1966,
+    "sha256s_sha256": "919e7263c66f963a16fe8cf0e4b4236058609ad60a44d0a1ed42b607250db2db",
+    "sha256s_size_bytes": 565,
+    "artifacts": {
+      "mcace-client-fabric-1.21.11.jar": "4c2fef68b8cc7ca641ff6118fd4ae1ac5e5cebd0cf6801bf53400493a176d122",
+      "mcace-client-fabric-26.1.2.jar": "6cd59694387cb2b5dd2611bb47acb72dda66d65c9b47ee33145619be40a33aa8",
+      "mcace-client-fabric-26.2.jar": "a856d0d52544c077eefa6d635f60d72762d3074af33981fdb986228514d6dd56",
+      "mcace-server-velocity.jar": "0e6630bc9c91cd402ffc36b91883ea6c1d302ec44e801955c222701e0b439b81",
+      "mcace-server-bungeecord.jar": "0bb565bac7d772c95bd8b951720bd7d553df79546f7b45871786329cfdf4b20d",
+      "mcace-server-paper.jar": "267ab74e7760d344bc154b7ae1051539bb3eeb0c3f17111801aec3142d3156bb"
+    }
+  },
+  "matrix": {
+    "expected_case_count": 12,
+    "observed_case_count": 12,
+    "stable_case_count": 10,
+    "beta_case_count": 2,
+    "all_invocation_exit_codes_zero": true,
+    "all_cases_passed": true,
+    "all_remaining_run_process_counts_zero": true,
+    "checkpoint_sha256": "4305a66603c61f9ccdbb338044d7fbb4302dbf1d9035100a88417e5ecc92fc58",
+    "case_ids": [
+      "1.21.11-paper-velocity",
+      "1.21.11-paper-bungee",
+      "1.21.11-folia-velocity",
+      "1.21.11-folia-bungee",
+      "26.1.2-paper-velocity",
+      "26.1.2-paper-bungee",
+      "26.1.2-folia-velocity",
+      "26.1.2-folia-bungee",
+      "26.2-paper-velocity",
+      "26.2-paper-bungee",
+      "26.2-folia-velocity",
+      "26.2-folia-bungee"
+    ]
+  },
+  "external_supervisor": {
+    "trust_root_present": false,
+    "approved_pin_present": false,
+    "detached_receipt_present": false,
+    "release_gate_result": "PENDING",
+    "terminal_error": "SERVER_VERSION_MATRIX_APPROVED_SUPERVISOR_PIN_REQUIRED"
+  },
+  "retained_controller_archive": {
+    "path": "build/matrix-evidence-3590b9f.zip",
+    "sha256": "164bfaaa32b25fd0d145c2dd6d48e296562094f65b2998f8dbbd0b0612e73d41",
+    "size_bytes": 31070
+  },
+  "notes": [
+    "The 12 cases exercised real Paper/Folia backend and Velocity/Bungee proxy startup, login, MCAce hello/auth, backend admission, and owned-process cleanup.",
+    "This diagnostic run does not contain an external supervisor trust-root, protected pin, or signed receipt and therefore cannot close Matrix V4 or authorize a release.",
+    "The bundle is bound to the current source because the matrix script change is release-affecting; the next documentation-only descendant may reuse this artifact source only after the exact-source validator proves the delta is allowed."
+  ]
+}

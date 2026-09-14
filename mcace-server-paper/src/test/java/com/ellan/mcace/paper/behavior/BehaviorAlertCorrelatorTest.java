@@ -9,11 +9,13 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.Test;
 
 final class BehaviorAlertCorrelatorTest {
     private static final UUID PLAYER = UUID.fromString("11111111-1111-1111-1111-111111111111");
     private static final Instant NOW = Instant.parse("2026-08-08T12:00:00Z");
+    private static final AtomicLong EVENT_SEQUENCE = new AtomicLong();
 
     @Test
     void aggregatesFlagsAndAppliesCooldownWithoutClaimingCorroboration() {
@@ -66,7 +68,28 @@ final class BehaviorAlertCorrelatorTest {
         assertEquals(0, correlator.trackedKeys());
     }
 
+    @Test
+    void identicalProviderCallbackCannotReachThresholdButDistinctCallbacksCan() {
+        BehaviorAlertCorrelator correlator = new BehaviorAlertCorrelator(
+                2, Duration.ofSeconds(10), Duration.ZERO, 100);
+        BehaviorAlert first = alert("grim", "timer", NOW);
+
+        assertTrue(correlator.accept(first).isEmpty());
+        assertTrue(correlator.accept(first).isEmpty(),
+                "re-delivery of one native callback must be idempotent");
+        CloudRiskEvent emitted = correlator.accept(
+                alert("grim", "timer", NOW.plusMillis(1))).orElseThrow();
+
+        assertEquals(2, emitted.details().get("flag_count"));
+        assertEquals(first.providerEventIdSha256().length(),
+                ((String) emitted.details().get("provider_event_id_sha256")).length());
+    }
+
     private static BehaviorAlert alert(String provider, String check, Instant observedAt) {
-        return new BehaviorAlert(PLAYER, provider, "test", check, check, 4.0D, false, observedAt);
+        String eventId = BehaviorAlert.providerEventIdSha256(
+                provider, PLAYER.toString(), check,
+                Long.toString(EVENT_SEQUENCE.incrementAndGet()));
+        return new BehaviorAlert(
+                PLAYER, eventId, provider, "test", check, check, 4.0D, false, observedAt);
     }
 }

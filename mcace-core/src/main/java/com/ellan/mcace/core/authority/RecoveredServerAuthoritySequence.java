@@ -1,6 +1,8 @@
 package com.ellan.mcace.core.authority;
 
+import java.time.Instant;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 /** Durable sequence recovery bound to one exact verified backend-authority grant. */
@@ -10,13 +12,16 @@ public final class RecoveredServerAuthoritySequence {
     private final String lifecycleCommitmentSha256;
     private final String backendKeyIdSha256;
     private final long lastSequence;
+    private final Optional<Instant> lastObservedAt;
+    private final Optional<Instant> lastIssuedAt;
 
     RecoveredServerAuthoritySequence(
             BackendAuthorityGrantCodec.VerifiedGrant grant,
             String lifecycleCommitmentSha256,
             String backendKeyIdSha256,
-            long lastSequence) {
+            ServerAuthorityIssuanceRecovery recovery) {
         Objects.requireNonNull(grant, "grant");
+        Objects.requireNonNull(recovery, "recovery");
         this.grantId = grant.grantId();
         this.grantCommitmentSha256 = BackendAuthorityPin.sha256(
                 grant.commitmentSha256(), "grantCommitmentSha256");
@@ -24,10 +29,9 @@ public final class RecoveredServerAuthoritySequence {
                 lifecycleCommitmentSha256, "lifecycleCommitmentSha256");
         this.backendKeyIdSha256 = BackendAuthorityPin.sha256(
                 backendKeyIdSha256, "backendKeyIdSha256");
-        if (lastSequence < 0L) {
-            throw new IllegalArgumentException("lastSequence cannot be negative");
-        }
-        this.lastSequence = lastSequence;
+        this.lastSequence = recovery.lastSequence();
+        this.lastObservedAt = recovery.lastObservedAt();
+        this.lastIssuedAt = recovery.lastIssuedAt();
         if (!matches(grant)) {
             throw new IllegalArgumentException("recovered sequence does not match its grant");
         }
@@ -35,6 +39,16 @@ public final class RecoveredServerAuthoritySequence {
 
     public long lastSequence() {
         return lastSequence;
+    }
+
+    /** Last durably accepted provider observation time, when at least one record exists. */
+    public Optional<Instant> lastObservedAt() {
+        return lastObservedAt;
+    }
+
+    /** Last durable authority-frame issuance time, when at least one record exists. */
+    public Optional<Instant> lastIssuedAt() {
+        return lastIssuedAt;
     }
 
     public String lifecycleCommitmentSha256() {

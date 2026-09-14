@@ -122,6 +122,55 @@ final class BungeeConfigurationHandshakeLifecycleTest {
     }
 
     @Test
+    void strictBeginFailureRetiresAttemptAndRecordsTerminalPhysicalDeny() {
+        BungeeDeferredDispositionRoutes routes = routes();
+        Object player = new Object();
+        BungeeDeferredDispositionRoutes.LoginTicket ticket = routes.beginLogin(PLAYER_ID, player);
+        Map<UUID, BungeeDeferredDispositionRoutes.LoginTicket> challenges = new ConcurrentHashMap<>();
+        Map<UUID, BungeeDeferredDispositionRoutes.LoginTicket> attempts = new ConcurrentHashMap<>();
+        Map<UUID, BungeeDeferredDispositionRoutes.LoginTicket> terminalTickets = new ConcurrentHashMap<>();
+        RecordingBridge bridge = new RecordingBridge();
+        attempts.put(PLAYER_ID, ticket);
+
+        assertEquals(Optional.empty(), MCAceBungeePlugin.retireFailedConfigurationHandshake(
+                challenges, attempts, terminalTickets, bridge, PLAYER_ID, ticket));
+        assertFalse(challenges.containsKey(PLAYER_ID));
+        assertFalse(attempts.containsKey(PLAYER_ID));
+        assertEquals(ticket, terminalTickets.get(PLAYER_ID));
+        assertEquals(1, bridge.removed, "strict begin failure retires bridge state once");
+        assertFalse(MCAceBungeePlugin.mayStartConfigurationHandshake(
+                challenges, attempts, terminalTickets, PLAYER_ID, ticket));
+
+        assertTrue(routes.markDeniedPhysical(PLAYER_ID, player, ticket));
+        assertFalse(routes.permitRoute(PLAYER_ID, "pre-auth", player, ticket));
+    }
+
+    @Test
+    void strictSendFailureRetiresArmedChallengeAndLeavesLateFrameInert() {
+        BungeeDeferredDispositionRoutes routes = routes();
+        Object player = new Object();
+        BungeeDeferredDispositionRoutes.LoginTicket ticket = routes.beginLogin(PLAYER_ID, player);
+        Map<UUID, BungeeDeferredDispositionRoutes.LoginTicket> challenges = new ConcurrentHashMap<>();
+        Map<UUID, BungeeDeferredDispositionRoutes.LoginTicket> attempts = new ConcurrentHashMap<>();
+        Map<UUID, BungeeDeferredDispositionRoutes.LoginTicket> terminalTickets = new ConcurrentHashMap<>();
+        RecordingBridge bridge = new RecordingBridge();
+        attempts.put(PLAYER_ID, ticket);
+        assertTrue(MCAceBungeePlugin.installTicketBoundChallenge(challenges, PLAYER_ID, ticket));
+
+        MCAceBungeePlugin.retireFailedConfigurationHandshake(
+                challenges, attempts, terminalTickets, bridge, PLAYER_ID, ticket);
+
+        assertFalse(MCAceBungeePlugin.isTicketBoundChallenge(challenges, PLAYER_ID, ticket),
+                "strict send failure revokes inbound configuration permission");
+        assertFalse(MCAceBungeePlugin.mayProcessConfigurationBoundFrame(
+                true, challenges, PLAYER_ID, ticket),
+                "a late frame after strict send failure cannot reach the bridge");
+        assertEquals(ticket, terminalTickets.get(PLAYER_ID));
+        assertFalse(MCAceBungeePlugin.mayStartConfigurationHandshake(
+                challenges, attempts, terminalTickets, PLAYER_ID, ticket));
+    }
+
+    @Test
     void terminalTimeoutCleanupIsExactTicketBound() {
         BungeeDeferredDispositionRoutes routes = routes();
         Object formerPlayer = new Object();

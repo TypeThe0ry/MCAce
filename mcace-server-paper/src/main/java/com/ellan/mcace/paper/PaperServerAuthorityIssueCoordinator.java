@@ -11,13 +11,12 @@ import java.util.Optional;
 import java.util.UUID;
 
 /**
- * Inert Paper/Folia orchestration primitive for one durable authority issuance.
+ * Paper/Folia orchestration primitive for one durable authority issuance.
  *
- * <p>This type is deliberately package-private and is not instantiated by the production plugin.
- * It registers no channel, selects no provider/profile/key, sends no frame, and has no disposition
- * dependency. Its sole job is to make the already-disabled lifecycle ordering unambiguous: reserve
- * one capability, force the matching journal record, commit that exact token, and only then return
- * the durable capability. The raw frame remains inaccessible outside the core authority package.</p>
+ * <p>This type is deliberately package-private and owns no channel, provider selection, profile,
+ * key configuration, or disposition dependency. Its sole job is to make lifecycle ordering
+ * unambiguous: reserve one capability, force the matching journal record, commit that exact token,
+ * and only then return the durable transport capability.</p>
  *
  * <p>If durable issuance succeeds but the lifecycle commit fails, the durable sequence has already
  * advanced. The coordinator therefore removes the in-memory lifecycle and permanently poisons

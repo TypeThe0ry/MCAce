@@ -1,0 +1,24 @@
+{
+  "schema": "MCACE_CLUSTER_REGRESSION_EVIDENCE_V1",
+  "generated_at": "2026-09-02T17:40:12+08:00",
+  "repository": "TypeThe0ry/MCAce",
+  "source_commit": "99d634b21ce06db29932ceb364b35734cf079733",
+  "node": "p1",
+  "profile": "linux",
+  "job_id": "20260902-mcace-99d634b-regression",
+  "worker_workspace": "/srv/codex-worker/jobs/20260902-mcace-99d634b-regression",
+  "container_image": "eclipse-temurin:21-jdk",
+  "container_image_id": "sha256:85f00967bcc624fc19fa9c2cf124ea426a5363898e267141726f31f358c2e14b",
+  "container_image_created": "2026-08-21T18:25:04.501032914Z",
+  "command": "bash ./gradlew test --no-daemon --no-configuration-cache --stacktrace",
+  "exit_code": 0,
+  "result": "BUILD_SUCCESSFUL",
+  "actionable_tasks": 71,
+  "log": {
+    "path": "/srv/codex-worker/jobs/20260902-mcace-99d634b-regression/test.log",
+    "size_bytes": 10689,
+    "sha256": "720830e3dc1a22a31f7848e9fd78244653939622387360ca8265e1247e89abf3"
+  },
+  "coverage_note": "This is an isolated Linux/Temurin 21 Gradle regression. Project-design skipped cases for real Folia/proxy/Postgres/GUI/Vulcan/production environments remain skipped and are not represented as acceptance.",
+  "artifact_source_marker_at_run": "43f5a661dc2ec21696ecba42cf42187720b01b91"
+}

@@ -8,6 +8,7 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.InvalidProtocolBufferException;
 import java.nio.ByteBuffer;
 import java.security.GeneralSecurityException;
+import java.security.KeyFactory;
 import java.security.PrivateKey;
 import java.security.PublicKey;
 import java.security.SecureRandom;
@@ -22,6 +23,20 @@ public final class EnvelopeCodec {
     private final SecureRandom secureRandom;
     private final int maxPayloadBytes;
     private final long allowedClockSkewMillis;
+
+    /**
+     * Initializes the JCA Ed25519 provider before a live handshake is waiting on its deadline.
+     * This does not create keys, accept data, or alter verification; it only moves provider
+     * class initialization out of the first signed packet's critical path.
+     */
+    public static void prewarmEd25519Provider() {
+        try {
+            Signature.getInstance("Ed25519");
+            KeyFactory.getInstance("Ed25519");
+        } catch (GeneralSecurityException exception) {
+            throw new IllegalStateException("Ed25519 provider is unavailable", exception);
+        }
+    }
 
     public EnvelopeCodec(Clock clock, SecureRandom secureRandom, int maxPayloadBytes, Duration allowedClockSkew) {
         this.clock = Objects.requireNonNull(clock, "clock");

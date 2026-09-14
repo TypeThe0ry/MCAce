@@ -1,91 +1,99 @@
 package com.ellan.mcace.velocity;
 
+import com.ellan.mcace.core.authority.AuthorityFilePreflight;
 import com.ellan.mcace.protocol.crypto.Ed25519Keys;
 import com.ellan.mcace.protocol.crypto.EnvelopeException;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
+import java.nio.file.LinkOption;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
-import java.nio.file.attribute.PosixFilePermission;
 import java.security.KeyPair;
 import java.security.GeneralSecurityException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.security.PublicKey;
 import java.security.SecureRandom;
 import java.security.Signature;
 import java.util.Base64;
 import java.util.HexFormat;
-import java.util.Set;
+import java.util.Arrays;
 
 final class ServerIdentityStore {
     private static final String PRIVATE_FILE = "server-private-key.pk8";
     private static final String PUBLIC_FILE = "server-public-key.txt";
+    private static final int MAXIMUM_KEY_FILE_BYTES = 4096;
 
     private ServerIdentityStore() {
     }
 
     static KeyPair loadOrCreate(Path directory) throws IOException, EnvelopeException {
-        Files.createDirectories(directory);
-        Path privatePath = directory.resolve(PRIVATE_FILE);
-        Path publicPath = directory.resolve(PUBLIC_FILE);
-        boolean privateExists = Files.exists(privatePath);
-        boolean publicExists = Files.exists(publicPath);
+        Path root = AuthorityFilePreflight.createPrivateDirectoriesWithoutLinks(
+                directory, "MCAce Velocity identity directory");
+        Path privatePath = root.resolve(PRIVATE_FILE);
+        Path publicPath = root.resolve(PUBLIC_FILE);
+        boolean privateExists = Files.exists(privatePath, LinkOption.NOFOLLOW_LINKS);
+        boolean publicExists = Files.exists(publicPath, LinkOption.NOFOLLOW_LINKS);
         if (privateExists != publicExists) {
             throw new IOException("MCAce server identity is incomplete; restore both key files or neither");
         }
         if (privateExists) {
-            byte[] privateBytes = Files.readAllBytes(privatePath);
-            byte[] publicBytes;
+            byte[] privateBytes = AuthorityFilePreflight.readBoundedPrivateRegularFile(
+                    root, privatePath, MAXIMUM_KEY_FILE_BYTES,
+                    "MCAce Velocity private identity key");
             try {
-                publicBytes = Base64.getDecoder().decode(Files.readString(publicPath, StandardCharsets.US_ASCII).trim());
-            } catch (IllegalArgumentException exception) {
-                throw new IOException("invalid Base64 MCAce public key", exception);
+                byte[] publicFile = AuthorityFilePreflight.readBoundedPrivateRegularFile(
+                        root, publicPath, MAXIMUM_KEY_FILE_BYTES,
+                        "MCAce Velocity public identity key");
+                byte[] publicBytes;
+                try {
+                    publicBytes = Base64.getDecoder().decode(
+                            new String(publicFile, StandardCharsets.US_ASCII).strip());
+                } catch (IllegalArgumentException exception) {
+                    throw new IOException("invalid Base64 MCAce public key", exception);
+                }
+                KeyPair loaded = new KeyPair(
+                        Ed25519Keys.decodePublic(publicBytes),
+                        Ed25519Keys.decodePrivate(privateBytes));
+                if (!keysMatch(loaded)) {
+                    throw new IOException("MCAce public and private server identity files do not match");
+                }
+                return loaded;
+            } finally {
+                Arrays.fill(privateBytes, (byte) 0);
             }
-            KeyPair loaded = new KeyPair(
-                    Ed25519Keys.decodePublic(publicBytes),
-                    Ed25519Keys.decodePrivate(privateBytes));
-            if (!keysMatch(loaded)) {
-                throw new IOException("MCAce public and private server identity files do not match");
-            }
-            return loaded;
         }
         KeyPair generated = Ed25519Keys.generate(new SecureRandom());
-        atomicWrite(privatePath, generated.getPrivate().getEncoded());
-        restrictPrivateFile(privatePath);
-        atomicWrite(publicPath, Base64.getEncoder().encode(generated.getPublic().getEncoded()));
-        return generated;
+        byte[] privateBytes = generated.getPrivate().getEncoded();
+        boolean privatePublished = false;
+        try {
+            AuthorityFilePreflight.writePrivateFileAtomically(
+                    root, privatePath, privateBytes, "MCAce Velocity private identity key");
+            privatePublished = true;
+            AuthorityFilePreflight.writePrivateFileAtomically(
+                    root, publicPath, Base64.getEncoder().encode(generated.getPublic().getEncoded()),
+                    "MCAce Velocity public identity key");
+            return generated;
+        } catch (IOException exception) {
+            if (privatePublished) {
+                Files.deleteIfExists(privatePath);
+            }
+            throw exception;
+        } finally {
+            Arrays.fill(privateBytes, (byte) 0);
+        }
     }
 
     static String fingerprint(KeyPair keyPair) {
+        return fingerprint(keyPair.getPublic());
+    }
+
+    static String fingerprint(PublicKey publicKey) {
         try {
             return HexFormat.ofDelimiter(":").withUpperCase()
-                    .formatHex(MessageDigest.getInstance("SHA-256").digest(keyPair.getPublic().getEncoded()));
+                    .formatHex(MessageDigest.getInstance("SHA-256").digest(publicKey.getEncoded()));
         } catch (NoSuchAlgorithmException exception) {
             throw new IllegalStateException("SHA-256 is unavailable", exception);
-        }
-    }
-
-    private static void atomicWrite(Path target, byte[] content) throws IOException {
-        Path temporary = Files.createTempFile(target.getParent(), target.getFileName().toString(), ".tmp");
-        try {
-            Files.write(temporary, content);
-            try {
-                Files.move(temporary, target, StandardCopyOption.ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException exception) {
-                Files.move(temporary, target);
-            }
-        } finally {
-            Files.deleteIfExists(temporary);
-        }
-    }
-
-    private static void restrictPrivateFile(Path privatePath) throws IOException {
-        if (Files.getFileStore(privatePath).supportsFileAttributeView("posix")) {
-            Files.setPosixFilePermissions(privatePath, Set.of(
-                    PosixFilePermission.OWNER_READ,
-                    PosixFilePermission.OWNER_WRITE));
         }
     }
 

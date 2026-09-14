@@ -9,7 +9,7 @@ import net.minecraft.client.Minecraft;
 
 /** One connection-bound explicit-file authorization prompt at a time; nothing is persisted. */
 final class ExplicitFileConsentController {
-    private Pending pending;
+    private volatile Pending pending;
 
     void accept(Minecraft client, VerifiedPolicy policy, Set<String> requestedFiles,
             Runnable rendered, Consumer<Set<String>> allowed, Runnable declined) {
@@ -42,6 +42,13 @@ final class ExplicitFileConsentController {
             ConsentUiSupport.setScreen(client, current.previous());
         }
         current.declined().run();
+    }
+
+    /** Disconnect owns its next screen; revoke the pending decision without touching Minecraft UI. */
+    void cancelWithoutUi() {
+        Pending current = pending;
+        pending = null;
+        if (current != null) current.declined().run();
     }
 
     static boolean isCurrent(Object active, Object candidate) {

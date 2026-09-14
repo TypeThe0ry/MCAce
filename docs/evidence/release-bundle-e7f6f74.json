@@ -1,0 +1,41 @@
+{
+  "schema": "MCACE_RELEASE_BUNDLE_EVIDENCE_V2",
+  "generated_at": "2026-08-23T15:02:21.7837266Z",
+  "source": "cluster_helio_releaseBundle",
+  "node": "helio",
+  "profile": "windows",
+  "job_id": "20260823-mcace-release-e7f6f74",
+  "source_commit": "e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834",
+  "conclusion": "success",
+  "release_identity": true,
+  "bundle_profile": "RELEASE",
+  "product_version": "0.0.1",
+  "deployable_count": 6,
+  "bundle_entry_count": 8,
+  "bundle_zip": "build/cluster-artifacts/mcace-release-bundle-e7f6f74.zip",
+  "bundle_zip_sha256": "4799733be6a178a7ed119d69f4945453dec1d73fbab7a22e95e51e259e035ded",
+  "manifest_sha256": "c4da27e197391f60ee92fcc2f4e87191434a469f4a299848e1f7a83e258ce39b",
+  "sha256sums_sha256": "121683cf776f2cb9827f8f7cb185993446f022df388c54b97cb28998967ec628",
+  "sha256sums_verified": true,
+  "compatibility_report": "build/compatibility-contract/e7f6f74-run/compatibility-report.json",
+  "compatibility_report_sha256": "b7632a489081df7bc5f09e344ea18e31be507fe39c077a02e9f89cb543b27f11",
+  "compatibility_passed": true,
+  "runtime": {
+    "root_java": "21.0.10",
+    "modern_java": "25.0.4.1",
+    "gradle": "9.6.1"
+  },
+  "artifacts": {
+    "mcace-client-fabric-1.21.11.jar": "3edb79ecfee186e24729a7dd8339c365e87d1499c5800c1b09613445aefef8c8",
+    "mcace-client-fabric-26.1.2.jar": "a1c329cb759404401f89639a61a58d385e3551573db7f04e55d6910e30f6bd44",
+    "mcace-client-fabric-26.2.jar": "e1fdb259b8c1c1d4fecc2b368c9baae2ed8cedaf7da8d089bb058c0540b29b85",
+    "mcace-server-velocity.jar": "088559253a4ec9dc79f110e911d58accd8b05893c74cefba31cebc1a90cb373e",
+    "mcace-server-bungeecord.jar": "163554963a73a422e9ea2cf31b008ae90051ef180356ce5f3947adbe8a32ddbd",
+    "mcace-server-paper.jar": "9bb12776d16fc72b20dcb8f3c1ad4da4eb4f6148902296ffc75fba80814e52b3"
+  },
+  "interpretation": "Helio built the exact e7f6f74 checkout with product_version=0.0.1. The eight-entry release bundle, manifest identity, six deployable SHA256SUMS entries, and all three exact compatibility tuples passed independent local verification.",
+  "limitations": [
+    "This is a feature-branch candidate, not protected-main exact-commit CI.",
+    "GUI consent, Fabric federation handoff, licensed Vulcan genuine event, and production provider/topology freeze remain separate release gates."
+  ]
+}

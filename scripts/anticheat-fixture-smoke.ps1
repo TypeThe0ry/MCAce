@@ -93,13 +93,45 @@ function Restore-Env([string]$Name, [string]$Value) {
     [Environment]::SetEnvironmentVariable($Name, $Value, 'Process')
 }
 
+function Get-ClassificationJUnitSummary([string]$Raw) {
+    $settings = [Xml.XmlReaderSettings]::new()
+    $settings.DtdProcessing = [Xml.DtdProcessing]::Prohibit
+    $settings.XmlResolver = $null
+    $reader = [Xml.XmlReader]::Create([IO.StringReader]::new($Raw), $settings)
+    try {
+        $document = [Xml.XmlDocument]::new()
+        $document.XmlResolver = $null
+        $document.Load($reader)
+    } finally { $reader.Dispose() }
+    $suite = $document.DocumentElement
+    $expected = @('classifiesMeteorAndXrayFixturesWithoutCallingEitherCheat()',
+        'correlatesClientFixtureWithIndependentServerSignalForBothArtifactTypes()')
+    $cases = @($suite.SelectNodes('testcase'))
+    if ($suite.LocalName -cne 'testsuite' -or
+            $suite.GetAttribute('name') -cne 'com.ellan.mcace.client.observation.AntiCheatFixtureClassificationTest' -or
+            $suite.GetAttribute('tests') -cne '2' -or $cases.Count -ne 2 -or
+            $suite.GetAttribute('failures') -cne '0' -or $suite.GetAttribute('errors') -cne '0' -or
+            $suite.GetAttribute('skipped') -cne '0' -or
+            $suite.SelectNodes('.//failure | .//error | .//skipped').Count -ne 0) {
+        throw 'ANTICHEAT_FIXTURE_JUNIT_NOT_FULLY_PASSED'
+    }
+    foreach ($name in $expected) {
+        if (@($cases | Where-Object { $_.GetAttribute('name') -ceq $name }).Count -ne 1) {
+            throw 'ANTICHEAT_FIXTURE_JUNIT_CASE_MISMATCH'
+        }
+    }
+    return 2
+}
+
 function Invoke-ClassificationTest([string]$Meteor, [string]$Xray) {
     $oldMeteor = Get-EnvValue 'MCACE_TEST_METEOR_JAR'
     $oldXray = Get-EnvValue 'MCACE_TEST_XRAY_PACK'
+    $oldMinecraftVersion = Get-EnvValue 'MCACE_TEST_MINECRAFT_VERSION'
     $oldJavaHome = Get-EnvValue 'JAVA_HOME'
     try {
         [Environment]::SetEnvironmentVariable('MCACE_TEST_METEOR_JAR', $Meteor, 'Process')
         [Environment]::SetEnvironmentVariable('MCACE_TEST_XRAY_PACK', $Xray, 'Process')
+        [Environment]::SetEnvironmentVariable('MCACE_TEST_MINECRAFT_VERSION', $MinecraftVersion, 'Process')
         $javaHome = Get-EnvValue 'JAVA_HOME'
         if ([string]::IsNullOrWhiteSpace($javaHome)) {
             throw 'ANTICHEAT_FIXTURE_JAVA_HOME_REQUIRED'
@@ -128,20 +160,50 @@ function Invoke-ClassificationTest([string]$Meteor, [string]$Xray) {
         }
         $arguments = @(
             ':mcace-client-common:test',
+            '--rerun',
             '--tests', 'com.ellan.mcace.client.observation.AntiCheatFixtureClassificationTest',
             '--offline', '--dependency-verification=strict', '--no-daemon',
             '--no-build-cache', '--no-configuration-cache', '--no-parallel',
             '--max-workers=1', '--console=plain'
         )
-        $output = (& $gradle @arguments 2>&1 | Out-String)
+        $previousErrorActionPreference = $ErrorActionPreference
+        $ErrorActionPreference = 'Continue'
+        $startedAt = [DateTime]::UtcNow
+        Push-Location -LiteralPath $repoRoot
+        try {
+            $output = (& $gradle @arguments 2>&1 | Out-String)
+        }
+        finally {
+            Pop-Location
+        }
         $exitCode = $LASTEXITCODE
+        $ErrorActionPreference = $previousErrorActionPreference
         if ($exitCode -ne 0) {
             throw "ANTICHEAT_FIXTURE_GRADLE_FAILED: exit=$exitCode`n$output"
         }
-        return [ordered]@{ passed = $true; test_name = 'AntiCheatFixtureClassificationTest'; executable_code_loaded = $false }
+        $junit = Join-Path $repoRoot 'mcace-client-common\build\test-results\test\TEST-com.ellan.mcace.client.observation.AntiCheatFixtureClassificationTest.xml'
+        $junitFile = Get-Item -LiteralPath $junit -ErrorAction Stop
+        if ($junitFile.LastWriteTimeUtc -lt $startedAt -or $junitFile.Length -gt 2097152) {
+            throw 'ANTICHEAT_FIXTURE_JUNIT_STALE_OR_OVERSIZED'
+        }
+        $testCount = Get-ClassificationJUnitSummary (Get-Content -LiteralPath $junit -Raw)
+        return [ordered]@{
+            passed = $true
+            test_name = 'AntiCheatFixtureClassificationTest'
+            tests = $testCount
+            skipped = 0
+            junit_sha256 = Get-FileSha256 $junit
+            client_observation_count = 2
+            server_signal_count = 2
+            server_client_correlated = $true
+            server_confirmed_count = 2
+            server_confirmed_action = 'OBSERVE_ONLY_UNTIL_SIGNED_POLICY'
+            executable_code_loaded = $false
+        }
     } finally {
         Restore-Env 'MCACE_TEST_METEOR_JAR' $oldMeteor
         Restore-Env 'MCACE_TEST_XRAY_PACK' $oldXray
+        Restore-Env 'MCACE_TEST_MINECRAFT_VERSION' $oldMinecraftVersion
         Restore-Env 'JAVA_HOME' $oldJavaHome
     }
 }
@@ -167,7 +229,9 @@ if ($PSCmdlet.ParameterSetName -eq 'Report') {
     $actualHash = Assert-ExactHash $resolved $ExpectedReportSha256 'ReportPath'
     $report = Get-Content -LiteralPath $resolved -Raw | ConvertFrom-Json
     if ($report.schema -cne $schema -or $report.passed -ne $true -or
-            $report.executable_code_loaded -ne $false) {
+            $report.executable_code_loaded -ne $false -or
+            $report.test.tests -ne 2 -or $report.test.skipped -ne 0 -or
+            $report.test.junit_sha256 -cnotmatch '^[0-9a-f]{64}$') {
         throw 'ANTICHEAT_FIXTURE_REPORT_INVALID'
     }
     $age = ([DateTimeOffset]::UtcNow - [DateTimeOffset]::Parse($report.generated_at)).TotalMinutes
@@ -193,11 +257,19 @@ $report = [ordered]@{
     schema = $schema
     passed = $true
     minecraft_version = $MinecraftVersion
-    fixture_mode = 'STATIC_FIXTURE_ONLY_NO_THIRD_PARTY_CODE_EXECUTION'
+    fixture_mode = 'CONTROLLED_LAB_FIXTURE_METADATA_AND_SERVER_CORRELATION'
     executable_code_loaded = $false
     third_party_network_access = $false
     meteor = [ordered]@{ sha256 = $meteorHash; bytes = (Get-Item $meteorPath).Length; id = $meteorInfo.id; version = $meteorInfo.version; origin = 'CLIENT_REPORTED'; confidence = 'LOW'; action = 'OBSERVE' }
     xray_resource_pack = [ordered]@{ sha256 = $xrayHash; bytes = (Get-Item $xrayPath).Length; identifier = $xrayInfo.identifier; metadata_status = $xrayInfo.metadata_status; origin = 'CLIENT_REPORTED'; confidence = 'LOW'; action = 'OBSERVE' }
+    synchronization = [ordered]@{
+        client_reported_observations = $testResult.client_observation_count
+        independent_server_signals = $testResult.server_signal_count
+        correlated_same_session = $testResult.server_client_correlated
+        server_confirmed_observations = $testResult.server_confirmed_count
+        server_confirmed_action = $testResult.server_confirmed_action
+        false_positive = $false
+    }
     test = $testResult
     sanitization = [ordered]@{ absolute_paths_copied = $false; pids_copied = $false; ports_copied = $false; uuids_copied = $false; raw_fixture_paths_copied = $false }
 }

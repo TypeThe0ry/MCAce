@@ -1,0 +1,50 @@
+{
+  "schema": "MCACE_ISOLATED_FABRIC_CLIENT_GUI_SMOKE_V1",
+  "generated_at": "2026-09-01T14:34:02.1787898Z",
+  "source_commit": "0716069ae64b8042fc131ae91f7ce9bdc828d753",
+  "target_root": "D:\\MCAce-gui-client-26.2",
+  "game_directory": "D:\\MCAce-gui-client-26.2\\.minecraft\\versions\\EllanTOP-26.2",
+  "minecraft_version": "26.2",
+  "loader": "Fabric",
+  "artifact": {
+    "file": "mcace-client-fabric-26.2.jar",
+    "sha256": "AC3D05059863C959E48BE28D48BDC53F81E4CB9C599F94F19EC58CF6CDBAB5C4",
+    "size_bytes": 3041445,
+    "installed_path": "D:\\MCAce-gui-client-26.2\\.minecraft\\versions\\EllanTOP-26.2\\mods\\mcace-client-fabric-26.2.jar"
+  },
+  "mod_counts": {
+    "source_mod_jar_count": 60,
+    "target_mod_jar_count": 61,
+    "mcace_jar_present": true
+  },
+  "process": {
+    "java_process_count": 1,
+    "visible_window_count": 1,
+    "visible_window_titles": [
+      "Minecraft* 26.2"
+    ],
+    "responding": true
+  },
+  "observations": {
+    "fabric_modlist_contains_mcace": true,
+    "exact_artifact_loaded_marker": true,
+    "client_initialized": true,
+    "visible_enablement_consent_rendered": false,
+    "server_handshake_observed": false,
+    "latest_log": "D:\\MCAce-gui-client-26.2\\.minecraft\\versions\\EllanTOP-26.2\\logs\\latest.log"
+  },
+  "gui_control": {
+    "requested": "Computer Use",
+    "callable_surface": "not_exposed_in_current_thread",
+    "fallback": "direct_process_launch_and_log_observation",
+    "screenshot_captured": false,
+    "human_enablement_click": false
+  },
+  "pass": true,
+  "limitations": [
+    "This report proves isolated Fabric client startup and exact MCAce mod loading.",
+    "No server key pin or server connection was configured in the offline smoke.",
+    "Therefore no visible Enable MCAce decision, client modlist upload, or SERVER_CONFIRMED event is claimed.",
+    "Computer Use control/screenshot evidence requires the callable node_repl/@oai/sky surface to be exposed."
+  ]
+}

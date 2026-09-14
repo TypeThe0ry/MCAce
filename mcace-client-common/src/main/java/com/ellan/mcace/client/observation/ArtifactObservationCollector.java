@@ -30,6 +30,8 @@ import java.util.Objects;
  * {@link ObservationOrigin#CLIENT_REPORTED} provenance and {@link Confidence#LOW} confidence;
  * a signed server disposition policy decides whether an observation has operational meaning.
  * The only extra read for a Fabric mod is its bounded {@code fabric.mod.json} metadata file.
+ * Resource-pack archives also receive a bounded, hash-bound texture probe. Installed-pack
+ * content observations do not establish that the pack is selected or active.
  */
 public final class ArtifactObservationCollector {
     private static final Map<String, ArtifactType> ARTIFACT_TYPES = Map.of(
@@ -117,6 +119,10 @@ public final class ArtifactObservationCollector {
         metadata.put("classification_input", classificationInput(type));
         metadata.put("metadata_status", metadataStatus);
         metadata.put("scope", rule.getScope().toLowerCase(Locale.ROOT));
+        if (type == ArtifactType.RESOURCE_PACK && entry.relativePath().toLowerCase(Locale.ROOT).endsWith(".zip")) {
+            metadata.putAll(ResourcePackTextureProbe.inspect(
+                    resolveScannedFile(minecraftRoot, rule, entry), entry.sha256Hex(), cancellation));
+        }
         return new ArtifactObservation(
                 type,
                 identifier,

@@ -14,9 +14,19 @@ import net.md_5.bungee.api.plugin.Command;
 final class MCAceObservationCommand extends Command {
     private static final String PERMISSION = "mcace.admin.audit";
     private final ArtifactObservationAuditSink audit;
-    MCAceObservationCommand(ArtifactObservationAuditSink audit) { super("mcaceobservation"); this.audit = Objects.requireNonNull(audit, "audit"); }
+    private final com.ellan.mcace.core.proxy.ArtifactTelemetryQuery telemetry;
+    MCAceObservationCommand(ArtifactObservationAuditSink audit,
+            com.ellan.mcace.core.proxy.ArtifactTelemetryQuery telemetry) {
+        super("mcaceobservation");
+        this.audit = Objects.requireNonNull(audit, "audit");
+        this.telemetry = Objects.requireNonNull(telemetry, "telemetry");
+    }
     @Override public void execute(CommandSender sender, String[] args) {
         if (!sender.hasPermission(PERMISSION)) { send(sender, "MCAce: missing permission " + PERMISSION); return; }
+        if (args.length > 0 && "freshness".equalsIgnoreCase(args[0])) {
+            send(sender, telemetry.execute(java.util.Arrays.copyOfRange(args, 1, args.length)));
+            return;
+        }
         if (args.length == 1 && "status".equalsIgnoreCase(args[0])) {
             ArtifactObservationAuditStatus status = audit.status();
             send(sender, "MCAce: dynamic audit enabled=" + status.enabled() + " records=" + status.recordCount()
@@ -32,7 +42,7 @@ final class MCAceObservationCommand extends Command {
                     + " actions=" + record.actionCounts() + " policy=" + record.policyStatus());
             return;
         } catch (RuntimeException ignored) { send(sender, "MCAce: invalid player UUID or limit"); return; }
-        send(sender, "Usage: /mcaceobservation status | player <uuid> [1-100]");
+        send(sender, "Usage: /mcaceobservation status | player <uuid> [1-100] | freshness <uuid> [seconds]");
     }
     private static void send(CommandSender sender, String message) { sender.sendMessage(new TextComponent(message)); }
 }

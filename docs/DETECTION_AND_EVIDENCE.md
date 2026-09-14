@@ -6,26 +6,66 @@ This document defines the MCAce detection safety contract. The current
 implementation provides signed policy structures, a strict protocol-to-core
 compiler, one platform-neutral proxy evaluator, neutral Fabric artifact
 metadata, proxy-safe authenticated manifest fragmentation, and live
-Velocity/Bungee policy adapters. Both proxies now derive and evaluate initial
-  artifact observations from the complete authenticated manifest, but the result
-  is audit-only: it does not alter admission or routing. Fabric can now collect one
-  Minecraft render frame only after a visible, per-request `Allow once` decision.
+Velocity/Bungee policy adapters. Both proxies derive the initial authenticated
+manifest and every accepted dynamic artifact snapshot through the shared signed-
+policy evaluator, then hand the resulting content-free, session-bound
+`AuthenticatedManifestDispositionEvent` to the platform proxy executor. This
+path never rewrites authentication or admission. Under an active signed policy,
+and after current-session, `VERIFIED`-admission, and policy revalidation,
+`NOTICE`, `WARN`, and the content-free `CHALLENGE` message may execute.
+Client-origin `LIMIT`, `QUARANTINE`, and `DENY` remain non-executable without
+durable `SERVER_CONFIRMED` or `ADMIN_REVIEWED` authority. Fabric can now collect one
+  Minecraft render frame only after the connection-level visible `Enable MCAce`
+  decision; the render request itself does not open a second prompt.
 Operating-system window and desktop capture remain unsupported, zero-content, and
 disabled. The repository has an explicit opt-in encrypted content-store control,
 but no raw-image reviewer retrieval UI; default operation discards raw bytes.
 
-After an accepted authentication result, Fabric may also send an optional complete
-artifact-observation refresh no more often than every five minutes. It rescans only
-the same signed-policy integrity scopes; it never accepts server-supplied paths,
-does not scan private files, and is not required for a session to remain verified.
-The transfer is separately signed and session-bound, has a 256 KiB / 16-chunk /
-512-entry ceiling, and binds its strict update sequence, authentication-time
-manifest root, prior/current aggregate roots, policy digest/sequence, and an
-observed-at value no older than one minute. The client advances that chain only
-after every transfer fragment has actually been sent. Velocity and Bungee validate
-the full snapshot root again, derive all provenance as `CLIENT_REPORTED` / `LOW`,
-and run an asynchronous audit-only evaluation. Rejection, replay, expiry, scope
-escape, or queue saturation never changes an already `VERIFIED` admission.
+After an accepted authentication result, Fabric may send an optional complete
+`ArtifactObservationUpdate`. The ordinary first refresh is due after five
+minutes, while the first detected loaded-Mod, resource-pack, or shader-pack
+change before any dynamic update has been accepted may pull that first attempt
+forward immediately. Once one dynamic update is accepted, later state changes
+coalesce behind the next full five-minute interval. The five-minute rule limits
+new semantic acceptances; it does not prohibit retry transport. Scan or
+transport failures use bounded exponential backoff from one to thirty seconds.
+Once every fragment has reached the transport API, a thirty-second semantic-
+result timeout starts. A lost result retains and retransmits the exact pending
+update with fresh transfer IDs, envelope nonces, and signatures.
+
+The update rescans only the same signed-policy integrity scopes; it never accepts
+server-supplied paths, does not scan private files, and is not required for a
+session to remain verified. Each update is separately signed and session-bound,
+has a 256 KiB / 16-chunk / 512-entry ceiling, and binds its strict update
+sequence, authentication-time manifest root, prior/current aggregate roots,
+policy digest/sequence, selected resource and shader packs, loaded Mod graph,
+authenticated capability list, and an `observed_at` value no older than one
+minute.
+
+For every complete parseable update, the server returns a signed
+`ArtifactObservationResult` bound to the authenticated session, update sequence,
+aggregate root, and SHA-256 of the complete canonical
+`ArtifactObservationUpdate` bytes. The client advances its dynamic sequence,
+aggregate-root chain, and next five-minute cadence only after verifying an exact
+`ACCEPTED` result. An invalid, forged, stale, replayed, or mis-bound result cannot
+mutate client state and leaves the exact payload pending for timeout recovery. A
+valid negative result consumes that pending payload and schedules a fresh
+snapshot. A signed `RATE_LIMITED` result supplies a retry time that the client
+bounds between its local backoff and one normal interval.
+
+The server idempotently accepts a lost-result retry only when sequence, aggregate
+root, and the full-update SHA-256 all match the update it already accepted.
+Reusing the same sequence and root while changing selected packs, loaded Mods,
+capabilities, or another non-root field is rejected rather than inheriting the
+earlier acceptance. Rejection, replay, expiry, scope escape, queue saturation,
+or rate limiting never changes an already `VERIFIED` admission.
+
+This optional channel is telemetry, not a heartbeat, an ongoing freshness lease,
+or continuous attestation. The server validates `observed_at` freshness when an
+update is ingested, but no later timer revokes admission or expires the remembered
+dynamic manifest merely because updates stop. A client that remains connected
+but silent on this channel can therefore leave the server's last dynamic view
+stale until a later accepted update, session replacement, or disconnect cleanup.
 
 Each proxy also keeps a bounded, durable dynamic-observation audit journal for
 operations. Its entries contain only player UUID, observation/evaluation times,
@@ -35,6 +75,10 @@ rule IDs, raw manifests, screenshots, or other private content. Administrators
 with `mcace.admin.audit` may use `/mcaceobservation status` or
 `/mcaceobservation player <uuid> [1-100]`; both commands are strictly read-only
 and have no risk, admission, or disposition effect.
+
+This no-effect guarantee applies to the journal and its read-only commands; an
+accepted dynamic manifest may still produce the separately described, bounded
+session-bound disposition event.
 
 Paper/Folia world and game mode are available to a separate shadow comparison path. The backend
 report is bound to the latest proxy-signed admission transport sequence, while Velocity/Bungee
@@ -47,10 +91,21 @@ sequence, and freshness binding. The shadow runtime evaluates the latest authent
 does not upgrade a client-reported artifact into `SERVER_CONFIRMED` provenance.
 
 The opt-in real-process Fabric evidence smoke uses the ordinary signed proxy
-request and the same consent screen. It waits for a human `Allow once` action,
-then verifies bounded Begin/Chunk/Commit upload and the server-signed `COMPLETE` ACK,
-and Velocity's content-free audit line. It has no automatic consent, desktop or
-window capture, mouse automation, or account-authentication bypass.
+request and the same connection-level enablement screen. It waits for one human
+`Enable MCAce` action, then verifies bounded Begin/Chunk/Commit upload and the
+server-signed `COMPLETE` ACK, and Velocity's content-free audit line. It has no
+automatic consent, desktop or window capture, mouse automation, or
+account-authentication bypass. Decline/close keeps MCAce disabled and sends no
+handshake, evidence, or federation frame.
+
+The controlled anti-cheat fixture smoke exercises the same provenance boundary
+without executing third-party code: a bounded mod/resource-pack fixture is
+collected as `CLIENT_REPORTED`, and an independent same-session server signal is
+fed through `ServerBehaviorCorrelator`. Both observations must upgrade to
+`SERVER_CONFIRMED`/`CONFIRMED`; the fixture report records
+`OBSERVE_ONLY_UNTIL_SIGNED_POLICY`, so no kick, deny, or ban is implied. This
+proves client/server correlation logic only, not a real public-server detection
+rate or kernel-level ACE capability.
 
 ## Trust and provenance
 
@@ -101,15 +156,16 @@ Immediately before execution, the proxy revalidates the exact current session an
 boundary it also requires the exact execution-context commitment, active policy
 identity/status/expiry, current winning rule, and `rule.action == event.action`.
 
-The current three-target Velocity/Bungee V3 matrix passed 18/18 administrator-reviewed
+The retained 2026-08-21 three-target Velocity/Bungee V3 matrix passed 18/18 administrator-reviewed
 exact-hash cases (6/6 on 1.21.11, 26.1.2, and 26.2). LIMIT and QUARANTINE completed
 on their distinct routes, while DENY closed only the current connection and allowed
 a clean independent-session lobby reconnect. Every strict 16-column V3 authorization
 journal entry was persisted before execution, and Execute plus ReportOnly passed. The
-sanitized current triplets are in
+sanitized commit-bound triplets are in
 `docs/evidence/disposition-current-2026-08-21.json` and declare
 `authorization_contract=UUID_CONTEXT_COMMITMENT_V3`.
-This is real-process `ADMIN_REVIEWED` coverage; no real-process producer currently
+This is historical real-process `ADMIN_REVIEWED` coverage for its bound source; no
+real-process producer currently
 upgrades an artifact observation to `SERVER_CONFIRMED`, and the shadow backend context
 path must not do so. The August 13 aggregate remains retained history.
 
@@ -154,7 +210,7 @@ Screenshot scopes are intentionally non-substitutable:
 
 | Scope | Definition | Initial capability |
 | --- | --- | --- |
-| `GAME_RENDER_FRAME` | One Minecraft-rendered frame. | Fabric, visible per-request consent only. |
+| `GAME_RENDER_FRAME` | One Minecraft-rendered frame. | Fabric, after the single visible connection enablement; no second prompt. |
 | `GAME_WINDOW` | Operating-system capture of the Minecraft window. | Unsupported and disabled. |
 | `DESKTOP` | A user-selected display/desktop. | Unsupported and disabled. |
 
@@ -231,9 +287,12 @@ expiry times, previous-document hash, rules, and explicit scope. Publication is
 atomic and progresses through observe, canary, and wider rollout. Rollback is a
 new higher-sequence document, never acceptance of an older sequence.
 
-Velocity and BungeeCord must evaluate the same inputs through one shared proxy
-runtime. Paper/Folia verifies the resulting short-lived proxy snapshot and only
-executes the signed disposition; it does not independently reinterpret policy.
+Velocity and BungeeCord evaluate the same inputs through the shared proxy policy
+runtime and execute eligible session-bound events through their respective proxy
+disposition executors. Paper/Folia verifies short-lived proxy admission snapshots
+and may produce separately authenticated backend-context or server-authority
+inputs; it neither reinterprets client disposition policy nor executes proxy
+disposition events.
 
 The shared runtime accepts only a freshly verified signed disposition document.
 It enforces one policy identity, strictly increasing sequence numbers, an exact
@@ -248,12 +307,41 @@ activation remain release gates.
 
 ## Authenticated manifest transport
 
-Initial Mod, resource-pack, shader-pack, and consented configuration observations
-come from the signed `AuthRequest` scope manifests. A second client-provided list
-cannot replace this source or omit an entry from it. Fabric Mod ID/version metadata
-is accepted only when its path, size, and SHA-256 reconcile with the corresponding
-authorized `mods` scope entry. Client-provided signer and arbitrary metadata fields
-are not made available to policy selectors.
+Initial installed Mod, resource-pack, shader-pack, and consented configuration
+observations come from the signed `AuthRequest` scope manifests. The Fabric client
+also sends a distinct bounded runtime-loaded graph from
+`FabricLoader.getAllMods()`. The two claims are not interchangeable: an installed
+JAR can be dormant, and a nested or built-in Mod can be loaded without being a
+direct `mods/` file.
+
+Each `LoadedModEntry` contains canonical Mod ID/version plus a bounded origin kind.
+A request contains at most 256 loaded identities. A direct child of
+`<gameDir>/mods` may expose only its basename and is marked as
+manifest-matched only when basename, Mod ID, version, size, and SHA-256 reconcile
+with the signed installed `ModEntry`. Nested origins expose only their parent Mod
+ID. A `PATH` origin outside the exact direct `mods/` case is classified as
+`UNKNOWN`; built-in/classpath and unknown origins expose no local path. The server
+rejects non-canonical order, duplicate identities, invalid origin-field
+combinations, absolute/path-bearing values, and forged direct-file matches.
+
+The signed policy can require `CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1`. The default
+Velocity and BungeeCord policies do so. The client advertises it only beside a
+bounded non-empty graph; the server requires sorted/unique capabilities, rejects
+an empty/legacy request when the policy requires the graph, and requires every
+dynamic update to retain the exact authenticated capability list. `ModEntry`
+metadata must additionally bind one-to-one to the real signed `mods` scope, so an
+extra or omitted installed entry fails authentication rather than extending the
+policy-scoped observation set.
+
+The same loaded graph is included in each complete signed dynamic observation.
+A graph change marks the ACK-driven single-flight scheduler dirty. The first
+change before any dynamic update has been accepted may trigger an immediate
+attempt; after the first acceptance, later changes coalesce behind the next full
+five-minute interval. The derived Mod observations expose
+only server-generated `loaded`, `loaded_origin`, and
+`origin_manifest_matched` selector metadata; arbitrary client metadata and signer
+claims are not made available to policy selectors. These values remain
+`CLIENT_REPORTED`/`LOW` and cannot create `SERVER_CONFIRMED` provenance.
 
 Every plugin-message frame is capped at 30 KiB for the Velocity/Bungee common
 transport budget. Small authentication requests retain the legacy packet. Larger
@@ -265,14 +353,24 @@ one-minute receiver lifetime. Only one transfer may be active per session.
 The proxy fixes the derived provenance to `CLIENT_REPORTED`, confidence to `LOW`,
 and foundation-security status to false. Evaluation runs through a bounded
 asynchronous audit queue; saturation drops audit work and never changes the
-player's authentication result. Dynamic post-authentication observations remain
-unsupported and are rejected explicitly rather than treated as processed.
+player's authentication result. Post-authentication input is limited to the
+defined `ArtifactObservationUpdate`, bound to the current verified session,
+aggregate root, monotonic sequence, timestamp, and transfer budget. Unknown,
+stale, replayed, root-mismatched, or oversized dynamic payloads are rejected
+explicitly rather than treated as processed.
 
-Fabric artifact observations are derived only from the already authorized
-`mods`, `resourcepacks`, and `shaderpacks` manifests. They are always
+Installed Fabric artifact observations are derived only from the already authorized
+`mods`, `resourcepacks`, and `shaderpacks` manifests. Runtime-loaded Mod observations
+are derived from the separately validated loaded graph and reconciled to those
+installed entries where an exact direct-file origin exists. Both are always
 `CLIENT_REPORTED` with low confidence. A bounded read of `fabric.mod.json` may
 provide Mod ID/version; invalid metadata becomes `unknown`. Resource and shader
-pack filenames are classification inputs, never proof of X-ray behavior.
+pack filenames and selected-state claims are classification inputs, never proof of
+X-ray behavior.
+
+The direct-origin SHA-256 is the installed file hash observed on disk at scan
+time. It is not a JVM loaded-byte attestation and does not prove that the same
+bytes are already defined or executing in memory.
 
 ## Release gates
 
@@ -298,24 +396,31 @@ Before any disposition affects players, tests must demonstrate:
   hold; LIMIT/QUARANTINE use distinct reversible routes; and DENY ends only the
   current connection before a clean independent-session reconnect.
 
-The current three-target disposition evidence is
+The retained 2026-08-21 commit-bound disposition evidence is
 `docs/evidence/disposition-current-2026-08-21.json`: 24/24 advisory-origin
 cases and 18/18 trusted administrator cases passed with Execute and ReportOnly.
-The August 13 aggregates remain retained history and are not substituted for the
-current chains.
+The August 13 aggregates are older retained history; neither historical set is a
+substitute for current-tree release evidence.
 
 The defensive detection regression record is
 `docs/evidence/anti-cheat-detection-2026-08-21.json`. It covers scoped integrity,
 artifact-feature neutrality, replay/tamper/expiry rejection, and multi-provider
 behavior correlation. It does not claim a production cheat precision/recall rate;
 the licensed Vulcan runtime event remains an explicit pending gate.
-For reproducible public-fixture checks, use
+For reproducible controlled-fixture checks, use
 `scripts/anticheat-fixture-smoke.ps1 -Execute` with explicit, locally reviewed
-Meteor and Xray-pack paths plus SHA-256 values. The wrapper runs only the
+Meteor and Xray-pack paths plus SHA-256 values. The wrapper runs the bounded
 metadata/classification JUnit fixture in a temporary directory, requires JDK 21,
-and records `STATIC_FIXTURE_ONLY_NO_THIRD_PARTY_CODE_EXECUTION`; it never launches
-Meteor, a resource-pack client, or arbitrary third-party code. Revalidate a saved
-record with `-ReportOnly -ReportPath <report.json> -ExpectedReportSha256 <sha256>`.
+and records `CONTROLLED_LAB_FIXTURE_METADATA_AND_SERVER_CORRELATION`; the fixture
+has no executable entrypoint and no third-party code is launched. The retained
+commit-bound Helio witness ran the same client-observation plus independent same-session
+server-signal correlation for 1.21.11, 26.1.2, and 26.2, with six
+`SERVER_CONFIRMED/CONFIRMED` upgrades and explicit wrong-session/expired-window
+negative boundaries, on tested source `d835f42…` (the later `56ecad8…` commit only
+adds docs/evidence). See the retained sanitized
+[`helio-2026-08-25-anticheat-sync-current.json`](evidence/helio-2026-08-25-anticheat-sync-current.json)
+and its raw reports under `docs/evidence/helio/anticheat-sync-r6/`. Revalidate a
+saved record with `-ReportOnly -ReportPath <report.json> -ExpectedReportSha256 <sha256>`.
 A separate bounded real-client smoke has now loaded the supplied Meteor JAR in a
 disposable 1.21.11 Fabric client and activated the selected Spectator Xray pack;
 the client reached resource reload and Meteor initialization, but never connected
@@ -324,8 +429,11 @@ resource-loading result only, not evidence of server-side detection, a
 `SERVER_CONFIRMED` event, or a kick/deny outcome. The run was not network-isolated
 because the normal client attempted account/Realms requests, so it must not be
 described as a safe third-party sandbox or as an effectiveness benchmark.
-The remaining distinct gates are a real-process `SERVER_CONFIRMED` artifact/behavior
-authorization producer, the three-target explicit-file/frame GUI flow (six human
-decisions), and the separate two-decision Fabric federation source-export/target-
-import handoff. The federation V2 UI/wrapper static contract passes, but no real
-human handoff PASS exists.
+The remaining distinct gates are a release-grade real-process `SERVER_CONFIRMED`
+artifact/behavior authority witness and the Federation V5 source-to-target handoff
+with the sole source-side visible enablement decision; the target must not open a
+second prompt. The Federation V5 parser/static contract passes for its exact
+eight-file package: report, binding, commit, GUI signing request, decoded PNG,
+runtime ledger, externally signed `MCACE_VISIBLE_GUI_ATTESTATION_V3`, and externally
+signed post-run receipt. The two signatures must chain to different approved roots,
+and no independently signed real visible-session handoff PASS exists yet.

@@ -1,0 +1,47 @@
+{
+  "schema": "MCACE_GITHUB_FEATURE_CI_EVIDENCE_V2",
+  "generated_at": "2026-08-25T03:00:30Z",
+  "repository": "TypeThe0ry/MCAce",
+  "pull_request": 17,
+  "source_commit": "5a7e423b5b7bc6c79ea5e1fd3182b82923312169",
+  "branch": "feature/active-pack-integrity",
+  "runs": [
+    {
+      "run_id": 32803002956,
+      "job_id": 97667491843,
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32803002956",
+      "job_url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32803002956/job/97667491843",
+      "build_and_test": "success",
+      "local_verification_bundle": "success",
+      "exact_eight_local_bundle_upload": "success",
+      "release_bundle": "skipped",
+      "fail_closed_release_readiness": "skipped"
+    },
+    {
+      "run_id": 32803006026,
+      "job_id": 97667500941,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32803006026",
+      "job_url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32803006026/job/97667500941",
+      "build_and_test": "success",
+      "local_verification_bundle": "success",
+      "exact_eight_local_bundle_upload": "success",
+      "release_bundle": "skipped",
+      "fail_closed_release_readiness": "skipped"
+    }
+  ],
+  "steps": {
+    "build_and_test": "success",
+    "local_verification_bundle": "success",
+    "exact_eight_local_bundle_upload": "success",
+    "release_bundle": "skipped_on_feature_branch",
+    "release_bundle_upload": "skipped_on_feature_branch",
+    "fail_closed_release_readiness": "skipped_on_feature_branch"
+  },
+  "interpretation": "Both push and pull_request checks passed exact checkout, build/test, local verification bundle, and exact-eight upload for 5a7e423. The feature branch intentionally skips releaseBundle and the protected-main/tag fail-closed readiness path; protected-main exact-commit release remains open."
+}

@@ -11,14 +11,12 @@ import com.ellan.mcace.core.authority.BackendAuthorityGrantCodec;
 import com.ellan.mcace.core.authority.BackendAuthorityPin;
 import com.ellan.mcace.core.authority.DurableServerAuthorityIssuer;
 import com.ellan.mcace.core.authority.DurablyIssuedServerAuthorityObservation;
-import com.ellan.mcace.core.authority.ServerAuthorityJournalPreflight;
 import com.ellan.mcace.core.authority.ServerAuthorityObservationCodec;
 import com.ellan.mcace.protocol.crypto.Ed25519Keys;
 import com.ellan.mcace.protocol.crypto.NonceReplayGuard;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardOpenOption;
 import java.security.KeyPair;
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -29,6 +27,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
@@ -40,6 +39,12 @@ final class PaperServerAuthorityIssueCoordinatorTest {
     private static final String PROFILE = "ab".repeat(32);
 
     @TempDir Path directory;
+
+    @BeforeEach
+    void useDedicatedPrivateAuthorityDirectory() throws Exception {
+        directory = PaperAuthorityTestFiles.privateDirectory(
+                directory, "private-paper-coordinator-root");
+    }
 
     @Test
     void returnsTheFrameOnlyAfterExactDurableCommitAndRejectsPreJournalDrift()
@@ -197,7 +202,8 @@ final class PaperServerAuthorityIssueCoordinatorTest {
     }
 
     @Test
-    void disabledLifecycleAndProductionPluginRemainUnwired() throws Exception {
+    void disabledLifecycleRemainsInertAndProductionWiringIsExplicitlyOptInMonitorOnly()
+            throws Exception {
         KeyPair backendKeys = Ed25519Keys.generate(new SecureRandom());
         BackendAuthorityGrantCodec.VerifiedGrant grant = grant(Duration.ofSeconds(20));
         try (TestAuthority authority = TestAuthority.create(
@@ -215,9 +221,16 @@ final class PaperServerAuthorityIssueCoordinatorTest {
         String plugin = Files.readString(paperProjectFile(
                 "src/main/java/com/ellan/mcace/paper/MCAcePaperPlugin.java"));
         String config = Files.readString(paperProjectFile("src/main/resources/config.yml"));
-        assertFalse(plugin.contains("PaperServerAuthorityIssueCoordinator"));
-        assertFalse(plugin.contains("BACKEND_AUTHORITY_CHANNEL"));
-        assertFalse(config.contains("server-authority:"));
+        assertTrue(plugin.contains("PaperServerAuthorityRuntime"));
+        assertTrue(plugin.contains("BACKEND_AUTHORITY_CHANNEL"));
+        assertTrue(config.contains("authority:"));
+        assertTrue(config.contains("enabled: false"));
+        assertTrue(config.contains("mode: MONITOR"));
+
+        String runtime = Files.readString(paperProjectFile(
+                "src/main/java/com/ellan/mcace/paper/PaperServerAuthorityRuntime.java"));
+        assertFalse(runtime.contains("DispositionExecutor"));
+        assertFalse(runtime.contains("TrustedDispositionAuthorization"));
     }
 
     private static ServerAuthorityObservationCodec.ObservationRequest request(
@@ -293,8 +306,7 @@ final class PaperServerAuthorityIssueCoordinatorTest {
     private record TestAuthority(DurableServerAuthorityIssuer issuer)
             implements AutoCloseable {
         static TestAuthority create(Path path, KeyPair backendKeys) throws Exception {
-            Files.write(path, ServerAuthorityJournalPreflight.requiredInitialContentUtf8(),
-                    StandardOpenOption.CREATE_NEW, StandardOpenOption.WRITE);
+            PaperAuthorityTestFiles.initializeJournal(path);
             return new TestAuthority(new DurableServerAuthorityIssuer(
                     new ServerAuthorityObservationCodec(
                             Clock.fixed(NOW, ZoneOffset.UTC), new SecureRandom()),

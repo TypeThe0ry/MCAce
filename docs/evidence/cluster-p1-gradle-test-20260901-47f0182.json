@@ -1,0 +1,47 @@
+{
+  "schema": "MCACE_CLUSTER_TEST_EVIDENCE_V2",
+  "generated_at": "2026-09-01T07:19:17Z",
+  "source_commit": "47f0182357d412d7ecd444e129a3e7c17819d361",
+  "job": {
+    "job_id": "20260901-151712-mcace-47f0182-p1-gradle-test",
+    "node": "p1",
+    "profile": "build",
+    "host": "tt-ThinkPad-P1-Gen-2",
+    "workspace": "/srv/codex-worker/jobs/20260901-151712-mcace-47f0182-p1-gradle-test",
+    "source_checkout": "detached exact commit; clean worktree",
+    "toolchain": "JDK 21.0.12.1; Gradle wrapper 9.6.1"
+  },
+  "command": "bash ./gradlew test --no-daemon --no-configuration-cache --stacktrace",
+  "verification": {
+    "status": "passed",
+    "exit_code": 0,
+    "elapsed_seconds": 37.937,
+    "tests": 865,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 38,
+    "xml_reports": 171,
+    "xml_parse_errors": 0,
+    "stderr_bytes": 0,
+    "result_sha256": "23b6fddc194b173801f7ebe4f9f4cb2c83f1f8a3c2349c1291824b6f0ed75340",
+    "test_stdout_sha256": "047ddf5988b882db6d93299d786138d23de897ddc0ce509c41fcdcc71d97b899",
+    "test_stderr_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca4959911b7852b855",
+    "report_manifest_sha256": "290b07e39c99fa9d3347d09a2a21638532de0258d6b6db87ed66489794167803"
+  },
+  "artifacts": {
+    "controller_bundle": "C:/CodexCluster/results/20260901-151712-mcace-47f0182-p1-gradle-test",
+    "remote_bundle": "/srv/codex-worker/jobs/20260901-151712-mcace-47f0182-p1-gradle-test",
+    "manifest_sha256": "a31d16345b7b28c00ddea68cdc1fe5660c12c5e75e59fae32be927cd6450c6f3"
+  },
+  "limitations": [
+    "This is an independent Linux/Gradle regression on p1, not Windows GUI or production server evidence.",
+    "The suite includes environment-dependent tests that remain skipped when external Paper/Folia/Proxy/Vulcan/GUI authorities are absent.",
+    "No worker-wide processes, locks, or shared caches were removed."
+  ],
+  "sanitization": {
+    "credentials_copied": false,
+    "pids_copied": false,
+    "ports_copied": false,
+    "absolute_paths_copied": false
+  }
+}

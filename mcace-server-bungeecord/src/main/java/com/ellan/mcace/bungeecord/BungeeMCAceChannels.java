@@ -13,6 +13,7 @@ public final class BungeeMCAceChannels {
     public static final String HANDSHAKE = ProtocolConstants.HANDSHAKE_CHANNEL;
     public static final String ADMISSION = ProtocolConstants.ADMISSION_CHANNEL;
     public static final String BACKEND_CONTEXT = ProtocolConstants.BACKEND_CONTEXT_CHANNEL;
+    public static final String BACKEND_AUTHORITY = ProtocolConstants.BACKEND_AUTHORITY_CHANNEL;
     public static final String PAYLOAD = ProtocolConstants.PAYLOAD_CHANNEL;
 
     private BungeeMCAceChannels() {

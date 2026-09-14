@@ -1,0 +1,75 @@
+{
+  "schema": "MCACE_ANTICHEAT_TARGETED_TEST_EVIDENCE_V1",
+  "generated_at": "2026-08-31T11:19:24.1522998Z",
+  "source_commit": "fbf81cb059401c47f22ba15c14a14bca8012472b",
+  "product_version": "0.0.1",
+  "minecraft_versions": [
+    "1.21.11",
+    "26.1.2",
+    "26.2"
+  ],
+  "tests": [
+    {
+      "name": "client_modlist_resource_pack_handshake",
+      "command": ".\\gradlew.bat :mcace-client-common:test --tests com.ellan.mcace.client.session.ClientHandshakeEngineBudgetTest --no-daemon --no-configuration-cache --stacktrace",
+      "exit_code": 0,
+      "result": "BUILD_SUCCESSFUL",
+      "coverage": [
+        "loaded mod graph binding",
+        "selected resource-pack and shader-pack IDs/order",
+        "duplicate and non-canonical pack rejection",
+        "path-leaking loaded-mod rejection"
+      ]
+    },
+    {
+      "name": "fabric_single_enablement_and_runtime_pack_observation",
+      "command": ".\\gradlew.bat :mcace-client-fabric:test --tests com.ellan.mcace.fabric.MCAceEnablementContractTest --tests com.ellan.mcace.fabric.ArtifactObservationSendScheduleTest --tests com.ellan.mcace.fabric.ExplicitFileConsentScreenTest --no-daemon --no-configuration-cache --stacktrace",
+      "exit_code": 0,
+      "result": "BUILD_SUCCESSFUL",
+      "coverage": [
+        "one visible Enable MCAce decision",
+        "stale callback cannot enable a replacement connection",
+        "resource-pack reorder produces a changed runtime snapshot",
+        "explicit-file disclosure and render-gated approval"
+      ]
+    },
+    {
+      "name": "anticheat_live_fixture_static_contract",
+      "command": "pwsh -NoProfile -File .\\scripts\\test-anticheat-live-fixture.ps1",
+      "exit_code": 0,
+      "result": "ANTICHEAT_LIVE_FIXTURE_WRAPPER_STATIC_PASS"
+    },
+    {
+      "name": "federation_gui_v5_static_contract",
+      "command": "pwsh -NoProfile -File .\\scripts\\test-fabric-federation-gui-handoff-smoke.ps1",
+      "exit_code": 0,
+      "result": "FABRIC_FEDERATION_GUI_HANDOFF_STATIC_V5_PASS_WITH_SYMLINK_PERMISSION_GAP"
+    },
+    {
+      "name": "vulcan_v3_fail_closed_contract",
+      "command": "pwsh -NoProfile -File .\\scripts\\test-vulcan-genuine-event-smoke.ps1",
+      "exit_code": 0,
+      "result": "VULCAN_GENUINE_EVENT_WRAPPER_V3_CONTRACT_PASS",
+      "negative_cases": 36,
+      "fixture_release_eligible": false
+    },
+    {
+      "name": "production_authority_v4_fail_closed_contract",
+      "command": "pwsh -NoProfile -File .\\scripts\\test-production-authority-process-evidence.ps1",
+      "exit_code": 0,
+      "result": "PRODUCTION_AUTHORITY_PROCESS_EVIDENCE_V4_PASS",
+      "negative_cases": 27,
+      "raw_frames": 2,
+      "provider_commitment_recomputed": true,
+      "release_eligible": false
+    },
+    {
+      "name": "anticheat_live_fixture_report_only",
+      "command": "pwsh -NoProfile -File .\\scripts\\anticheat-live-fixture-smoke.ps1 -ReportOnly",
+      "exit_code": 0,
+      "result": "ANTICHEAT_LIVE_FIXTURE_REPORT_ONLY_PASS",
+      "report_sha256": "90f104a7be2e0687bb59d09c4969e4fca5ecd3578d8fb8826927cf1d2a3f5059"
+    }
+  ],
+  "environment_note": "The federation and release-readiness wrappers report a host symbolic-link privilege gap while their functional fail-closed tests pass. These records are local contract evidence; they do not replace a visible GUI session, an externally signed federation handoff, a licensed Vulcan callback, or Production Authority evidence."
+}

@@ -1,0 +1,55 @@
+{
+  "schema": "MCACE_SERVER_VERSION_PROCESS_MATRIX_ATTEMPT_V1",
+  "generated_at": "2026-08-31T15:42:42.7778225Z",
+  "source_commit": "b330dbb8dc1828954496a3640e8788bd0a547cc8",
+  "artifact_source_commit": "b330dbb8dc1828954496a3640e8788bd0a547cc8",
+  "product_version": "0.0.1",
+  "execution_mode": "EXECUTE",
+  "local_case_count": 12,
+  "local_all_cases_passed": true,
+  "local_cleanup_all_zero": true,
+  "local_process_identity_count": 24,
+  "case_ids": [
+    "1.21.11-paper-velocity",
+    "1.21.11-paper-bungee",
+    "1.21.11-folia-velocity",
+    "1.21.11-folia-bungee",
+    "26.1.2-paper-velocity",
+    "26.1.2-paper-bungee",
+    "26.1.2-folia-velocity",
+    "26.1.2-folia-bungee",
+    "26.2-paper-velocity",
+    "26.2-paper-bungee",
+    "26.2-folia-velocity",
+    "26.2-folia-bungee"
+  ],
+  "checkpoint": {
+    "path": "C:/Projects/MCAce-matrix-b330/build/server-version-process-matrix/checkpoint.json",
+    "sha256": "6407027771489de71c0915c6328caa636dbb8e9abe1c7e9b0002b678adedd8bc",
+    "size_bytes": 20521
+  },
+  "supervisor_request": {
+    "path": "D:/MCAceReleaseAuthority/matrix-exchange/request-2854cc5aa6664eedaa6ba8306f991f68.json",
+    "sha256": "f13f93e85e21259ed9c8678781fc9f35f91ba0421b587ea1960c385d6f792381",
+    "operation_attempt_id": "2854cc5aa6664eedaa6ba8306f991f68",
+    "challenge_nonce": "ca67d8e273be392d29cd40cb572fe58fce1ac75411c268f88639b8571c0ed030",
+    "generated_at": "2026-08-31T15:35:26.3632498Z",
+    "receipt_not_after": "2026-08-31T15:50:26.3632650Z",
+    "report_sha256": "197789b74d7ea252ff81ae8e5ff5bd0c35ee9f3d12654b196f530163f0b1a0ee",
+    "binding_sha256": "45619cd6f08dd8694efd8ba2c26f3fa10750bb44edec512ec273380e747a3e65",
+    "raw_manifest_sha256": "d79cfeeda7ff87328ea9e062cf50791c79ad357322720cb8037609aef86c9c86",
+    "ordered_raw_report_set_sha256": "af7541b3f463b87e5e6e0ad6b683912b9cca9d80317ce4af8ee6b873805f8341",
+    "case_runtime_commitment_sha256": "20555cce475e59d18892bc539ff516b91969d151c1e788f22a4b80a7ea8d232c",
+    "release_bundle_manifest_sha256": "b9af435f7d698637e476267df08e9494dec9aa9d092dfa10a51998798122181e",
+    "release_bundle_artifact_set_sha256": "62d8b4725784376c7bc07087ea9571e0ef6396a814af6cdf47f3ad75454b37f4",
+    "supervisor_trust_root_sha256": "05be3d1ce14b03ab66db85045377f52afa91f03d662a4d70c26468a93bcde223"
+  },
+  "external_receipt": {
+    "path": "D:/MCAceReleaseAuthority/matrix-exchange/receipt-2854cc5aa6664eedaa6ba8306f991f68.json",
+    "present": false,
+    "wait_seconds": 180,
+    "failure_code": "SERVER_VERSION_MATRIX_SUPERVISOR_RECEIPT_TIMEOUT"
+  },
+  "release_eligible": false,
+  "interpretation": "All twelve native process cases passed locally on the exact artifact-source commit. The independent supervisor did not publish a detached production receipt within the configured wait window, so the release gate remains closed."
+}

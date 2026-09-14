@@ -172,6 +172,30 @@ final class BungeeDispositionExecutorTest {
     }
 
     @Test
+    void schedulerSubmissionFailureIsReportedAndDoesNotStrandTheQueue() {
+        FakeActions actions = new FakeActions();
+        List<Runnable> scheduled = new ArrayList<>();
+        AtomicBoolean rejectFirstSubmission = new AtomicBoolean(true);
+        BungeeDispositionExecutor executor = new BungeeDispositionExecutor(
+                BungeeDispositionExecutionMode.MONITOR, targets(), 2, runnable -> {
+                    if (rejectFirstSubmission.compareAndSet(true, false)) {
+                        throw new IllegalStateException("scheduler unavailable");
+                    }
+                    scheduled.add(runnable);
+                }, actions, CLOCK, ignored -> true, (ignored, result) -> { });
+
+        assertFalse(executor.offer(event(DispositionAction.WARN, "rejected-session")));
+        assertTrue(actions.messages.isEmpty());
+        assertTrue(scheduled.isEmpty());
+
+        assertTrue(executor.offer(event(DispositionAction.WARN, "recovered-session")));
+        assertEquals(1, scheduled.size());
+        scheduled.removeFirst().run();
+        assertEquals(1, actions.messages.size());
+        assertTrue(actions.messages.getFirst().startsWith("recovered-session:"));
+    }
+
+    @Test
     void closeLinearizesAfterAnInFlightApplyAndRejectsEveryPostCloseApply() throws Exception {
         CloseLinearizationActions actions = new CloseLinearizationActions();
         BungeeDispositionExecutor executor = executor(

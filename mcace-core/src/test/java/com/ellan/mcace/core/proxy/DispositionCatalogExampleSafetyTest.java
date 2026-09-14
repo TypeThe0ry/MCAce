@@ -69,6 +69,8 @@ final class DispositionCatalogExampleSafetyTest {
             assertEquals(DetectionCatalogCategory.CHEAT_MOD, entry.getCategory());
             assertEquals(DetectionArtifactType.DETECTION_ARTIFACT_MOD, entry.getSelector().getArtifactType());
             assertEquals(DetectionMatchType.DETECTION_MATCH_MOD_ID_VERSION, entry.getSelector().getMatchType());
+            assertEquals(Map.of("loaded", "true"), entry.getSelector().getMetadataMap(),
+                    "catalog identities must match the loader's active graph, not a dormant JAR");
             assertEquals(DetectionConfidence.DETECTION_CONFIDENCE_LOW, entry.getConfidence());
             assertEquals(DispositionAction.DISPOSITION_OBSERVE, entry.getSuggestedAction());
             assertTrue(entry.getSelector().getSha256().isEmpty(), "catalog examples must not embed artifact bytes");

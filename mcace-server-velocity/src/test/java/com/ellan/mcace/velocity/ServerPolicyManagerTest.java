@@ -2,6 +2,7 @@ package com.ellan.mcace.velocity;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.ellan.mcace.protocol.crypto.Ed25519Keys;
 import com.ellan.mcace.protocol.generated.SecurityPolicy;
@@ -24,6 +25,41 @@ import org.junit.jupiter.api.io.TempDir;
 
 final class ServerPolicyManagerTest {
     @TempDir Path directory;
+
+    @Test
+    void handshakeSnapshotIsNonblockingBoundedAndFailsClosedOnRefreshFailure() throws Exception {
+        MutableClock clock = new MutableClock(Instant.parse("2026-09-08T08:00:00Z"));
+        KeyPair identity = Ed25519Keys.generate(new SecureRandom());
+        Path path = directory.resolve("policy/signed-policy.pb");
+        ServerPolicyManager manager = new ServerPolicyManager(path, clock, identity);
+        assertThrows(com.ellan.mcace.protocol.policy.PolicyException.class, manager::currentForHandshake);
+        SignedPolicyDocument first = manager.current();
+        synchronized (manager) {
+            var read = java.util.concurrent.CompletableFuture.supplyAsync(() -> {
+                try { return manager.currentForHandshake(); }
+                catch (Exception failure) { throw new java.util.concurrent.CompletionException(failure); }
+            });
+            assertEquals(first, read.get(2, java.util.concurrent.TimeUnit.SECONDS));
+        }
+        clock.advance(Duration.ofSeconds(119));
+        assertEquals(first, manager.currentForHandshake());
+        clock.advance(Duration.ofSeconds(1));
+        assertThrows(com.ellan.mcace.protocol.policy.PolicyException.class, manager::currentForHandshake);
+        manager.refreshForHandshake();
+        assertEquals(first, manager.currentForHandshake());
+        clock.advance(Duration.ofSeconds(-1));
+        assertThrows(com.ellan.mcace.protocol.policy.PolicyException.class, manager::currentForHandshake);
+        clock.advance(Duration.ofSeconds(1));
+        Files.writeString(path, "invalid policy");
+        assertThrows(com.ellan.mcace.protocol.policy.PolicyException.class, manager::refreshForHandshake);
+        assertThrows(com.ellan.mcace.protocol.policy.PolicyException.class, manager::currentForHandshake);
+        Files.write(path, first.toByteArray());
+        manager.refreshForHandshake();
+        assertEquals(first, manager.currentForHandshake());
+        SignedPolicyDocument rotated = manager.rotateDelegatedKey();
+        assertEquals(rotated, manager.currentForHandshake());
+        assertTrue(!first.getSignerKeyIdSha256().equals(rotated.getSignerKeyIdSha256()));
+    }
 
     @Test
     void persistsAndRenewsSignedPolicyWithIncreasingSequence() throws Exception {

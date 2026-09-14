@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertInstanceOf;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
+import static org.junit.jupiter.api.Assumptions.assumeTrue;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -53,6 +54,23 @@ final class ScopedIntegrityScannerTest {
         assertThrows(
                 IntegrityScanException.class,
                 () -> scanner.scan(temporaryDirectory, Path.of(".."), ScanPolicy.mods()));
+    }
+
+    @Test
+    void rejectsReparseOrSymlinkDirectoryBeforeEnumeration() throws Exception {
+        Path scope = Files.createDirectories(temporaryDirectory.resolve("mods"));
+        Path outside = Files.createDirectories(temporaryDirectory.resolve("outside"));
+        Files.writeString(outside.resolve("redirected.jar"), "outside");
+        Path link = scope.resolve("redirected");
+        try {
+            Files.createSymbolicLink(link, outside);
+        } catch (IOException | UnsupportedOperationException | SecurityException exception) {
+            assumeTrue(false, "symbolic-link creation unavailable: " + exception.getMessage());
+        }
+
+        ScopedIntegrityScanner scanner = new ScopedIntegrityScanner(Clock.systemUTC());
+        assertThrows(IntegrityScanException.class,
+                () -> scanner.scan(temporaryDirectory, Path.of("mods"), ScanPolicy.mods()));
     }
 
     @Test

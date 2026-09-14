@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.ellan.mcace.runtime.AntiCheatLiveFixtureIntegrationTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-08-25T14:49:22.939Z" hostname="WS" time="3.002">
+  <properties/>
+  <testcase name="executedCheatFixtureIsCorrelatedAndBenignClientIsNot()" classname="com.ellan.mcace.runtime.AntiCheatLiveFixtureIntegrationTest" time="2.992"/>
+  <system-out><![CDATA[ANTICHEAT_LIVE_FIXTURE_INTEGRATION_PASS|versions=3|executed=true|server_confirmed=3|clean_false_positive=0
+]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

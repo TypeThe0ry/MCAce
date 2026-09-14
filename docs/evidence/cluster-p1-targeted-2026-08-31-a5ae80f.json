@@ -1,0 +1,59 @@
+{
+  "schema": "MCACE_CLUSTER_TARGETED_TEST_EVIDENCE_V1",
+  "generated_at": "2026-08-31T14:28:03Z",
+  "source_commit": "a5ae80f8fd62f7d369df211ebf8e7823739d2317",
+  "artifact_source_commit": "5e60d2a8d89102ee9b3dbd09e05dfa92cdbbe29d",
+  "execution_node": "p1",
+  "profile": "linux",
+  "job_id": "20260831-remote-mcace-a5ae80f-p1-targeted-container",
+  "worker_checkout": "/srv/codex-worker/jobs/20260831-remote-mcace-a5ae80f-p1-targeted-container/repo",
+  "container": {
+    "image": "eclipse-temurin:21-jdk",
+    "image_digest": "sha256:85f00967bcc624fc19fa9c2cf124ea426a5363898e267141726f31f358c2e14b",
+    "java_version": "21.0.12"
+  },
+  "command": "bash ./gradlew :mcace-core:test :mcace-client-common:test :mcace-client-fabric:test --no-daemon --no-configuration-cache --stacktrace --console=plain",
+  "gradle_version": "9.6.1",
+  "gradle_summary": "BUILD SUCCESSFUL in 4m 12s",
+  "actionable_tasks": 25,
+  "passed": true,
+  "exit_code": 0,
+  "started_at": "2026-08-31T14:23:50Z",
+  "ended_at": "2026-08-31T14:28:03Z",
+  "logs": {
+    "stdout_stderr_path": "/srv/codex-worker/jobs/20260831-remote-mcace-a5ae80f-p1-targeted-container/gradle.log",
+    "stdout_stderr_sha256": "021b32b05d06a5b427258db518650464fec1ca481e99661df257adea1062cbae",
+    "stdout_stderr_size_bytes": 3588
+  },
+  "retries": [
+    {
+      "job_id": "20260831-remote-mcace-a5ae80f-p1-targeted",
+      "exit_code": 126,
+      "reason": "checkout gradlew executable bit was unavailable"
+    },
+    {
+      "job_id": "20260831-remote-mcace-a5ae80f-p1-targeted-retry2",
+      "exit_code": 1,
+      "reason": "p1 host has no java command; switched to the pre-existing JDK21 container"
+    }
+  ],
+  "tests": [
+    {
+      "name": "mcace-core tests",
+      "status": "passed"
+    },
+    {
+      "name": "mcace-client-common tests",
+      "status": "passed"
+    },
+    {
+      "name": "mcace-client-fabric tests",
+      "status": "passed"
+    }
+  ],
+  "notes": [
+    "Independent Linux/p1 regression from a clean checkout pinned to the exact current feature commit.",
+    "The worker host has no Java installation; the pre-existing eclipse-temurin:21-jdk image was used without pulling a new image.",
+    "This evidence covers targeted Gradle tests only; it does not close GUI, federation, licensed Vulcan, production authority, or protected-main/tag release gates."
+  ]
+}

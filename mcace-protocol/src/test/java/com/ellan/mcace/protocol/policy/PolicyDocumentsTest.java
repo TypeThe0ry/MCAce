@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 
 import com.ellan.mcace.protocol.crypto.Ed25519Keys;
+import com.ellan.mcace.protocol.generated.ClientCapability;
 import com.ellan.mcace.protocol.generated.IntegrityScopeRule;
 import com.ellan.mcace.protocol.generated.LoaderType;
 import com.ellan.mcace.protocol.generated.SecurityPolicy;
@@ -68,6 +69,36 @@ final class PolicyDocumentsTest {
                 .build();
 
         assertThrows(PolicyException.class, () -> sign(unsafe));
+    }
+
+    @Test
+    void signsAndVerifiesRequiredLoadedGraphCapability() throws Exception {
+        SecurityPolicy required = policy(1, "phase2-loaded-graph").toBuilder()
+                .addRequiredClientCapabilities(
+                        ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1)
+                .build();
+
+        SecurityPolicy verified = PolicyDocuments.verify(
+                sign(required), keys.getPublic(), Clock.fixed(NOW, ZoneOffset.UTC), Duration.ZERO);
+
+        assertEquals(
+                ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1,
+                verified.getRequiredClientCapabilities(0));
+    }
+
+    @Test
+    void rejectsUnspecifiedDuplicateAndUnknownClientCapabilities() throws Exception {
+        SecurityPolicy.Builder base = policy(1, "phase2-loaded-graph-invalid").toBuilder();
+        assertThrows(PolicyException.class, () -> sign(base.clone()
+                .addRequiredClientCapabilities(ClientCapability.CLIENT_CAPABILITY_UNSPECIFIED)
+                .build()));
+        assertThrows(PolicyException.class, () -> sign(base.clone()
+                .addRequiredClientCapabilities(ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1)
+                .addRequiredClientCapabilities(ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1)
+                .build()));
+        assertThrows(PolicyException.class, () -> sign(base.clone()
+                .addRequiredClientCapabilitiesValue(999)
+                .build()));
     }
 
     private SignedPolicyDocument sign(SecurityPolicy policy) throws Exception {

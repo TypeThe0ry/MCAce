@@ -81,6 +81,28 @@ final class FederationConfigurationTest {
         assertEquals(invalid, Files.readString(path, StandardCharsets.UTF_8));
     }
 
+    @Test
+    void rejectsDifferentPeerIdsThatReuseOneIdentityKey() throws Exception {
+        KeyPair shared = Ed25519Keys.generate(new SecureRandom());
+        String encoded = Base64.getEncoder().encodeToString(shared.getPublic().getEncoded());
+        String pin = hex(sha256(shared.getPublic().getEncoded()));
+        String duplicateIdentity = """
+                schema.version=1
+                enabled=true
+                local.network-id=target-network
+                assertion.ttl.seconds=120
+                peer.ids=source-a,source-b
+                peer.source-a.public-key-x509-base64=%s
+                peer.source-a.key-id-sha256=%s
+                peer.source-a.capabilities=ACCEPT_FROM
+                peer.source-b.public-key-x509-base64=%s
+                peer.source-b.key-id-sha256=%s
+                peer.source-b.capabilities=ACCEPT_FROM
+                """.formatted(encoded, pin, encoded, pin);
+
+        assertThrows(IOException.class, () -> FederationConfiguration.parse(duplicateIdentity));
+    }
+
     private static String configuration(KeyPair peer, boolean enabled) throws Exception {
         return """
                 schema.version=1

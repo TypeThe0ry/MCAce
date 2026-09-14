@@ -30,7 +30,13 @@ import org.junit.jupiter.api.io.TempDir;
 
 final class FabricDeployableArtifactTest {
     private static final String MCACE_CLASS_PREFIX = "com/ellan/mcace/";
+    private static final String CORE_CLASS_PREFIX = "com/ellan/mcace/core/";
     private static final String PROTOBUF_CLASS_PREFIX = "com/google/protobuf/";
+    private static final Set<String> CLIENT_SAFE_CORE_CLASSES = Set.of(
+            "com/ellan/mcace/core/disposition/ArtifactObservation",
+            "com/ellan/mcace/core/disposition/ArtifactType",
+            "com/ellan/mcace/core/disposition/Confidence",
+            "com/ellan/mcace/core/disposition/ObservationOrigin");
     private static final int JAVA_25_CLASS_MAJOR_VERSION = 69;
     private static final Pattern NESTED_JARS_ARRAY = Pattern.compile(
             "\\\"jars\\\"\\s*:\\s*\\[(.*?)]", Pattern.DOTALL);
@@ -111,6 +117,13 @@ final class FabricDeployableArtifactTest {
         assertTrue(outerClassNames.contains("com/ellan/mcace/sdk/MCAceApi"));
         assertTrue(outerClassNames.contains("com/ellan/mcace/protocol/ProtocolConstants"));
         assertTrue(classes.containsKey("com/google/protobuf/Message"));
+
+        Set<String> packagedCoreClasses = new TreeSet<>();
+        classes.keySet().stream()
+                .filter(name -> name.startsWith(CORE_CLASS_PREFIX))
+                .forEach(packagedCoreClasses::add);
+        assertEquals(CLIENT_SAFE_CORE_CLASSES, packagedCoreClasses,
+                "final modern Fabric artifact must carry exactly the reviewed client-safe core classes");
 
         byte[] entrypoint = classes.get("com/ellan/mcace/fabric/MCAceFabricClient");
         assertTrue(classMajorVersion(entrypoint) >= JAVA_25_CLASS_MAJOR_VERSION,

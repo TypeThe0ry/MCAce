@@ -13,6 +13,7 @@ catalog_entries {
     artifact_type: DETECTION_ARTIFACT_MOD
     match_type: DETECTION_MATCH_MOD_ID_VERSION
     artifact_id: "wurst"
+    metadata { key: "loaded" value: "true" }
   }
   confidence: DETECTION_CONFIDENCE_LOW
   suggested_action: DISPOSITION_OBSERVE
@@ -35,6 +36,7 @@ catalog_entries {
     artifact_type: DETECTION_ARTIFACT_MOD
     match_type: DETECTION_MATCH_MOD_ID_VERSION
     artifact_id: "liquidbounce"
+    metadata { key: "loaded" value: "true" }
   }
   confidence: DETECTION_CONFIDENCE_LOW
   suggested_action: DISPOSITION_OBSERVE
@@ -57,6 +59,7 @@ catalog_entries {
     artifact_type: DETECTION_ARTIFACT_MOD
     match_type: DETECTION_MATCH_MOD_ID_VERSION
     artifact_id: "meteor-client"
+    metadata { key: "loaded" value: "true" }
   }
   confidence: DETECTION_CONFIDENCE_LOW
   suggested_action: DISPOSITION_OBSERVE

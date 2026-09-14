@@ -1,0 +1,44 @@
+{
+  "schema": "MCACE_VULCAN_AUTHORITY_STATUS_V1",
+  "generated_at": "2026-09-14T18:32:57.700Z",
+  "source_commit": "385b0e58a8ac3f35d482226d02eb96d7f639e74f",
+  "vulcan": {
+    "expected_version": "2.9.0",
+    "expected_sha256": "7ee3a4fdd7e9da5269f9efc327478e507563e6e7df7abec2222acd3b499bc993",
+    "expected_size_bytes": 3820392,
+    "jar_present": false,
+    "genuine_event_observed": false,
+    "structural_preflight_present": true,
+    "structural_preflight_sha256": "777a4d44144e2719e228a1c702cc18949349c2eb9892a14e6da24f52300750d",
+    "trust_root_path": "D:\\MCAceReleaseAuthority\\public\\vulcan-v3-trust-root.json",
+    "trust_root_sha256": "c4c7a15d59e27878d90552d19c970d11d9c5f5bbbc975cb28eb3749f1148ee3e",
+    "rejected_candidate": {
+      "path": "Z:\\10_Projects\\Games\\MC服务器\\资源\\Vulcan-2.7.2.jar",
+      "sha256": "8bc7c9cec3a3e6a3a0de0bb997608c3d44965600c0d9a99e1b87e8dcf2c99bdc",
+      "size_bytes": 4279107,
+      "reason": "wrong-version-hash-size"
+    }
+  },
+  "production_authority": {
+    "descriptor_path": "D:\\MCAceReleaseAuthority\\public\\production-authority-v4-public-descriptor.json",
+    "descriptor_sha256": "e32fed85dd9bf77a40deec803ac90c42aaedfc70b06f4efd47d0eeec12d63bc5",
+    "openssl_pin_path": "D:\\MCAceReleaseAuthority\\public\\production-authority-v4-openssl.json",
+    "openssl_expected_sha256": "ce0c08bd3a302496d8138e577c62767aa9bf3c2b898f528d1097f25dd63ae04d",
+    "production_raw_capture_present": false,
+    "external_supervisor_receipt_present": false,
+    "package_present": false,
+    "release_eligible": false,
+    "action_ceiling": "MONITOR"
+  },
+  "commands": {
+    "vulcan_wrapper_contract": "pwsh -NoProfile -File scripts/test-vulcan-genuine-event-smoke.ps1",
+    "authority_provision_contract": "pwsh -NoProfile -File scripts/test-provision-production-authority.ps1",
+    "authority_process_contract": "pwsh -NoProfile -File scripts/test-production-authority-process-evidence.ps1"
+  },
+  "limitations": [
+    "reviewed licensed Vulcan 2.9.0 JAR is missing from local and cluster workspaces",
+    "no non-fixture genuine provider callback package is present",
+    "Production Authority V4 requires a fresh external raw capture and supervisor-signed receipt",
+    "available OpenSSL runtimes do not match pinned 3.6.0 SHA-256"
+  ]
+}

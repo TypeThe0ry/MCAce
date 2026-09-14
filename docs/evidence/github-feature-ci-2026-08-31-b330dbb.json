@@ -1,0 +1,47 @@
+{
+  "schema": "MCACE_GITHUB_FEATURE_CI_EVIDENCE_V2",
+  "generated_at": "2026-08-31T14:58:47.2693943Z",
+  "repository": "TypeThe0ry/MCAce",
+  "pull_request": 17,
+  "source_commit": "b330dbb8dc1828954496a3640e8788bd0a547cc8",
+  "branch": "feature/active-pack-integrity",
+  "runs": [
+    {
+      "run_id": 33404239465,
+      "job_id": 99529985388,
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/33404239465",
+      "job_url": "https://github.com/TypeThe0ry/MCAce/actions/runs/33404239465/job/99529985388",
+      "build_and_test": "success",
+      "local_verification_bundle": "success",
+      "exact_eight_local_bundle_upload": "success",
+      "release_bundle": "skipped",
+      "fail_closed_release_readiness": "skipped"
+    },
+    {
+      "run_id": 33404244158,
+      "job_id": 99530186111,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/33404244158",
+      "job_url": "https://github.com/TypeThe0ry/MCAce/actions/runs/33404244158/job/99530186111",
+      "build_and_test": "success",
+      "local_verification_bundle": "success",
+      "exact_eight_local_bundle_upload": "success",
+      "release_bundle": "skipped",
+      "fail_closed_release_readiness": "skipped"
+    }
+  ],
+  "steps": {
+    "build_and_test": "success",
+    "local_verification_bundle": "success",
+    "exact_eight_local_bundle_upload": "success",
+    "release_bundle": "skipped_on_feature_branch",
+    "release_bundle_upload": "skipped_on_feature_branch",
+    "fail_closed_release_readiness": "skipped_on_feature_branch"
+  },
+  "interpretation": "Both push and pull_request checks passed exact checkout, Windows contracts, build/test, local verification bundle, and exact-eight upload for b330dbb. The feature branch intentionally skips the protected-main/tag releaseBundle and fail-closed readiness path; external GUI, Federation, Vulcan, production authority, and protected exact-commit release evidence remain open."
+}

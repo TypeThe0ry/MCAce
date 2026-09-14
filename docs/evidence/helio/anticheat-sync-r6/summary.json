@@ -1,0 +1,51 @@
+﻿{
+    "schema":  "MCACE_HELIO_ANTICHEAT_SYNC_V2",
+    "node":  "WS",
+    "job_root":  "C:\\CodexWorker\\jobs\\20260825-165002-d835f42-anticheat-sync-r6",
+    "source_sha":  "d835f42b0c3dd50850de4d64004c77642d0f78b1",
+    "java_home":  "C:\\Program Files\\Java\\jdk-21.0.10",
+    "root_fabric_test_exit":  0,
+    "cases":  [
+                  {
+                      "version":  "1.21.11",
+                      "passed":  true,
+                      "execute_marker":  "ANTICHEAT_FIXTURE_EXECUTE_PASS|71daba90dfeaf4d91070019da532fc256571b9373b00d18130d69c3532b36f1b",
+                      "report_sha256":  "71daba90dfeaf4d91070019da532fc256571b9373b00d18130d69c3532b36f1b",
+                      "report_path":  "C:\\CodexWorker\\jobs\\20260825-165002-d835f42-anticheat-sync-r6\\artifacts\\anticheat-1.21.11-report.json",
+                      "meteor_sha256":  "be76512ab1661d02f7e18618365f324ca7d96d6a48270fa787ead28f3788c2b3",
+                      "xray_sha256":  "85b4c78f6954562065cfe81917a8da9a5b922bf8689794f541a34312b197a279"
+                  },
+                  {
+                      "version":  "26.1.2",
+                      "passed":  true,
+                      "execute_marker":  "ANTICHEAT_FIXTURE_EXECUTE_PASS|1eb877e83e976532dc54bea5d6da915a3130c773b9719dac6294db3c09d10e75",
+                      "report_sha256":  "1eb877e83e976532dc54bea5d6da915a3130c773b9719dac6294db3c09d10e75",
+                      "report_path":  "C:\\CodexWorker\\jobs\\20260825-165002-d835f42-anticheat-sync-r6\\artifacts\\anticheat-26.1.2-report.json",
+                      "meteor_sha256":  "60ad2244b52c144c697bdda9eb7ae5a916ae68214ab72e58aaf989e7d235e9ee",
+                      "xray_sha256":  "75c71fc59528235824f71e4f707ffb92ddb99e276ab18991e9efb48c5dd2bb39"
+                  },
+                  {
+                      "version":  "26.2",
+                      "passed":  true,
+                      "execute_marker":  "ANTICHEAT_FIXTURE_EXECUTE_PASS|f941683ed50cf9e0f6eb0ca1044c67ffdf9ed61199b53865c986e0a9047c83e6",
+                      "report_sha256":  "f941683ed50cf9e0f6eb0ca1044c67ffdf9ed61199b53865c986e0a9047c83e6",
+                      "report_path":  "C:\\CodexWorker\\jobs\\20260825-165002-d835f42-anticheat-sync-r6\\artifacts\\anticheat-26.2-report.json",
+                      "meteor_sha256":  "bb2426a6f8216a92702824f3481317c284f103f0be827e15636a3ff42bc61f24",
+                      "xray_sha256":  "423f7b4375b0be7a929da767ca9fff8c27e0eac47a7e905ab3dfb5e21eef450b"
+                  }
+              ],
+    "client_observations_total":  6,
+    "independent_server_signals_total":  6,
+    "server_client_correlated_all":  true,
+    "server_confirmed_count_total":  6,
+    "negative_session_and_window_boundaries_tested":  true,
+    "action":  "OBSERVE_ONLY_UNTIL_SIGNED_POLICY",
+    "executable_code_loaded":  false,
+    "cleanup_java_process_count":  0,
+    "cleanup_all_zero":  true,
+    "limitations":  [
+                        "Controlled metadata-only fixtures; no third-party executable cheat code was loaded.",
+                        "Real client-observation plus independent same-session server-signal correlation, not a public Paper/Fabric network session.",
+                        "No kernel-level memory or injection detection is claimed."
+                    ]
+}

@@ -1,0 +1,26 @@
+﻿{
+    "schema":  "MCACE_HELIO_MODERN_BUILD_V1",
+    "node":  "WS",
+    "job_root":  "C:\\CodexWorker\\jobs\\20260825-163703-57b1424-modern-build",
+    "source_sha":  "57b14244c570a127417f6e15eed6c54f1bf10d47",
+    "jdk25_home":  "C:\\CodexWorker\\jobs\\20260825-163703-57b1424-modern-build\\toolchain\\jdk25\\jdk-25.0.4.1+1",
+    "jdk25_version":  "java.exe : openjdk version \"25.0.4.1\" 2026-08-18 LTS\r\n所在位置 行:12 字符: 19\r\n+ ... 5Version = (\u0026 (Join-Path $jdk25 \u0027bin\\java.exe\u0027) -version 2\u003e\u00261 | Out-S ...\r\n+                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~\r\n    + CategoryInfo          : NotSpecified: (openjdk version... 2026-08-18 LTS:String) [], RemoteException\r\n    + FullyQualifiedErrorId : NativeCommandError\r\n \r\nOpenJDK Runtime Environment Temurin-25.0.4.1+1 (build 25.0.4.1+1-LTS)\r\nOpenJDK 64-Bit Server VM Temurin-25.0.4.1+1 (build 25.0.4.1+1-LTS, mixed mode, sharing)",
+    "jdk25_zip_sha256":  "00c847d804f4a78e9f04f2683faf14fed898535b177b7fc704486cb0284e9283",
+    "root_jars_exit":  0,
+    "modern_test_jar_exit":  0,
+    "artifacts":  [
+                      {
+                          "name":  "mcace-client-fabric-26.1.2-0.1.0-SNAPSHOT.jar",
+                          "sha256":  "2424c85f3d5a1b55b6a9157c270f0571d73a963de2c77b642a12a73fbec447f6",
+                          "bytes":  3520469
+                      },
+                      {
+                          "name":  "mcace-client-fabric-26.2-0.1.0-SNAPSHOT.jar",
+                          "sha256":  "82e2cf8d2a5b5c85ed101c91935206afd63156c7ef91369c0f426acfbed0b0ab",
+                          "bytes":  3520467
+                      }
+                  ],
+    "cleanup_java_process_count":  0,
+    "cleanup_all_zero":  true,
+    "network_after_toolchain_download":  "OFFLINE_GRADLE"
+}

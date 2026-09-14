@@ -60,10 +60,10 @@ $targetDefinitions = @{
     }
     '26.2' = [pscustomobject]@{
         minecraft_version = '26.2'; protocol = 776; server_java_feature = 25
-        paper = Join-Path $repoRoot 'build/runtime-assets/paper/26.2/112/server.jar'
-        paper_sha256 = 'bd3a58cf96874e5ea6643f5f6fe9b4f5bf9e34b795fa078c2f0ee8b98b2f907e'
-        prepared = Join-Path $repoRoot 'build/runtime-assets/paper/26.2/112/prepared'
-        prepared_tree_sha256 = 'c88abb4e25a5f400282b2d5d9fff5e1701259f26c1f609062f14310f20f0218a'
+        paper = Join-Path $repoRoot 'build/runtime-assets/paper/26.2/116/server.jar'
+        paper_sha256 = '17eee738bc0f6b747646be4199672c4efcb2084efd7e291ec5254a45d5ae6f2e'
+        prepared = Join-Path $repoRoot 'build/runtime-assets/paper/26.2/116/prepared'
+        prepared_tree_sha256 = 'PENDING_PAPER_26_2_116_PREPARED_TREE_SHA256'
         velocity = Join-Path $repoRoot 'build/runtime-assets/velocity/3.5.1-615/server.jar'
         velocity_sha256 = 'b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3'
         bungee = Join-Path $repoRoot 'build/runtime-assets/bungeecord/2085/server.jar'

@@ -30,7 +30,31 @@ public final class TrustedDispositionAuthorizationRuntime {
             String operatorId,
             String reviewTicket) throws IOException {
         return authorize(playerId, sessionId, context, observation,
-                Optional.of(operatorId), Optional.of(reviewTicket));
+                ObservationOrigin.ADMIN_REVIEWED, Optional.of(operatorId), Optional.of(reviewTicket),
+                (authorizationId, authoritativeContext) ->
+                        TrustedDispositionCommitments.reviewInput(
+                                authorizationId, authoritativeContext, observation));
+    }
+
+    /**
+     * Persists a high-impact action backed by an independently correlated server provider.  The
+     * input wrapper is deliberate: a raw client observation cannot be promoted by this API.
+     */
+    public AuthenticatedManifestDispositionEvent authorizeServerConfirmation(
+            UUID playerId,
+            String sessionId,
+            EvaluationContext context,
+            ServerConfirmedDispositionInput input) throws IOException {
+        Objects.requireNonNull(input, "input");
+        if (!playerId.equals(input.serverObservation().playerId())
+                || !sessionId.equals(input.serverObservation().sessionId())) {
+            throw new IllegalArgumentException("server confirmation does not match player session");
+        }
+        return authorize(playerId, sessionId, context, input.correlatedObservation(),
+                ObservationOrigin.SERVER_CONFIRMED, Optional.empty(), Optional.empty(),
+                (authorizationId, authoritativeContext) ->
+                        TrustedDispositionCommitments.serverInput(
+                                authorizationId, authoritativeContext, input));
     }
 
     private AuthenticatedManifestDispositionEvent authorize(
@@ -38,8 +62,10 @@ public final class TrustedDispositionAuthorizationRuntime {
             String sessionId,
             EvaluationContext context,
             ArtifactObservation observation,
+            ObservationOrigin origin,
             Optional<String> operatorId,
-            Optional<String> reviewTicket) throws IOException {
+            Optional<String> reviewTicket,
+            CommitmentFactory commitmentFactory) throws IOException {
         Objects.requireNonNull(playerId, "playerId");
         Objects.requireNonNull(sessionId, "sessionId");
         Objects.requireNonNull(context, "context");
@@ -49,13 +75,16 @@ public final class TrustedDispositionAuthorizationRuntime {
         if (!playerId.equals(context.playerId())) {
             throw new IllegalArgumentException("review player does not match evaluation context");
         }
-        ObservationOrigin origin = observation.origin();
-        if (origin != ObservationOrigin.ADMIN_REVIEWED) {
-            throw new IllegalArgumentException(
-                    "only an administrator review may use the current authorization entrypoint");
+        if (observation.origin() != origin) {
+            throw new IllegalArgumentException("authorization evidence origin does not match authority");
         }
-        if (operatorId.isEmpty() || reviewTicket.isEmpty()) {
+        if (origin == ObservationOrigin.ADMIN_REVIEWED
+                && (operatorId.isEmpty() || reviewTicket.isEmpty())) {
             throw new IllegalArgumentException("administrator review requires operator and ticket");
+        }
+        if (origin == ObservationOrigin.SERVER_CONFIRMED
+                && (operatorId.isPresent() || reviewTicket.isPresent())) {
+            throw new IllegalArgumentException("server confirmation cannot impersonate an operator review");
         }
         if (observation.confidence() != Confidence.CONFIRMED) {
             throw new IllegalArgumentException("trusted authorization requires confirmed confidence");
@@ -82,8 +111,7 @@ public final class TrustedDispositionAuthorizationRuntime {
         TrustedDispositionAuthorizationRecord record = new TrustedDispositionAuthorizationRecord(
                 authorizationId, playerId, authorizedAt,
                 TrustedDispositionCommitments.session(authorizationId, sessionId),
-                TrustedDispositionCommitments.reviewInput(
-                        authorizationId, authoritativeContext, observation),
+                commitmentFactory.create(authorizationId, authoritativeContext),
                 executionContextCommitment,
                 origin, operatorId, reviewTicket,
                 decision.action(), decision.winningRuleId(), evaluation.refreshStatus(),
@@ -96,5 +124,10 @@ public final class TrustedDispositionAuthorizationRuntime {
                 evaluation.activePolicySequence(), evaluation.activePolicyExpiresAt(),
                 origin, Optional.of(authorizationId), reviewTicket,
                 Optional.of(executionContextCommitment));
+    }
+
+    @FunctionalInterface
+    private interface CommitmentFactory {
+        String create(UUID authorizationId, EvaluationContext authoritativeContext);
     }
 }

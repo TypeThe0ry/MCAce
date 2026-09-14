@@ -13,6 +13,8 @@ $ErrorActionPreference = 'Stop'
 $reportSchema = 'MCACE_FEDERATION_TARGET_RESTART_EXECUTED_V2'
 $bindingSchema = 'MCACE_FEDERATION_TARGET_RESTART_BINDING_V1'
 $commitSchema = 'MCACE_FEDERATION_TARGET_RESTART_COMMIT_V1'
+$preparedTreeDomain = "MCACE_PREPARED_TREE_SHA256_V1`0"
+$preparedRoots = @('cache', 'libraries', 'versions')
 $fileTimestampLowerBoundTolerance = [TimeSpan]::FromSeconds(2)
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $runsRoot = Join-Path $repoRoot 'build\runtime-federation-target-restart\runs'
@@ -20,13 +22,17 @@ $evidenceRunsRoot = Join-Path $repoRoot 'build\runtime-federation-target-restart
 $wrapperPropertiesPath = Join-Path $repoRoot 'gradle\wrapper\gradle-wrapper.properties'
 $gradleWrapperJarPath = Join-Path $repoRoot 'gradle\wrapper\gradle-wrapper.jar'
 $platformPaths = [ordered]@{
-    velocity = Join-Path $repoRoot 'build\platform-smoke\cache\velocity-3.5.1-615.jar'
-    paper = Join-Path $repoRoot 'build\platform-smoke\cache\paper-1.21.1-133.jar'
-    paper_prepared = Join-Path $repoRoot 'build\platform-smoke\cache\paper-1.21.1-133-prepared'
+    # Keep the restart-residual probe on the same immutable release-bound
+    # runtime assets as the four-pair federation matrix.  The raw peer profile
+    # accepts 1.21.11 as the first release-contract version (legacy 1.21.1 is
+    # intentionally outside that contract).
+    velocity = Join-Path $repoRoot 'build\runtime-assets\velocity\3.5.1-615\server.jar'
+    paper = Join-Path $repoRoot 'build\runtime-assets\paper\1.21.11\132\server.jar'
+    paper_prepared = Join-Path $repoRoot 'build\runtime-assets\paper\1.21.11\132\prepared'
 }
 $expectedPlatformSha256 = [ordered]@{
     velocity = 'b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3'
-    paper = '39bd8c00b9e18de91dcabd3cc3dcfa5328685a53b7187a2f63280c22e2d287b9'
+    paper = '5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba'
 }
 $test = 'com.ellan.mcace.runtime.MinecraftProxyPlayerProbeTest.federationVelocityTargetRestartResidualReplayRealProcessGate'
 $rawPrefix = 'velocity-target-velocity-'
@@ -300,6 +306,90 @@ function Get-TreeManifestBinding {
     return [pscustomobject]@{ sha256 = Get-BytesSha256 $bytes; file_count = [int]$ordered.Count }
 }
 
+function Get-PreparedTreeManifestBinding {
+    param([Parameter(Mandatory)][string]$RootPath)
+
+    $root = Assert-DirectLocalPath $RootPath -Directory
+    $rootPrefix = $root.TrimEnd([char[]]@('\', '/')) + [IO.Path]::DirectorySeparatorChar
+    $records = [Collections.Generic.SortedDictionary[string,object]]::new([StringComparer]::Ordinal)
+    $caseFolded = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+
+    # Keep this byte-for-byte compatible with RuntimeProcessAssets.preparedTreeSha256:
+    # only immutable cache/libraries/versions are bound; generated world/config/log state
+    # is intentionally outside the restart asset contract.
+    foreach ($preparedRootName in $preparedRoots) {
+        $treeRoot = Assert-DirectLocalPath (Join-Path $root $preparedRootName) -Directory
+        foreach ($item in @(Get-ChildItem -LiteralPath $treeRoot -Recurse -Force -ErrorAction Stop)) {
+            if (($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+                throw "FEDERATION_RESTART_PREPARED_REPARSE|$preparedRootName/$($item.Name)"
+            }
+            if ($item.PSIsContainer) { continue }
+            if (-not ($item -is [IO.FileInfo])) {
+                throw "FEDERATION_RESTART_PREPARED_ENTRY_INVALID|$preparedRootName/$($item.Name)"
+            }
+            $full = [IO.Path]::GetFullPath($item.FullName)
+            if (-not $full.StartsWith($rootPrefix, [StringComparison]::OrdinalIgnoreCase)) {
+                throw "FEDERATION_RESTART_PREPARED_ESCAPE|$preparedRootName/$($item.Name)"
+            }
+            $relative = $full.Substring($rootPrefix.Length).Replace('\', '/')
+            if ([string]::IsNullOrWhiteSpace($relative) -or $relative.Contains('//') -or
+                    $relative.StartsWith('/') -or $relative -match '(^|/)\.{1,2}($|/)') {
+                throw "FEDERATION_RESTART_PREPARED_RELATIVE_INVALID|$relative"
+            }
+            if (-not $caseFolded.Add($relative) -or $records.ContainsKey($relative)) {
+                throw "FEDERATION_RESTART_PREPARED_DUPLICATE|$relative"
+            }
+            $records.Add($relative, [pscustomobject]@{
+                    path = $full
+                    size = [long]$item.Length
+                })
+        }
+    }
+    if ($records.Count -eq 0) { throw 'FEDERATION_RESTART_PREPARED_EMPTY' }
+
+    $treeDigest = [Security.Cryptography.SHA256]::Create()
+    $domain = [Text.Encoding]::ASCII.GetBytes($preparedTreeDomain)
+    $treeDigest.TransformBlock($domain, 0, $domain.Length, $domain, 0) | Out-Null
+    try {
+        foreach ($pair in $records.GetEnumerator()) {
+            $relativeBytes = [Text.UTF8Encoding]::new($false).GetBytes($pair.Key)
+            $lengthBytes = [byte[]]@(
+                (($relativeBytes.Length -shr 24) -band 0xff),
+                (($relativeBytes.Length -shr 16) -band 0xff),
+                (($relativeBytes.Length -shr 8) -band 0xff),
+                ($relativeBytes.Length -band 0xff))
+            $treeDigest.TransformBlock($lengthBytes, 0, $lengthBytes.Length, $lengthBytes, 0) | Out-Null
+            $treeDigest.TransformBlock($relativeBytes, 0, $relativeBytes.Length,
+                    $relativeBytes, 0) | Out-Null
+            $size = [long]$pair.Value.size
+            $sizeBytes = [byte[]]@(
+                (($size -shr 56) -band 0xff), (($size -shr 48) -band 0xff),
+                (($size -shr 40) -band 0xff), (($size -shr 32) -band 0xff),
+                (($size -shr 24) -band 0xff), (($size -shr 16) -band 0xff),
+                (($size -shr 8) -band 0xff), ($size -band 0xff))
+            $treeDigest.TransformBlock($sizeBytes, 0, $sizeBytes.Length, $sizeBytes, 0) | Out-Null
+
+            $stream = [IO.File]::Open($pair.Value.path, [IO.FileMode]::Open,
+                    [IO.FileAccess]::Read, [IO.FileShare]::Read)
+            try {
+                $buffer = [byte[]]::new(65536)
+                while (($read = $stream.Read($buffer, 0, $buffer.Length)) -gt 0) {
+                    $treeDigest.TransformBlock($buffer, 0, $read, $buffer, 0) | Out-Null
+                }
+            } finally { $stream.Dispose() }
+            $after = Get-Item -LiteralPath $pair.Value.path -Force -ErrorAction Stop
+            if ([long]$after.Length -ne $size) {
+                throw "FEDERATION_RESTART_PREPARED_CHANGED_DURING_HASH|$($pair.Key)"
+            }
+        }
+        $treeDigest.TransformFinalBlock([byte[]]::new(0), 0, 0) | Out-Null
+        return [pscustomobject]@{
+            sha256 = ([BitConverter]::ToString($treeDigest.Hash)).Replace('-', '').ToLowerInvariant()
+            file_count = [int]$records.Count
+        }
+    } finally { $treeDigest.Dispose() }
+}
+
 function Get-PlatformBinding {
     $hashes = [ordered]@{}
     foreach ($name in @('velocity', 'paper')) {
@@ -310,7 +400,7 @@ function Get-PlatformBinding {
         }
         $hashes[$name] = $hash
     }
-    $prepared = Get-TreeManifestBinding $platformPaths.paper_prepared
+    $prepared = Get-PreparedTreeManifestBinding $platformPaths.paper_prepared
     if ($prepared.file_count -le 0) { throw 'FEDERATION_RESTART_PREPARED_PAPER_EMPTY' }
     return [pscustomobject]@{
         velocity_server_sha256 = $hashes.velocity
@@ -386,6 +476,51 @@ function Resolve-OfflineGradle961 {
         throw 'FEDERATION_RESTART_OFFLINE_GRADLE_9_6_1_REQUIRED: expected exactly one verified cached installation'
     }
     return $valid[0]
+}
+
+function Invoke-VerifiedGradle {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)][string]$JavaPath,
+        [Parameter(Mandatory)][string]$LauncherPath,
+        [Parameter(Mandatory)][string[]]$JvmArguments,
+        [Parameter(Mandatory)][string[]]$GradleArguments
+    )
+
+    # Use ArgumentList instead of invoking gradle.bat through PowerShell.  The
+    # latter can coalesce an array of -D values into one token on Windows, which
+    # would silently drop the runtime asset binding at the test executor.
+    $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = Assert-DirectLocalPath $JavaPath
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    foreach ($argument in @($JvmArguments)) {
+        $startInfo.ArgumentList.Add([string]$argument)
+    }
+    $startInfo.ArgumentList.Add('-classpath')
+    $startInfo.ArgumentList.Add((Assert-DirectLocalPath $LauncherPath))
+    $startInfo.ArgumentList.Add('org.gradle.launcher.GradleMain')
+    foreach ($argument in @($GradleArguments)) {
+        $startInfo.ArgumentList.Add([string]$argument)
+    }
+
+    $process = [System.Diagnostics.Process]::new()
+    $process.StartInfo = $startInfo
+    try {
+        if (-not $process.Start()) { throw 'FEDERATION_RESTART_GRADLE_PROCESS_START_FAILED' }
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        $process.WaitForExit()
+        $stdout = $stdoutTask.GetAwaiter().GetResult()
+        $stderr = $stderrTask.GetAwaiter().GetResult()
+        if (-not [string]::IsNullOrEmpty($stdout)) { [Console]::Out.Write($stdout) }
+        if (-not [string]::IsNullOrEmpty($stderr)) { [Console]::Error.Write($stderr) }
+        return [int]$process.ExitCode
+    } finally {
+        $process.Dispose()
+    }
 }
 
 function Get-GateSourceInputPaths {
@@ -990,15 +1125,37 @@ $rawEvidence = $null
 try {
     $startedAt = [DateTimeOffset]::UtcNow
     Write-Host "MCAce federation target-restart residual gate: $test"
-    & $currentBefore.java_path '-classpath' $currentBefore.gradle_launcher_path `
-        'org.gradle.launcher.GradleMain' '-Dmcace.runtime.federation.restart.enabled=true' `
-        ':mcace-runtime-integration:test' '--tests' $test '--rerun-tasks' `
-        '--offline' '--dependency-verification=strict' '--no-build-cache' `
-        '--no-configuration-cache' '--no-daemon' '--no-parallel' '--max-workers=1' `
-        '--console=plain' '--gradle-user-home' $currentBefore.gradle_user_home `
-        '--project-dir' $repoRoot
+    # Bind every runtime asset as an individual JVM property.  These properties
+    # are copied by mcace-runtime-integration/build.gradle.kts into the forked
+    # test executor, where RuntimeProcessAssets performs the exact hash/format
+    # preflight before any proxy process is started.
+    $runtimeArguments = [string[]]@(
+        '-Dmcace.runtime.federation.restart.enabled=true',
+        '-Dmcace.runtime.backend-kind=PAPER',
+        '-Dmcace.runtime.minecraft-version=1.21.11',
+        '-Dmcace.runtime.minecraft-protocol=774',
+        '-Dmcace.runtime.server-java-feature=21',
+        ('-Dmcace.runtime.backend.jar=' + $platformPaths.paper),
+        ('-Dmcace.runtime.backend.jar.sha256=' + $expectedPlatformSha256.paper),
+        ('-Dmcace.runtime.backend.prepared-root=' + $platformPaths.paper_prepared),
+        ('-Dmcace.runtime.backend.prepared-root.sha256=' + $currentBefore.paper_prepared_manifest_sha256),
+        ('-Dmcace.runtime.server-java=' + $currentBefore.java_path),
+        ('-Dmcace.runtime.server-java.sha256=' + $currentBefore.java_executable_sha256),
+        ('-Dmcace.runtime.velocity.jar=' + $platformPaths.velocity),
+        ('-Dmcace.runtime.velocity.jar.sha256=' + $expectedPlatformSha256.velocity)
+    )
+    $gradleArguments = [string[]]@(
+        ':mcace-runtime-integration:test', '--tests', $test, '--rerun-tasks',
+        '--offline', '--dependency-verification=strict', '--no-build-cache',
+        '--no-configuration-cache', '--no-daemon', '--no-parallel', '--max-workers=1',
+        '--console=plain', '--gradle-user-home', $currentBefore.gradle_user_home,
+        '--project-dir', $repoRoot
+    )
+    $gradleExitCode = Invoke-VerifiedGradle -JavaPath $currentBefore.java_path `
+        -LauncherPath $currentBefore.gradle_launcher_path -JvmArguments $runtimeArguments `
+        -GradleArguments $gradleArguments
     $finishedAt = [DateTimeOffset]::UtcNow
-    if ($LASTEXITCODE -ne 0) { throw 'FEDERATION_RESTART_GRADLE_FAILED' }
+    if ($gradleExitCode -ne 0) { throw 'FEDERATION_RESTART_GRADLE_FAILED' }
     $rawEvidence = Get-FreshRestartEvidence -NotBefore $startedAt -NotAfter $finishedAt
     $currentAfter = Get-CurrentBinding
     Assert-CurrentBindingUnchanged $currentBefore $currentAfter

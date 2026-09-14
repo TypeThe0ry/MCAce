@@ -1,0 +1,50 @@
+{
+  "schema": "MCACE_CLIENT_AUTO_PROVISION_NATIVE_FALLBACK_EVIDENCE_V1",
+  "generated_at": "2026-09-01T12:50:43.0436457Z",
+  "source_commit": "8ebf407a112061cdae918ca23281e665d612e8fc",
+  "minecraft_version": "26.2",
+  "loader": "Fabric",
+  "source_client": "external-local-Fabric-26.2",
+  "target_root": "D:\\MCAce-gui-client-26.2",
+  "provisioning": {
+    "source_mod_jar_count": 60,
+    "target_mod_jar_count": 61,
+    "mcace_jar_present": true,
+    "artifact": "mcace-client-fabric-26.2.jar",
+    "artifact_sha256": "49DCFD7D33247069BC2C10211CE69C052151B5A7E2B41B304AAAD553550C3AED",
+    "installed_artifact_sha256": "49DCFD7D33247069BC2C10211CE69C052151B5A7E2B41B304AAAD553550C3AED",
+    "offline_identity": true,
+    "credentials_copied": false
+  },
+  "native_process_smoke": {
+    "java_process_count": 1,
+    "visible_window_count": 1,
+    "visible_window_title": "Minecraft* 26.2",
+    "responding": true,
+    "client_initialized": true,
+    "fabric_modlist_contains_mcace": true,
+    "exact_artifact_loaded_marker": true,
+    "process_cleaned_up": true
+  },
+  "screenshot": {
+    "path": "docs/evidence/client-auto-provision-native-20260901-8ebf407.png",
+    "sha256": "C5D9FB655D02A9794FAE89DA469DABD4F08100C9C1F0D5AFE8C39F4268598CA0",
+    "capture_type": "native PrintWindow fallback",
+    "computer_use_attestation": false
+  },
+  "gui_control": {
+    "requested": "Computer Use",
+    "callable_surface": "not_exposed_in_current_thread",
+    "fallback": "direct process launch and log observation",
+    "human_enablement_click": false,
+    "visible_enablement_consent_rendered": false,
+    "server_handshake_observed": false
+  },
+  "result": "PASS_NATIVE_CLIENT_PROVISION_AND_STARTUP",
+  "limitations": [
+    "This is a current-HEAD isolated Fabric client startup and exact mod-loading proof for the available 26.2 client tree.",
+    "The controller has no external 1.21.11 or 26.1.2 launcher tree, so this is not a three-version GUI provision claim.",
+    "No server key pin or authenticated server connection was configured; no GUI enablement or SERVER_CONFIRMED event is claimed.",
+    "The screenshot is native fallback evidence and is not a Computer Use click or attestation."
+  ]
+}

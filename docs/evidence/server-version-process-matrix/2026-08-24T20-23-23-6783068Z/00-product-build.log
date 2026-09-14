@@ -1,0 +1,61 @@
+To honour the JVM settings for this build a single-use Daemon process will be forked. For more on this, please refer to https://docs.gradle.org/9.6.1/userguide/gradle_daemon.html#sec:disabling_the_daemon in the Gradle documentation.
+Daemon will be stopped at the end of the build 
+
+> Configure project :mcace-client-fabric
+Fabric Loom: 1.14.10
+
+> Task :mcace-protocol:protobufDummy UP-TO-DATE
+> Task :mcace-protocol:extractIncludeProto
+> Task :mcace-protocol:extractProto
+> Task :mcace-protocol:generateProto
+> Task :mcace-protocol:compileJava
+> Task :mcace-sdk:compileJava
+> Task :mcace-core:compileJava
+> Task :mcace-core:processResources NO-SOURCE
+> Task :mcace-core:classes
+> Task :mcace-core:jar
+> Task :mcace-protocol:processProtoResources
+> Task :mcace-protocol:processResources
+> Task :mcace-protocol:classes
+> Task :mcace-protocol:jar
+> Task :mcace-sdk:processResources NO-SOURCE
+> Task :mcace-sdk:classes
+> Task :mcace-sdk:jar
+> Task :mcace-storage-postgres:compileJava
+> Task :mcace-server-velocity:compileJava
+> Task :mcace-server-velocity:processResources NO-SOURCE
+> Task :mcace-server-velocity:classes
+> Task :mcace-storage-postgres:processResources
+> Task :mcace-storage-postgres:classes
+> Task :mcace-storage-postgres:jar
+> Task :mcace-server-velocity:shadowJar
+> Task :mcace-server-bungeecord:compileJava
+> Task :mcace-server-bungeecord:processResources
+> Task :mcace-server-bungeecord:classes
+> Task :mcace-server-bungeecord:shadowJar
+> Task :mcace-cloud-client:compileJava
+> Task :mcace-cloud-client:processResources NO-SOURCE
+> Task :mcace-cloud-client:classes
+> Task :mcace-cloud-client:jar
+> Task :mcace-server-paper:compileJava
+> Task :mcace-server-paper:processResources
+> Task :mcace-server-paper:classes
+> Task :mcace-server-paper:shadowJar
+> Task :mcace-client-common:compileJava
+> Task :mcace-runtime-integration:compileJava
+> Task :mcace-runtime-integration:processResources NO-SOURCE
+> Task :mcace-runtime-integration:classes
+> Task :mcace-runtime-integration:compileTestJava
+> Task :mcace-runtime-integration:processTestResources NO-SOURCE
+> Task :mcace-runtime-integration:testClasses
+
+[Incubating] Problems report is available at: file:///C:/CodexWorker/jobs/20260825-helio-42f80b7-server-matrix-current/repo/build/reports/problems/problems-report.html
+
+Deprecated Gradle features were used in this build, making it incompatible with Gradle 10.
+
+You can use '--warning-mode all' to show the individual deprecation warnings and determine if they come from your own scripts or plugins.
+
+For more on this, please refer to https://docs.gradle.org/9.6.1/userguide/command_line_interface.html#sec:command_line_warnings in the Gradle documentation.
+
+BUILD SUCCESSFUL in 1m 20s
+27 actionable tasks: 27 executed

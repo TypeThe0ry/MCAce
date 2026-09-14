@@ -1,0 +1,71 @@
+{
+  "schema": "MCACE_HELIO_ANTICHEAT_LIVE_FIXTURE_EVIDENCE_INDEX_V1",
+  "passed": true,
+  "node": "helio",
+  "profile": "windows",
+  "source_commit": "2c898762dd770723957ea0a8279f68c6c5e5abb3",
+  "job_leaf": "20260825-224048-2c89876-anticheat-live",
+  "java_runtime": "JDK 21.0.10",
+  "command": "scripts/anticheat-live-fixture-smoke.ps1 -Execute",
+  "exit_code": 0,
+  "elapsed_seconds": 21.5617996,
+  "execute_result": "ANTICHEAT_LIVE_FIXTURE_EXECUTE_PASS",
+  "report_only_result": "ANTICHEAT_LIVE_FIXTURE_REPORT_ONLY_PASS",
+  "canonical_run": "20260825T145002572Z",
+  "fixture_mode": "CONTROLLED_EXECUTABLE_CLIENT_AND_SERVER_CORRELATION",
+  "minecraft_versions": [
+    "1.21.11",
+    "26.1.2",
+    "26.2"
+  ],
+  "client_executable_code_loaded": true,
+  "client_modlist_reported": true,
+  "server_behavior_signal_independent": true,
+  "correlated_same_session": true,
+  "server_confirmed_count": 3,
+  "server_confirmed_action": "QUARANTINE",
+  "clean_false_positive_count": 0,
+  "signed_lab_policy": true,
+  "negative_boundary": {
+    "clean_client_no_mod_observation": true,
+    "clean_client_no_impossible_movement": true,
+    "clean_client_no_server_confirmed_event": true
+  },
+  "third_party_code_loaded": false,
+  "third_party_network_access": false,
+  "public_server": false,
+  "actual_fabric_client": false,
+  "cleanup_all_zero": true,
+  "test_marker": "ANTICHEAT_LIVE_FIXTURE_INTEGRATION_PASS|versions=3|executed=true|server_confirmed=3|clean_false_positive=0",
+  "canonical_evidence": {
+    "report": {
+      "path": "docs/evidence/anticheat-live-fixture/20260825T145002572Z/report.json",
+      "sha256": "a80df9c298599ac386f305203970593348e4d8d80cae0df88152443ec158eeef",
+      "bytes": 1584
+    },
+    "test_results": {
+      "path": "docs/evidence/anticheat-live-fixture/20260825T145002572Z/test-results.xml",
+      "sha256": "2895a2ea4cef58fb14b70843460ad3a144ee0c1e7c58be764644f7472b6c3dd6",
+      "bytes": 613
+    },
+    "run_log": {
+      "path": "docs/evidence/anticheat-live-fixture/20260825T145002572Z/run.log",
+      "sha256": "91dc41c8e9eed37c982eb5d1d436a66f2c18a46c54e1a843dad3fb0e6b67ed63",
+      "bytes": 170
+    }
+  },
+  "sanitization": {
+    "absolute_paths_copied": false,
+    "pids_copied": false,
+    "ports_copied": false,
+    "uuids_copied": false,
+    "fixture_bytes_copied": false,
+    "remaining_job_processes": 0
+  },
+  "limitations": [
+    "The executable fixture is an MCAce-owned test JAR, not third-party cheat code.",
+    "The harness is a loopback protocol/client-server integration, not a public server or a full Minecraft GUI session.",
+    "QUARANTINE is emitted by the signed lab policy runtime; production authority and live kick, deny, or ban remain separate release gates.",
+    "This evidence does not claim kernel, injection, DMA, public-server precision or recall, or Tencent ACE-level coverage."
+  ]
+}

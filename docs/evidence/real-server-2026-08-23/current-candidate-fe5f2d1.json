@@ -1,0 +1,96 @@
+{
+  "schema": "MCACE_ANTI_CHEAT_REAL_SERVER_CURRENT_CANDIDATE_EVIDENCE_V1",
+  "generated_at": "2026-08-23T04:28:00Z",
+  "source_mode": "LOCAL_REAL_SERVER_LOOPBACK_CURRENT_CANDIDATE",
+  "source_commit": "fe5f2d1fba35d0f6222d8bf7f8a90a5b4894e97c",
+  "execution_node": "helio",
+  "run_id": "20260823-real-server-current-candidate-042126",
+  "target": {
+    "minecraft": "1.21.11",
+    "server": "Leaf 1.21.11-135",
+    "server_jar_sha256": "105bc2c457f2249ed2cb0f902bec44647a291aabc9c4761be50ba25a46af72b",
+    "anti_cheat": "GrimAC 2.3.74-155abaf",
+    "anti_cheat_jar_sha256": "214a44a0ff476577b66b9038fe6b8122789ce0667e48f7cbb5b0337417a24e9d",
+    "mcace_plugin": "0.1.0-SNAPSHOT",
+    "mcace_paper_jar_sha256": "9bb12776d16fc72b20dcb8f3c1ad4da4eb4f6148902296ffc75fba80814e52b3",
+    "java": "Oracle JDK 21.0.10",
+    "client_runtime": "Node.js v22.23.2",
+    "runtime_flag": "-XX:TieredStopAtLevel=1"
+  },
+  "release_candidate": {
+    "bundle_schema": "MCACE_RELEASE_BUNDLE_V3",
+    "bundle_profile": "RELEASE",
+    "release_identity": true,
+    "bundle_source_commit": "fe5f2d1fba35d0f6222d8bf7f8a90a5b4894e97c",
+    "bundle_zip_sha256": "3faefd15aa537dccd4cac09f181bee7c92ed4d3d5ba411b2125e1c7291a0fa71",
+    "root_java_version": "21.0.10",
+    "modern_java_version": "25.0.4.1",
+    "gradle_version": "9.6.1"
+  },
+  "execution": {
+    "server_started": true,
+    "server_ready": true,
+    "client_protocol": "minecraft-protocol 1.67.0",
+    "client_connected": true,
+    "movement_probe_packets": 40,
+    "client_probe_done": true,
+    "client_result_exit": 0,
+    "client_disconnected_cleanly": true,
+    "server_stopped_after_probe": true,
+    "loopback_observer": "HTTP/1.1",
+    "probe_transport": "position_look packets with 1.21.3+ flags"
+  },
+  "summary": {
+    "real_server_connection": true,
+    "real_server_detection_event": true,
+    "real_server_interception_channel": true,
+    "risk_upload_http_statuses": [201, 202],
+    "observed_event_count": 3,
+    "providers": ["grim"],
+    "event_origin": "SERVER_CONFIRMED",
+    "event_source_component": "grim-adapter",
+    "event_type": "BEHAVIOR_HIGH_RISK",
+    "checks": ["AimDuplicateLook", "Simulation", "TickTimer"],
+    "stable_checks": [
+      "grim.aim.duplicate_look",
+      "grim.prediction.simulation",
+      "grim.timer.tick"
+    ],
+    "per_event_flag_count": 3,
+    "enforcement_action": "NONE",
+    "session_action_mode": "MONITOR",
+    "automatic_kick_or_ban": false,
+    "genuine_licensed_vulcan_event_observed": false
+  },
+  "remote_artifact_hashes": {
+    "observer_jsonl": "0fa8a65f4a164657890b509c9b7d394ed5ad85a2ebfc0c4c903221064a03239c",
+    "client_result_json": "fff8d8afccf5ceffd7605d5a671aa45ea30123505e219e4df9cab947b028a63a",
+    "server_stdout_log": "22bf9bc9bc342087e9fbc7c92ddb1c760e6aa839f7f19140ae5c1b3b96ece025",
+    "server_stderr_log": "c8c47579bfb0fb94e302ebd6ac07cf6e79bdb3e9969c9b124ba8f6236d4c2843"
+  },
+  "remote_artifacts": {
+    "node_job": "jobs/20260823-mcace-real-server-fe5f2d1",
+    "run": "run",
+    "observer": "observer.jsonl",
+    "client": "client-result-node22.json",
+    "server_stdout": "server.stdout.log",
+    "server_stderr": "server.stderr.log"
+  },
+  "interpretation": "A current-candidate Helio run against a real Leaf 1.21.11 process with real GrimAC and the exact-release Paper artifact from source fe5f2d1 connected a 1.21.11 protocol client, sent 40 movement probes, emitted three SERVER_CONFIRMED BEHAVIOR_HIGH_RISK events (AimDuplicateLook, Simulation, TickTimer), and delivered all three to the authenticated loopback observer. MONITOR/NONE remains intentional and proves detection plus upload, not production punitive action.",
+  "limitations": [
+    "The observer is a loopback test endpoint, not production Cloud.",
+    "The server is offline-mode and bound to loopback for a reproducible lab run.",
+    "GrimAC is an external provider; a genuine licensed Vulcan runtime event remains a separate pending gate.",
+    "No automatic kick/ban is asserted because the release contract keeps MONITOR default and requires reviewable action.",
+    "This run is Paper/Leaf 1.21.11; it does not replace the pending Fabric GUI/federation handoff or production topology gate.",
+    "Node.js v24.18.0 crashed on this Helio image; Node.js v22.23.2 completed the same client probe successfully and is recorded above."
+  ],
+  "sanitization": {
+    "identity_values_copied": false,
+    "process_ids_copied": false,
+    "absolute_paths_copied": false,
+    "keys_or_secrets_copied": false,
+    "raw_client_identity_copied": false,
+    "raw_event_payloads_copied": false
+  }
+}

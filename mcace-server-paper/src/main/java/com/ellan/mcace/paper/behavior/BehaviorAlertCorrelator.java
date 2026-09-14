@@ -49,11 +49,14 @@ public final class BehaviorAlertCorrelator {
         AlertKey key = new AlertKey(alert.playerId(), alert.provider(), alert.stableCheck());
         WindowState state = windows.computeIfAbsent(key, ignored -> new WindowState());
         while (!state.observations.isEmpty() && state.observations.peekFirst().observedAt().isBefore(cutoff)) {
-            state.observations.removeFirst();
+            state.providerEventIds.remove(state.observations.removeFirst().providerEventIdSha256());
+        }
+        if (!state.providerEventIds.add(alert.providerEventIdSha256())) {
+            return Optional.empty();
         }
         state.observations.addLast(alert);
         while (state.observations.size() > maximumObservationsPerKey) {
-            state.observations.removeFirst();
+            state.providerEventIds.remove(state.observations.removeFirst().providerEventIdSha256());
         }
         trimToMaximumKeys();
 
@@ -78,6 +81,7 @@ public final class BehaviorAlertCorrelator {
         details.put("provider_version", alert.providerVersion());
         details.put("check", alert.check());
         details.put("stable_check", alert.stableCheck());
+        details.put("provider_event_id_sha256", alert.providerEventIdSha256());
         details.put("flag_count", state.observations.size());
         details.put("window_ms", window.toMillis());
         details.put("first_observed_at", firstObserved.toString());
@@ -112,6 +116,7 @@ public final class BehaviorAlertCorrelator {
 
     private static final class WindowState {
         private final ArrayDeque<BehaviorAlert> observations = new ArrayDeque<>();
+        private final Set<String> providerEventIds = new LinkedHashSet<>();
         private Instant lastEmission;
     }
 }

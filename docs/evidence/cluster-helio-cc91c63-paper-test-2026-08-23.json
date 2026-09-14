@@ -1,0 +1,25 @@
+{
+  "schema": "MCACE_CLUSTER_HELIO_CURRENT_HEAD_PAPER_TEST_V1",
+  "captured_at": "2026-08-23",
+  "worker": "helio",
+  "profile": "windows",
+  "source_commit": "cc91c632948ca6839fa02a6347e0fecd04ef2fd2",
+  "command": "gradlew.bat :mcace-server-paper:test --no-daemon --console=plain",
+  "exit_code": 0,
+  "elapsed_seconds": 179.005,
+  "tests": {
+    "total": 37,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 1
+  },
+  "c2_crash": false,
+  "result_artifact_sha256": "45ee327b572a99d29aed4e8ff96c79a41d0bb03bc98a1df8b9f7ea5436fa462d",
+  "log_sha256": "a249ea301a7adeef8eaf35c3afed1e93bf2800fb0d8e02e3ce09cbed3f9c9884",
+  "retries": 1,
+  "verification": "BUILD SUCCESSFUL; detached checkout matched exact source commit.",
+  "limitations": [
+    "Helio worker test is not protected-main releaseBundle CI.",
+    "This does not close visible GUI consent, real Fabric federation handoff, licensed Vulcan genuine event, or production SERVER_CONFIRMED topology."
+  ]
+}

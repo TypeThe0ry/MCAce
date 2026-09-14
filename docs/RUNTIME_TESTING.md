@@ -76,10 +76,12 @@ upstream JARs, protocol profile, JDK/Gradle identities, prepared server tree, an
 raw-report digest. Private/delegated keys and forwarding secrets must be absent
 after cleanup.
 
-The August 20 run `2026-08-20T12-01-09-3951618Z` passed all 12 cases and then
+The retained commit-bound Helio run `2026-08-24T21-33-47-1914356Z` passed all 12 cases and then
 passed `-ReportOnly`: Paper 6/6, Folia 6/6, Velocity 6/6, and BungeeCord 6/6. Folia
-26.2 build 4 remains explicitly BETA. Current durable evidence is
-[`evidence/server-version-process-matrix-2026-08-20.json`](evidence/server-version-process-matrix-2026-08-20.json).
+26.2 build 6 remains explicitly BETA. Its historical durable evidence is
+[`evidence/server-version-process-matrix-2026-08-25-f404971.json`](evidence/server-version-process-matrix-2026-08-25-f404971.json),
+bound to code commit `f404971…`; it is Matrix V1 diagnostic history, not current
+Matrix V4 release evidence.
 The standard-backend observer requires admission and context while the same peer
 socket remains live; it does not count post-close log output.
 The context path is shadow-only and cannot invoke admission, routing,
@@ -121,8 +123,8 @@ activation from the fixed audit version when console acknowledgement and ACTIVE
 markers are split or unavailable across logger sinks; it never credits an
 unrelated observation count.
 
-The current three-target Execute plus ReportOnly runs passed 24/24 cases (8/8 per
-target). The sanitized committed chains are recorded at:
+The retained 2026-08-21 three-target Execute plus ReportOnly runs passed 24/24
+cases (8/8 per target). The commit-bound sanitized chains are recorded at:
 
 - `docs/evidence/disposition-current-2026-08-21.json`
 
@@ -164,7 +166,8 @@ proxies, plus current-connection-only DENY. Each DENY case waits for the first
 connection to disappear, reconnects the same offline identity under an independent
 session with a clean manifest, and requires a fresh verified `lobby` admission. No
 case creates a permanent ban or lets a client report independently authorize an
-action. The current three-target V3 aggregate passed all 18 cases (6/6 per target)
+action. The retained 2026-08-21 three-target V3 aggregate passed all 18 cases
+(6/6 per target)
 on 1.21.11, 26.1.2, and 26.2. Execute plus ReportOnly passed, and the sanitized
 committed chains are recorded at:
 
@@ -199,16 +202,18 @@ consent only because the gate was explicitly enabled;
 `fabric_gui_coverage=false` remains truthful. Report-only mode rejects old
 schema-1 reports.
 
-The separate `scripts/fabric-federation-gui-handoff-smoke.ps1` contract is now
-V2 and accepts exactly `1.21.11`, `26.1.2`, or `26.2`. It launches the selected
-final Fabric artifact and requires six exact runtime markers: requested,
-rendered, and allowed-once for source export, then the same three markers for
-target import. Its static contract tests pass under PowerShell 7 and Windows
-PowerShell 5. This is implementation evidence only: a PASS still requires a
-human source decision, source disconnect and direct target join, a distinct
-human target decision, target-local `VERIFIED` plus Paper admission, a live
-target session through signed expiry, observation cleanup, privacy checks, and
-zero owned processes.
+The separate `scripts/fabric-federation-gui-handoff-smoke.ps1` release contract
+is now Federation V5 and accepts exactly `1.21.11`, `26.1.2`, or `26.2`. One
+representative source-side connection receives the sole visible human decision;
+source export consumes that connection-bound authorization, and the direct
+target join inherits the signed handoff without a second target prompt. The
+other two Fabric versions are non-promoting compatibility/visual smokes only.
+Static contract tests pass under PowerShell 7 and Windows PowerShell 5, but a
+genuine execution remains pending. Release evidence must be the exact eight-file
+package: report, binding, commit, GUI signing request, decoded PNG, runtime
+ledger, externally signed `MCACE_VISIBLE_GUI_ATTESTATION_V3`, and externally
+signed post-run receipt. The GUI attestation and post-run receipt must chain to
+two different approved signer roots.
 
 Run the target-restart residual separately:
 
@@ -218,15 +223,16 @@ Run the target-restart residual separately:
 
 The former P2 cold-listener readiness race is fixed: `startProxy` now waits, after
 the MCAce plugin initialization marker, for the exact selected-port platform marker
-`Listening on /127.0.0.1:<port>`. The pure readiness-marker unit test passed, and
-the current-source schema-2 restart gate passed on its first execution and then
-passed `-ReportOnly`. It proved old
+`Listening on /127.0.0.1:<port>`. The pure readiness-marker unit test passed. A
+retained commit-bound schema-2 restart diagnostic passed execution and
+`-ReportOnly`; it proved old
 target-session bindings fail after restart and honestly recorded that
 a retained unexpired grant can create a fresh observation because target replay
 state is process-local: `residual_reacceptance=true` and
 `durable_replay_protection=false`. It is observation-only, retains
 `fabric_gui_coverage=false`, requires healthy source/target durable-audit state,
-and leaves zero remaining owned processes.
+and leaves zero remaining owned processes. This historical raw-peer diagnostic
+is not Federation V5 release evidence and cannot satisfy the visible GUI gate.
 
 ## Legacy hostile-admission wrapper
 

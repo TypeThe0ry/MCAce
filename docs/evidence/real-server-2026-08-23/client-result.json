@@ -1,0 +1,25 @@
+{
+  "sent": 40,
+  "events": [
+    {
+      "ts": "2026-08-23T01:21:12.961Z",
+      "type": "connect",
+      "data": null
+    },
+    {
+      "ts": "2026-08-23T01:21:15.679Z",
+      "type": "login",
+      "data": null
+    },
+    {
+      "ts": "2026-08-23T01:21:15.679Z",
+      "type": "spawn",
+      "data": null
+    },
+    {
+      "ts": "2026-08-23T01:21:18.095Z",
+      "type": "probe_done",
+      "data": null
+    }
+  ]
+}

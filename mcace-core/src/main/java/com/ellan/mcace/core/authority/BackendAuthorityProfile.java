@@ -122,13 +122,28 @@ public final class BackendAuthorityProfile {
             int threshold) {
         public ProviderContract {
             trustDomainId = BackendAuthorityPin.bounded(trustDomainId, "trustDomainId");
-            providerId = BackendAuthorityPin.bounded(providerId, "providerId");
-            providerVersion = BackendAuthorityPin.bounded(providerVersion, "providerVersion");
-            stableCheckFamily = BackendAuthorityPin.bounded(
-                    stableCheckFamily, "stableCheckFamily");
-            if (threshold <= 0) {
-                throw new IllegalArgumentException("provider threshold must be positive");
+            providerId = boundedProviderField(
+                    providerId, "providerId",
+                    ProtocolConstants.MAX_BACKEND_AUTHORITY_PROVIDER_ID_CHARS);
+            providerVersion = boundedProviderField(
+                    providerVersion, "providerVersion",
+                    ProtocolConstants.MAX_BACKEND_AUTHORITY_PROVIDER_VERSION_CHARS);
+            stableCheckFamily = boundedProviderField(
+                    stableCheckFamily, "stableCheckFamily",
+                    ProtocolConstants.MAX_BACKEND_AUTHORITY_STABLE_CHECK_FAMILY_CHARS);
+            if (threshold <= 0 || threshold
+                    > ProtocolConstants.MAX_BACKEND_AUTHORITY_OBSERVATIONS_PER_PROVIDER) {
+                throw new IllegalArgumentException("provider threshold is outside bounds");
             }
+        }
+
+        private static String boundedProviderField(
+                String value, String field, int maximumCharacters) {
+            String bounded = BackendAuthorityPin.bounded(value, field);
+            if (bounded.length() > maximumCharacters) {
+                throw new IllegalArgumentException(field + " is outside provider adapter bounds");
+            }
+            return bounded;
         }
     }
 }

@@ -140,13 +140,26 @@ public final class DispositionPolicyCompiler {
         ArtifactType type = artifactType(source.getArtifactType());
         VersionBounds versions = versionBounds(source.getVersionConstraint());
         return switch (source.getMatchType()) {
-            case DETECTION_MATCH_EXACT_SHA256 -> new ArtifactSelector(type, MatchType.EXACT_HASH, hex(source.getSha256()), versions.minimum(), versions.maximum(), Map.of());
-            case DETECTION_MATCH_MOD_ID_VERSION -> new ArtifactSelector(type, MatchType.EXACT_ID, source.getArtifactId(), versions.minimum(), versions.maximum(), Map.of());
-            case DETECTION_MATCH_SIGNER -> new ArtifactSelector(type, MatchType.METADATA, "signer", versions.minimum(), versions.maximum(), Map.of(SIGNER_METADATA, source.getSigner()));
-            case DETECTION_MATCH_CONTENT_ROOT -> new ArtifactSelector(type, MatchType.METADATA, "content-root", versions.minimum(), versions.maximum(), Map.of(CONTENT_ROOT_METADATA, hex(source.getContentRootSha256())));
+            case DETECTION_MATCH_EXACT_SHA256 -> new ArtifactSelector(type, MatchType.EXACT_HASH,
+                    hex(source.getSha256()), versions.minimum(), versions.maximum(),
+                    canonicalOptionalMetadata(source.getMetadataMap()));
+            case DETECTION_MATCH_MOD_ID_VERSION -> new ArtifactSelector(type, MatchType.EXACT_ID,
+                    source.getArtifactId(), versions.minimum(), versions.maximum(),
+                    canonicalOptionalMetadata(source.getMetadataMap()));
+            case DETECTION_MATCH_SIGNER -> new ArtifactSelector(type, MatchType.METADATA, "signer",
+                    versions.minimum(), versions.maximum(), canonicalMetadataWithRequiredEntry(
+                            source.getMetadataMap(), SIGNER_METADATA, source.getSigner()));
+            case DETECTION_MATCH_CONTENT_ROOT -> new ArtifactSelector(type, MatchType.METADATA,
+                    "content-root", versions.minimum(), versions.maximum(), canonicalMetadataWithRequiredEntry(
+                            source.getMetadataMap(), CONTENT_ROOT_METADATA, hex(source.getContentRootSha256())));
             case DETECTION_MATCH_METADATA -> new ArtifactSelector(type, MatchType.METADATA, "metadata", versions.minimum(), versions.maximum(), canonicalMetadata(source.getMetadataMap()));
-            case DETECTION_MATCH_BEHAVIOR_CORRELATION -> new ArtifactSelector(type, MatchType.EXACT_ID, source.getBehaviorRuleId(), versions.minimum(), versions.maximum(), Map.of());
-            case DETECTION_MATCH_ADMIN_CLASSIFICATION -> new ArtifactSelector(type, MatchType.METADATA, "admin-classification", versions.minimum(), versions.maximum(), Map.of(ADMIN_CLASSIFICATION_METADATA, source.getArtifactId()));
+            case DETECTION_MATCH_BEHAVIOR_CORRELATION -> new ArtifactSelector(type, MatchType.EXACT_ID,
+                    source.getBehaviorRuleId(), versions.minimum(), versions.maximum(),
+                    canonicalOptionalMetadata(source.getMetadataMap()));
+            case DETECTION_MATCH_ADMIN_CLASSIFICATION -> new ArtifactSelector(type, MatchType.METADATA,
+                    "admin-classification", versions.minimum(), versions.maximum(),
+                    canonicalMetadataWithRequiredEntry(source.getMetadataMap(),
+                            ADMIN_CLASSIFICATION_METADATA, source.getArtifactId()));
             case DETECTION_MATCH_TYPE_UNSPECIFIED, UNRECOGNIZED -> throw unsupported("selector match type", source.getMatchType());
         };
     }
@@ -199,6 +212,21 @@ public final class DispositionPolicyCompiler {
     private static Map<String, String> canonicalMetadata(Map<String, String> metadata) {
         if (metadata.isEmpty()) throw new DispositionPolicyCompileException("metadata selector must not be empty");
         return metadata.entrySet().stream().sorted(Map.Entry.comparingByKey()).collect(java.util.stream.Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue));
+    }
+
+    private static Map<String, String> canonicalOptionalMetadata(Map<String, String> metadata) {
+        return metadata.isEmpty() ? Map.of() : canonicalMetadata(metadata);
+    }
+
+    private static Map<String, String> canonicalMetadataWithRequiredEntry(
+            Map<String, String> optionalMetadata, String requiredKey, String requiredValue) {
+        if (optionalMetadata.containsKey(requiredKey)) {
+            throw new DispositionPolicyCompileException(
+                    "selector metadata duplicates derived selector field: " + requiredKey);
+        }
+        java.util.TreeMap<String, String> combined = new java.util.TreeMap<>(optionalMetadata);
+        combined.put(requiredKey, requiredValue);
+        return Map.copyOf(combined);
     }
 
     private static int unsignedPriority(DetectionRule rule) {

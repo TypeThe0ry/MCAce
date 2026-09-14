@@ -1,0 +1,55 @@
+{
+  "schema": "MCACE_ANTICHEAT_TARGETED_TEST_EVIDENCE_V1",
+  "generated_at": "2026-08-31T14:12:36.6319256Z",
+  "source_commit": "7173b3ca2cc4ba9c5f5180e243ae87db676897fe",
+  "product_version": "0.0.1",
+  "minecraft_versions": [
+    "1.21.11",
+    "26.1.2",
+    "26.2"
+  ],
+  "tests": [
+    {
+      "name": "client_modlist_resource_pack_handshake",
+      "command": ".\\gradlew.bat :mcace-client-common:test --tests com.ellan.mcace.client.session.ClientHandshakeEngineBudgetTest --no-daemon --no-configuration-cache --stacktrace",
+      "exit_code": 0,
+      "result": "BUILD_SUCCESSFUL",
+      "coverage": [
+        "loaded mod graph binding",
+        "selected resource-pack and shader-pack IDs/order",
+        "duplicate and non-canonical pack rejection",
+        "path-leaking loaded-mod rejection"
+      ]
+    },
+    {
+      "name": "fabric_single_enablement_and_runtime_pack_observation",
+      "command": ".\\gradlew.bat :mcace-client-fabric:test --tests com.ellan.mcace.fabric.MCAceEnablementContractTest --tests com.ellan.mcace.fabric.ArtifactObservationSendScheduleTest --tests com.ellan.mcace.fabric.ExplicitFileConsentScreenTest --no-daemon --no-configuration-cache --stacktrace",
+      "exit_code": 0,
+      "result": "BUILD_SUCCESSFUL",
+      "coverage": [
+        "one visible Enable MCAce decision",
+        "stale callback cannot enable a replacement connection",
+        "resource-pack reorder produces a changed runtime snapshot",
+        "explicit-file disclosure and render-gated approval"
+      ]
+    },
+    {
+      "name": "anticheat_live_fixture_current_head",
+      "command": "pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\anticheat-live-fixture-smoke.ps1 -Execute",
+      "exit_code": 0,
+      "result": "ANTICHEAT_LIVE_FIXTURE_EXECUTE_PASS",
+      "fixture_report_sha256": "a825cb172a9d797a1fde23d65bb7c90079a4b1a100fdc899491a6ae62093388b",
+      "server_confirmed_count": 3,
+      "server_confirmed_action": "QUARANTINE",
+      "clean_false_positive_count": 0
+    },
+    {
+      "name": "anticheat_live_fixture_report_only",
+      "command": "pwsh -NoLogo -NoProfile -ExecutionPolicy Bypass -File .\\scripts\\anticheat-live-fixture-smoke.ps1 -ReportOnly",
+      "exit_code": 0,
+      "result": "ANTICHEAT_LIVE_FIXTURE_REPORT_ONLY_PASS",
+      "fixture_report_sha256": "a825cb172a9d797a1fde23d65bb7c90079a4b1a100fdc899491a6ae62093388b"
+    }
+  ],
+  "environment_note": "The live fixture is a loopback MCAce-owned executable client/server integration. It verifies the client modlist/resource-pack telemetry, independent server behavior signal, session correlation, and signed lab QUARANTINE path; it is not third-party cheat code, a public server, a full GUI session, a licensed Vulcan callback, or production kick/ban evidence."
+}

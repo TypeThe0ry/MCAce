@@ -32,7 +32,13 @@ final class FabricDeployableArtifactTest {
     private static final String DEPLOYABLE_JAR_PROPERTY = "mcace.fabric.deployable-jar";
     private static final String BUILD_ID_PROPERTY = "mcace.fabric.client-build-id";
     private static final String MCACE_CLASS_PREFIX = "com/ellan/mcace/";
+    private static final String CORE_CLASS_PREFIX = "com/ellan/mcace/core/";
     private static final String PROTOBUF_CLASS_PREFIX = "com/google/protobuf/";
+    private static final Set<String> CLIENT_SAFE_CORE_CLASSES = Set.of(
+            "com/ellan/mcace/core/disposition/ArtifactObservation",
+            "com/ellan/mcace/core/disposition/ArtifactType",
+            "com/ellan/mcace/core/disposition/Confidence",
+            "com/ellan/mcace/core/disposition/ObservationOrigin");
 
     @TempDir
     Path temporaryDirectory;
@@ -81,6 +87,12 @@ final class FabricDeployableArtifactTest {
 
         assertNestedLibrary(nestedNames, "mcace-client-common-");
         assertNestedLibrary(nestedNames, "mcace-core-");
+        assertTrue(nestedNames.stream()
+                        .map(name -> Path.of(name).getFileName().toString())
+                        .anyMatch(name -> name.startsWith("mcace-core-")
+                                && name.endsWith("-client-safe.jar")),
+                () -> "final Fabric artifact is missing the reviewed client-safe core JAR: "
+                        + nestedNames);
         assertNestedLibrary(nestedNames, "mcace-sdk-");
         assertNestedLibrary(nestedNames, "mcace-protocol-");
         assertNestedLibrary(nestedNames, "protobuf-java-4.32.1.jar");
@@ -94,6 +106,13 @@ final class FabricDeployableArtifactTest {
         assertTrue(classes.containsKey("com/ellan/mcace/sdk/MCAceApi"));
         assertTrue(classes.containsKey("com/ellan/mcace/protocol/ProtocolConstants"));
         assertTrue(classes.containsKey("com/google/protobuf/Message"));
+
+        Set<String> packagedCoreClasses = new TreeSet<>();
+        classes.keySet().stream()
+                .filter(name -> name.startsWith(CORE_CLASS_PREFIX))
+                .forEach(packagedCoreClasses::add);
+        assertEquals(CLIENT_SAFE_CORE_CLASSES, packagedCoreClasses,
+                "final Fabric artifact must carry exactly the reviewed client-safe core classes");
 
         Set<String> privacyViolations = new TreeSet<>();
         classes.forEach((className, classBytes) -> FabricPrivacyBytecodePolicy.violations(classBytes)

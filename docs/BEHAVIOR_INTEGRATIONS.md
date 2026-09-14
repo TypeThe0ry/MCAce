@@ -195,18 +195,29 @@ A pass proves Paper process coverage, licensed-plugin enablement, and MCAce list
 registration. Its schema fixes `real_behavior_event_delivery_coverage=false`, so
 one genuine bounded Vulcan-triggered event remains a separate human/driver gate;
 constructing an event in MCAce or a test observer is not acceptable evidence.
-That second gate is now encoded, but remains unexecuted, in
-`scripts/vulcan-genuine-event-smoke.ps1`. It requires the same reviewed artifact and
-prepared-runtime pins, deny-all/network-isolation attestations, an expected player,
-and explicit attestations that the trigger is external and no synthetic event was
-injected. It waits for exactly one loopback-delivered `BEHAVIOR_HIGH_RISK` event with
-origin `SERVER_CONFIRMED`, source `vulcan-adapter`, the reviewed provider version,
-non-empty check/stable-check fields, and `flag_count >= 1`. The sanitized result does
-not retain the player UUID, check values, paths, PIDs, ports, or raw content. Neither
-the human trigger origin nor OS isolation is independently proven by the script.
-The cleanup field is deliberately named `remaining_marker_process_count`; it
-proves zero process command lines bearing the unique run marker, not OS-level
-job-object ownership of arbitrary subprocesses.
+That second gate is encoded in `scripts/vulcan-genuine-event-smoke.ps1`. Its V2
+path remains a content-minimized diagnostic: it checks the reviewed artifact and
+prepared-runtime pins, deny-all/network-isolation attestations, expected player,
+and exactly one loopback-delivered `BEHAVIOR_HIGH_RISK` event with origin
+`SERVER_CONFIRMED`, source `vulcan-adapter`, reviewed provider version, non-empty
+check fields, and `flag_count >= 1`. V2 does not independently prove the trigger
+origin and is not release evidence.
+
+Release gating uses `-ReleaseGradeV3`. It binds the reviewed licensed Vulcan,
+Paper, and MCAce JARs; frozen source commit and product version; a repository-
+external exchange; an approved pinned supervisor root; and callback provenance
+written only by the real Bukkit callback. The exact seven-file package is
+`report.json`, `binding.json`, `commit.json`, `signing-request.json`,
+`supervisor-receipt.json`, `raw-risk-event.json`, and
+`callback-provenance.jsonl`. Publisher and readiness accept only the externally
+supervised Vulcan V3 chain. No genuine current-source V3 capture or published
+index exists yet; see
+[`NATIVE_RELEASE_EVIDENCE.md#vulcan-v3-genuine-event-gate`](NATIVE_RELEASE_EVIDENCE.md#vulcan-v3-genuine-event-gate).
+
+The diagnostic cleanup field is deliberately named
+`remaining_marker_process_count`; it proves zero process command lines bearing
+the unique run marker, not OS-level job-object ownership of arbitrary
+subprocesses.
 
 The PowerShell lock and report-hash equality bind the retained result to the same
 artifact bytes, but the Java structural inspector necessarily opens the supplied

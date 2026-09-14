@@ -17,20 +17,28 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 final class FabricClientBuildMetadataTest {
+    private static final String PRODUCT_VERSION_PROPERTY = "mcace.test.product-version";
+
+    private static String productVersion() {
+        return System.getProperty(PRODUCT_VERSION_PROPERTY, "0.1.0-SNAPSHOT");
+    }
+
     @Test
     void validatesReleaseMetadataBeforeItEntersSignedHello() {
         FabricClientBuildMetadata metadata = new FabricClientBuildMetadata(
-                "0.1.0-SNAPSHOT", "26.2", "fabric-26.2-release-17");
+                productVersion(), "26.2", "fabric-26.2-release-17");
 
-        assertEquals("0.1.0-SNAPSHOT", metadata.clientVersion());
+        assertEquals(productVersion(), metadata.clientVersion());
         assertEquals("26.2", metadata.minecraftVersion());
         assertEquals("fabric-26.2-release-17", metadata.buildId());
         assertEquals(
-                "MCACE_FABRIC_ARTIFACT_LOADED version=0.1.0-SNAPSHOT build_id=fabric-26.2-release-17",
+                "MCACE_FABRIC_ARTIFACT_LOADED version=" + productVersion()
+                        + " build_id=fabric-26.2-release-17",
                 metadata.artifactLoadedMarker());
         String sha256 = "0123456789abcdef".repeat(4);
         assertEquals(
-                "MCACE_FABRIC_ARTIFACT_LOADED version=0.1.0-SNAPSHOT build_id=fabric-26.2-release-17"
+                "MCACE_FABRIC_ARTIFACT_LOADED version=" + productVersion()
+                        + " build_id=fabric-26.2-release-17"
                         + " code_source_sha256=" + sha256,
                 metadata.artifactLoadedMarker(sha256));
         assertThrows(IllegalArgumentException.class,
@@ -71,7 +79,7 @@ final class FabricClientBuildMetadataTest {
         ModernFabricTestTarget.Target target = ModernFabricTestTarget.current();
         String json = target.metadata();
 
-        assertEquals("0.1.0-SNAPSHOT", ModernFabricTestTarget.jsonString(json, "version"));
+        assertEquals(productVersion(), ModernFabricTestTarget.jsonString(json, "version"));
         assertEquals(target.minecraftVersion(), ModernFabricTestTarget.jsonString(json, "minecraft"));
         assertEquals(target.fabricApiVersion(), ModernFabricTestTarget.jsonString(json, "fabric-api"));
         assertEquals(">=25", ModernFabricTestTarget.jsonString(json, "java"));

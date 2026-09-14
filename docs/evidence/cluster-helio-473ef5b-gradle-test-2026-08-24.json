@@ -1,0 +1,22 @@
+{
+  "schema": "MCACE_CLUSTER_GRADLE_TEST_EVIDENCE_V1",
+  "generated_at": "2026-08-23T16:39:02Z",
+  "execution_node": "helio",
+  "profile": "windows",
+  "source_commit": "473ef5b008ecc8619c9f6424f073fee838f5fc97",
+  "job_directory": "C:\\CodexWorker\\jobs\\20260824-helio-mcace-473ef5b-test",
+  "command": ".\\gradlew.bat test --no-daemon --no-parallel --max-workers=1 --console=plain",
+  "exit_code": 0,
+  "java": "21.0.10",
+  "gradle": "9.6.1",
+  "elapsed_seconds": 210,
+  "actionable_tasks": 69,
+  "executed_tasks": 26,
+  "cached_tasks": 43,
+  "log_sha256": "2bbfdd21f3559efb8252c654f2fa3a1161e766ca7a4a41feed47a9142040d8bd",
+  "verification": "BUILD SUCCESSFUL; exact detached checkout identity matched source_commit.",
+  "limitations": [
+    "This is a Helio Windows build/test witness, not protected-main releaseBundle CI.",
+    "It does not close visible GUI consent, real federation handoff, licensed Vulcan, or production SERVER_CONFIRMED authority gates."
+  ]
+}

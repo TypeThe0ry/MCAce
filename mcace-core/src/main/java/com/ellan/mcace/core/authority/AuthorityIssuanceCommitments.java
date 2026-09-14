@@ -39,23 +39,47 @@ final class AuthorityIssuanceCommitments {
     }
 
     static String providers(ServerAuthorityObservationCodec.ObservationRequest request) {
+        List<ProviderEvidence> providers = request.providers().stream()
+                .map(provider -> new ProviderEvidence(
+                        provider.trustDomainId(), provider.providerId(),
+                        provider.providerVersion(), provider.stableCheckFamily(),
+                        provider.threshold(), provider.observedCount(),
+                        provider.windowStartedAt().toEpochMilli(),
+                        provider.windowEndedAt().toEpochMilli()))
+                .toList();
+        return providers(request.authorityProfileSha256(), providers);
+    }
+
+    static String providers(VerifiedServerAuthorityObservation observation) {
+        List<ProviderEvidence> providers = observation.providers().stream()
+                .map(provider -> new ProviderEvidence(
+                        provider.trustDomainId(), provider.providerId(),
+                        provider.providerVersion(), provider.stableCheckFamily(),
+                        provider.threshold(), provider.observedCount(),
+                        provider.windowStartedAt().toEpochMilli(),
+                        provider.windowEndedAt().toEpochMilli()))
+                .toList();
+        return providers(observation.authorityProfileSha256(), providers);
+    }
+
+    private static String providers(String authorityProfileSha256,
+            List<ProviderEvidence> providers) {
         return digest("mcace/server-authority/provider-profile/v1", output -> {
-            text(output, request.authorityProfileSha256());
-            List<ServerAuthorityObservationCodec.ProviderInput> ordered =
-                    new ArrayList<>(request.providers());
+            text(output, authorityProfileSha256);
+            List<ProviderEvidence> ordered = new ArrayList<>(providers);
             ordered.sort(Comparator
-                    .comparing(ServerAuthorityObservationCodec.ProviderInput::providerId)
-                    .thenComparing(ServerAuthorityObservationCodec.ProviderInput::trustDomainId));
+                    .comparing(ProviderEvidence::providerId)
+                    .thenComparing(ProviderEvidence::trustDomainId));
             output.writeInt(ordered.size());
-            for (ServerAuthorityObservationCodec.ProviderInput provider : ordered) {
+            for (ProviderEvidence provider : ordered) {
                 text(output, provider.trustDomainId());
                 text(output, provider.providerId());
                 text(output, provider.providerVersion());
                 text(output, provider.stableCheckFamily());
                 output.writeInt(provider.threshold());
                 output.writeInt(provider.observedCount());
-                output.writeLong(provider.windowStartedAt().toEpochMilli());
-                output.writeLong(provider.windowEndedAt().toEpochMilli());
+                output.writeLong(provider.windowStartedAtEpochMs());
+                output.writeLong(provider.windowEndedAtEpochMs());
             }
         });
     }
@@ -88,5 +112,16 @@ final class AuthorityIssuanceCommitments {
     @FunctionalInterface
     private interface Writer {
         void write(DataOutputStream output) throws IOException;
+    }
+
+    private record ProviderEvidence(
+            String trustDomainId,
+            String providerId,
+            String providerVersion,
+            String stableCheckFamily,
+            int threshold,
+            int observedCount,
+            long windowStartedAtEpochMs,
+            long windowEndedAtEpochMs) {
     }
 }

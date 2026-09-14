@@ -235,8 +235,21 @@ final class VelocityDeferredDispositionRoutes {
             Object playerIdentity) {
         Objects.requireNonNull(playerId, "playerId");
         Objects.requireNonNull(sessionId, "sessionId");
+        markDeniedPhysical(playerId, loginTicket, playerIdentity, sessionId);
+    }
+
+    /** Marks the exact physical login denied before a coordinator session exists. */
+    synchronized void markDeniedPhysical(
+            UUID playerId,
+            VelocityLoginLifecycle.LoginTicket loginTicket,
+            Object playerIdentity,
+            String markerSessionId) {
+        Objects.requireNonNull(playerId, "playerId");
+        Objects.requireNonNull(loginTicket, "loginTicket");
+        Objects.requireNonNull(playerIdentity, "playerIdentity");
+        Objects.requireNonNull(markerSessionId, "markerSessionId");
         pendingByPlayer.remove(playerId);
-        deniedSessions.put(playerId, new DeniedSession(sessionId, loginTicket, playerIdentity));
+        deniedSessions.put(playerId, new DeniedSession(markerSessionId, loginTicket, playerIdentity));
     }
 
     synchronized int pendingCount() {

@@ -1,30 +1,51 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="380" viewBox="0 0 1200 380" role="img" aria-labelledby="title desc">
-  <title id="title">MCAce anti-cheat evidence boundary</title>
-  <desc id="desc">A client artifact and behavior observation flow from low-confidence report to pending server confirmation.</desc>
-  <rect width="1200" height="380" rx="20" fill="#0b1220"/>
-  <text x="50" y="54" fill="#f8fafc" font-family="Segoe UI, sans-serif" font-size="28" font-weight="700">Anti-cheat evidence boundary</text>
-  <g font-family="Segoe UI, sans-serif" font-size="16">
-    <rect x="48" y="120" width="210" height="132" rx="16" fill="#1e293b" stroke="#94a3b8" stroke-width="2"/>
-    <text x="153" y="160" text-anchor="middle" fill="#f8fafc" font-size="20" font-weight="700">Client</text>
-    <text x="153" y="192" text-anchor="middle" fill="#cbd5e1">Meteor / Xray</text>
-    <text x="153" y="220" text-anchor="middle" fill="#cbd5e1">manifest + behavior</text>
-    <path d="M258 186 H365" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
-    <rect x="365" y="120" width="210" height="132" rx="16" fill="#172554" stroke="#60a5fa" stroke-width="2"/>
-    <text x="470" y="160" text-anchor="middle" fill="#bfdbfe" font-size="20" font-weight="700">MCAce</text>
-    <text x="470" y="192" text-anchor="middle" fill="#dbeafe">CLIENT_REPORTED</text>
-    <text x="470" y="220" text-anchor="middle" fill="#dbeafe">low-confidence OBSERVE</text>
-    <path d="M575 186 H682" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
-    <rect x="682" y="120" width="210" height="132" rx="16" fill="#3f2a0a" stroke="#fbbf24" stroke-width="2"/>
-    <text x="787" y="160" text-anchor="middle" fill="#fde68a" font-size="20" font-weight="700">Server</text>
-    <text x="787" y="192" text-anchor="middle" fill="#fef3c7">behavior correlation</text>
-    <text x="787" y="220" text-anchor="middle" fill="#fef3c7">Vulcan/Grim pending</text>
-    <path d="M892 186 H999" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
-    <rect x="999" y="120" width="153" height="132" rx="16" fill="#451a03" stroke="#fb923c" stroke-width="2"/>
-    <text x="1075" y="160" text-anchor="middle" fill="#fed7aa" font-size="20" font-weight="700">Action</text>
-    <text x="1075" y="192" text-anchor="middle" fill="#ffedd5">manual review</text>
-    <text x="1075" y="220" text-anchor="middle" fill="#ffedd5">current conn only</text>
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="500" viewBox="0 0 1400 500" role="img" aria-labelledby="title desc">
+  <title id="title">MCAce client and server anti-cheat evidence flow</title>
+  <desc id="desc">The client proves MCAce presence and reports its mod list and active resource-pack state as client-reported evidence. Independent server-side behavior providers produce deduplicated events. Only exact-profile, multi-domain quorum can become a signed server-confirmed observation.</desc>
+  <defs><marker id="arrow" markerWidth="11" markerHeight="11" refX="9" refY="4" orient="auto"><path d="M0 0 L0 8 L10 4 Z" fill="#64748b"/></marker></defs>
+  <rect width="1400" height="500" rx="24" fill="#0b1220"/>
+  <g font-family="Segoe UI, Arial, sans-serif">
+    <text x="52" y="62" fill="#f8fafc" font-size="31" font-weight="700">Anti-cheat evidence flow · client visibility + server authority</text>
+    <text x="52" y="94" fill="#94a3b8" font-size="17">Client inventory is useful evidence, but it never self-promotes to SERVER_CONFIRMED.</text>
+    <rect x="52" y="142" width="250" height="228" rx="18" fill="#10243b" stroke="#38bdf8" stroke-width="2"/>
+    <text x="177" y="184" text-anchor="middle" fill="#7dd3fc" font-size="22" font-weight="700">Fabric client</text>
+    <g fill="#e0f2fe" font-size="16">
+      <text x="78" y="225">• MCAce presence handshake</text>
+      <text x="78" y="257">• loaded mod identifiers</text>
+      <text x="78" y="289">• enabled resource-pack IDs/order</text>
+      <text x="78" y="321">• scoped integrity observations</text>
+      <text x="78" y="351" fill="#bae6fd">absence → untrusted policy state</text>
+    </g>
+    <path d="M302 256 H358" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="359" y="142" width="235" height="228" rx="18" fill="#172554" stroke="#60a5fa" stroke-width="2"/>
+    <text x="476" y="184" text-anchor="middle" fill="#bfdbfe" font-size="22" font-weight="700">CLIENT_REPORTED</text>
+    <text x="476" y="228" text-anchor="middle" fill="#dbeafe" font-size="17">signed session transcript</text>
+    <text x="476" y="260" text-anchor="middle" fill="#dbeafe" font-size="17">allow / flag / review policy</text>
+    <text x="476" y="306" text-anchor="middle" fill="#93c5fd" font-size="16">never sufficient alone</text>
+    <text x="476" y="338" text-anchor="middle" fill="#93c5fd" font-size="16">for punitive authority</text>
+    <rect x="650" y="142" width="235" height="228" rx="18" fill="#27154b" stroke="#c084fc" stroke-width="2"/>
+    <text x="767" y="184" text-anchor="middle" fill="#e9d5ff" font-size="22" font-weight="700">Server providers</text>
+    <text x="767" y="225" text-anchor="middle" fill="#f3e8ff" font-size="17">Grim trust domain</text>
+    <text x="767" y="257" text-anchor="middle" fill="#f3e8ff" font-size="17">Vulcan trust domain</text>
+    <text x="767" y="302" text-anchor="middle" fill="#d8b4fe" font-size="16">provider event SHA-256</text>
+    <text x="767" y="334" text-anchor="middle" fill="#d8b4fe" font-size="16">duplicate callback = no count</text>
+    <path d="M885 256 H941" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="942" y="142" width="210" height="228" rx="18" fill="#3f2a0a" stroke="#fbbf24" stroke-width="2"/>
+    <text x="1047" y="184" text-anchor="middle" fill="#fde68a" font-size="22" font-weight="700">Exact quorum</text>
+    <text x="1047" y="226" text-anchor="middle" fill="#fef3c7" font-size="16">frozen versions</text>
+    <text x="1047" y="258" text-anchor="middle" fill="#fef3c7" font-size="16">stable check families</text>
+    <text x="1047" y="290" text-anchor="middle" fill="#fef3c7" font-size="16">window + thresholds</text>
+    <text x="1047" y="322" text-anchor="middle" fill="#fde68a" font-size="15">genuine · non-synthetic</text>
+    <text x="1047" y="348" text-anchor="middle" fill="#fde68a" font-size="15">non-experimental</text>
+    <path d="M1152 256 H1208" stroke="#64748b" stroke-width="3" marker-end="url(#arrow)"/>
+    <rect x="1209" y="142" width="139" height="228" rx="18" fill="#102a1b" stroke="#4ade80" stroke-width="2"/>
+    <text x="1278" y="184" text-anchor="middle" fill="#86efac" font-size="20" font-weight="700">Signed</text>
+    <text x="1278" y="216" text-anchor="middle" fill="#86efac" font-size="20" font-weight="700">authority</text>
+    <text x="1278" y="264" text-anchor="middle" fill="#f0fdf4" font-size="14">SERVER_</text>
+    <text x="1278" y="287" text-anchor="middle" fill="#f0fdf4" font-size="14">CONFIRMED</text>
+    <text x="1278" y="330" text-anchor="middle" fill="#bbf7d0" font-size="14">signed action</text>
+    <text x="1278" y="351" text-anchor="middle" fill="#bbf7d0" font-size="14">ceiling only</text>
+    <path d="M594 256 H650" stroke="#475569" stroke-width="2" stroke-dasharray="7 7"/>
+    <text x="622" y="242" text-anchor="middle" fill="#64748b" font-size="13">correlate</text>
+    <text x="700" y="438" text-anchor="middle" fill="#64748b" font-size="15">The controlled fixture verifies this session-correlation path; licensed genuine-provider and production-action evidence remain separate release gates.</text>
   </g>
-  <defs>
-    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#64748b"/></marker>
-  </defs>
 </svg>

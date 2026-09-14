@@ -19,21 +19,28 @@ import org.junit.jupiter.api.io.TempDir;
 
 final class FabricClientBuildMetadataTest {
     private static final String BUILD_ID_PROPERTY = "mcace.fabric.client-build-id";
+    private static final String PRODUCT_VERSION_PROPERTY = "mcace.test.product-version";
+
+    private static String productVersion() {
+        return System.getProperty(PRODUCT_VERSION_PROPERTY, "0.1.0-SNAPSHOT");
+    }
 
     @Test
     void validatesReleaseMetadataBeforeItEntersSignedHello() {
         FabricClientBuildMetadata metadata = new FabricClientBuildMetadata(
-                "0.1.0-SNAPSHOT", "1.21.1", "fabric-release-17");
+                productVersion(), "1.21.1", "fabric-release-17");
 
-        assertEquals("0.1.0-SNAPSHOT", metadata.clientVersion());
+        assertEquals(productVersion(), metadata.clientVersion());
         assertEquals("1.21.1", metadata.minecraftVersion());
         assertEquals("fabric-release-17", metadata.buildId());
         assertEquals(
-                "MCACE_FABRIC_ARTIFACT_LOADED version=0.1.0-SNAPSHOT build_id=fabric-release-17",
+                "MCACE_FABRIC_ARTIFACT_LOADED version=" + productVersion()
+                        + " build_id=fabric-release-17",
                 metadata.artifactLoadedMarker());
         String sha256 = "0123456789abcdef".repeat(4);
         assertEquals(
-                "MCACE_FABRIC_ARTIFACT_LOADED version=0.1.0-SNAPSHOT build_id=fabric-release-17"
+                "MCACE_FABRIC_ARTIFACT_LOADED version=" + productVersion()
+                        + " build_id=fabric-release-17"
                         + " code_source_sha256=" + sha256,
                 metadata.artifactLoadedMarker(sha256));
         assertThrows(IllegalArgumentException.class,
@@ -76,7 +83,7 @@ final class FabricClientBuildMetadataTest {
             String json = new String(input.readAllBytes(), StandardCharsets.UTF_8);
             String expectedBuildId = System.getProperty(BUILD_ID_PROPERTY, "").strip();
             assertFalse(expectedBuildId.isEmpty(), BUILD_ID_PROPERTY + " was not configured by Gradle");
-            assertTrue(json.contains("\"version\": \"0.1.0-SNAPSHOT\""));
+            assertTrue(json.contains("\"version\": \"" + productVersion() + "\""));
             assertTrue(json.contains("\"mcace:client_build_id\": \"" + expectedBuildId + "\""));
             assertFalse(json.contains("${mcace_"));
         }

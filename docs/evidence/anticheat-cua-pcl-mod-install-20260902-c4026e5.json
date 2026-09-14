@@ -1,0 +1,59 @@
+{
+  "schema": "MCACE_CUA_CLIENT_MOD_INSTALL_EVIDENCE_V1",
+  "generated_at": "2026-09-02T01:34:32.8721202Z",
+  "source_commit": "c4026e5a08c838206da8c767bc4ff6aecad156af",
+  "artifact_source_commit": "ff6d9f9f9e78d63a3b20a42ca19c01fda99a1a7b",
+  "target_version": "26.2",
+  "launcher": {
+    "name": "Plain Craft Launcher 2",
+    "source_root": "E:/Ellan艾尔岚-客户端-26.2",
+    "profile": "EllanTOP-26.2",
+    "mod_directory": "E:/Ellan艾尔岚-客户端-26.2/.minecraft/versions/EllanTOP-26.2/mods",
+    "rollback_backup": "D:/MCAceEvidenceScratch/pcl-mods-backup-20260902T092545298Z"
+  },
+  "artifact": {
+    "file": "mcace-client-fabric-26.2.jar",
+    "path": "C:/Projects/MCAce/build/release-bundle/mcace-client-fabric-26.2.jar",
+    "sha256": "ac3d05059863c959e48be28d48bdc53f81e4cb9c599f94f19ec58cf6cdbab5c4",
+    "size_bytes": 3041445,
+    "installed_path": "E:/Ellan艾尔岚-客户端-26.2/.minecraft/versions/EllanTOP-26.2/mods/mcace-client-fabric-26.2.jar"
+  },
+  "mod_install": {
+    "source_mod_count_before": 60,
+    "source_mod_count_after": 61,
+    "installed_filename_visible_in_ui": true,
+    "ui_confirmation_text": "已安装 mcace-client-fabric-26.2.jar！",
+    "ui_count_after": "全部 (61)",
+    "artifact_sha256_matches_installed_file": true
+  },
+  "computer_use": {
+    "surface": "@oai/sky via callable node_repl",
+    "launcher_window_observed": true,
+    "actions": [
+      "open PCL version settings",
+      "open Mod 管理",
+      "open 从文件安装",
+      "enter the MCAce 26.2 JAR path",
+      "confirm the file picker Open action"
+    ],
+    "screenshots_displayed": true,
+    "screenshot_persisted_as_signed_artifact": false,
+    "human_enablement_click": false,
+    "connection_bound_attestation": false
+  },
+  "runtime_cross_check": {
+    "isolated_fabric_process_report": "C:/Projects/MCAce/build/isolated-fabric-client-smoke/report-current-c4026e5.json",
+    "isolated_fabric_artifact_loaded_marker": true,
+    "isolated_fabric_client_initialized": true,
+    "pcl_source_profile_visible_window_observed": true,
+    "server_handshake_observed": false
+  },
+  "pass": true,
+  "release_gate_effect": "informational_only",
+  "limitations": [
+    "The PCL source profile was modified through the visible UI and has a filesystem backup for rollback.",
+    "This records UI installation and hash equality; it is not a signed production GUI attestation.",
+    "No Enable MCAce decision was made, so client enablement remains off.",
+    "No public-server handshake, Federation handoff, Vulcan genuine event, or production authority action is claimed."
+  ]
+}

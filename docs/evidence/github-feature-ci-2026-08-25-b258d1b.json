@@ -1,0 +1,47 @@
+{
+  "schema": "MCACE_GITHUB_FEATURE_CI_EVIDENCE_V2",
+  "generated_at": "2026-08-25T01:36:31.5662203Z",
+  "repository": "TypeThe0ry/MCAce",
+  "pull_request": 17,
+  "source_commit": "b258d1b78f0aaa26388883427ca99f86ea52d1c2",
+  "branch": "feature/active-pack-integrity",
+  "runs": [
+    {
+      "run_id": 32797593897,
+      "job_id": 97651950100,
+      "event": "push",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32797593897",
+      "job_url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32797593897/job/97651950100",
+      "build_and_test": "success",
+      "local_verification_bundle": "success",
+      "exact_eight_local_bundle_upload": "success",
+      "release_bundle": "skipped",
+      "fail_closed_release_readiness": "skipped"
+    },
+    {
+      "run_id": 32797597164,
+      "job_id": 97651959154,
+      "event": "pull_request",
+      "status": "completed",
+      "conclusion": "success",
+      "url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32797597164",
+      "job_url": "https://github.com/TypeThe0ry/MCAce/actions/runs/32797597164/job/97651959154",
+      "build_and_test": "success",
+      "local_verification_bundle": "success",
+      "exact_eight_local_bundle_upload": "success",
+      "release_bundle": "skipped",
+      "fail_closed_release_readiness": "skipped"
+    }
+  ],
+  "steps": {
+    "build_and_test": "success",
+    "local_verification_bundle": "success",
+    "exact_eight_local_bundle_upload": "success",
+    "release_bundle": "skipped_on_feature_branch",
+    "release_bundle_upload": "skipped_on_feature_branch",
+    "fail_closed_release_readiness": "skipped_on_feature_branch"
+  },
+  "interpretation": "Both push and pull_request checks passed exact checkout, build/test, local verification bundle, and exact-eight upload for b258d1b. The feature branch intentionally skips releaseBundle and the main-only fail-closed readiness gate; protected-main exact-commit releaseBundle remains open."
+}

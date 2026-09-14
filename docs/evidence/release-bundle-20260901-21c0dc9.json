@@ -1,0 +1,42 @@
+{
+  "schema": "MCACE_RELEASE_BUNDLE_EVIDENCE_V2",
+  "generated_at": "2026-09-01T07:08:02Z",
+  "source": "local_gradle_releaseBundle",
+  "node": "controller",
+  "profile": "windows",
+  "job_id": "local-20260901-21c0dc9",
+  "source_commit": "21c0dc90e2823f23d1de6035b2b9b095b9c210ef",
+  "artifact_source_commit": "df5504cd9ba04535040c2e368dbbb0a6859beb87",
+  "conclusion": "success",
+  "release_identity": true,
+  "bundle_profile": "RELEASE",
+  "product_version": "0.0.1",
+  "deployable_count": 6,
+  "bundle_entry_count": 8,
+  "bundle_directory": "build/release-bundle",
+  "manifest_sha256": "c4f153ab9b273064b5b440a441cc2ed7b6ca5d4bc0d99fcf1c21e299f7d8318c",
+  "sha256sums_sha256": "1db6249e17b3aaba31ddce2136b576bd6259495fbc7927641bfe9624ee1db9c0",
+  "sha256sums_verified": true,
+  "compatibility_report": "build/compatibility-contract/report.json",
+  "compatibility_report_sha256": "cc5547d33ce8a51075ae618023a8bbee1a32276c3798ac92f783b8dba248f5a1",
+  "compatibility_passed": true,
+  "runtime": {
+    "root_java": "21.0.7",
+    "modern_java": "25.0.3",
+    "gradle": "9.6.1"
+  },
+  "artifacts": {
+    "mcace-client-fabric-1.21.11.jar": "eb1c9d2ca7721e80a8625ce565549fc03156cd4c858be9f303201907cc57cc4c",
+    "mcace-client-fabric-26.1.2.jar": "2912d0adeb741ea2ff8444248b706cf0eafe81340d766d792e6987a3683ddb77",
+    "mcace-client-fabric-26.2.jar": "49dcfd7d33247069bc2c10211ce69c052151b5a7e2b41b304aaad553550c3aed",
+    "mcace-server-velocity.jar": "f6d6dcac5d300c7588b392b386084d40c884ab241c4fdc990756461e6f510162",
+    "mcace-server-bungeecord.jar": "2390a03f8e4490d0690d44add2eab9e4c0a37a054e59aec8bdd5045d98493884",
+    "mcace-server-paper.jar": "267ab74e7760d344bc154b7ae1051539bb3eeb0c3f17111801aec3142d3156bb"
+  },
+  "interpretation": "The controller rebuilt the exact 21c0dc9 checkout with product_version=0.0.1 and the declared artifact source. The eight-entry release bundle, manifest identity, six SHA256SUMS entries, and all three exact compatibility tuples passed independent local verification.",
+  "limitations": [
+    "This is a feature-branch local candidate, not protected-main or protected-tag exact-commit CI.",
+    "GUI consent, Fabric federation handoff, licensed Vulcan genuine event, and production provider/topology freeze remain separate release gates.",
+    "The bundle directory is mutable build output; a protected CI upload must become the final release identity."
+  ]
+}

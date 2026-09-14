@@ -81,6 +81,16 @@ final class ConsentUiSupport {
         return sanitized.toString();
     }
 
+    /**
+     * Modern GuiGraphicsExtractor text colors are ARGB values. Supplying a legacy
+     * 24-bit RGB literal leaves alpha at zero, so the disclosure text is queued but
+     * fully transparent while widget labels (which already use opaque ARGB) remain
+     * visible. Keep the conversion explicit at the compatibility boundary.
+     */
+    static int opaqueTextColor(int rgb) {
+        return 0xFF000000 | (rgb & 0x00FFFFFF);
+    }
+
     static int contentHeight(int lineStep, int totalLines, int paragraphCount, int paragraphGap) {
         int safeLineStep = Math.max(1, lineStep);
         int safeLines = Math.max(1, totalLines);

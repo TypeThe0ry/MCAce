@@ -43,6 +43,7 @@ tasks.test {
             .get().asFile.absolutePath,
     )
     systemProperty("mcace.runtime.classpath", sourceSets.main.get().runtimeClasspath.asPath)
+    systemProperty("mcace.anticheat.fixture.classpath", sourceSets.test.get().runtimeClasspath.asPath)
     listOf(
         "mcace.folia.player-probe.host",
         "mcace.folia.player-probe.port",
@@ -52,6 +53,7 @@ tasks.test {
         "mcace.folia.player-probe.hold-millis",
         "mcace.admission-probe.mode",
         "mcace.runtime.player-probe.enabled",
+        "mcace.runtime.inventory-admission.enabled",
         "mcace.runtime.folia-context.enabled",
         "mcace.runtime.backend-kind",
         "mcace.runtime.backend.jar",

@@ -42,13 +42,23 @@ final class EvidenceCaptureController implements AutoCloseable {
 
     private final Clock clock;
     private final ExecutorService encoder = Executors.newVirtualThreadPerTaskExecutor();
-    private Pending pending;
+    private volatile Pending pending;
 
     EvidenceCaptureController(Clock clock) {
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     void accept(MinecraftClient client, VerifiedEvidenceRequest request, Sender sender) {
+        accept(client, request, sender, false);
+    }
+
+    /**
+     * Starts a signed render-frame request.  When the connection-level MCAce enablement screen
+     * already covered evidence, no second visible prompt is shown; all capture bounds and expiry
+     * checks remain identical.
+     */
+    void accept(MinecraftClient client, VerifiedEvidenceRequest request, Sender sender,
+            boolean connectionEnablementGranted) {
         Objects.requireNonNull(client, "client");
         Objects.requireNonNull(request, "request");
         Objects.requireNonNull(sender, "sender");
@@ -63,6 +73,10 @@ final class EvidenceCaptureController implements AutoCloseable {
         }
         Pending next = new Pending(client, request, sender, client.currentScreen, State.CONSENT);
         pending = next;
+        if (connectionEnablementGranted) {
+            decide(next, true);
+            return;
+        }
         client.setScreen(new EvidenceConsentScreen(
                 next.previous(), request, () -> sender.screenRendered(request),
                 allowed -> decide(next, allowed)));
@@ -183,13 +197,18 @@ final class EvidenceCaptureController implements AutoCloseable {
 
     @Override
     public void close() {
+        cancelWithoutUi();
+        encoder.shutdownNow();
+    }
+
+    /** Discard pending capture on disconnect without restoring a previous screen. */
+    void cancelWithoutUi() {
         Pending current = pending;
         pending = null;
         if (current != null) {
             current.clearSensitive();
             current.sender().cancel(current.request());
         }
-        encoder.shutdownNow();
     }
 
     private void decide(Pending current, boolean allowed) {

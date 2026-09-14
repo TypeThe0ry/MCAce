@@ -19,17 +19,24 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 import org.junit.jupiter.api.Assumptions;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
 final class FileServerAuthorityIssuanceJournalTest {
-    private static final String HEADER = "MCACE_SERVER_AUTHORITY_ISSUANCE_JOURNAL_V1";
+    private static final String HEADER = "MCACE_SERVER_AUTHORITY_ISSUANCE_JOURNAL_V2";
     private static final String LIFECYCLE = "33".repeat(32);
     private static final Instant OBSERVED = Instant.parse("2026-08-13T00:00:00Z");
     private static final Instant ISSUED = Instant.parse("2026-08-13T00:00:01Z");
     private static final Instant EXPIRES = Instant.parse("2026-08-13T00:00:21Z");
 
     @TempDir Path directory;
+
+    @BeforeEach
+    void useDedicatedPrivateAuthorityDirectory() throws Exception {
+        directory = AuthorityJournalTestFixture.privateDirectory(
+                directory, "private-journal-root");
+    }
 
     @Test
     void persistsOnlyContentFreeFixedMetadataAndRecoversSequence() throws Exception {
@@ -45,6 +52,10 @@ final class FileServerAuthorityIssuanceJournalTest {
         try (FileServerAuthorityIssuanceJournal reopened =
                      new FileServerAuthorityIssuanceJournal(path, 4096)) {
             assertEquals(1L, reopened.lastSequence(LIFECYCLE));
+            ServerAuthorityIssuanceRecovery recovered = reopened.recover(LIFECYCLE);
+            assertEquals(1L, recovered.lastSequence());
+            assertEquals(OBSERVED, recovered.lastObservedAt().orElseThrow());
+            assertEquals(ISSUED, recovered.lastIssuedAt().orElseThrow());
             reopened.appendAndForce(record(2, 2, LIFECYCLE, "55".repeat(32)));
             assertEquals(2L, reopened.lastSequence(LIFECYCLE));
         }
@@ -53,13 +64,37 @@ final class FileServerAuthorityIssuanceJournalTest {
         String[] lines = raw.split("\n");
         assertEquals(3, lines.length);
         assertEquals(HEADER, lines[0]);
-        assertEquals(10, lines[1].split("\t", -1).length);
-        assertTrue(lines[1].startsWith("v1\t00000000-0000-0000-0000-000000000001\t"));
+        assertEquals(11, lines[1].split("\t", -1).length);
+        assertTrue(lines[1].startsWith("v2\t00000000-0000-0000-0000-000000000001\t"));
         assertFalse(raw.contains("player.example"));
         assertFalse(raw.contains("authenticated-session"));
         assertFalse(raw.contains("movement-check"));
         assertFalse(raw.contains("route"));
         assertFalse(raw.contains("ban"));
+    }
+
+    @Test
+    void startupBuildsOneRecoveryIndexAndRoutineOperationsStayConstantTime() throws Exception {
+        Path path = directory.resolve("indexed-recovery.log");
+        AuthorityJournalTestFixture.initializeEmpty(path);
+        try (FileServerAuthorityIssuanceJournal journal =
+                     new FileServerAuthorityIssuanceJournal(path, 1024L * 1024L)) {
+            assertEquals(1, journal.fullDecodePassesForTests());
+            for (int sequence = 1; sequence <= 64; sequence++) {
+                journal.appendAndForce(record(
+                        sequence, sequence, LIFECYCLE,
+                        String.format("%064x", sequence + 4096L)));
+                assertEquals(sequence, journal.lastSequence(LIFECYCLE));
+                assertEquals(sequence, journal.recover(LIFECYCLE).lastSequence());
+            }
+            assertEquals(1, journal.fullDecodePassesForTests(),
+                    "append/recover must not re-decode the complete journal");
+        }
+        try (FileServerAuthorityIssuanceJournal reopened =
+                     new FileServerAuthorityIssuanceJournal(path, 1024L * 1024L)) {
+            assertEquals(1, reopened.fullDecodePassesForTests());
+            assertEquals(64L, reopened.lastSequence(LIFECYCLE));
+        }
     }
 
     @Test
@@ -91,13 +126,13 @@ final class FileServerAuthorityIssuanceJournalTest {
                 () -> new FileServerAuthorityIssuanceJournal(missing, 4096));
 
         Path empty = directory.resolve("empty.log");
-        Files.createFile(empty);
+        AuthorityJournalTestFixture.writePrivate(empty, new byte[0]);
         assertThrows(IOException.class,
                 () -> new FileServerAuthorityIssuanceJournal(empty, 4096));
 
         Path corrupt = directory.resolve("corrupt.log");
         AuthorityJournalTestFixture.initializeEmpty(corrupt);
-        Files.writeString(corrupt, "v1\tpartial", StandardCharsets.UTF_8,
+        Files.writeString(corrupt, "v2\tpartial", StandardCharsets.UTF_8,
                 StandardOpenOption.APPEND);
         assertThrows(IOException.class,
                 () -> new FileServerAuthorityIssuanceJournal(corrupt, 4096));
@@ -138,7 +173,8 @@ final class FileServerAuthorityIssuanceJournalTest {
         assertThrows(IOException.class,
                 () -> new FileServerAuthorityIssuanceJournal(link, 4096));
 
-        Path realParent = Files.createDirectory(directory.resolve("real-parent"));
+        Path realParent = AuthorityJournalTestFixture.privateDirectory(
+                directory, "real-parent");
         AuthorityJournalTestFixture.initializeEmpty(realParent.resolve("journal.log"));
         Path linkedParent = directory.resolve("linked-parent");
         Files.createSymbolicLink(linkedParent, realParent);
@@ -245,8 +281,8 @@ final class FileServerAuthorityIssuanceJournalTest {
         assertEquals(sizeBefore, Files.size(path));
 
         Path badHeader = directory.resolve("preflight-bad-header.log");
-        Files.writeString(badHeader, "wrong\n", StandardCharsets.UTF_8,
-                StandardOpenOption.CREATE_NEW);
+        AuthorityJournalTestFixture.writePrivateString(
+                badHeader, "wrong\n", StandardCharsets.UTF_8);
         assertThrows(IOException.class,
                 () -> ServerAuthorityJournalPreflight.verify(badHeader, 8192));
 
@@ -266,8 +302,8 @@ final class FileServerAuthorityIssuanceJournalTest {
             int id, long sequence, String lifecycle, String frame) {
         return new ServerAuthorityIssuanceRecord(
                 UUID.fromString("00000000-0000-0000-0000-" + String.format("%012d", id)),
-                "11".repeat(32), sequence, lifecycle, "22".repeat(32), OBSERVED, ISSUED,
-                EXPIRES, frame);
+                "11".repeat(32), sequence, lifecycle, "22".repeat(32),
+                "23".repeat(32), OBSERVED, ISSUED, EXPIRES, frame);
     }
 
     private static ProcessResult runIndependentJvmProbe(Path path) throws Exception {

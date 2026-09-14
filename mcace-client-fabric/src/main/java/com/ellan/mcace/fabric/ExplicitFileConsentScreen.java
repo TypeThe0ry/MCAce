@@ -1,6 +1,7 @@
 package com.ellan.mcace.fabric;
 
 import com.ellan.mcace.client.policy.VerifiedPolicy;
+import com.ellan.mcace.client.ui.GuiEvidenceChallenge;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
@@ -29,24 +30,46 @@ final class ExplicitFileConsentScreen extends Screen {
     private final List<String> files;
     private final Consumer<Boolean> decision;
     private final OneShotRenderMarker firstRender;
+    private final boolean enablement;
+    private final String guiChallenge;
+    private final List<String> challengeDisclosure;
     private int page;
     private int scrollOffset;
 
     ExplicitFileConsentScreen(Screen previous, VerifiedPolicy policy, List<String> files,
             Runnable rendered, Consumer<Boolean> decision) {
-        super(Text.literal("MCAce explicit file request"));
+        this(previous, policy, files, rendered, decision, false);
+    }
+
+    private ExplicitFileConsentScreen(Screen previous, VerifiedPolicy policy, List<String> files,
+            Runnable rendered, Consumer<Boolean> decision, boolean enablement) {
+        super(Text.literal(enablement ? "MCAce enablement" : "MCAce explicit file request"));
         this.previous = previous;
         this.policy = Objects.requireNonNull(policy, "policy");
         this.files = List.copyOf(files);
         this.decision = Objects.requireNonNull(decision, "decision");
-        this.firstRender = new OneShotRenderMarker(rendered);
+        this.guiChallenge = enablement ? System.getProperty(GuiEvidenceChallenge.PROPERTY) : null;
+        this.challengeDisclosure = GuiEvidenceChallenge.disclosure(guiChallenge);
+        this.firstRender = new OneShotRenderMarker(() -> {
+            if (guiChallenge != null) {
+                org.slf4j.LoggerFactory.getLogger("mcace").info(
+                        "MCAce GUI evidence challenge rendered: {}", guiChallenge);
+            }
+            rendered.run();
+        });
+        this.enablement = enablement;
+    }
+
+    static ExplicitFileConsentScreen forEnablement(Screen previous, VerifiedPolicy policy,
+            List<String> requestedFiles, Runnable rendered, Consumer<Boolean> decision) {
+        return new ExplicitFileConsentScreen(previous, policy, requestedFiles, rendered, decision, true);
     }
 
     Screen previous() { return previous; }
 
     @Override
     protected void init() {
-        int pages = pageCount(files.size());
+        int pages = displayedPageCount();
         boolean hasBack = page > 0;
         boolean lastPage = page + 1 >= pages;
         ButtonLayout buttons = buttonLayout(width, height, hasBack, lastPage);
@@ -61,7 +84,8 @@ final class ExplicitFileConsentScreen extends Screen {
             addDrawableChild(ButtonWidget.builder(Text.literal("Next"), button -> changePage(1))
                     .dimensions(primary.x(), primary.y(), primary.width(), BUTTON_HEIGHT).build());
         } else {
-            addDrawableChild(ButtonWidget.builder(Text.literal("Allow while connected"), button -> decide(true))
+            String label = enablement ? "Enable MCAce" : "Allow while connected";
+            addDrawableChild(ButtonWidget.builder(Text.literal(label), button -> decide(true))
                     .dimensions(primary.x(), primary.y(), primary.width(), BUTTON_HEIGHT).build());
         }
         ButtonBounds decline = buttons.buttons().get(buttonIndex);
@@ -113,6 +137,28 @@ final class ExplicitFileConsentScreen extends Screen {
         return List.copyOf(paragraphs);
     }
 
+    static List<String> enablementParagraphs(VerifiedPolicy verified, List<String> requested) {
+        Objects.requireNonNull(verified, "verified");
+        Objects.requireNonNull(requested, "requested");
+        List<String> paragraphs = new ArrayList<>();
+        paragraphs.add("Pinned server " + safe(verified.policy().getServerId())
+                + " requests MCAce enablement for this connection and permission to select one later federation handoff.");
+        paragraphs.add("One approval enables the signed MCAce handshake and content-free mod, resource-pack, shader-pack, and integrity metadata for this connection.");
+        paragraphs.add("If the signed policy names explicit files, only relative path, byte size, and SHA-256 are sent; raw file contents are never uploaded.");
+        paragraphs.add("This approval authorizes at most one in-game render frame during this connection. Only the Minecraft frame is captured; never the desktop, window, files, or other applications.");
+        paragraphs.add("The federation target is not known at this prompt and no second prompt will appear. This source may select one operator-pinned target; its signed identity, key, disclosure, and expiry are verified before use.");
+        paragraphs.add("A signed, short-lived, memory-only grant may carry this approval once in the same running client. The target can inherit only the same or narrower explicit-file scope and cannot export the approval to another target.");
+        if (requested.isEmpty()) {
+            paragraphs.add("This connection has no explicit-file request.");
+        } else {
+            paragraphs.add("Explicit files covered by this single approval:");
+            requested.stream().sorted().forEach(path -> paragraphs.add("- " + safe(path)));
+        }
+        paragraphs.add("Approval is not persisted. Grant expiry or abort before target presentation clears provisional access; after that one presentation, inherited access lasts only for that target connection. A second export or another hop is denied. When Minecraft exits, or for a normal unrelated connection, a new approval is required.");
+        paragraphs.add("Declining or closing keeps MCAce disabled and sends no MCAce handshake, manifest, evidence, or federation frames.");
+        return List.copyOf(paragraphs);
+    }
+
     static int pageCount(int fileCount) {
         return Math.max(1, (Math.max(0, fileCount) + FILES_PER_PAGE - 1) / FILES_PER_PAGE);
     }
@@ -121,12 +167,19 @@ final class ExplicitFileConsentScreen extends Screen {
     public void close() { decide(false); }
 
     private void changePage(int delta) {
-        page = Math.max(0, Math.min(page + delta, pageCount(files.size()) - 1));
+        page = Math.max(0, Math.min(page + delta, displayedPageCount() - 1));
         scrollOffset = 0;
         clearAndInit();
     }
 
-    private void decide(boolean allowed) { decision.accept(allowed); }
+    private void decide(boolean allowed) {
+        decision.accept(visibleDecision(allowed, firstRender));
+    }
+
+    static boolean visibleDecision(boolean allowed, OneShotRenderMarker firstRender) {
+        Objects.requireNonNull(firstRender, "firstRender");
+        return allowed && firstRender.emitted();
+    }
 
     private static String safe(String value) {
         return ConsentUiSupport.safeDisplay(value);
@@ -134,7 +187,12 @@ final class ExplicitFileConsentScreen extends Screen {
 
     private List<List<OrderedText>> wrappedParagraphs(int maxWidth) {
         List<List<OrderedText>> wrapped = new ArrayList<>();
-        for (String paragraph : pageParagraphs(policy, files, page)) {
+        List<String> source = enablement
+                ? enablementParagraphs(policy, files)
+                : pageParagraphs(policy, files, page);
+        source = new ArrayList<>(source);
+        source.addAll(0, challengeDisclosure);
+        for (String paragraph : source) {
             wrapped.add(textRenderer.wrapLines(Text.literal(paragraph), maxWidth));
         }
         return wrapped;
@@ -142,11 +200,15 @@ final class ExplicitFileConsentScreen extends Screen {
 
     private ExplicitLayout layout() {
         ButtonLayout buttons = buttonLayout(
-                width, height, page > 0, page + 1 >= pageCount(files.size()));
+                width, height, page > 0, page + 1 >= displayedPageCount());
         int maxWidth = Math.max(1, Math.min(MAX_CONTENT_WIDTH, width - (CONTENT_MARGIN * 2)));
         List<List<OrderedText>> wrapped = wrappedParagraphs(maxWidth);
         int totalLines = wrapped.stream().mapToInt(List::size).sum();
         return layoutFor(width, height, textRenderer.fontHeight, totalLines, wrapped.size(), buttons.areaTop());
+    }
+
+    private int displayedPageCount() {
+        return enablement ? 1 : pageCount(files.size());
     }
 
     static ExplicitLayout layoutFor(int screenWidth, int screenHeight, int fontHeight,
