@@ -23,7 +23,6 @@ release source recorded in the canonical marker
 commit `7db0b7ff28cce534ecafa1d1f40b6541271a2f14` remains historical evidence
 for the pre-merge candidate; it is not the source selector for the final
 bundle. The bundle manifest records the final release and artifact identities.
-
 The provenance marker is intentionally updated on the merged-main lineage so
 protected CI can resolve the artifact source after a squash merge.
 The protected `main` and `v0.0.1` workflows rebuild the bundle from this
