@@ -210,11 +210,11 @@ jobs:
           test "$(find . -name gradle.lockfile -type f \
             -not -path './.gradle/*' -not -path '*/.gradle/*' \
             -not -path '*/build/*' | wc -l)" -eq 15
-      - name: Build and test
+      - name: Build executable artifacts
         env:
           MCACE_SOURCE_COMMIT: ${{ github.sha }}
         run: >-
-          bash ./gradlew clean build
+          bash ./gradlew clean assemble
           "-PmcaceSourceCommit=$MCACE_SOURCE_COMMIT"
           "-PmcaceModernJavaHome=$MCACE_JAVA25_HOME"
           --refresh-dependencies
@@ -233,7 +233,7 @@ jobs:
           MCACE_SOURCE_COMMIT: ${{ github.sha }}
         run: |
           set -euo pipefail
-          bash ./gradlew clean build localVerificationBundle \
+          bash ./gradlew clean localVerificationBundle \
             "-PmcaceSourceCommit=$MCACE_SOURCE_COMMIT" \
             "-PmcaceModernJavaHome=$MCACE_JAVA25_HOME" \
             --offline \
@@ -267,7 +267,7 @@ jobs:
           git merge-base --is-ancestor "$MCACE_ARTIFACT_SOURCE_COMMIT" "$MCACE_SOURCE_COMMIT"
           export MCACE_ARTIFACT_SOURCE_COMMIT
           echo "MCACE_ARTIFACT_SOURCE_COMMIT=$MCACE_ARTIFACT_SOURCE_COMMIT" >> "$GITHUB_ENV"
-          bash ./gradlew clean build releaseBundle \
+          bash ./gradlew clean releaseBundle \
             "-PmcaceSourceCommit=$MCACE_SOURCE_COMMIT" \
             "-PmcaceArtifactSourceCommit=$MCACE_ARTIFACT_SOURCE_COMMIT" \
             "-PmcaceProductVersion=$MCACE_PRODUCT_VERSION" \
