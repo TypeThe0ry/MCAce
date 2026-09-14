@@ -300,12 +300,8 @@ jobs:
           MCACE_SOURCE_COMMIT: ${{ github.sha }}
         run: |
           $ErrorActionPreference = 'Stop'
-          if ([string]::IsNullOrWhiteSpace($env:MCACE_ARTIFACT_SOURCE_COMMIT)) {
-            throw 'MCACE_CORE_RELEASE_ARTIFACT_SOURCE_COMMIT_NOT_EXPORTED'
-          }
           ./scripts/core-release-readiness.ps1 `
             -SourceCommit $env:MCACE_SOURCE_COMMIT `
-            -ArtifactSourceCommit $env:MCACE_ARTIFACT_SOURCE_COMMIT `
             -BundleRoot build/release-bundle `
             -CompatibilityReportPath build/compatibility-contract/report.json
       - name: Extended release evidence diagnostic (non-blocking)

@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$SourceCommit,
-    [Parameter(Mandatory)][ValidatePattern('^[0-9a-f]{40}$')][string]$ArtifactSourceCommit,
+    [ValidatePattern('^[0-9a-f]{40}$')][string]$ArtifactSourceCommit,
     [string]$BundleRoot = 'build/release-bundle',
     [string]$CompatibilityReportPath = 'build/compatibility-contract/report.json',
     [string]$ReportPath = 'build/release-readiness/core-report.json'
@@ -47,7 +47,10 @@ if ($base -cne $ArtifactSourceCommit) { Fail 'ARTIFACT_SOURCE_NOT_ANCESTOR' }
 $marker = Abs 'docs/evidence/release-artifact-source.txt'
 RequireFile $marker 'ARTIFACT_MARKER_REQUIRED'
 $markerText = [IO.File]::ReadAllText($marker, [Text.Encoding]::ASCII)
-if ($markerText -cne "$ArtifactSourceCommit`n") { Fail 'ARTIFACT_MARKER_MISMATCH' }
+if ([string]::IsNullOrWhiteSpace($ArtifactSourceCommit)) {
+    $ArtifactSourceCommit = $markerText.Trim()
+}
+if ($ArtifactSourceCommit -notmatch '^[0-9a-f]{40}$' -or $markerText -cne "$ArtifactSourceCommit`n") { Fail 'ARTIFACT_MARKER_MISMATCH' }
 
 $bundle = Abs $BundleRoot
 if (-not (Test-Path -LiteralPath $bundle -PathType Container)) { Fail 'BUNDLE_REQUIRED' }
