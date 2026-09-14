@@ -65,7 +65,7 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 
 | Readiness gate | 正式发布需要的证据 | 状态 |
 | --- | --- | --- |
-| `server_matrix_exact_source` | Matrix V4 七根条目 native package；精确 12 份 raw 进程 case；进程 incarnation 与清理承诺；受保护 V4 release bundle 和三份服务端 JAR 交叉绑定；仓库外 RSA supervisor root、受保护 pin、新鲜 detached receipt、replay 与 TOCTOU 校验 | **PASS — 当前源码 `9619a50`，12/12 case，外部 supervisor receipt 与 exact bundle 绑定均已发布** |
+| `server_matrix_exact_source` | Matrix V4 七根条目 native package；精确 12 份 raw 进程 case；进程 incarnation 与清理承诺；受保护 V4 release bundle 和三份服务端 JAR 交叉绑定；仓库外 RSA supervisor root、受保护 pin、新鲜 detached receipt、replay 与 TOCTOU 校验 | **PASS — 独立签名的 12/12 执行证据；其记录的 source binding 早于最终 release，不作为当前 release-source 断言** |
 | `fabric_gui_single_enablement_confirmation` | 整个 v0.0.1 发布验收只保留一次真人来源、可见、绑定当前连接的 `Enable MCAce` 决定；签名 GUI attestation 和完整解码 PNG 必须进入 Federation V5 证据集 | **PENDING — 当前源码 `live16` 渲染 prompt，但没有生成可见截图或 accepted event；runner 已 fail-closed** |
 | `fabric_federation_real_handoff` | Federation V5 source→target handoff、继承同一次确认且不弹第二次窗口、subject/route/session 绑定、expiry 与关联负例、runtime ledger、零自有残留，以及不同 post-run supervisor 的 receipt | **PENDING — 没有当前源码绑定的 V5 index/native package；旧 ce4f6 package 已被拒绝** |
 | `vulcan_genuine_event` | 已审查 licensed Vulcan JAR、真实非合成外部 provider event、精确发布产物绑定，以及仓库外已批准 supervisor 签名的 Vulcan V3 receipt/index | **PENDING** |
@@ -77,10 +77,13 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 干净 checkout；不可变 artifact source 是
 `73feacb6443c796c95885c3118a7c50ce4204a9b`。受保护 tag-push 构建、checksum 校验和三版本
 兼容性合同均通过；六个 JAR 哈希已发布在 [v0.0.1 Release](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1)。
-当前源码 Matrix V4 run 完成 12/12（10 stable + 2 beta），通过启动、登录、MCAce hello/auth、
+独立签名的 Matrix V4 run 完成 12/12（10 stable + 2 beta），通过启动、登录、MCAce hello/auth、
 backend admission 和 cleanup zero 检查；外部 detached receipt 与 native 七文件 package 已
-跟踪在 `docs/evidence/server-version-process-matrix-20260915-v4-current.*`。因此 readiness 现在有四个可选扩展认证缺口：当前 GUI consent、Federation V5、Vulcan V3、Production Authority V4。
-核心包发布所需的 exact-release CI 已通过；`source_commit`、`observed_head` 与最终 bundle 已一致。
+跟踪在 `docs/evidence/server-version-process-matrix-20260915-v4-current.*`。该 receipt 绑定
+的是 package 内记录的 source，因此保留为独立执行证据，不用来断言当前 release source 已对齐。
+Readiness 仍有四个可选扩展认证缺口：当前 GUI consent、Federation V5、Vulcan V3、Production Authority V4。
+核心包发布所需的 exact-release CI 已通过；release manifest 的 `source_commit`、`observed_head`
+与最终 bundle 已一致。
 
 历史 Matrix/Federation package 继续用于回归与 provenance，但不会被改名或冒充当前证据。
 当前仍没有 licensed Vulcan V3 genuine-event package、Production Authority V4 raw package/
@@ -92,7 +95,7 @@ artifact source 为 `2a6274a9200f2aa195e1238eaddf43650f549a0a` 和六个产品 J
 字节不变。该次 strict bundle 仍满足 1966-byte manifest 控制；兼容性
 `-Execute`/`-ReportOnly` 都通过。带仓库外 Matrix supervisor root 和 approved
 pin 的 readiness 重跑确认 `server_matrix_exact_source=true`、
-`clean_worktree=true`；其余四个可选扩展认证缺口仍 fail-closed，这不是发布批准。
+`clean_worktree=true`；该次复核仍不把 Matrix package 重新绑定到最终 release source；其余四个可选扩展认证缺口仍 fail-closed，这不是发布批准。
 
 之前的文档/证据后代是 `97b9d9e5` 和 `07c36f6`；权威当前 SHA 以最新
 exact-bundle manifest 的 `source_commit` 为准。Helio job
