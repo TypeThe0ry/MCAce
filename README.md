@@ -56,7 +56,7 @@ Executable previews: [v0.0.1-rc1](https://github.com/TypeThe0ry/MCAce/releases/t
 [v0.0.1-rc2](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc2), and the
 current-source [v0.0.1-rc3](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc3)
 are marked `LOCAL_VERIFICATION` / `release_identity=false`; rc3 is built by GitHub CI
-from commit `712801ceea66655a3541202fe4fc959832d9b101`. Checksums and build provenance
+from commit `cf70818e86eabf4b62a88000183a6355a9510701`. Checksums and build provenance
 are recorded in [the RC evidence note](docs/evidence/RELEASE_CANDIDATE_2026-09-14.md).
 
 [中文 README](README_CN.md) · [architecture](docs/ARCHITECTURE.md) ·

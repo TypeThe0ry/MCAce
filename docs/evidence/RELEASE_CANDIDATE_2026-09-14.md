@@ -30,13 +30,13 @@ It is not evidence for the stable \`v0.0.1\` gates.
 
 ## rc3 current HEAD GitHub CI build
 
-- Source commit: \`712801ceea66655a3541202fe4fc959832d9b101\`.
-- GitHub CI push run: \`34874191041\` (success); PR run: \`34874198453\` (success).
+- Source commit: \`cf70818e86eabf4b62a88000183a6355a9510701\`.
+- GitHub CI push run: \`34876228951\` (success); PR run: \`34876232834\` (success).
 - Windows contracts: PowerShell 7 and Windows PowerShell 5.1 contract suites passed.
 - Ubuntu build: \`clean build\` and the fully-offline \`localVerificationBundle\` job passed.
-- Asset: \`MCAce-v0.0.1-rc3-712801c-local-verification.zip\`.
-- Asset size: \`22,912,023\` bytes.
-- Asset SHA-256: \`21205508b66aab59250f3e987e9c68d2eec8c921768b1ba73390f9aa4bf711eb\`.
+- Asset: \`MCAce-v0.0.1-rc3-cf70818-local-verification.zip\`.
+- Asset size: \`22,912,017\` bytes.
+- Asset SHA-256: \`6f53daa47698a47839d815aaaee90ad7d48f3615e2bf6018783db10caa39bc17\`.
 - Embedded identity: \`MCACE_LOCAL_VERIFICATION_BUNDLE_V2\`,
   \`bundle_profile=LOCAL_VERIFICATION\`, \`release_identity=false\`.
 

@@ -43,7 +43,7 @@ Paper/Folia 后端插件。
 可执行预览版：[v0.0.1-rc1](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc1)、
 [v0.0.1-rc2](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc2)，以及当前源码
 [v0.0.1-rc3](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc3)。rc3 由 GitHub CI
-从提交 `712801ceea66655a3541202fe4fc959832d9b101` 构建。它们均明确标记为
+从提交 `cf70818e86eabf4b62a88000183a6355a9510701` 构建。它们均明确标记为
 `LOCAL_VERIFICATION` / `release_identity=false`；校验和与构建来源见
 [RC 证据记录](docs/evidence/RELEASE_CANDIDATE_2026-09-14.md)。
 
