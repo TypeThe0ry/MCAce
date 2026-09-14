@@ -40,8 +40,10 @@ Paper/Folia 后端插件。
 > 已完成外部签名并发布（12/12 case）；稳定版仍被 GUI/Federation V5、licensed Vulcan
 > V3、Production Authority V4 和受保护 main/tag V4 exact-commit CI 以 fail-closed 方式锁定。
 
-可执行预览版：[v0.0.1-rc1](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc1)，另有当前源码
-`5a509ae2d268a7753fcb7963f68ca0f27c62459e` 构建的 rc2。两者均明确标记为
+可执行预览版：[v0.0.1-rc1](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc1)、
+[v0.0.1-rc2](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc2)，以及当前源码
+[v0.0.1-rc3](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc3)。rc3 由 GitHub CI
+从提交 `712801ceea66655a3541202fe4fc959832d9b101` 构建。它们均明确标记为
 `LOCAL_VERIFICATION` / `release_identity=false`；校验和与构建来源见
 [RC 证据记录](docs/evidence/RELEASE_CANDIDATE_2026-09-14.md)。
 

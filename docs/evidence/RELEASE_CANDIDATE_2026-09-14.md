@@ -27,3 +27,20 @@ BungeeCord, and Paper/Folia. Its manifest is intentionally
 
 rc2 is executable and current-source, but remains a verification prerelease.
 It is not evidence for the stable \`v0.0.1\` gates.
+
+## rc3 current HEAD GitHub CI build
+
+- Source commit: \`712801ceea66655a3541202fe4fc959832d9b101\`.
+- GitHub CI push run: \`34874191041\` (success); PR run: \`34874198453\` (success).
+- Windows contracts: PowerShell 7 and Windows PowerShell 5.1 contract suites passed.
+- Ubuntu build: \`clean build\` and the fully-offline \`localVerificationBundle\` job passed.
+- Asset: \`MCAce-v0.0.1-rc3-712801c-local-verification.zip\`.
+- Asset size: \`22,912,023\` bytes.
+- Asset SHA-256: \`21205508b66aab59250f3e987e9c68d2eec8c921768b1ba73390f9aa4bf711eb\`.
+- Embedded identity: \`MCACE_LOCAL_VERIFICATION_BUNDLE_V2\`,
+  \`bundle_profile=LOCAL_VERIFICATION\`, \`release_identity=false\`.
+
+rc3 is the earliest runnable preview built from the current HEAD. It is suitable for
+early deployment/testing of the six JAR bundle, but it remains a prerelease and does
+not close the stable GUI/Federation, licensed Vulcan, Production Authority, or
+protected exact-release gates.
