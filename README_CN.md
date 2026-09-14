@@ -35,15 +35,10 @@ Paper/Folia 后端插件。
 
 > ## v0.0.1 — RELEASE LOCKED
 >
-> **当前没有创建正式 `v0.0.1` tag，也没有发布正式 GitHub Release。** 为了尽早
-> 部署，可以发布可执行的验证预发布版 `v0.0.1-rc1`；它不是稳定版，也不会关闭
-> 任何外部证据门。只有下面七个 fail-closed
-> 发布门在同一个已审查精确源码上全部通过后才能放行。不可变的 `2a6274a` artifact
-> boundary 保留了一份历史外部签名 Matrix V4 包，但当前 readiness validator 因精确受保护
-> bundle 绑定失败而拒绝该 Matrix index（`MCACE_RELEASE_MATRIX_PROTECTED_BUNDLE_INVALID`）。
-> 当前分支还被 Matrix 绑定、当前源码 GUI/Federation V5、licensed Vulcan V3、Production
-> Authority V4，以及受保护 main/tag 的 V4 exact-commit CI 阻塞。当前 `live16` 只渲染了同意
-> 页面，随后在没有生成可见截图/accepted event 前 fail-closed，并不是已接受的发布决定。
+> **当前没有创建正式稳定版 `v0.0.1` tag，也没有发布正式 GitHub Release。** 为了尽早
+> 部署，可以发布当前源码的可执行验证预发布版；它不是稳定版。当前源码 Matrix V4
+> 已完成外部签名并发布（12/12 case）；稳定版仍被 GUI/Federation V5、licensed Vulcan
+> V3、Production Authority V4 和受保护 main/tag V4 exact-commit CI 以 fail-closed 方式锁定。
 
 可执行预览版：[v0.0.1-rc1](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc1)，另有当前源码
 `5a509ae2d268a7753fcb7963f68ca0f27c62459e` 构建的 rc2。两者均明确标记为
@@ -69,7 +64,7 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 
 | Readiness gate | 正式发布需要的证据 | 状态 |
 | --- | --- | --- |
-| `server_matrix_exact_source` | Matrix V4 七根条目 native package；精确 12 份 raw 进程 case；进程 incarnation 与清理承诺；受保护 V4 release bundle 和三份服务端 JAR 交叉绑定；仓库外 RSA supervisor root、受保护 pin、新鲜 detached receipt、replay 与 TOCTOU 校验 | **BLOCKED — artifact-commit A 有外部签名的 12/12 证据，但当前 validator 拒绝 20260906/20260907 index 的精确受保护 bundle 绑定；仍需针对当前 bundle 的新批准绑定** |
+| `server_matrix_exact_source` | Matrix V4 七根条目 native package；精确 12 份 raw 进程 case；进程 incarnation 与清理承诺；受保护 V4 release bundle 和三份服务端 JAR 交叉绑定；仓库外 RSA supervisor root、受保护 pin、新鲜 detached receipt、replay 与 TOCTOU 校验 | **PASS — 当前源码 `9619a50`，12/12 case，外部 supervisor receipt 与 exact bundle 绑定均已发布** |
 | `fabric_gui_single_enablement_confirmation` | 整个 v0.0.1 发布验收只保留一次真人来源、可见、绑定当前连接的 `Enable MCAce` 决定；签名 GUI attestation 和完整解码 PNG 必须进入 Federation V5 证据集 | **PENDING — 当前源码 `live16` 渲染 prompt，但没有生成可见截图或 accepted event；runner 已 fail-closed** |
 | `fabric_federation_real_handoff` | Federation V5 source→target handoff、继承同一次确认且不弹第二次窗口、subject/route/session 绑定、expiry 与关联负例、runtime ledger、零自有残留，以及不同 post-run supervisor 的 receipt | **PENDING — 没有当前源码绑定的 V5 index/native package；旧 ce4f6 package 已被拒绝** |
 | `vulcan_genuine_event` | 已审查 licensed Vulcan JAR、真实非合成外部 provider event、精确发布产物绑定，以及仓库外已批准 supervisor 签名的 Vulcan V3 receipt/index | **PENDING** |
@@ -79,15 +74,11 @@ Boolean 或未签名报告都不能把任何发布门提升为通过。
 
 最终 exact bundle 通过 `release-manifest.properties` 的 `source_commit` 字段绑定
 干净 checkout；不可变 artifact source 仍是
-`2a6274a9200f2aa195e1238eaddf43650f549a0a`。strict 本地构建、checksum 校验和三版本
+`2a8f55eafce647fd52083a31f72898b667e7e1a0`。strict 本地构建、checksum 校验和三版本
 兼容性合同均通过，六个 JAR 哈希记录在[进度台账](docs/evidence/PROGRESS_2026-09-07.md)。
-历史 artifact-commit A 的 Matrix V4 run 完成 12/12（10 stable + 2 beta），通过启动、登录、
-MCAce hello/auth、backend admission 和 cleanup zero 检查，外部 detached receipt 也作为
-provenance 保留。但它不能自动满足当前 exact-source gate：当前 readiness 输出由
-`scripts/release-readiness.ps1` 写入未跟踪的 `build/`，并在已跟踪的
-[2026-09-07 进度台账](docs/evidence/PROGRESS_2026-09-07.md)中汇总；它拒绝已跟踪 Matrix
-index 的受保护 bundle 绑定。因此 readiness 现在有六个 blocker：Matrix exact-source
-绑定、当前 GUI consent、Federation V5、Vulcan V3、Production Authority V4 和受保护
+当前源码 Matrix V4 run 完成 12/12（10 stable + 2 beta），通过启动、登录、MCAce hello/auth、
+backend admission 和 cleanup zero 检查；外部 detached receipt 与 native 七文件 package 已
+跟踪在 `docs/evidence/server-version-process-matrix-20260915-v4-current.*`。因此 readiness 现在有五个 blocker：当前 GUI consent、Federation V5、Vulcan V3、Production Authority V4 和受保护
 exact-release CI。正式发布前必须核对输出的 `source_commit`、`observed_head` 与最终
 bundle 完全一致。
 
@@ -112,7 +103,7 @@ bundle，同时保持 artifact source 为
 绑定 readiness 复核均通过。四个外部验收门以及受保护 exact-release CI 仍待完成；该
 job 之后的文档提交还需要最后一次 exact bundle 复核。
 
-### 当前可执行验证快照（当前分支 / `2a6274a` artifact）
+### 当前可执行验证快照（当前分支 / `9619a50` source）
 
 截至最近一次复核，权威 checkout 是 `D:\Projects\MCAce`，分支为
 `feature/active-pack-integrity`；精确当前 HEAD 始终以最新 exact bundle manifest 的

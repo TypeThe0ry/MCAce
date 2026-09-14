@@ -45,19 +45,12 @@ plugin.
 
 > ## v0.0.1 — RELEASE LOCKED
 >
-> **No official `v0.0.1` tag or GitHub Release is claimed.** An executable
-> verification prerelease `v0.0.1-rc1` may be published from the current
-> candidate for early deployment; it is not a stable release and does not close
-> any external evidence gate. Stable release remains locked until all seven
-> fail-closed gates below validate for one reviewed exact source. The immutable
-> `2a6274a` artifact boundary has a historical externally signed Matrix V4
-> package, but the current readiness validator rejects the tracked Matrix index
-> for exact protected-bundle binding (`MCACE_RELEASE_MATRIX_PROTECTED_BUNDLE_INVALID`).
-> The current branch is still blocked by that Matrix binding, current-source
-> GUI/Federation V5 evidence, licensed Vulcan V3, Production Authority V4, and
-> protected-main/tag V4 exact-commit CI. The current `live16` attempt rendered
-> the consent prompt but failed closed before a visible screenshot/accepted
-> event was created; it is not an accepted release decision.
+> **No official stable `v0.0.1` tag or GitHub Release is claimed yet.** An
+> executable verification prerelease can be published for early deployment; it
+> is not a stable release. The current-source Matrix V4 package is now
+> externally signed and published (12/12 cases). Stable release remains
+> fail-closed on GUI/Federation V5, licensed Vulcan V3, Production Authority V4,
+> and protected-main/tag V4 exact-commit CI.
 
 Executable previews: [v0.0.1-rc1](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1-rc1)
 and current-source rc2 (built from `5a509ae2d268a7753fcb7963f68ca0f27c62459e`)
@@ -86,7 +79,7 @@ historical PASS, a caller Boolean, or an unsigned report cannot promote any gate
 
 | Readiness gate | Required release evidence | State |
 | --- | --- | --- |
-| `server_matrix_exact_source` | Matrix V4 seven-root native package; exactly 12 raw process cases; process-incarnation and cleanup commitments; protected V4 release bundle and three server-JAR cross-bindings; out-of-repository RSA supervisor root, protected pin, fresh detached receipt, replay and TOCTOU validation | **BLOCKED — artifact-commit A has externally signed 12/12 evidence, but the current validator rejects the tracked 20260906/20260907 indexes for exact protected-bundle binding; a fresh approved binding for the current bundle is still required** |
+| `server_matrix_exact_source` | Matrix V4 seven-root native package; exactly 12 raw process cases; process-incarnation and cleanup commitments; protected V4 release bundle and three server-JAR cross-bindings; out-of-repository RSA supervisor root, protected pin, fresh detached receipt, replay and TOCTOU validation | **PASS — current-source `9619a50` evidence, 12/12 cases, external supervisor receipt, and exact bundle bindings** |
 | `fabric_gui_single_enablement_confirmation` | One human-origin, visible, connection-bound `Enable MCAce` decision for the entire v0.0.1 release acceptance; signed GUI attestation and decoded PNG inside the Federation V5 evidence set | **PENDING — current-source `live16` rendered the prompt but created no visible screenshot or accepted event; the runner failed closed** |
 | `fabric_federation_real_handoff` | Federation V5 source-to-target handoff, inherited consent with no second prompt, subject/route/session binding, expiry and correlated negatives, runtime ledger, zero owned residue, and a distinct post-run supervisor receipt | **PENDING — no current-source Federation V5 index/native package; the older ce4f6 package is rejected** |
 | `vulcan_genuine_event` | Licensed reviewed Vulcan JAR, genuine non-synthetic external provider event, exact release-artifact binding, and an externally pinned supervisor-signed Vulcan V3 receipt/index | **PENDING** |
@@ -96,18 +89,15 @@ historical PASS, a caller Boolean, or an unsigned report cannot promote any gate
 
 The final exact bundle is source-bound to the clean checkout through the
 `source_commit` field in `release-manifest.properties`; its immutable artifact
-source remains `2a6274a9200f2aa195e1238eaddf43650f549a0a`. The strict local
+source is `2a8f55eafce647fd52083a31f72898b667e7e1a0`. The strict local
 build, checksum verification, and three-version compatibility contract pass,
 and the six JAR hashes are recorded in the [progress ledger](docs/evidence/PROGRESS_2026-09-07.md).
-The historical artifact-commit A Matrix V4 execution completed all 12 cases (10
-stable + 2 beta) with startup/login, MCAce hello/auth, backend admission, and
-cleanup-zero results, and its detached supervisor receipt is retained as
-provenance. It does not by itself satisfy the current exact-source gate: the
-current readiness output is generated under the ignored `build/` directory by
-`scripts/release-readiness.ps1` and is summarized in the tracked
-[progress ledger](docs/evidence/PROGRESS_2026-09-07.md); it rejects the tracked
-Matrix indexes for protected-bundle binding. Readiness therefore has six
-blockers: Matrix exact-source binding, current GUI consent, Federation V5,
+The current-source Matrix V4 execution completed all 12 cases (10 stable + 2
+beta) with startup/login, MCAce hello/auth, backend admission, and cleanup-zero
+results; its detached supervisor receipt and native seven-file package are
+tracked under `docs/evidence/server-version-process-matrix-20260915-v4-current.*`.
+Readiness therefore has five
+blockers: current GUI consent, Federation V5,
 Vulcan V3, Production Authority V4, and protected exact-release CI. Its
 `source_commit` and `observed_head` must match the final bundle before any
 release action.
@@ -136,13 +126,13 @@ They are intentionally not relabeled as current evidence, and no licensed
 Vulcan V3 genuine-event package or Production Authority V4 raw package/receipt
 is retained. Protected exact-commit release CI has not run.
 
-### Current executable verification snapshot (current branch / `2a6274a` artifact)
+### Current executable verification snapshot (current branch / `9619a50` source)
 
 As of the latest verification, the authoritative checkout is `D:\Projects\MCAce`,
 branch `feature/active-pack-integrity`; the exact current HEAD is always read from
 the `source_commit` field of the latest exact bundle manifest, and the six product
 JARs remain byte-bound to artifact source commit
-`2a6274a9200f2aa195e1238eaddf43650f549a0a`.
+`2a8f55eafce647fd52083a31f72898b667e7e1a0`.
 GitHub PR [#17](https://github.com/TypeThe0ry/MCAce/pull/17) is open as a draft,
 based on `main`; the current `build` and `windows-contracts` checks are green.
 There is still no `v0.0.1` tag or GitHub Release.
