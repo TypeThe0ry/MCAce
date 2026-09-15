@@ -26,14 +26,25 @@ MCAce 是面向 Fabric 客户端的服务端可见、绑定当前连接的反作
 或选中的资源包标识开启清单拒绝规则。详见[清单准入](docs/INVENTORY_ADMISSION.md)和
 [检测与证据合同](docs/DETECTION_AND_EVIDENCE.md)。
 
-### 反作弊证据图片
+### 真实运行截图
 
-图片明确区分真实运行截图与受控文档插图。插图用于说明 policy 链路，不是第三方外挂截图，
-也不宣称腾讯 ACE 或内核级覆盖。
+下面是仓库实际捕获的 Minecraft/Fabric 窗口，不是生成的 UI mockup，来自运行时和同意流程
+smoke。截图只负责展示视觉 provenance；反作弊的权威证据仍是机器可读 JSON、服务端日志和哈希。
 
-| 真实 Fabric 客户端 | 真实启用运行时 | 读取 → 关联 → 处置 | Mod/Xray 隔离链路 |
-| --- | --- | --- | --- |
-| ![Fabric 26.2 客户端窗口](docs/evidence/anticheat-client-gui-window-20260901-157e1f4.png) | ![MCAce 已启用的 Fabric 运行时](docs/evidence/gui-runtime-20260908-enabled.png) | ![MCAce 签名遥测链路](docs/assets/anticheat-telemetry-flow-controlled.png) | ![ModList 与 Xray 隔离证据](docs/assets/anticheat-modlist-quarantine-evidence-v2.png) |
+| 真实客户端窗口 | 真实启用会话 | 真实同意界面 |
+| --- | --- | --- |
+| ![Minecraft 26.2 客户端菜单](docs/evidence/anticheat-client-gui-window-20260901-157e1f4.png) | ![Minecraft 26.2 已启用运行时](docs/evidence/gui-runtime-20260908-enabled.png) | ![MCAce 同意界面](docs/evidence/federation-gui-handoff/federation-gui-handoff-20260904-cu150-d2397b3/visible-gui.png) |
+
+同意界面截图是仓库证据集中的历史 GUI witness，不用于关闭当前 Federation V5 发布门。
+
+### 协议示意图（不是测试证据）
+
+下面的图用于解释“读取 → 关联 → 处置”链路，是受控文档插图，不是第三方外挂截图、
+真实服务端截图，也不宣称腾讯 ACE 或内核级覆盖：
+
+![MCAce 签名遥测链路示意](docs/assets/anticheat-telemetry-flow-controlled.png)
+
+![Mod/Xray 隔离策略示意](docs/assets/anticheat-modlist-quarantine-evidence-v2.png)
 
 ![受控 Xray 隔离对照图](docs/assets/anticheat-xray-quarantine-controlled.png)
 

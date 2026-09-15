@@ -35,16 +35,29 @@ enabled for an exact Mod ID or selected pack identifier. See
 [inventory admission](docs/INVENTORY_ADMISSION.md) and the
 [detection contract](docs/DETECTION_AND_EVIDENCE.md).
 
-### Anti-cheat evidence gallery
+### Real runtime screenshots
 
-The gallery deliberately separates real runtime captures from controlled
-documentation illustrations. The illustrations show the policy flow; they are
-not third-party cheat screenshots and do not claim Tencent ACE or kernel-level
-coverage.
+These are repository-captured Minecraft/Fabric windows, not generated mockups.
+They document the actual client surface used during the runtime and consent
+smokes. A screenshot is visual provenance only; the machine-readable JSON,
+server logs, and hashes remain the authoritative anti-cheat evidence.
 
-| Real Fabric client | Real enabled runtime | Read → correlate → act | Mod/Xray quarantine path |
-| --- | --- | --- | --- |
-| ![Fabric 26.2 client window](docs/evidence/anticheat-client-gui-window-20260901-157e1f4.png) | ![MCAce enabled Fabric runtime](docs/evidence/gui-runtime-20260908-enabled.png) | ![MCAce signed telemetry flow](docs/assets/anticheat-telemetry-flow-controlled.png) | ![ModList and Xray quarantine evidence](docs/assets/anticheat-modlist-quarantine-evidence-v2.png) |
+| Real client window | Real enabled session | Real consent screen |
+| --- | --- | --- |
+| ![Minecraft 26.2 client menu](docs/evidence/anticheat-client-gui-window-20260901-157e1f4.png) | ![Minecraft 26.2 enabled runtime](docs/evidence/gui-runtime-20260908-enabled.png) | ![MCAce consent screen](docs/evidence/federation-gui-handoff/federation-gui-handoff-20260904-cu150-d2397b3/visible-gui.png) |
+
+The consent capture is a historical GUI witness from the repository evidence
+set; it is not being used to close the current Federation V5 release gate.
+
+### Protocol illustrations (not test evidence)
+
+The following diagrams explain the read → correlate → act path. They are
+controlled documentation illustrations, not third-party cheat screenshots,
+real server screenshots, or a Tencent ACE/kernel-coverage claim:
+
+![MCAce signed telemetry flow illustration](docs/assets/anticheat-telemetry-flow-controlled.png)
+
+![Mod/Xray quarantine policy illustration](docs/assets/anticheat-modlist-quarantine-evidence-v2.png)
 
 ![Controlled Xray quarantine comparison](docs/assets/anticheat-xray-quarantine-controlled.png)
 
