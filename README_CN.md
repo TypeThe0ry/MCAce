@@ -19,8 +19,10 @@ MCAce 是面向 Fabric 客户端的服务端可见、绑定当前连接的反作
 
 1. 客户端观察先记为 `CLIENT_REPORTED / LOW`；单独出现 Mod ID 或材质包名称不会直接定罪。
 2. proxy 与 Paper/Folia 校验帧，并和同一 session、独立服务端证据做关联。
-3. 管理员签名 policy 决定结果。干净基线保持 `OBSERVE`；高风险且完成关联的情况可以变为
-   `SERVER_CONFIRMED / QUARANTINE`，断开或转入隔离服，作用范围仅为**当前连接**，可回滚且不等于永久封禁。
+3. 管理员签名 policy 决定结果。已发布生产路径的 authority 上限是 `MONITOR`：干净基线和
+   关联风险都会记录供复核，不自动踢出或封禁。签名实验室 fixture 另外验证了
+   `SERVER_CONFIRMED / QUARANTINE` 状态；该 fixture 结果只绑定当前连接，尚未接入已发布的
+   Production Authority action executor。
 
 同一条链路覆盖可疑客户端 Mod、Xray 类材质包和有界纹理观察。管理员还可以为精确 Mod ID
 或选中的资源包标识开启清单拒绝规则。详见[清单准入](docs/INVENTORY_ADMISSION.md)和
@@ -49,8 +51,9 @@ smoke。截图只负责展示视觉 provenance；反作弊的权威证据仍是�
 ![受控 Xray 隔离对照图](docs/assets/anticheat-xray-quarantine-controlled.png)
 
 已跟踪的可执行 fixture 覆盖三个支持版本（`1.21.11`、`26.1.2`、`26.2`）：
-上报客户端 ModList，关联独立服务端信号，产生 `SERVER_CONFIRMED / QUARANTINE`；干净对照保持
-`OBSERVE`，误报计数为 0。证据明确标记为 MCAce 自有 loopback fixture，不是公网真实外挂执行，
+上报客户端 ModList，关联独立服务端信号，产生签名实验室的
+`SERVER_CONFIRMED / QUARANTINE` 状态；干净对照保持 `OBSERVE`，误报计数为 0。已发布服务端
+authority 仍是 `MONITOR`/`NONE`。证据明确标记为 MCAce 自有 loopback fixture，不是公网真实外挂执行，
 也不是用截图单独证明 Xray。详见[分类记录](docs/evidence/anticheat-classification-20260908-5ccb9d6.json)
 和[实时关联记录](docs/evidence/anticheat-live-20260908-5ccb9d6.json)。
 

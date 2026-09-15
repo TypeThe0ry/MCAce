@@ -24,10 +24,12 @@ signals, and applies a signed policy to the **current connection**.
    not treated as proof by itself.
 2. The proxy and Paper/Folia path verifies the frame and correlates it with the
    same session and independent server evidence.
-3. An administrator-signed policy chooses the outcome. A clean baseline stays
-   `OBSERVE`; a correlated high-risk case can become
-   `SERVER_CONFIRMED / QUARANTINE`, disconnecting or routing the **current
-   connection**. This is reversible and is not a permanent ban.
+3. An administrator-signed policy chooses the outcome. In the released
+   production path the authority ceiling is `MONITOR`: a clean baseline and a
+   correlated risk are recorded for review, with no automatic kick/ban. The
+   signed lab fixture separately proves the policy state
+   `SERVER_CONFIRMED / QUARANTINE`; that fixture result is current-connection
+   scoped and is not wired into the released Production Authority executor.
 
 The same path covers suspicious client Mods, Xray-style resource packs, and
 bounded texture observations. Exact inventory rejection rules can also be
@@ -63,8 +65,10 @@ real server screenshots, or a Tencent ACE/kernel-coverage claim:
 
 The tracked executable fixture covers all three supported versions
 (`1.21.11`, `26.1.2`, `26.2`), reports the client ModList, correlates an
-independent server signal, produces `SERVER_CONFIRMED / QUARANTINE`, and keeps
-the clean control at `OBSERVE` with zero false positives. The evidence is
+independent server signal, produces the signed-lab
+`SERVER_CONFIRMED / QUARANTINE` state, and keeps the clean control at `OBSERVE`
+with zero false positives. The released server authority remains
+`MONITOR`/`NONE`. The evidence is
 explicitly marked as an MCAce-owned loopback fixture; it is not evidence that a
 third-party cheat was executed in a public server or that a screenshot alone
 can prove Xray. See the [classification record](docs/evidence/anticheat-classification-20260908-5ccb9d6.json)
