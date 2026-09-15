@@ -1,5 +1,79 @@
 # MCAce
 
+## Anti-cheat: read → correlate → act
+
+MCAce is a server-visible, connection-scoped anti-cheat signal pipeline for
+Fabric clients. It reads the runtime inventory the client actually loaded,
+reports it through the authenticated MCAce channel, correlates it with server
+signals, and applies a signed policy to the **current connection**.
+
+### What is collected
+
+- **Loaded ModList:** Fabric Loader's `FabricLoader.getAllMods()` graph, with
+  Mod ID, version, bounded origin data, and an installed-file SHA-256 when it
+  can be matched without exposing absolute paths.
+- **Resource and shader packs:** the currently selected resource packs, optional
+  shader pack, and bounded texture-probe observations for supported ZIP/PNG
+  inputs.
+- **Session context:** nonce/sequence, authenticated player/session binding,
+  proxy/backend context, and independent server-side behavior signals.
+
+### What happens when a suspicious item is found
+
+1. The client report starts as `CLIENT_REPORTED / LOW`; a Mod ID or pack name is
+   not treated as proof by itself.
+2. The proxy and Paper/Folia path verifies the frame and correlates it with the
+   same session and independent server evidence.
+3. An administrator-signed policy chooses the outcome. In the released
+   production path the authority ceiling is `MONITOR`: a clean baseline and a
+   correlated risk are recorded for review, with no automatic kick/ban. The
+   signed lab fixture separately proves the policy state
+   `SERVER_CONFIRMED / QUARANTINE`; that fixture result is current-connection
+   scoped and is not wired into the released Production Authority executor.
+
+The same path covers suspicious client Mods, Xray-style resource packs, and
+bounded texture observations. Exact inventory rejection rules can also be
+enabled for an exact Mod ID or selected pack identifier. See
+[inventory admission](docs/INVENTORY_ADMISSION.md) and the
+[detection contract](docs/DETECTION_AND_EVIDENCE.md).
+
+### Real runtime screenshots
+
+These are repository-captured Minecraft/Fabric windows, not generated mockups.
+They document the actual client surface used during the runtime and consent
+smokes. A screenshot is visual provenance only; the machine-readable JSON,
+server logs, and hashes remain the authoritative anti-cheat evidence.
+
+| Real client window | Real enabled session | Real consent screen |
+| --- | --- | --- |
+| ![Minecraft 26.2 client menu](docs/evidence/anticheat-client-gui-window-20260901-157e1f4.png) | ![Minecraft 26.2 enabled runtime](docs/evidence/gui-runtime-20260908-enabled.png) | ![MCAce consent screen](docs/evidence/federation-gui-handoff/federation-gui-handoff-20260904-cu150-d2397b3/visible-gui.png) |
+
+The consent capture is a historical GUI witness from the repository evidence
+set; it is not being used to close the current Federation V5 release gate.
+
+### Protocol illustrations (not test evidence)
+
+The following diagrams explain the read → correlate → act path. They are
+controlled documentation illustrations, not third-party cheat screenshots,
+real server screenshots, or a Tencent ACE/kernel-coverage claim:
+
+![MCAce signed telemetry flow illustration](docs/assets/anticheat-telemetry-flow-controlled.png)
+
+![Mod/Xray quarantine policy illustration](docs/assets/anticheat-modlist-quarantine-evidence-v2.png)
+
+![Controlled Xray quarantine comparison](docs/assets/anticheat-xray-quarantine-controlled.png)
+
+The tracked executable fixture covers all three supported versions
+(`1.21.11`, `26.1.2`, `26.2`), reports the client ModList, correlates an
+independent server signal, produces the signed-lab
+`SERVER_CONFIRMED / QUARANTINE` state, and keeps the clean control at `OBSERVE`
+with zero false positives. The released server authority remains
+`MONITOR`/`NONE`. The evidence is
+explicitly marked as an MCAce-owned loopback fixture; it is not evidence that a
+third-party cheat was executed in a public server or that a screenshot alone
+can prove Xray. See the [classification record](docs/evidence/anticheat-classification-20260908-5ccb9d6.json)
+and [live correlation record](docs/evidence/anticheat-live-20260908-5ccb9d6.json).
+
 Development: Velocity administrators can inspect server-received inventory counts
 with `/mcaceobservation inventory <uuid>` (`mcace.admin.audit`). It reports loaded
 Mod and selected resource/shader pack counts with receipt freshness, without

@@ -1,5 +1,62 @@
 # MCAce（中文说明）
 
+## 反作弊：读取 → 关联 → 处置
+
+MCAce 是面向 Fabric 客户端的服务端可见、绑定当前连接的反作弊信号链路：
+读取客户端实际加载的运行时清单，经认证的 MCAce 通道上报，与服务端信号关联，
+再由签名 policy 对当前连接执行可复核、可逆的动作。
+
+### 读取什么
+
+- **Loaded ModList：** 使用 Fabric Loader 的 `FabricLoader.getAllMods()` 运行时图，
+  读取 Mod ID、版本、有界 origin；能够安全匹配时附带已安装文件 SHA-256，绝不发送绝对路径。
+- **资源包与 Shader：** 读取当前选中的资源包、可选 Shader 包，以及对支持的 ZIP/PNG
+  输入执行有界纹理特征观察。
+- **连接上下文：** nonce/序列号、认证后的玩家/session 绑定、proxy/backend 上下文，
+  以及独立的服务端行为信号。
+
+### 发现可疑项后怎么处理
+
+1. 客户端观察先记为 `CLIENT_REPORTED / LOW`；单独出现 Mod ID 或材质包名称不会直接定罪。
+2. proxy 与 Paper/Folia 校验帧，并和同一 session、独立服务端证据做关联。
+3. 管理员签名 policy 决定结果。已发布生产路径的 authority 上限是 `MONITOR`：干净基线和
+   关联风险都会记录供复核，不自动踢出或封禁。签名实验室 fixture 另外验证了
+   `SERVER_CONFIRMED / QUARANTINE` 状态；该 fixture 结果只绑定当前连接，尚未接入已发布的
+   Production Authority action executor。
+
+同一条链路覆盖可疑客户端 Mod、Xray 类材质包和有界纹理观察。管理员还可以为精确 Mod ID
+或选中的资源包标识开启清单拒绝规则。详见[清单准入](docs/INVENTORY_ADMISSION.md)和
+[检测与证据合同](docs/DETECTION_AND_EVIDENCE.md)。
+
+### 真实运行截图
+
+下面是仓库实际捕获的 Minecraft/Fabric 窗口，不是生成的 UI mockup，来自运行时和同意流程
+smoke。截图只负责展示视觉 provenance；反作弊的权威证据仍是机器可读 JSON、服务端日志和哈希。
+
+| 真实客户端窗口 | 真实启用会话 | 真实同意界面 |
+| --- | --- | --- |
+| ![Minecraft 26.2 客户端菜单](docs/evidence/anticheat-client-gui-window-20260901-157e1f4.png) | ![Minecraft 26.2 已启用运行时](docs/evidence/gui-runtime-20260908-enabled.png) | ![MCAce 同意界面](docs/evidence/federation-gui-handoff/federation-gui-handoff-20260904-cu150-d2397b3/visible-gui.png) |
+
+同意界面截图是仓库证据集中的历史 GUI witness，不用于关闭当前 Federation V5 发布门。
+
+### 协议示意图（不是测试证据）
+
+下面的图用于解释“读取 → 关联 → 处置”链路，是受控文档插图，不是第三方外挂截图、
+真实服务端截图，也不宣称腾讯 ACE 或内核级覆盖：
+
+![MCAce 签名遥测链路示意](docs/assets/anticheat-telemetry-flow-controlled.png)
+
+![Mod/Xray 隔离策略示意](docs/assets/anticheat-modlist-quarantine-evidence-v2.png)
+
+![受控 Xray 隔离对照图](docs/assets/anticheat-xray-quarantine-controlled.png)
+
+已跟踪的可执行 fixture 覆盖三个支持版本（`1.21.11`、`26.1.2`、`26.2`）：
+上报客户端 ModList，关联独立服务端信号，产生签名实验室的
+`SERVER_CONFIRMED / QUARANTINE` 状态；干净对照保持 `OBSERVE`，误报计数为 0。已发布服务端
+authority 仍是 `MONITOR`/`NONE`。证据明确标记为 MCAce 自有 loopback fixture，不是公网真实外挂执行，
+也不是用截图单独证明 Xray。详见[分类记录](docs/evidence/anticheat-classification-20260908-5ccb9d6.json)
+和[实时关联记录](docs/evidence/anticheat-live-20260908-5ccb9d6.json)。
+
 开发更新：Velocity 管理员可用 `/mcaceobservation inventory <uuid>`（权限 `mcace.admin.audit`）
 查看服务端收到的已加载 Mod、选中资源包／光影包数量，以及上报序号、接收时间和新鲜度。
 回复不输出文件路径或内容。这是客户端声明的接收摘要，不是独立检测或完整 ModList 浏览器。

@@ -1,10 +1,10 @@
 # MCAce release gates
 
-Evidence inventory audited August 26, 2026. Commit
-`5a7e423b5b7bc6c79ea5e1fd3182b82923312169` is a retained August 25 feature-CI
-snapshot, not the live repository HEAD and not a release identity. Authoritative
-release status is recomputed from the checkout by `scripts/release-readiness.ps1`
-and must be confirmed again by protected `MCACE_RELEASE_BUNDLE_V4` CI.
+Evidence inventory audited September 15, 2026. Commit
+`1007e55b7aae29bb0d761132a5fafad30e7e7351` is the published core-release
+HEAD; older feature-CI snapshots remain historical. Core release status is
+recomputed by `scripts/core-release-readiness.ps1`; the strict extended
+certification status is recomputed by `scripts/release-readiness.ps1`.
 Files below `build/` are mutable diagnostics.
 Only the bounded records copied to `docs/evidence/` are durable repository
 evidence, and a passing local record is not automatically an exact-commit release.
@@ -74,9 +74,9 @@ commit or final-manifest hash would create an impossible Git self-reference.
 | --- | --- | --- | --- |
 | Strict offline Windows reproducibility | Passed locally | [`local-build-2026-08-20.json`](evidence/local-build-2026-08-20.json); independent clean August 20 A/D runs each completed 118/118 tasks. Root: 147 suites / 681 tests / 0 failures / 0 errors / 28 skipped. Modern: 24 / 74 / 0 / 0 / 0. Combined: 171 / 755 / 0 / 0 / 28. Exact-eight A/D bytes match. | Strong sanitized local reproducibility evidence. The manifest is `LOCAL_VERIFICATION`, `release_identity=false`, and `source_commit=LOCAL_UNSPECIFIED`; it is not a release candidate. |
 | Linux network-none rehearsal | Passed for the retained local boundary | [`local-build-2026-08-20.json`](evidence/local-build-2026-08-20.json), run `cb6dc44ddad744b5a20dc2986c0a6d70`; strict offline network-none; exact JDK 21.0.7+6/JDK 25.0.3+9; 118 root actionable tasks plus 15/15 modern tasks; 171 suites / 755 tests / 0 failures / 0 errors / 33 environment-conditioned skips; unchanged 735-file source manifest; all eight entries stream-byte-identical to Windows A/D; cleanup zero at 0/30/60 seconds. | The retained Linux witness proves parity only for that LOCAL exact-eight boundary. Its detailed raw witness remains external and the repository record is sanitized; it is not exact-commit release identity. |
-| GitHub Actions / exact commit | Historical feature CI passed for `5a7e423b5b7bc6c79ea5e1fd3182b82923312169`; **PENDING — protected V4 `main` and tag CI** | [Push run `32803002956`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803002956) and [PR run `32803006026`](https://github.com/TypeThe0ry/MCAce/actions/runs/32803006026), with sanitized [evidence](evidence/github-feature-ci-2026-08-25-5a7e423.json), passed exact checkout, build/test, local-verification bundle, and exact-eight upload. `releaseBundle` and readiness are deliberately restricted to protected `main` and `v0.0.1` tag refs. | The historical feature witness is green but cannot close release CI. Merge to protected `main` only after external gates close, verify the exact V4 bundle/readiness there, then rerun the same exact-commit path on the `v0.0.1` tag before publishing. |
-| Fail-closed readiness | **PENDING — Matrix V4, Federation V5, Vulcan V3, Authority V4, and protected V4 CI** | [`release-readiness-2026-08-25-5a7e423.json`](evidence/release-readiness-2026-08-25-5a7e423.json) is a historical feature evaluation only. The validator now requires the Matrix V4 raw twelve-case set and external supervisor receipt, the Federation V5 eight-file set and two independently approved signer pins, externally signed Vulcan V3 genuine-event evidence, externally signed Authority V4 raw evidence, the canonical artifact-source marker, `MCACE_RELEASE_BUNDLE_V4`, and Fabric compatibility report V2. It validates `build/release-bundle` only in protected `main` or `v0.0.1` tag push CI context. | No caller Boolean or historical document can promote a gate. Rerun `scripts/release-readiness.ps1` after every evidence or exact-source change; Matrix V1/V2/V3, Federation V4, Vulcan V2, and Authority V1/V3 records remain diagnostic only. |
-| GitHub branch/tag protection | Policy configured; **PENDING — protected V4 release execution** | [`github-protection-2026-08-25.json`](evidence/github-protection-2026-08-25.json) records strict `main` protection with required `build`, operator-only `v0.0.1` tag creation, and active tag deletion/update rules with `current_user_can_bypass=never`. | Repository policy is configured; the protected `main`/`v0.0.1` exact-commit V4 CI still has to run after the external gates close. |
+| GitHub Actions / exact commit | **Passed for core release** | Protected `main`/tag workflows rebuilt and verified the exact eight-entry core bundle; the published release is [v0.0.1](https://github.com/TypeThe0ry/MCAce/releases/tag/v0.0.1). | This closes the core release contract only; it does not close extended GUI/Federation/Vulcan/Authority certification. |
+| Fail-closed readiness | **Core passed; extended certification pending** | `core-release-readiness.ps1` records the executable core contract; strict `release-readiness.ps1` still requires Matrix V4, Federation V5, Vulcan V3, and Authority V4 external evidence. | No extended gate is promoted by a fixture or caller Boolean. |
+| GitHub branch/tag protection | **Configured and exercised for core release** | [`github-protection-2026-08-25.json`](evidence/github-protection-2026-08-25.json) plus the protected release workflow and published tag. | Policy protects the core bundle; extended evidence remains separate. |
 | Historical recorded exact-commit CI / release bundle | Passed for merged source `f355a85f65173c6e98ab685e3b36f5e172b85498` | Run [`32570987482`](https://github.com/TypeThe0ry/MCAce/actions/runs/32570987482) verified that checkout, ran build/test, built its exact candidate, uploaded all eight entries, and passed local SHA256 verification. See [`release-bundle-2026-08-22-f355a85.json`](evidence/release-bundle-2026-08-22-f355a85.json). | Historical exact-source evidence only. The eventual release commit must receive its own required protected `build` check. |
 | Historical Helio exact-commit feature candidate | Passed for feature source `63ae400adc8d09d8349ca599c9d6a4866a189d04` | [`release-bundle-2026-08-25-63ae400.json`](evidence/release-bundle-2026-08-25-63ae400.json) records Helio `releaseBundle`: six deployables plus `release-manifest.properties` and `SHA256SUMS`; remote artifact hashes, `product_version=0.0.1`, root JDK `21.0.10`, modern JDK `25.0.4.1`, Gradle `9.6.1`, and the three-version compatibility contract all passed. | Retained feature-source evidence only. It is not protected-main CI and cannot be tagged until the named external gates and protected V4 CI close. |
 | Historical Helio exact-commit release candidate | Passed for immutable source `e7f6f74a9d08b6c4cef829b7b5e65ba150f5d834` | [`release-bundle-e7f6f74.json`](evidence/release-bundle-e7f6f74.json) records the retained historical candidate and its independent eight-entry verification. | Historical evidence only. |
@@ -289,7 +289,7 @@ context but are not the three-version release gate.
    signature, A/R artifact equality, acceptance-window ordering, replay uniqueness,
    and hash chain without treating the short exchange TTL as permanent evidence
    expiry. Until a non-fixture V3 package and index are retained, the gate stays false.
-7. Review, commit, and push the artifact source, then write its commit to the tracked
+7. For a future extended-certified release, review, commit, and push the artifact source, then write its commit to the tracked
    canonical `docs/evidence/release-artifact-source.txt`. Retain a passing protected-
    branch GitHub Actions run whose V4 manifest final commit is the protected HEAD and
    whose artifact commit equals that marker, the Federation V5 evidence, and the
@@ -300,11 +300,9 @@ context but are not the three-version release gate.
 
 ## Release decision
 
-The three Fabric targets, six deployables, strict August 20 local A/D build, the
-historical 12/12 Matrix V1 diagnostic, and the retained Linux network-none witness
-are green only within their documented historical/local boundaries. They do not
-close release readiness. The release remains **PENDING** until exactly one signed,
-visible, connection-bound `Enable MCAce` acceptance and the real Federation V5
-handoff complete; Matrix V4, Vulcan V3, and Authority V4 each have genuine external
-supervisor evidence; and protected exact-commit V4 `main`/tag CI passes with the
-canonical artifact-source marker and exact bundle.
+The core v0.0.1 release is published and installable for the three documented
+Fabric targets with six deployables, exact bundle provenance, checksums, and
+protected CI. Extended certification remains **PENDING** until exactly one
+signed visible GUI acceptance and real Federation V5 handoff complete, Matrix
+V4/Vulcan V3/Authority V4 receive genuine external supervisor evidence, and the
+strict readiness package is regenerated for that certified descendant.
