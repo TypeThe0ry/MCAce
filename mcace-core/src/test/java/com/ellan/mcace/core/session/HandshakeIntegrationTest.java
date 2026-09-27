@@ -368,6 +368,40 @@ final class HandshakeIntegrationTest {
     }
 
     @Test
+    void selfGeneratedClientKeyCanAuthenticateAClaimWithoutCreatingServerAuthority() throws Exception {
+        signedPolicy = signedPolicyRequiringLoadedGraph();
+        RecordingAuditSink audit = new RecordingAuditSink();
+        server = auditedServer(audit, ignored -> { });
+
+        // This models a protocol emulator or patched client. It owns a fresh session key and
+        // sends a syntactically valid clean graph, but no independent server provider event exists.
+        KeyPair emulatorKeys = Ed25519Keys.generate(new SecureRandom());
+        ClientHandshakeEngine emulator = new ClientHandshakeEngine(
+                playerId, productVersion(), "1.21.1", "test-build", LoaderType.FABRIC,
+                serverKeys.getPublic(), clock, new SecureRandom(), emulatorKeys);
+        emulator.prepareServerHello(server.begin(playerId), "test.example:25565",
+                new VerifiedPolicyCache(temporaryDirectory.resolve("emulator-clean-claim"), clock));
+        LoadedModObservation normalLoader = new LoadedModObservation(
+                "fabricloader", "0.19.3", LoadedModObservation.OriginKind.BUILTIN_OR_CLASSPATH, "", "");
+        List<ClientHandshakeEngine.OutboundFrame> frames = emulator.createAuthenticationFrames(
+                emptyBundle(), List.of(), List.of(), List.of(), List.of(normalLoader));
+        AuthRequest request = AuthRequest.parseFrom(
+                SignedEnvelope.parseFrom(frames.get(1).data()).getPayload());
+
+        assertEquals(List.of(ClientCapability.CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1),
+                request.getClientCapabilitiesList());
+        assertTrue(request.getLoadedModsList().stream().noneMatch(mod -> mod.getId().contains("cheat")));
+        assertFalse(server.receive(playerId, frames.getFirst().data()).protocolViolation());
+        HandshakeAction accepted = server.receive(playerId, frames.get(1).data());
+
+        assertFalse(accepted.protocolViolation());
+        assertEquals(AdmissionStatus.VERIFIED, accepted.snapshot().orElseThrow().admissionStatus());
+        assertEquals(RiskBand.NORMAL, accepted.snapshot().orElseThrow().riskBand());
+        assertTrue(audit.events.isEmpty(), "a client claim must not create an independent risk event");
+        assertTrue(api.isVerified(playerId));
+    }
+
+    @Test
     void acceptsBoundedPostAuthObservationWithoutChangingVerifiedAdmissionAndIgnoresReplay() throws Exception {
         AtomicInteger updates = new AtomicInteger();
         AtomicReference<AuthenticatedManifest> latest = new AtomicReference<>();
