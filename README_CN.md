@@ -626,6 +626,7 @@ MONITOR 日志。
 - [架构](docs/ARCHITECTURE.md)
 - [客户端完整性与 Loaded ModList policy](docs/CLIENT_INTEGRITY_POLICY.md)
 - [检测与证据边界](docs/DETECTION_AND_EVIDENCE.md)
+- [威胁模型与绕过边界](docs/THREAT_MODEL_AND_BYPASS_CN.md)
 - [Server Version Matrix Evidence V4](docs/SERVER_VERSION_MATRIX_EVIDENCE_V4.md)
 - [Federation V5 设计与验收](docs/FEDERATION.md)
 - [服务端确认 authority](docs/SERVER_CONFIRMED_AUTHORITY.md)

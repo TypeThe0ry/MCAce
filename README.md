@@ -734,6 +734,7 @@ the Production Authority V4 output currently terminates at MONITOR logging.
 - [Architecture](docs/ARCHITECTURE.md)
 - [Client integrity and Loaded ModList policy](docs/CLIENT_INTEGRITY_POLICY.md)
 - [Detection and evidence boundaries](docs/DETECTION_AND_EVIDENCE.md)
+- [Threat model and bypass boundary](docs/THREAT_MODEL_AND_BYPASS.md)
 - [Server Version Matrix Evidence V4](docs/SERVER_VERSION_MATRIX_EVIDENCE_V4.md)
 - [Federation V5 design and acceptance](docs/FEDERATION.md)
 - [Server-confirmed authority](docs/SERVER_CONFIRMED_AUTHORITY.md)
