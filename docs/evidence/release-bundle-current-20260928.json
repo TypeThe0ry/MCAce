@@ -1,0 +1,26 @@
+{
+  "schema": "MCACE_CURRENT_SOURCE_RELEASE_BUNDLE_ATTEMPT_V1",
+  "artifact_class": "local-release-candidate-diagnostic",
+  "source_commit": "cd2c75c903951717c6e718c1da6b0acce45c0b9b",
+  "artifact_source_commit": "cd2c75c903951717c6e718c1da6b0acce45c0b9b",
+  "product_version": "0.0.1",
+  "bundle_profile": "RELEASE",
+  "release_identity": true,
+  "build_command": "gradlew.bat clean build releaseBundle -PmcaceSourceCommit=cd2c75c903951717c6e718c1da6b0acce45c0b9b -PmcaceArtifactSourceCommit=cd2c75c903951717c6e718c1da6b0acce45c0b9b -PmcaceProductVersion=0.0.1 -PmcaceModernJavaHome=D:\\MCAceTools\\jdk\\jdk-25 --dependency-verification=strict --rerun-tasks --no-build-cache --no-configuration-cache --no-daemon --no-parallel --max-workers=1",
+  "build_result": "BUILD_SUCCESSFUL",
+  "manifest_sha256": "2749016ae4ed4383566a9538a6189d9cc7ad9233c27194ffc31320b0a0f119db",
+  "sha256sums_sha256": "a7f38d74a90ffd032f18b6cd555f2d7a0802000bbac66606bffc60f78ad0f923",
+  "compatibility_report_sha256": "72bb0abebca846981e4009e30a427e79ce1ecd83d2ebcd422c2fb30725202189",
+  "compatibility_report_source_commit": "cd2c75c903951717c6e718c1da6b0acce45c0b9b",
+  "compatibility_report_artifact_source_commit": "cd2c75c903951717c6e718c1da6b0acce45c0b9b",
+  "jar_sha256": {
+    "mcace-client-fabric-1.21.11.jar": "8c2b1d0d01beef2d8f9237dd1afe105031e1dd291fa5ebaa1090feafc250f517",
+    "mcace-client-fabric-26.1.2.jar": "192095a07b1a05930edf2bf069a428d235cdb146d062d4a460a826709b3c5c79",
+    "mcace-client-fabric-26.2.jar": "21721f97dbaee63483df41a0efe0166dabde43bee7c5c2b64f2d06bdca09028a",
+    "mcace-server-velocity.jar": "c100f09d50a8d756c9b342ff7b7670e603867879f82bd8a5c55b9fc4e4edb51c",
+    "mcace-server-bungeecord.jar": "edca960206e5f50aa7581b0b9a2779c09bac5ebd3219e2e87d806c0887d0d64c",
+    "mcace-server-paper.jar": "5a68b6d633acd0aa220722007a8144eb29f4d0e8f3e75a65d73b14514f53420e"
+  },
+  "release_eligible": false,
+  "interpretation": "The local exact-source bundle and three-version compatibility contract passed. Protected CI and the four external GUI/Federation/Vulcan/Authority gates are still required before publication."
+}
