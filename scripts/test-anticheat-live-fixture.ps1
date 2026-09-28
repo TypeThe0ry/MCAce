@@ -28,7 +28,11 @@ foreach ($required in @(
         'MCACE_JAVA21_HOME',
         'ANTICHEAT_LIVE_FIXTURE_JAVA21_REQUIRED',
         'ReportOnly',
-        ':mcace-runtime-integration:test')) {
+        ':mcace-runtime-integration:test',
+        "'--rerun'",
+        "'--no-build-cache'",
+        'ANTICHEAT_LIVE_FIXTURE_TEST_NOT_EXECUTED',
+        'ANTICHEAT_LIVE_FIXTURE_JUNIT_STALE_OR_MISSING')) {
     if (-not $source.Contains($required)) {
         throw "ANTICHEAT_LIVE_FIXTURE_STATIC_CONTRACT_MISSING: $required"
     }
