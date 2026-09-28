@@ -1,0 +1,46 @@
+{
+  "schema": "MCACE_EXTENDED_GATES_MATERIAL_AUDIT_V1",
+  "captured_at_utc": "2026-09-28T08:43:01Z",
+  "source_commit": "838e164680683fd215b78fc2e6efa1bd15e67ea7",
+  "scope": {
+    "repository": "D:/Projects/MCAce",
+    "external_search_roots": [
+      "D:/MCAceTools",
+      "D:/Projects/MCAce",
+      "C:/Users/admin/.codex"
+    ],
+    "search_names": [
+      "Vulcan",
+      "authority",
+      "topology",
+      "provider",
+      "trust root",
+      "supervisor",
+      "receipt",
+      "federation"
+    ],
+    "search_extensions": [".pem", ".der", ".key", ".pk8", ".jar"]
+  },
+  "observed": {
+    "reviewed_licensed_vulcan_jar": false,
+    "vulcan_supervisor_trust_root": false,
+    "federation_v5_external_source_key": false,
+    "federation_v5_external_target_key": false,
+    "production_provider_profile": false,
+    "production_topology_descriptor": false,
+    "production_action_ceiling": false,
+    "production_supervisor_receipt": false
+  },
+  "excluded_matches": [
+    "build/vulcan-authority-status-20260915.json",
+    "build/cluster-evidence/20260826-015345-mcace-authority-posix-evidence.tar.gz",
+    "build/cluster-snapshots/20260826-015345-mcace-snapshot-authority-posix/**"
+  ],
+  "interpretation": "No current externally supplied licensed Vulcan package, federation V5 signer material, or production Authority V4 package was found in the searched roots. Matching files are repository fixtures, historical snapshots, or generated diagnostics and are explicitly excluded from release evidence.",
+  "release_decision": "FAIL_CLOSED",
+  "next_required_inputs": [
+    "reviewed licensed Vulcan JAR plus approved SHA-256 and supervisor trust root",
+    "Federation V5 source and target signer roots with supervised GUI handoff environment",
+    "production provider/topology/key/action-ceiling package and external supervisor receipt"
+  ]
+}
