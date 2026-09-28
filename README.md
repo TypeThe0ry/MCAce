@@ -145,6 +145,15 @@ and [latest GUI/runtime evidence](docs/evidence/GUI_RUNTIME_2026-09-08.md).
 The `live16` references below are historical; current-source release-grade GUI
 and federation acceptance remain pending. Earlier bundles predate this change.
 
+**2026-09-28 core validation:** the current `main` source was exercised with the
+executable three-version anti-cheat fixture and the whole Gradle test suite.
+The fixture reported the client ModList, correlated an independent server
+signal on the same session, produced three signed-lab
+`SERVER_CONFIRMED / QUARANTINE` results, and recorded zero clean false
+positives. The full repository test completed successfully after resolving the
+Fabric compile dependencies online. See the [validation record](docs/evidence/CORE_TRUST_VALIDATION_20260928.md)
+for the exact source commit, command lines, report hash, and limits.
+
 ![Release verification dashboard](docs/assets/verification-dashboard.svg)
 
 ## Release status: core contract and extended certification
