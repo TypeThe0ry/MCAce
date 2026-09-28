@@ -1,0 +1,14 @@
+{
+  "schema": "MCACE_COMPUTER_USE_NATIVE_WINDOW_CHECK_V1",
+  "captured_at_utc": "2026-09-28T09:17:58Z",
+  "source_commit": "6322749bba0fc6e7d9339210156dc819e98b8aed",
+  "runtime": {
+    "computer_use_api": "cua_repl",
+    "native_apps_count": 0,
+    "browser_surfaces_count": 2,
+    "minecraft_native_window_bound": false,
+    "synthetic_input_used": false
+  },
+  "gate_result": "PENDING_FAIL_CLOSED",
+  "interpretation": "Only browser surfaces are exposed in the active Computer Use session. No native Minecraft approval was attempted or synthesized."
+}

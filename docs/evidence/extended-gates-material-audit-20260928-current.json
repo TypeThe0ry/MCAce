@@ -1,0 +1,28 @@
+{
+  "schema": "MCACE_EXTENDED_GATES_MATERIAL_AUDIT_V1",
+  "captured_at_utc": "2026-09-28T09:17:58Z",
+  "source_commit": "6322749bba0fc6e7d9339210156dc819e98b8aed",
+  "scope": {
+    "repository": "D:/Projects/MCAce",
+    "external_search_roots": ["D:/MCAceTools", "D:/Projects/MCAce", "C:/Users/admin/.codex"],
+    "search_extensions": [".jar", ".pem", ".der", ".key", ".pk8"],
+    "search_names": ["Vulcan", "federation signer", "authority", "topology", "provider", "supervisor", "receipt"]
+  },
+  "observed": {
+    "reviewed_licensed_vulcan_jar": false,
+    "vulcan_supervisor_trust_root": false,
+    "federation_v5_external_source_key": false,
+    "federation_v5_external_target_key": false,
+    "production_provider_profile": false,
+    "production_topology_descriptor": false,
+    "production_action_ceiling": false,
+    "production_supervisor_receipt": false
+  },
+  "excluded_matches": [
+    "build/vulcan-authority-status-20260915.json",
+    "build/cluster-evidence/20260826-015345-mcace-authority-posix-evidence.tar.gz",
+    "build/cluster-snapshots/20260826-015345-mcace-snapshot-authority-posix/**"
+  ],
+  "release_decision": "FAIL_CLOSED",
+  "interpretation": "The second current-source audit found no externally supplied licensed Vulcan package, Federation V5 signer roots, or production Authority V4 package. Historical snapshots and fixtures remain excluded."
+}
