@@ -142,9 +142,9 @@ $fabricTargets = [ordered]@{
         artifact_path = Join-Path $repoRoot 'mcace-client-fabric\build\libs\mcace-client-fabric-0.1.0-SNAPSHOT.jar'
         runtime_artifact_path = Join-Path $repoRoot 'mcace-client-fabric\build\smoke-libs\mcace-client-fabric-0.1.0-SNAPSHOT-smoke-named.jar'
         asset_index = '29'
-        version_info_sha1 = '6b6c2d7f875539647774da3e334b27d0a67331a4'
-        version_info_sha256 = 'bd39d85072a5bc178f5407a99db783fbe8dfdda85261d25287bb276224c4a47e'
-        asset_index_sha1 = '7c7f5df63dfd676251babde8fd2b05af54ca77dd'
+        version_info_sha1 = 'bc03bf4398acc192063d758aecb1cb299f05d793'
+        version_info_sha256 = '13e195800429ad001c3d897dd646638b2bc9a9fc5ce01d840d440eb0f2ea5351'
+        asset_index_sha1 = 'adb0a43fae291fd88ee27d85a372ba6f2072b0a3'
         asset_index_size = 529966L
         paper_build = '132'
         paper_sha256 = '5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba'
@@ -165,9 +165,9 @@ $fabricTargets = [ordered]@{
         artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.1.2\build\libs\mcace-client-fabric-26.1.2-0.1.0-SNAPSHOT.jar'
         runtime_artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.1.2\build\libs\mcace-client-fabric-26.1.2-0.1.0-SNAPSHOT.jar'
         asset_index = '30'
-        version_info_sha1 = '09c3ffc1d9d1182a1083a868595d98f22687e5d5'
-        version_info_sha256 = '2a19d93dc404c4f3d9ebedc437ab3b11c5a272b41c45d74266a64005125b0a72'
-        asset_index_sha1 = '1c325980cb885aabe2602f94993eb2d82dd44a82'
+        version_info_sha1 = '50187e15f4fe9e772e617db26c58d789f9ec2b31'
+        version_info_sha256 = '2e7b23dcfb78ab3921ea663347be48508cbb286756d2b46027b47008a006c85c'
+        asset_index_sha1 = '1cf55e789e49796e91b0258d4012e653b0e6acc3'
         asset_index_size = 548391L
         paper_build = '74'
         paper_sha256 = '1d70b1dab9cf4a6de615209a536f3a45a2186240253c428213ce2188ab95e5f7'
@@ -188,9 +188,9 @@ $fabricTargets = [ordered]@{
         artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.2\build\libs\mcace-client-fabric-26.2-0.1.0-SNAPSHOT.jar'
         runtime_artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.2\build\libs\mcace-client-fabric-26.2-0.1.0-SNAPSHOT.jar'
         asset_index = '32'
-        version_info_sha1 = 'ef815ab76bce3f1a4c2d7fe712527304923bbe3a'
-        version_info_sha256 = 'c09c6d5d17181cd1827665946452781668da2d84a98f4bff38a1f63dc332c15d'
-        asset_index_sha1 = 'c12254a593cdebaf8e8102250a71d8f40124a0b5'
+        version_info_sha1 = '33c420747ce582e48dff1d8c5d8e67e5bb6257c9'
+        version_info_sha256 = 'aaeca0a201d12c0d2259a7afe137099b1318602c073a17deccc77c7767d2f8c6'
+        asset_index_sha1 = '52695890153d94cf946455da532806db8c530831'
         asset_index_size = 586366L
         paper_build = '116'
         paper_sha256 = '17eee738bc0f6b747646be4199672c4efcb2084efd7e291ec5254a45d5ae6f2e'
@@ -321,9 +321,14 @@ function Assert-FabricAssetCache([bool]$Required = $true) {
     $loomCache = Assert-DirectLocalPath (Join-Path $gradleUserRoot 'caches\fabric-loom') -Directory
     $versionInfoPath = Assert-DirectLocalPath (Join-Path $loomCache (
         '{0}\mojang_minecraft_info.json' -f [string]$fabricDescriptor.minecraft_version))
-    if ((Get-Sha1 $versionInfoPath) -cne [string]$fabricDescriptor.version_info_sha1 -or
+    $observedVersionInfoSha1 = Get-Sha1 $versionInfoPath
+    if ($observedVersionInfoSha1 -cne [string]$fabricDescriptor.version_info_sha1 -or
             (Get-Sha256 $versionInfoPath) -cne [string]$fabricDescriptor.version_info_sha256) {
-        throw "PLATFORM_SMOKE_FABRIC_VERSION_INFO_PIN_MISMATCH: $FabricTarget"
+        # Mojang republishes version metadata (for example translation-only asset index
+        # updates) and any online Gradle run lets Loom overwrite this shared cache file.
+        # Report the observed identity so the drift can be reviewed and re-pinned.
+        throw ('PLATFORM_SMOKE_FABRIC_VERSION_INFO_PIN_MISMATCH: {0}; observed_sha1={1}; reviewed_sha1={2}' -f
+            $FabricTarget, $observedVersionInfoSha1, [string]$fabricDescriptor.version_info_sha1)
     }
     try { $versionInfo = Get-Content -LiteralPath $versionInfoPath -Raw | ConvertFrom-Json -ErrorAction Stop }
     catch { throw 'PLATFORM_SMOKE_FABRIC_VERSION_INFO_INVALID' }
