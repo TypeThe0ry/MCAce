@@ -108,6 +108,13 @@ Paper/Folia 后端插件。
 和[最新 GUI/运行证据](docs/evidence/GUI_RUNTIME_2026-09-08.md)。文中的 `live16` 为历史尝试；
 当前源码的发布级 GUI 与 federation 验收仍待完成，先前发布包不包含本次代码。
 
+**2026-09-28 核心验证：** 已对当前 `main` 源码运行三版本可执行反作弊
+fixture 和完整 Gradle 测试套件。fixture 在 `1.21.11`、`26.1.2`、`26.2`
+上读取并上报客户端 ModList，与同一 session 的独立服务端信号关联，产生 3 个签名实验室
+`SERVER_CONFIRMED / QUARANTINE` 结果，干净对照误报为 0。完整仓库测试在在线补齐 Fabric
+编译依赖后成功完成。精确提交、命令、报告哈希和边界见
+[核心信任边界验证记录](docs/evidence/CORE_TRUST_VALIDATION_20260928.md)。
+
 [English README](README.md) · [架构](docs/ARCHITECTURE.md) ·
 [安全模型](docs/SECURITY.md) · [发布门](docs/RELEASE_GATES.md) ·
 [运维](docs/OPERATIONS.md) · [当前进度台账](docs/evidence/PROGRESS_2026-09-06.md) · [2026-09-07 更新](docs/evidence/PROGRESS_2026-09-07.md)
