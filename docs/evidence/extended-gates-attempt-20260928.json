@@ -1,0 +1,56 @@
+{
+  "schema": "MCACE_EXTENDED_GATES_ATTEMPT_V1",
+  "artifact_class": "diagnostic-non-release",
+  "source_commit": "da0a5491026e063c6d90ba9f377a59a5d4fb6480",
+  "attempted_at": "2026-09-28T03:49:08Z",
+  "release_eligible": false,
+  "gui": {
+    "status": "FAILED_CLOSED",
+    "fabric_target": "26.2",
+    "player": "McAceGui",
+    "run_root": "D:\\Projects\\MCAce\\build\\platform-smoke\\runs\\20260928T034908029Z-26_2-375c5994efea837e6a03f1fd0703cb36",
+    "run_report_sha256": "4c950fb561be260701fa872a093b5e08f5869604397c3076b18a4865359daea9",
+    "latest_log_sha256": "1f6abf05440e5fe102df12a99b837aae3052e39e9b352bc9ed998cc284d9c280",
+    "console_log_sha256": "8c75cefc5ffbf6d4c37640d717abb4c6a3fc3b261c49829b3f3e0e7a380dc782",
+    "observed": [
+      "A real Minecraft 26.2 window was created and rendered.",
+      "The client connected to the isolated loopback server and received the MCAce server hello.",
+      "The MCAce Enablement consent screen was rendered.",
+      "No approval event was accepted; after 180 seconds the runner failed closed and sent no client frame.",
+      "Cleanup completed with zero MCAce-owned processes and free ports."
+    ],
+    "blocker": "The active Computer Use backend exposed browser surfaces only and did not expose a native Windows app binding for the visible Minecraft window. No alternate input technology was used, so the run is not promoted to human GUI evidence."
+  },
+  "federation_v5": {
+    "status": "PENDING",
+    "contract_test": "FABRIC_FEDERATION_GUI_HANDOFF_STATIC_V5_PASS_WITH_SYMLINK_PERMISSION_GAP",
+    "contract_test_scope": "fixture/static negative and schema coverage only",
+    "missing": [
+      "current-source V5 native eight-file package",
+      "visible GUI V3 attestation signed by an independently approved GUI key",
+      "direct real source-to-target transition with inherited consent",
+      "independent post-run supervisor receipt and pinned trust roots"
+    ]
+  },
+  "vulcan_v3": {
+    "status": "PENDING",
+    "contract_test": "VULCAN_GENUINE_EVENT_WRAPPER_V3_CONTRACT_PASS",
+    "contract_test_scope": "negative contract cases only; fixture_release_eligible=false",
+    "missing": [
+      "reviewed licensed Vulcan JAR",
+      "externally pinned supervisor trust root and receipt",
+      "genuine non-synthetic provider event from the licensed runtime"
+    ]
+  },
+  "authority_v4": {
+    "status": "PENDING",
+    "contract_test_scope": "no production capture was promoted",
+    "missing": [
+      "real production provider profile and topology freeze",
+      "production backend/proxy key descriptors and action ceiling",
+      "actual signed grant/observation frames",
+      "external Ed25519 supervisor receipt and raw process/journal ledgers"
+    ]
+  },
+  "policy": "This record is diagnostic only. It records observed failures and missing external authority; it must not be used as GUI, Federation V5, Vulcan V3, or Authority V4 release evidence."
+}
