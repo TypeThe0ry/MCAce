@@ -162,10 +162,15 @@ if (-not (Test-Path -LiteralPath $gradle -PathType Leaf)) {
     throw 'ANTICHEAT_LIVE_FIXTURE_GRADLE_WRAPPER_MISSING'
 }
 $testClass = 'com.ellan.mcace.runtime.AntiCheatLiveFixtureIntegrationTest'
+# `--rerun` and `--no-build-cache` force the fixture to execute: an UP-TO-DATE or
+# FROM-CACHE test task restores an older JUnit XML (with a fresh file time and the
+# pass marker) that would otherwise be stamped with the current source commit.
 $arguments = @(
-    ':mcace-runtime-integration:test', '--tests', $testClass, '--offline', '--no-daemon',
-    '--no-parallel', '--max-workers=1', '--no-configuration-cache', '--console=plain'
+    ':mcace-runtime-integration:test', '--rerun', '--tests', $testClass, '--offline',
+    '--no-daemon', '--no-build-cache', '--no-parallel', '--max-workers=1',
+    '--no-configuration-cache', '--console=plain'
 )
+$startedAt = [DateTime]::UtcNow
 $resolvedJava = Resolve-JavaHome
 $oldJavaHome = [Environment]::GetEnvironmentVariable('JAVA_HOME')
 $env:JAVA_HOME = $resolvedJava.home
@@ -188,10 +193,15 @@ $ErrorActionPreference = $oldErrorActionPreference
 if ($exitCode -ne 0) {
     throw "ANTICHEAT_LIVE_FIXTURE_GRADLE_FAILED: exit=$exitCode`n$output"
 }
+if ($output -match '(?m)^> Task :mcace-runtime-integration:test (?:UP-TO-DATE|FROM-CACHE|SKIPPED|NO-SOURCE)\s*$') {
+    throw 'ANTICHEAT_LIVE_FIXTURE_TEST_NOT_EXECUTED'
+}
 $testXmlPath = Join-Path $repoRoot 'mcace-runtime-integration\build\test-results\test\TEST-com.ellan.mcace.runtime.AntiCheatLiveFixtureIntegrationTest.xml'
-$testOutput = if (Test-Path -LiteralPath $testXmlPath -PathType Leaf) {
-    Get-Content -LiteralPath $testXmlPath -Raw
-} else { '' }
+$testXml = Get-Item -LiteralPath $testXmlPath -ErrorAction SilentlyContinue
+if ($null -eq $testXml -or $testXml.LastWriteTimeUtc -lt $startedAt -or $testXml.Length -gt 2097152) {
+    throw 'ANTICHEAT_LIVE_FIXTURE_JUNIT_STALE_OR_MISSING'
+}
+$testOutput = Get-Content -LiteralPath $testXmlPath -Raw
 if (($output + $testOutput) -notmatch 'ANTICHEAT_LIVE_FIXTURE_INTEGRATION_PASS\|versions=3\|executed=true\|server_confirmed=3\|clean_false_positive=0') {
     throw 'ANTICHEAT_LIVE_FIXTURE_PASS_MARKER_MISSING'
 }
