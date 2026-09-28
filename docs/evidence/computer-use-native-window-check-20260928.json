@@ -1,0 +1,20 @@
+{
+  "schema": "MCACE_COMPUTER_USE_NATIVE_WINDOW_CHECK_V1",
+  "captured_at_utc": "2026-09-28T09:02:18Z",
+  "source_commit": "c559501d69a05c6847d32ba03f0b9d8b161e76e0",
+  "runtime": {
+    "computer_use_api": "cua_repl",
+    "native_apps_count": 0,
+    "browser_surfaces_count": 2,
+    "minecraft_native_window_bound": false,
+    "visible_enable_mcase_confirmation_attempted": false,
+    "synthetic_input_used": false
+  },
+  "observed_surfaces": [
+    "Chrome extension browser tabs",
+    "Codex in-app browser"
+  ],
+  "interpretation": "The active Computer Use backend exposes browser surfaces but no native Windows application binding. A real Minecraft Enable MCAce click cannot be performed or attested through this session. No keyboard/mouse injection or synthetic approval was used.",
+  "gate_result": "PENDING_FAIL_CLOSED",
+  "required_follow_up": "Repeat against a Computer Use session that exposes the running Minecraft native window and capture the signed GUI attestation plus decoded-pixel screenshot hash."
+}
