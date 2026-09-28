@@ -1,0 +1,30 @@
+{
+  "schema": "MCACE_FEDERATION_RUNTIME_MATRIX_ATTEMPT_V1",
+  "artifact_class": "runtime-integration-evidence",
+  "source_commit_at_invocation": "098d3756356b21cd06dec93cff44021ada2d9f69",
+  "generated_at": "2026-09-28T04:42:36.8040928Z",
+  "source_mode": "EXECUTED",
+  "pair_scope": "ALL",
+  "expected_case_count": 4,
+  "observed_case_count": 4,
+  "all_cases_passed": true,
+  "transfer_model": "CLIENT_CARRIED_PROCESS_MEMORY_ONLY",
+  "source_to_target_broker_present": false,
+  "explicit_consent_required": true,
+  "same_process_replay_rejection_covered": true,
+  "durable_audit_health_covered": true,
+  "target_restart_residual_covered": false,
+  "fabric_gui_coverage": false,
+  "pairs": [
+    "VelocityToVelocity",
+    "VelocityToBungee",
+    "BungeeToVelocity",
+    "BungeeToBungee"
+  ],
+  "run_root": "D:\\Projects\\MCAce\\build\\runtime-federation-matrix\\evidence-runs\\2026-09-28T04-42-36-8735338Z",
+  "report_sha256": "4f2a12f80f4df6a8f1238ed6cff6f04d048b271c8187dcecec428c756f40ff6f",
+  "binding_sha256": "a29ae315dde8fc4febdece03f957486aa78525de49f1b703c0d1258253ae722e",
+  "commit_sha256": "a7604d4cccf49b18eeb8f1582e19e2680d48cb520595dfee27f702dda1a7ab86",
+  "release_eligible": false,
+  "not_v5_reason": "This is a real proxy/runtime matrix and not the Federation V5 release gate: it has no Fabric GUI coverage, no visible GUI V3 attestation, no direct current-source GUI handoff, and no independent post-run supervisor receipt."
+}
