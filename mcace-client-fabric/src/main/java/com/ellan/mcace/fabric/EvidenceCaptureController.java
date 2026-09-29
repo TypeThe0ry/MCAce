@@ -33,6 +33,13 @@ final class EvidenceCaptureController implements AutoCloseable {
 
         void cancel(VerifiedEvidenceRequest request);
 
+        /**
+         * Burns the connection's single render-frame budget at the moment pixels were read. An
+         * expiry, encoding failure or cancellation afterwards must not release it for another
+         * capture. Returns false when the exact reservation is no longer held.
+         */
+        boolean contentCaptured(VerifiedEvidenceRequest request);
+
         default void screenRendered(VerifiedEvidenceRequest request) { }
 
         default void consentAllowed(VerifiedEvidenceRequest request) { }
@@ -153,6 +160,11 @@ final class EvidenceCaptureController implements AutoCloseable {
         }
         if (failure != null) {
             finishOutcome(client, current, failure);
+            return;
+        }
+        if (!current.sender().contentCaptured(current.request())) {
+            copy.clear();
+            finishOutcome(client, current, EvidenceCollectionStatus.EVIDENCE_COLLECTION_FAILED);
             return;
         }
         current.state(State.ENCODING);

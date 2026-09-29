@@ -1131,11 +1131,8 @@ public final class MCAceFabricClient implements ClientModInitializer {
         @Override
         public void sendFrame(ClientHandshakeEngine.VerifiedEvidenceRequest request, long capturedAtEpochMs,
                 int widthPixels, int heightPixels, byte[] encodedContent) {
-            if (!authorization.commitEvidenceCapture(request.requestId(), request.evidenceId())) {
-                Arrays.fill(encodedContent, (byte) 0);
-                candidate.cancelEvidenceRequest(request);
-                return;
-            }
+            // The budget was burned by contentCaptured(); enqueueEvidenceFrames still re-checks
+            // the attempt, the connection-bound enablement and the handshake before sending.
             Thread.ofVirtual().name("mcace-evidence-transfer").start(() -> {
                 List<ClientHandshakeEngine.OutboundFrame> frames = null;
                 try {
@@ -1155,6 +1152,11 @@ public final class MCAceFabricClient implements ClientModInitializer {
                     Arrays.fill(encodedContent, (byte) 0);
                 }
             });
+        }
+
+        @Override
+        public boolean contentCaptured(ClientHandshakeEngine.VerifiedEvidenceRequest request) {
+            return authorization.commitEvidenceCapture(request.requestId(), request.evidenceId());
         }
 
         @Override
