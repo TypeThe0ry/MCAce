@@ -982,6 +982,13 @@ public final class ServerHandshakeCoordinator {
     }
 
     private HandshakeAction violation(UUID playerId, SessionContext context, RiskEventType type) {
+        if (context != null && context.session.stage() == SessionStage.AUTHENTICATED) {
+            // Unexpected or wrong-stage frames after authentication are client-controlled (the
+            // default branch does not even verify a signature). Rejecting here would let a
+            // verified client make its own session stale and skip every pending session-bound
+            // disposition, so treat them like heartbeat failures: audit-visible, no downgrade.
+            return heartbeatViolation(context, "post-authentication protocol violation");
+        }
         if (context != null) {
             context.session.reject();
             context.terminal = true;

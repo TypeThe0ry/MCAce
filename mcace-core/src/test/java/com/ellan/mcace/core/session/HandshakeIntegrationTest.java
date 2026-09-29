@@ -991,6 +991,33 @@ final class HandshakeIntegrationTest {
     }
 
     @Test
+    void protocolViolationsAfterAuthenticationNeverDowngradeTheVerifiedSession() throws Exception {
+        ClientHandshakeEngine client = client(serverKeys);
+        List<byte[]> frames = frames(client, server.begin(playerId));
+        server.receive(playerId, frames.get(0));
+        server.receive(playerId, frames.get(1));
+        String sessionId = SignedEnvelope.parseFrom(frames.get(0)).getHeader().getSessionId();
+        assertTrue(server.isCurrentAuthenticatedSession(playerId, sessionId));
+        KeyPair stranger = Ed25519Keys.generate(new SecureRandom());
+
+        // Unexpected packet types are not signature-checked; a fresh AUTH_REQUEST is validly
+        // framed but arrives at the wrong stage. Neither may reject the verified session and so
+        // make every pending session-bound disposition stale.
+        for (byte[] frame : List.of(
+                resign(frames.get(0), PacketType.SERVER_HELLO, new byte[0], stranger),
+                resign(frames.get(0), PacketType.AUTH_RESULT, new byte[0], stranger),
+                resign(frames.get(1), PacketType.AUTH_REQUEST,
+                        SignedEnvelope.parseFrom(frames.get(1)).getPayload().toByteArray(), stranger))) {
+            HandshakeAction action = server.receive(playerId, frame);
+
+            assertTrue(action.protocolViolation());
+            assertTrue(action.snapshot().isEmpty());
+            assertTrue(server.isCurrentAuthenticatedSession(playerId, sessionId));
+            assertTrue(api.isVerified(playerId));
+        }
+    }
+
+    @Test
     void authenticatedOrUnknownSessionIsNeverReportedAsFailedBeforeAuthentication() throws Exception {
         assertFalse(server.hasFailedBeforeAuthentication(playerId));
         ClientHandshakeEngine client = client(serverKeys);
