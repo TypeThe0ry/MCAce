@@ -423,9 +423,11 @@ final class HandshakeIntegrationTest {
             assertFalse(server.receive(playerId, gapped.get(index)).protocolViolation());
         }
         assertFalse(api.isVerified(playerId));
+        assertTrue(server.pendingAuthFragmentBytes(playerId) > 0L);
         clock.advance(Duration.ofSeconds(6));
         assertEquals(1, server.expireTimedOut().size());
         assertFalse(api.isVerified(playerId));
+        assertEquals(0L, server.pendingAuthFragmentBytes(playerId), "timeout must free held fragments");
     }
 
     @Test
@@ -447,6 +449,7 @@ final class HandshakeIntegrationTest {
         assertEquals(ProtocolConstants.MAX_AUTH_REQUEST_TRANSFER_CHUNKS + 3, sent);
         assertFalse(api.isVerified(playerId));
         assertTrue(server.hasFailedBeforeAuthentication(playerId));
+        assertEquals(0L, server.pendingAuthFragmentBytes(playerId), "violation must free held fragments");
     }
 
     private List<byte[]> modpackAuthenticationFrames(String cacheSuffix) throws Exception {

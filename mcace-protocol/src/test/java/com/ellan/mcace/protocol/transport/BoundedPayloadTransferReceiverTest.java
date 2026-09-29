@@ -57,6 +57,25 @@ final class BoundedPayloadTransferReceiverTest {
         assertThrows(EnvelopeException.class, () -> replayReceiver.accept(signed.toByteArray(), codec, keyPair.getPublic(), guard));
     }
 
+    @Test void kindBoundChannelRejectsOtherKindsAndSweepReleasesAbandonedTransfer() throws Exception {
+        MutableClock clock = new MutableClock(1_800_000_000_000L);
+        byte[] root = new byte[32]; byte[] content = {1}; byte[] hash = BoundedPayloadTransferLimits.sha256(content);
+        BoundedPayloadTransferReceiver observation = new BoundedPayloadTransferReceiver(
+                "s", clock, Duration.ofMillis(5), BoundedPayloadKind.BOUNDED_PAYLOAD_ARTIFACT_OBSERVATION);
+        assertThrows(BoundedPayloadException.class, () -> observation.acceptVerified(
+                envelope(PacketType.PAYLOAD_BEGIN, begin(root, 1, hash, hash, 1), "s")));
+
+        BoundedPayloadTransferReceiver abandoned = new BoundedPayloadTransferReceiver("s", clock, Duration.ofMillis(5));
+        abandoned.acceptVerified(envelope(PacketType.PAYLOAD_BEGIN, begin(root, 1, hash, hash, 1), "s"));
+        assertEquals(false, abandoned.expireStale());
+        assertThrows(BoundedPayloadException.class, () -> abandoned.acceptVerified(
+                envelope(PacketType.PAYLOAD_BEGIN, begin(root, 1, hash, hash, 20), "s")));
+        abandoned.acceptVerified(envelope(PacketType.PAYLOAD_BEGIN, begin(root, 1, hash, hash, 30), "s"));
+        clock.advance(6);
+        assertEquals(true, abandoned.expireStale());
+        abandoned.acceptVerified(envelope(PacketType.PAYLOAD_BEGIN, begin(root, 1, hash, hash, 40), "s"));
+    }
+
     @Test void rejectsOutOfOrderConflictExpiredAndOversizedFrames() throws Exception {
         MutableClock clock = new MutableClock(1_800_000_000_000L); byte[] root = new byte[32]; byte[] content = {1}; byte[] hash = BoundedPayloadTransferLimits.sha256(content);
         BoundedPayloadTransferReceiver receiver = new BoundedPayloadTransferReceiver("s", clock, Duration.ofMillis(5));

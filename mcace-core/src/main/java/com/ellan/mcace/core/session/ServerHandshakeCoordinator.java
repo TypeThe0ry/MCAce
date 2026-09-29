@@ -319,15 +319,25 @@ public final class ServerHandshakeCoordinator {
     }
 
     public synchronized List<PlayerSecuritySnapshot> expireTimedOut() {
-        // Both proxies drive this every second; it also releases unanswered evidence requests.
+        // Both proxies drive this every second; it also releases unanswered evidence requests
+        // and abandoned post-auth observation transfers.
         evidenceRuntime.expireStale();
         List<PlayerSecuritySnapshot> expired = new ArrayList<>();
         for (SessionContext context : sessions.values()) {
+            if (context.artifactObservationReceiver != null) {
+                context.artifactObservationReceiver.expireStale();
+            }
             if (!context.terminal && !clock.instant().isBefore(context.expiresAt)) {
                 expired.add(timeout(context).snapshot().orElseThrow());
             }
         }
         return List.copyOf(expired);
+    }
+
+    /** Test visibility: bytes of unverified pre-auth fragments still held for this player. */
+    synchronized long pendingAuthFragmentBytes(UUID playerId) {
+        SessionContext context = sessions.get(playerId);
+        return context == null ? 0L : context.pendingAuthFragmentBytes;
     }
 
     /**
@@ -773,9 +783,7 @@ public final class ServerHandshakeCoordinator {
             }
         }
         if (context.terminal) {
-            context.pendingAuthFragments.clear();
-            context.pendingAuthBegin = null;
-            context.pendingAuthFragmentBytes = 0L;
+            context.clearPendingAuth();
         }
         return result;
     }
@@ -789,7 +797,8 @@ public final class ServerHandshakeCoordinator {
             throws EnvelopeException, BoundedPayloadException {
         if (context.artifactObservationReceiver == null) {
             context.artifactObservationReceiver = new BoundedPayloadTransferReceiver(
-                    context.session.id(), clock, ProtocolConstants.DEFAULT_BOUNDED_PAYLOAD_TTL);
+                    context.session.id(), clock, ProtocolConstants.DEFAULT_BOUNDED_PAYLOAD_TTL,
+                    BoundedPayloadKind.BOUNDED_PAYLOAD_ARTIFACT_OBSERVATION);
         }
         BoundedPayloadTransferLimits.validateFrameBytes(encodedFrame.length);
         PublicKey clientKey = context.session.clientPublicKey()
@@ -995,6 +1004,7 @@ public final class ServerHandshakeCoordinator {
         context.session.authenticate(TrustLevel.VERIFIED);
         context.authenticatedAt = authenticatedAt;
         context.terminal = true;
+        context.clearPendingAuth();
         context.authenticatedRequest = request;
         context.inventoryLoadedMods = request.getLoadedModsCount();
         context.inventoryResourcePacks = request.getSelectedResourcePacksCount();
@@ -1078,6 +1088,7 @@ public final class ServerHandshakeCoordinator {
     private HandshakeAction timeout(SessionContext context) {
         context.session.expire();
         context.terminal = true;
+        context.clearPendingAuth();
         List<ObservedRiskEvent> events = List.of(new ObservedRiskEvent(
                 RiskEventType.MISSING_MCACE, "velocity-timeout", clock.instant(), true));
         PlayerSecuritySnapshot snapshot = publish(
@@ -1101,6 +1112,7 @@ public final class ServerHandshakeCoordinator {
         if (context != null) {
             context.session.reject();
             context.terminal = true;
+            context.clearPendingAuth();
         }
         List<ObservedRiskEvent> events = List.of(new ObservedRiskEvent(
                 type, "protocol", clock.instant(), true));
@@ -1450,6 +1462,13 @@ public final class ServerHandshakeCoordinator {
         private final TreeMap<Long, SignedEnvelope> pendingAuthFragments = new TreeMap<>();
         private SignedEnvelope pendingAuthBegin;
         private long pendingAuthFragmentBytes;
+
+        /** Held pre-auth fragments are useless once the handshake is terminal; free them now. */
+        private void clearPendingAuth() {
+            pendingAuthFragments.clear();
+            pendingAuthBegin = null;
+            pendingAuthFragmentBytes = 0L;
+        }
         /** Transport sequence the AUTH_REQUEST receiver expects next; zero until BEGIN is applied. */
         private long nextAuthFragmentSequence;
         private BoundedPayloadTransferReceiver artifactObservationReceiver;
