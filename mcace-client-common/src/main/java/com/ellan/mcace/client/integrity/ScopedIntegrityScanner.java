@@ -87,6 +87,14 @@ public final class ScopedIntegrityScanner {
                         throws IOException {
                     checkTraversalCancellation(cancellation);
                     if (attributes.isSymbolicLink() || attributes.isOther()) {
+                        // A linked plain file the policy would never hash (e.g. a .txt inside an
+                        // unpacked pack) cannot hide scoped content; skip it. Linked candidates,
+                        // links to directories (reported here, not in preVisitDirectory) and
+                        // special files still fail closed.
+                        if (attributes.isSymbolicLink() && !allowed(file, policy)
+                                && Files.isRegularFile(file)) {
+                            return FileVisitResult.CONTINUE;
+                        }
                         throw traversalRejected("reparse/special files are not allowed in integrity scopes");
                     }
                     if (attributes.isRegularFile() && allowed(file, policy)) {
