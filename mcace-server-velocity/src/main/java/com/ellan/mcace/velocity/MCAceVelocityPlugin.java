@@ -62,9 +62,11 @@ import com.ellan.mcace.storage.postgres.PostgresDataSources;
 import com.ellan.mcace.storage.postgres.PostgresSchemaMigrator;
 import com.ellan.mcace.storage.postgres.PostgresSecurityAuditRepository;
 import com.google.inject.Inject;
+import com.velocitypowered.api.event.ResultedEvent;
 import com.velocitypowered.api.event.Subscribe;
 import com.velocitypowered.api.event.connection.DisconnectEvent;
 import com.velocitypowered.api.event.connection.PluginMessageEvent;
+import com.velocitypowered.api.event.connection.LoginEvent;
 import com.velocitypowered.api.event.connection.PostLoginEvent;
 import com.velocitypowered.api.event.player.PlayerChannelRegisterEvent;
 import com.velocitypowered.api.event.player.ServerConnectedEvent;
@@ -127,6 +129,8 @@ public final class MCAceVelocityPlugin {
     private final ConcurrentMap<UUID, Instant> lastBackendPublish = new ConcurrentHashMap<>();
     private ServerHandshakeCoordinator handshakes;
     private VelocityAdmissionConfig admissionConfig;
+    /** Set only after onProxyInitialize completed; until then every login is denied (fail-closed). */
+    private volatile boolean initialized;
     private com.ellan.mcace.core.session.InventoryAdmissionPolicy inventoryAdmission =
             com.ellan.mcace.core.session.InventoryAdmissionPolicy.disabled();
     private ServerPolicyManager policyManager;
@@ -479,6 +483,7 @@ public final class MCAceVelocityPlugin {
                     activePolicy.policy().getSequence(), activePolicy.trustSequence(),
                     java.time.Instant.ofEpochMilli(activePolicy.policy().getExpiresAtEpochMs()));
             logDispositionPolicyStatus("initialized", lastDispositionPolicyStatus);
+            initialized = true;
             logger.info("Distribute {} as a pinned public key to trusted MCAce clients",
                     dataDirectory.resolve("identity").resolve("server-public-key.txt"));
         } catch (IOException | EnvelopeException | PolicyException | SecurityPersistenceException exception) {
@@ -583,6 +588,19 @@ public final class MCAceVelocityPlugin {
             federationLifecycle = null;
         }
         serverAuthorityRuntime = null;
+    }
+
+    /**
+     * Velocity logs and swallows a failed ProxyInitializeEvent and keeps accepting players. A
+     * broken mcace.properties would then silently drop REQUIRE_CLIENT and send no admission
+     * snapshots, so an uninitialized proxy refuses logins instead of running without MCAce.
+     */
+    @Subscribe(priority = Short.MAX_VALUE)
+    public void onLogin(LoginEvent event) {
+        if (!initialized) {
+            event.setResult(ResultedEvent.ComponentResult.denied(Component.text(
+                    "MCAce failed to initialize on this proxy; contact the server operator.")));
+        }
     }
 
     @Subscribe

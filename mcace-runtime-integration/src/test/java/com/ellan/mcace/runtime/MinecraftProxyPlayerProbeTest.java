@@ -367,6 +367,15 @@ final class MinecraftProxyPlayerProbeTest {
     }
 
     @Test
+    @Timeout(600)
+    @EnabledIfSystemProperty(named = "mcace.runtime.player-probe.enabled", matches = "true")
+    void realProxiesRefuseLoginsWhenMCAceConfigurationIsInvalid() throws Exception {
+        for (ProxyKind kind : List.of(ProxyKind.VELOCITY, ProxyKind.BUNGEE)) {
+            runInvalidConfigurationLoginRefusal(kind);
+        }
+    }
+
+    @Test
     @Timeout(1200)
     @EnabledIfSystemProperty(named = "mcace.runtime.player-probe.enabled", matches = "true")
     void realProxiesAcceptUnpacedFragmentedModpackAuthentication() throws Exception {
@@ -446,6 +455,55 @@ final class MinecraftProxyPlayerProbeTest {
      * authentication. A single malformed frame makes the handshake terminal, and the timeout
      * sweep never reports terminal handshakes, so the proxy must deny on the frame path.
      */
+    /**
+     * A malformed mcace.properties must not leave a running proxy that admits players without
+     * MCAce (and silently drops REQUIRE_CLIENT); the login itself is refused.
+     */
+    private void runInvalidConfigurationLoginRefusal(ProxyKind kind) throws Exception {
+        Path repository = repositoryRoot();
+        Path work = repository.resolve("build/runtime-invalid-config/work/" + UUID.randomUUID());
+        Files.createDirectories(work);
+        ProbeHarness harness = null;
+        Throwable primaryFailure = null;
+        try {
+            harness = new ProbeHarness(repository, work, kind);
+            harness.proxyListenerTimeoutSeconds = 120;
+            harness.prepare();
+            Files.writeString(harness.proxyDataDirectory().resolve("mcace.properties"),
+                    "client.requirement=REQUIRE_CLIENT\nhandshake.timeout.seconds=5s\n",
+                    StandardCharsets.UTF_8, java.nio.file.StandardOpenOption.APPEND);
+            // MCAce never initializes, so no identity is written and no backend is needed: the
+            // login must be refused before the proxy connects anywhere.
+            harness.startProxy();
+            MinecraftWirePeer peer = new MinecraftWirePeer(harness);
+            try {
+                peer.probe();
+            } catch (IOException ignored) {
+                // Without the gate the proxy logs the player in and then drops it for lack of a
+                // backend; the packet trace below is the evidence either way.
+            }
+            List<String> trace = List.copyOf(peer.packetTrace);
+            assertTrue(!trace.contains("LOGIN:0x2"), "login succeeded without MCAce: " + trace);
+            assertTrue(trace.contains("LOGIN:0x0"), "login was not refused: " + trace);
+            System.out.println("MCACE_INVALID_CONFIG_LOGIN_REFUSED_PASS|proxy=" + kind
+                    + "|real_proxy=true|raw_protocol_peer=true");
+        } catch (Exception | AssertionError failure) {
+            primaryFailure = failure;
+            throw failure;
+        } finally {
+            try {
+                if (harness != null) {
+                    harness.close();
+                    assertTrue(harness.remainingRunProcesses().isEmpty(), "owned process cleanup incomplete");
+                }
+                deleteOwnedWorkTree(work);
+            } catch (Exception | AssertionError cleanupFailure) {
+                if (primaryFailure != null) primaryFailure.addSuppressed(cleanupFailure);
+                else throw cleanupFailure;
+            }
+        }
+    }
+
     private void runStrictMalformedFrameControl(ProxyKind kind) throws Exception {
         Path repository = repositoryRoot();
         Path work = repository.resolve("build/runtime-strict-client/work/" + UUID.randomUUID());
@@ -1712,6 +1770,8 @@ final class MinecraftProxyPlayerProbeTest {
                 repository.resolve("build/runtime-strict-client/work")
                         .toAbsolutePath().normalize(),
                 repository.resolve("build/runtime-fragmented-auth/work")
+                        .toAbsolutePath().normalize(),
+                repository.resolve("build/runtime-invalid-config/work")
                         .toAbsolutePath().normalize());
         boolean owned = expectedParents.stream()
                 .anyMatch(parent -> normalized.startsWith(parent) && !normalized.equals(parent));
