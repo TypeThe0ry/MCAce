@@ -513,7 +513,12 @@ Database loss after startup does not penalize connected players: session/event
 writes use a bounded asynchronous queue and failures are logged as operator
 incidents. If storage is enabled and startup migration or connectivity fails,
 Velocity initialization fails closed so operators do not unknowingly run an
-expected-audit deployment without persistence. This PostgreSQL path is optional
+expected-audit deployment without persistence. The same holds for any other
+initialization failure (for example a malformed `mcace.properties` value): an
+uninitialized Velocity proxy refuses every login with an "MCAce failed to
+initialize" message, and BungeeCord does the same when the installed session
+bridge provider cannot be created, instead of admitting players without MCAce
+and silently dropping `REQUIRE_CLIENT`. This PostgreSQL path is optional
 and stores audit/metadata foundations; it is not the current raw-image reviewer
 retrieval UI or a prerequisite for the primary Mod/plugin path.
 

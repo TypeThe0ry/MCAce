@@ -55,6 +55,7 @@ import net.md_5.bungee.api.chat.TextComponent;
 import net.md_5.bungee.api.event.PluginMessageEvent;
 import net.md_5.bungee.api.event.PlayerDisconnectEvent;
 import net.md_5.bungee.api.event.PlayerConfigurationEvent;
+import net.md_5.bungee.api.event.LoginEvent;
 import net.md_5.bungee.api.event.PostLoginEvent;
 import net.md_5.bungee.api.event.ServerConnectedEvent;
 import net.md_5.bungee.api.event.ServerConnectEvent;
@@ -92,6 +93,8 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
     /** Guarded by {@link #connectionLifecycleLock}; never resolve a UUID-only replacement here. */
     private final Map<UUID, AuthenticatedPhysicalSession> authenticatedPhysicalSessions = new HashMap<>();
     private BungeeSessionBridge bridge;
+    /** A bridge provider is installed but could not be created: refuse logins (fail-closed). */
+    private volatile boolean bridgeInitializationFailed;
     private ScheduledTask expiryTask;
     private ScheduledTask refreshTask;
     private ScheduledTask dispositionRefreshTask;
@@ -335,6 +338,20 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
                     capturedPlayer.sendData(BungeeMCAceChannels.HANDSHAKE, frame);
                 }
             });
+        }
+    }
+
+    /**
+     * With a provider installed but failing (for example a malformed mcace.properties), the
+     * adapter would fall back to status-only and admit every player without MCAce, silently
+     * dropping REQUIRE_CLIENT. Refuse logins until the configuration is fixed.
+     */
+    @EventHandler(priority = EventPriority.LOWEST)
+    public void onLogin(LoginEvent event) {
+        if (bridgeInitializationFailed) {
+            event.setCancelled(true);
+            event.setReason(new TextComponent(
+                    "MCAce failed to initialize on this proxy; contact the server operator."));
         }
     }
 
@@ -1358,6 +1375,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         }
         if (factories.size() != 1) {
             getLogger().severe("Expected exactly one MCAce Bungee session bridge provider; adapter is status-only");
+            bridgeInitializationFailed = true;
             return new DisabledBungeeSessionBridge();
         }
         try {
@@ -1366,6 +1384,7 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
         } catch (Exception exception) {
             getLogger().severe("MCAce Bungee bridge provider failed; adapter is status-only: "
                     + safeMessage(exception));
+            bridgeInitializationFailed = true;
             return new DisabledBungeeSessionBridge();
         }
     }
