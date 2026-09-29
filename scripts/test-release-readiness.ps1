@@ -1040,6 +1040,57 @@ try {
     }
 }
 
+# Source provenance must see renames: moving a release-affecting file into docs/evidence/
+# (Git's default rename detection prints only the destination) must not look evidence-only.
+$provenanceRoot = Join-Path ([IO.Path]::GetTempPath()) ("mcace-provenance-" + [guid]::NewGuid().ToString('N'))
+try {
+    New-Item -ItemType Directory -Path (Join-Path $provenanceRoot 'src') -Force | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $provenanceRoot 'docs/evidence') -Force | Out-Null
+    function Invoke-ProvenanceGit([string[]]$Arguments) {
+        $output = & git -C $provenanceRoot -c user.name=mcace-test -c user.email=test@invalid `
+            -c commit.gpgsign=false @Arguments 2>&1
+        if ($LASTEXITCODE -ne 0) { throw "PROVENANCE_FIXTURE_GIT_FAILED|$($Arguments -join ' ')|$output" }
+        return $output
+    }
+    Invoke-ProvenanceGit @('init','-q','-b','main') | Out-Null
+    [IO.File]::WriteAllText((Join-Path $provenanceRoot 'src/Check.java'), "class Check {}`n", $utf8NoBom)
+    [IO.File]::WriteAllText((Join-Path $provenanceRoot 'docs/evidence/a.json'), "{}`n", $utf8NoBom)
+    Invoke-ProvenanceGit @('add','-A') | Out-Null
+    Invoke-ProvenanceGit @('commit','-q','-m','artifact') | Out-Null
+    $artifact = ([string](Invoke-ProvenanceGit @('rev-parse','HEAD'))).Trim()
+    [IO.File]::WriteAllText((Join-Path $provenanceRoot 'docs/evidence/b.json'), "{}`n", $utf8NoBom)
+    Invoke-ProvenanceGit @('add','-A') | Out-Null
+    Invoke-ProvenanceGit @('commit','-q','-m','evidence only') | Out-Null
+    $evidenceOnly = ([string](Invoke-ProvenanceGit @('rev-parse','HEAD'))).Trim()
+    Invoke-ProvenanceGit @('mv','src/Check.java','docs/evidence/Check.java') | Out-Null
+    Invoke-ProvenanceGit @('commit','-q','-m','hide a source file as evidence') | Out-Null
+    $renamed = ([string](Invoke-ProvenanceGit @('rev-parse','HEAD'))).Trim()
+    Invoke-ProvenanceGit @('checkout','-q','-b','casing',$evidenceOnly) | Out-Null
+    New-Item -ItemType Directory -Path (Join-Path $provenanceRoot 'Docs/Evidence') -Force | Out-Null
+    [IO.File]::WriteAllText((Join-Path $provenanceRoot 'README.MD'), "x`n", $utf8NoBom)
+    Invoke-ProvenanceGit @('add','-A') | Out-Null
+    Invoke-ProvenanceGit @('commit','-q','-m','case variant') | Out-Null
+    $casing = ([string](Invoke-ProvenanceGit @('rev-parse','HEAD'))).Trim()
+
+    $provenanceText = Get-FunctionText $ast @('Test-StringEqual','Test-Commit','Test-SourceProvenance')
+    $results = & {
+        $repoRoot = $provenanceRoot
+        . ([scriptblock]::Create($provenanceText))
+        [pscustomobject]@{
+            EvidenceOnly = Test-SourceProvenance $artifact $evidenceOnly
+            Renamed = Test-SourceProvenance $artifact $renamed
+            Casing = Test-SourceProvenance $artifact $casing
+        }
+    }
+    Assert-True ($results.EvidenceOnly -eq $true) 'evidence-only delta must keep the artifact source'
+    Assert-True ($results.Renamed -eq $false) 'a file renamed into docs/evidence must invalidate the artifact source'
+    Assert-True ($results.Casing -eq $false) 'README.MD is not an allowed evidence-only path'
+} finally {
+    if (Test-Path -LiteralPath $provenanceRoot) {
+        Remove-Item -LiteralPath $provenanceRoot -Recurse -Force -ErrorAction SilentlyContinue
+    }
+}
+
 if ($symlinkCovered) {
     Write-Output "RELEASE_READINESS_V5_STRICT_PASS|engine=$($PSVersionTable.PSEdition)-$($PSVersionTable.PSVersion)"
 } else {

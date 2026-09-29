@@ -1000,11 +1000,13 @@ function Test-SourceProvenance([object]$Value, [string]$Current) {
     if (Test-StringEqual $Value $Current) { return $true }
     & git -C $repoRoot merge-base --is-ancestor ([string]$Value) $Current 2>$null
     if ($LASTEXITCODE -ne 0) { return $false }
-    $changed = @(& git -C $repoRoot diff --name-only ("$Value..$Current") 2>$null)
+    # --no-renames: rename detection would print only the destination, so a file moved into
+    # docs/evidence/ would otherwise hide the release-affecting deletion of its source path.
+    $changed = @(& git -C $repoRoot -c core.quotepath=true diff --no-renames --name-only ("$Value..$Current") 2>$null)
     if ($LASTEXITCODE -ne 0) { return $false }
     foreach ($path in $changed) {
         $normalized = ([string]$path).Replace('\','/')
-        if ($normalized -notmatch '^(README\.md|README_CN\.md|docs/evidence/.+)$') {
+        if ($normalized -cnotmatch '^(README\.md|README_CN\.md|docs/evidence/.+)$') {
             return $false
         }
     }
