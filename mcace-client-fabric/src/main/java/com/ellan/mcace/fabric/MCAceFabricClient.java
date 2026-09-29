@@ -223,15 +223,21 @@ public final class MCAceFabricClient implements ClientModInitializer {
         pendingChallenge = null;
         handshake = null;
         ServerInfo server = context.client().getCurrentServerEntry();
-        String address = server == null
+        String configuredAddress = server == null
                 ? System.getProperty("mcace.platform-smoke.server-address", "default")
                 : server.address;
-        Optional<PublicKey> pinnedKey = serverKeyPins.find(address);
+        ClientPlayNetworkHandler networkHandler = context.client().getNetworkHandler();
+        // A vanilla transfer keeps the source ServerInfo, so the server-list address still names
+        // the source. An exact pin for the endpoint actually connected wins (as on 26.x);
+        // otherwise honor the documented pin keyed by the server-list address, then default=.
+        Optional<String> connectedAddress = connectedServerAddress(networkHandler);
+        String address = connectedAddress.orElse(configuredAddress);
+        Optional<PublicKey> pinnedKey = connectedAddress.flatMap(serverKeyPins::findExact)
+                .or(() -> serverKeyPins.find(configuredAddress));
         if (pinnedKey.isEmpty()) {
             LOGGER.warn("MCAce will not authenticate to {} because no pinned server key is configured", address);
             return;
         }
-        ClientPlayNetworkHandler networkHandler = context.client().getNetworkHandler();
         if (networkHandler == null || networkHandler.getProfile() == null) {
             pendingChallenge = new PendingChallenge(payload.data(), address, pinnedKey.orElseThrow(), generation);
             LOGGER.info("MCAce deferred the signed challenge until the play network profile is available");
@@ -244,6 +250,30 @@ public final class MCAceFabricClient implements ClientModInitializer {
                 networkHandler.getProfile().id(),
                 context.client(),
                 generation);
+    }
+
+    private static Optional<String> connectedServerAddress(ClientPlayNetworkHandler networkHandler) {
+        if (networkHandler == null || networkHandler.getConnection() == null) {
+            return Optional.empty();
+        }
+        java.net.SocketAddress remote = networkHandler.getConnection().getAddress();
+        if (!(remote instanceof java.net.InetSocketAddress inet)) {
+            return Optional.empty();
+        }
+        // Use the bound numeric address, not reverse DNS (loopback may reverse-resolve to an
+        // arbitrary hostname); pin files are endpoint keyed.
+        String host;
+        if (inet.getAddress() != null) {
+            host = inet.getAddress().isLoopbackAddress()
+                    ? (inet.getAddress() instanceof java.net.Inet6Address ? "::1" : "127.0.0.1")
+                    : inet.getAddress().getHostAddress();
+        } else {
+            host = inet.getHostString();
+        }
+        if (host == null || host.isBlank() || inet.getPort() <= 0) {
+            return Optional.empty();
+        }
+        return Optional.of(host + ":" + inet.getPort());
     }
 
     private void resumePendingChallenge(MinecraftClient client) {
