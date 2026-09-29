@@ -21,7 +21,9 @@ public final class BehaviorAlertCorrelator {
     private final Duration cooldown;
     private final int maximumKeys;
     private final int maximumObservationsPerKey;
-    private final LinkedHashMap<AlertKey, WindowState> windows = new LinkedHashMap<>();
+    // Access order: the key bound evicts the least recently flagged window, never the window of a
+    // player who is being flagged right now (insertion order evicted the oldest active key).
+    private final LinkedHashMap<AlertKey, WindowState> windows = new LinkedHashMap<>(16, 0.75f, true);
     private final Map<UUID, Map<String, Instant>> providerEmissions = new HashMap<>();
 
     public BehaviorAlertCorrelator(int minimumFlags, Duration window, Duration cooldown, int maximumKeys) {
