@@ -74,6 +74,27 @@ final class ScopedIntegrityScannerTest {
     }
 
     @Test
+    void unrelatedLinkedFileIsSkippedButLinkedCandidateStillFails() throws Exception {
+        Path scope = Files.createDirectories(temporaryDirectory.resolve("mods"));
+        Files.writeString(scope.resolve("real.jar"), "real");
+        Path outside = Files.createDirectories(temporaryDirectory.resolve("elsewhere"));
+        Files.writeString(outside.resolve("notes.txt"), "notes");
+        Files.writeString(outside.resolve("hidden.jar"), "hidden");
+        try {
+            Files.createSymbolicLink(scope.resolve("notes.txt"), outside.resolve("notes.txt"));
+        } catch (IOException | UnsupportedOperationException | SecurityException exception) {
+            assumeTrue(false, "symbolic-link creation unavailable: " + exception.getMessage());
+        }
+        ScopedIntegrityScanner scanner = new ScopedIntegrityScanner(Clock.systemUTC());
+
+        assertEquals(1, scanner.scan(temporaryDirectory, Path.of("mods"), ScanPolicy.mods()).entries().size());
+
+        Files.createSymbolicLink(scope.resolve("hidden.jar"), outside.resolve("hidden.jar"));
+        assertThrows(IntegrityScanException.class,
+                () -> scanner.scan(temporaryDirectory, Path.of("mods"), ScanPolicy.mods()));
+    }
+
+    @Test
     void cancellationAfterFirstChunkStopsLaterChunksAndFiles() throws Exception {
         byte[] content = new byte[(64 * 1024 * 2) + 17];
         Files.write(temporaryDirectory.resolve("a.txt"), content);

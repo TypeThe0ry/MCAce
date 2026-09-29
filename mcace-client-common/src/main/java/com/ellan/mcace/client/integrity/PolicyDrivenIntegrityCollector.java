@@ -70,6 +70,13 @@ public final class PolicyDrivenIntegrityCollector {
             }
             Path relativeRoot = Path.of(rule.getRelativeRoot());
             Path directory = minecraftRoot.toAbsolutePath().normalize().resolve(relativeRoot).normalize();
+            if (Files.exists(directory) && !Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
+                // A junction/symlinked scope (common with multi-instance launchers) still feeds
+                // Minecraft; reporting it as absent would publish an empty, "present=false"
+                // manifest for content that is actually loaded.
+                throw new IntegrityScanException(
+                        "integrity scope is a reparse point or not a directory: " + scopeName);
+            }
             if (!Files.isDirectory(directory, LinkOption.NOFOLLOW_LINKS)) {
                 if (rule.getRequired()) {
                     throw new IntegrityScanException("required integrity scope is missing: " + scopeName);
