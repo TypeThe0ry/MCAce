@@ -7,12 +7,18 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.LinkOption;
 import java.nio.file.Path;
+import java.nio.file.StandardCopyOption;
 import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.BasicFileAttributes;
 import java.util.Objects;
 
-/** Bounded durable, content-free audit sink for local proxy administration. */
+/**
+ * Bounded durable, content-free audit sink for local proxy administration. When the active file
+ * reaches its quota it is rotated to {@code .1} (older segments shift up to {@code .4}, the oldest
+ * is dropped), so a busy proxy keeps recording instead of failing every later append.
+ */
 public final class FileEvidenceAuditSink implements EvidenceAuditSink {
+    static final int RETAINED_SEGMENTS = 4;
     private final Path path;
     private final long maxBytes;
 
@@ -53,8 +59,9 @@ public final class FileEvidenceAuditSink implements EvidenceAuditSink {
         String safe = line.replaceAll("[\\p{Cntrl}\\r\\n]", "?") + System.lineSeparator();
         byte[] bytes = safe.getBytes(StandardCharsets.UTF_8);
         try {
+            if (bytes.length > maxBytes) throw new IllegalStateException("evidence audit record exceeds quota");
             long current = Files.exists(path, LinkOption.NOFOLLOW_LINKS) ? Files.size(path) : 0L;
-            if (current > maxBytes - bytes.length) throw new IllegalStateException("evidence audit quota exceeded");
+            if (current > maxBytes - bytes.length) rotate();
             try (FileChannel channel = FileChannel.open(path, StandardOpenOption.CREATE, StandardOpenOption.WRITE,
                     StandardOpenOption.APPEND, LinkOption.NOFOLLOW_LINKS)) {
                 ByteBuffer buffer = ByteBuffer.wrap(bytes);
@@ -64,5 +71,20 @@ public final class FileEvidenceAuditSink implements EvidenceAuditSink {
         } catch (IOException exception) {
             throw new IllegalStateException("evidence audit append failed", exception);
         }
+    }
+
+    private void rotate() throws IOException {
+        Files.deleteIfExists(segment(RETAINED_SEGMENTS));
+        for (int index = RETAINED_SEGMENTS - 1; index >= 1; index--) {
+            Path older = segment(index);
+            if (Files.exists(older, LinkOption.NOFOLLOW_LINKS)) {
+                Files.move(older, segment(index + 1), StandardCopyOption.ATOMIC_MOVE);
+            }
+        }
+        Files.move(path, segment(1), StandardCopyOption.ATOMIC_MOVE);
+    }
+
+    private Path segment(int index) {
+        return path.resolveSibling(path.getFileName() + "." + index);
     }
 }

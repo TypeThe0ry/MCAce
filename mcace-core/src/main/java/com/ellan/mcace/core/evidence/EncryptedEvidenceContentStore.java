@@ -231,14 +231,29 @@ public final class EncryptedEvidenceContentStore implements EvidenceContentStore
     @Override public synchronized int sweepExpired(int maxDeletes) throws IOException {
         if (maxDeletes <= 0 || maxDeletes > maxFiles) throw new IllegalArgumentException("invalid sweep bound");
         int deleted = 0;
+        int unverifiable = 0;
+        IOException firstFailure = null;
         for (Path path : boundedFiles()) {
             if (deleted >= maxDeletes) break;
-            validateRegular(path);
-            long expiresAt = decodeHeader(path);
+            long expiresAt;
+            try {
+                validateRegular(path);
+                expiresAt = decodeHeader(path);
+            } catch (IOException exception) {
+                // Keep an unverifiable file (fail closed) but do not let it block retention
+                // deletion of every expired file that happens to be listed after it.
+                unverifiable++;
+                if (firstFailure == null) firstFailure = exception;
+                continue;
+            }
             if (expiresAt <= clock.millis()) {
                 Files.delete(path);
                 deleted++;
             }
+        }
+        if (firstFailure != null) {
+            throw new IOException(unverifiable + " evidence file(s) could not be verified and were kept; "
+                    + deleted + " expired file(s) were deleted", firstFailure);
         }
         return deleted;
     }
