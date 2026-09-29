@@ -88,6 +88,9 @@ public final class ServerHandshakeCoordinator {
      */
     private static final long MAX_PENDING_AUTH_FRAGMENT_BYTES =
             ProtocolConstants.MAX_AUTH_REQUEST_TRANSFER_BYTES + (long) MAX_PENDING_AUTH_FRAGMENTS * 1024L;
+    /** Per-session post-authentication frame budget (see receive()). */
+    static final int MAX_POST_AUTH_FRAMES_PER_WINDOW = 64;
+    static final long POST_AUTH_FRAME_WINDOW_MILLIS = 10_000L;
 
     private final Clock clock;
     private final SecureRandom secureRandom;
@@ -273,6 +276,14 @@ public final class ServerHandshakeCoordinator {
         }
         if (context.session.stage() != SessionStage.AUTHENTICATED && !clock.instant().isBefore(context.expiresAt)) {
             return timeout(context);
+        }
+        if (context.session.stage() == SessionStage.AUTHENTICATED && !admitPostAuthenticationFrame(context)) {
+            // A verified client sends one heartbeat per 30s and an observation update (at most
+            // ~18 frames) per 5 min. Beyond the window budget, drop before Ed25519 verification
+            // under this global lock and before per-frame proxy logging; report once per window.
+            if (context.postAuthBudgetReported) return HandshakeAction.none();
+            context.postAuthBudgetReported = true;
+            return heartbeatViolation(context, "post-authentication frame rate exceeded");
         }
 
         try {
@@ -1063,6 +1074,17 @@ public final class ServerHandshakeCoordinator {
     }
 
     /** Heartbeat failures are audit-visible to adapters but never downgrade the verified session. */
+    private boolean admitPostAuthenticationFrame(SessionContext context) {
+        long now = clock.millis();
+        if (now - context.postAuthWindowStartMillis >= POST_AUTH_FRAME_WINDOW_MILLIS
+                || now < context.postAuthWindowStartMillis) {
+            context.postAuthWindowStartMillis = now;
+            context.postAuthWindowFrames = 0;
+            context.postAuthBudgetReported = false;
+        }
+        return ++context.postAuthWindowFrames <= MAX_POST_AUTH_FRAMES_PER_WINDOW;
+    }
+
     private HandshakeAction heartbeatViolation(SessionContext context, String ignoredReason) {
         return new HandshakeAction(List.of(), Optional.empty(), true);
     }
@@ -1462,6 +1484,9 @@ public final class ServerHandshakeCoordinator {
         private final TreeMap<Long, SignedEnvelope> pendingAuthFragments = new TreeMap<>();
         private SignedEnvelope pendingAuthBegin;
         private long pendingAuthFragmentBytes;
+        private long postAuthWindowStartMillis = Long.MIN_VALUE / 2;
+        private int postAuthWindowFrames;
+        private boolean postAuthBudgetReported;
 
         /** Held pre-auth fragments are useless once the handshake is terminal; free them now. */
         private void clearPendingAuth() {
