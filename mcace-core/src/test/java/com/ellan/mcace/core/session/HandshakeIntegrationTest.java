@@ -942,6 +942,69 @@ final class HandshakeIntegrationTest {
     }
 
     @Test
+    void malformedPreAuthFrameIsReportedAsFailedBeforeAuthentication() throws Exception {
+        server.begin(playerId);
+        assertFalse(server.hasFailedBeforeAuthentication(playerId));
+
+        HandshakeAction garbage = server.receive(playerId, new byte[] {0x01});
+
+        assertTrue(garbage.protocolViolation());
+        assertEquals(AdmissionStatus.LIMITED, garbage.snapshot().orElseThrow().admissionStatus());
+        assertTrue(server.hasFailedBeforeAuthentication(playerId));
+        // The sweep never reports a terminal handshake, so strict proxies need the frame-path signal.
+        clock.advance(Duration.ofSeconds(6));
+        assertTrue(server.expireTimedOut().isEmpty());
+        assertTrue(server.hasFailedBeforeAuthentication(playerId));
+    }
+
+    @Test
+    void lateFrameIsReportedAsFailedBeforeAuthentication() throws Exception {
+        ClientHandshakeEngine client = client(serverKeys);
+        List<byte[]> frames = frames(client, server.begin(playerId));
+        clock.advance(Duration.ofSeconds(6));
+
+        HandshakeAction late = server.receive(playerId, frames.get(0));
+
+        assertFalse(late.protocolViolation());
+        assertEquals(AdmissionStatus.LIMITED, late.snapshot().orElseThrow().admissionStatus());
+        assertTrue(server.hasFailedBeforeAuthentication(playerId));
+        assertTrue(server.expireTimedOut().isEmpty());
+    }
+
+    @Test
+    void framesAfterFailedPreAuthHandshakeAreDroppedWithoutRepublishing() throws Exception {
+        ClientHandshakeEngine client = client(serverKeys);
+        List<byte[]> frames = frames(client, server.begin(playerId));
+        HandshakeAction garbage = server.receive(playerId, new byte[] {0x01});
+        assertTrue(garbage.snapshot().isPresent());
+
+        HandshakeAction laterHello = server.receive(playerId, frames.get(0));
+        HandshakeAction laterAuth = server.receive(playerId, frames.get(1));
+
+        for (HandshakeAction action : List.of(laterHello, laterAuth)) {
+            assertFalse(action.protocolViolation());
+            assertTrue(action.snapshot().isEmpty());
+            assertTrue(action.outboundFrames().isEmpty());
+        }
+        assertFalse(api.isVerified(playerId));
+        assertTrue(server.hasFailedBeforeAuthentication(playerId));
+    }
+
+    @Test
+    void authenticatedOrUnknownSessionIsNeverReportedAsFailedBeforeAuthentication() throws Exception {
+        assertFalse(server.hasFailedBeforeAuthentication(playerId));
+        ClientHandshakeEngine client = client(serverKeys);
+        List<byte[]> frames = frames(client, server.begin(playerId));
+        server.receive(playerId, frames.get(0));
+        HandshakeAction completed = server.receive(playerId, frames.get(1));
+
+        assertEquals(AdmissionStatus.VERIFIED, completed.snapshot().orElseThrow().admissionStatus());
+        assertFalse(server.hasFailedBeforeAuthentication(playerId));
+        server.receive(playerId, new byte[] {0x01});
+        assertFalse(server.hasFailedBeforeAuthentication(playerId));
+    }
+
+    @Test
     void rejectsUnpinnedServerIdentity() throws Exception {
         KeyPair unrelatedServer = Ed25519Keys.generate(new SecureRandom());
         ClientHandshakeEngine client = client(unrelatedServer);

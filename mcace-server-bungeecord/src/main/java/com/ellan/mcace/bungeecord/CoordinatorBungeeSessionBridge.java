@@ -259,6 +259,11 @@ public final class CoordinatorBungeeSessionBridge implements BungeeSessionBridge
     @Override public boolean requiresClient() { return requiresClient; }
 
     @Override
+    public boolean hasFailedBeforeAuthentication(UUID playerId) {
+        return coordinator.hasFailedBeforeAuthentication(Objects.requireNonNull(playerId, "playerId"));
+    }
+
+    @Override
     public void remove(UUID playerId) {
         coordinator.remove(Objects.requireNonNull(playerId, "playerId"));
         ShadowBackendContextRuntime runtime = shadowBackendContextRuntime;

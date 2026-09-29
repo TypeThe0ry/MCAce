@@ -352,6 +352,71 @@ final class MinecraftProxyPlayerProbeTest {
         }
     }
 
+    @Test
+    @Timeout(300)
+    @EnabledIfSystemProperty(named = "mcace.runtime.player-probe.enabled", matches = "true")
+    void realStrictVelocityDisconnectsMalformedPreAuthFrame() throws Exception {
+        runStrictMalformedFrameControl(ProxyKind.VELOCITY);
+    }
+
+    @Test
+    @Timeout(300)
+    @EnabledIfSystemProperty(named = "mcace.runtime.player-probe.enabled", matches = "true")
+    void realStrictBungeeDisconnectsMalformedPreAuthFrame() throws Exception {
+        runStrictMalformedFrameControl(ProxyKind.BUNGEE);
+    }
+
+    /**
+     * client.requirement=REQUIRE_CLIENT must deny a connection whose handshake fails before
+     * authentication. A single malformed frame makes the handshake terminal, and the timeout
+     * sweep never reports terminal handshakes, so the proxy must deny on the frame path.
+     */
+    private void runStrictMalformedFrameControl(ProxyKind kind) throws Exception {
+        Path repository = repositoryRoot();
+        Path work = repository.resolve("build/runtime-strict-client/work/" + UUID.randomUUID());
+        Files.createDirectories(work);
+        ProbeHarness harness = null;
+        MinecraftWirePeer peer = null;
+        Throwable primaryFailure = null;
+        try {
+            harness = new ProbeHarness(repository, work, kind);
+            harness.proxyListenerTimeoutSeconds = 120;
+            harness.prepare();
+            Files.writeString(harness.proxyDataDirectory().resolve("mcace.properties"),
+                    "client.requirement=REQUIRE_CLIENT\n", StandardCharsets.UTF_8,
+                    java.nio.file.StandardOpenOption.APPEND);
+            harness.start();
+            peer = new MinecraftWirePeer(harness);
+            peer.malformedHandshakeProbe = true;
+            ProbeReport report = peer.probe();
+            String log = harness.proxyLogs();
+            assertTrue(report.serverHello(), report.toJson());
+            assertTrue(peer.malformedHandshakeSent, report.toJson());
+            assertTrue(!report.authAccepted(), report.toJson());
+            assertTrue(log.contains("MCAce denied a connection without a completed client handshake"),
+                    "strict frame-path denial missing: " + report.toJson());
+            assertTrue(peer.limitations.contains("peer disconnected")
+                            || peer.limitations.contains("proxy/server disconnected during configuration"),
+                    "remote disconnect evidence missing: " + report.toJson());
+            System.out.println("MCACE_STRICT_MALFORMED_FRAME_CASE_PASS|proxy=" + kind
+                    + "|real_proxy=true|raw_protocol_peer=true|fabric_gui=false");
+        } catch (Exception | AssertionError failure) {
+            primaryFailure = failure;
+            throw failure;
+        } finally {
+            try {
+                if (harness != null) {
+                    harness.close();
+                    assertTrue(harness.remainingRunProcesses().isEmpty(), "owned process cleanup incomplete");
+                }
+                deleteOwnedWorkTree(work);
+            } catch (Exception | AssertionError cleanupFailure) {
+                if (primaryFailure != null) primaryFailure.addSuppressed(cleanupFailure);
+                else throw cleanupFailure;
+            }
+        }
+    }
+
     private static void captureInventoryFailureStack(ProbeHarness harness, Path work) {
         Process diagnostic = null;
         try {
@@ -1568,6 +1633,8 @@ final class MinecraftProxyPlayerProbeTest {
                 repository.resolve("build/runtime-disposition-matrix/work")
                         .toAbsolutePath().normalize(),
                 repository.resolve("build/runtime-trusted-disposition/work")
+                        .toAbsolutePath().normalize(),
+                repository.resolve("build/runtime-strict-client/work")
                         .toAbsolutePath().normalize());
         boolean owned = expectedParents.stream()
                 .anyMatch(parent -> normalized.startsWith(parent) && !normalized.equals(parent));
@@ -4006,6 +4073,9 @@ final class MinecraftProxyPlayerProbeTest {
         private RemoteLiveness remoteLiveness = RemoteLiveness.NOT_ATTEMPTED;
         private boolean activeDenyProbe;
         private boolean activeInventoryAdmissionProbe;
+        /** Answers the server hello with one malformed handshake byte instead of authenticating. */
+        private boolean malformedHandshakeProbe;
+        private boolean malformedHandshakeSent;
         private boolean activeTrustedDenyProbe;
         private DenyWireObservation inlineDenyObservation;
         private boolean activeCleanReconnectProbe;
@@ -5126,6 +5196,13 @@ final class MinecraftProxyPlayerProbeTest {
 
         private void handlePayloadAfterChannelRecord(Payload payload) throws Exception {
             if (!"mcace:handshake".equals(payload.channel())) return;
+            if (!serverHelloSeen && malformedHandshakeProbe) {
+                serverHelloSeen = true;
+                packetTrace.add("SEND:MALFORMED_PRE_AUTH_FRAME:bytes=1");
+                sendCustomPayload("mcace:handshake", new byte[] {0x01});
+                malformedHandshakeSent = true;
+                return;
+            }
             if (!serverHelloSeen) {
                 long authenticationStarted = System.nanoTime();
                 serverHelloSeen = true;
