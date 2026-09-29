@@ -19,8 +19,12 @@ public final class ProtocolConstants {
     public static final long MAX_ARTIFACT_OBSERVATION_TRANSFER_BYTES = 256L * 1024L;
     public static final int MAX_ARTIFACT_OBSERVATION_TRANSFER_CHUNKS = 16;
     public static final int MAX_ARTIFACT_OBSERVATION_COUNT = 512;
-    /** Fabric Loader runtime graph bound; independent from installed files in the mods scope. */
-    public static final int MAX_LOADED_MODS = 256;
+    /**
+     * Fabric Loader runtime graph bound; independent from installed files in the mods scope.
+     * The graph includes nested (JiJ) libraries and every Fabric API module, so real modpacks
+     * routinely exceed a few hundred entries. The AUTH_REQUEST transfer budget still bounds bytes.
+     */
+    public static final int MAX_LOADED_MODS = 2048;
     public static final int MAX_LOADED_MOD_ID_CHARS = 128;
     public static final int MAX_LOADED_MOD_VERSION_CHARS = 128;
     public static final int MAX_LOADED_MOD_FILENAME_CHARS = 256;

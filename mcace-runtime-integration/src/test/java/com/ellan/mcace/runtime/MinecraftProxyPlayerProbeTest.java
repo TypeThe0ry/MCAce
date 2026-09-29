@@ -366,6 +366,81 @@ final class MinecraftProxyPlayerProbeTest {
         runStrictMalformedFrameControl(ProxyKind.BUNGEE);
     }
 
+    @Test
+    @Timeout(1200)
+    @EnabledIfSystemProperty(named = "mcace.runtime.player-probe.enabled", matches = "true")
+    void realProxiesAcceptUnpacedFragmentedModpackAuthentication() throws Exception {
+        for (ProxyKind kind : fragmentedAuthProxies()) {
+            for (int attempt = 1; attempt <= Integer.getInteger("mcace.runtime.fragmented-auth.attempts", 3); attempt++) {
+                runFragmentedModpackAuthentication(kind, attempt);
+            }
+        }
+    }
+
+    private static List<ProxyKind> fragmentedAuthProxies() {
+        String only = System.getProperty("mcace.runtime.fragmented-auth.proxy", "");
+        return only.isBlank() ? List.of(ProxyKind.VELOCITY, ProxyKind.BUNGEE) : List.of(ProxyKind.valueOf(only));
+    }
+
+    /**
+     * A modpack-sized loaded graph exceeds the inline frame budget, so CLIENT_HELLO is followed by
+     * PAYLOAD_BEGIN/CHUNK/COMMIT on a second channel. The real client sends them back to back; the
+     * proxy must still authenticate even though it dispatches plugin messages asynchronously.
+     */
+    private void runFragmentedModpackAuthentication(ProxyKind kind, int attempt) throws Exception {
+        Path repository = repositoryRoot();
+        Path work = repository.resolve("build/runtime-fragmented-auth/work/" + UUID.randomUUID());
+        Files.createDirectories(work);
+        ProbeHarness harness = null;
+        Throwable primaryFailure = null;
+        try {
+            harness = new ProbeHarness(repository, work, kind);
+            harness.proxyListenerTimeoutSeconds = 120;
+            harness.prepare();
+            harness.start();
+            MinecraftWirePeer peer = new MinecraftWirePeer(harness);
+            peer.syntheticLoadedModCount = 900;
+            peer.unpacedAuthenticationFrames = !Boolean.getBoolean("mcace.runtime.fragmented-auth.paced");
+            ProbeReport report;
+            try {
+                report = peer.probe();
+            } catch (Exception | AssertionError failure) {
+                System.out.println("MCACE_FRAGMENTED_AUTH_FAILURE|proxy=" + kind + "|attempt=" + attempt
+                        + "|sent=" + String.join(",", peer.packetTrace.stream()
+                                .filter(entry -> entry.startsWith("SEND:") || entry.startsWith("OUT:"))
+                                .map(entry -> entry.replaceAll("/[A-Za-z0-9_-]{16,}", "/<session>"))
+                                .limit(40).toList()));
+                harness.proxyLogs().lines()
+                        .filter(line -> line.contains("MCAce") || line.contains("mcace"))
+                        .limit(40)
+                        .forEach(line -> System.out.println("MCACE_FRAGMENTED_AUTH_PROXY_LOG|" + line));
+                throw failure;
+            }
+            boolean fragmented = peer.packetTrace.stream().anyMatch(entry -> entry.startsWith("SEND:PAYLOAD_BEGIN"));
+            System.out.println("MCACE_FRAGMENTED_AUTH_CASE|proxy=" + kind + "|attempt=" + attempt
+                    + "|fragmented=" + fragmented + "|auth_accepted=" + report.authAccepted()
+                    + "|backend_admission=" + report.backendAdmission()
+                    + "|protocol_violation_logged=" + harness.proxyLogs().contains("MCAce protocol violation"));
+            assertTrue(fragmented, "modpack-sized authentication did not use the bounded payload transfer");
+            assertTrue(report.authAccepted(), report.toJson());
+            assertTrue(report.backendAdmission(), report.toJson());
+        } catch (Exception | AssertionError failure) {
+            primaryFailure = failure;
+            throw failure;
+        } finally {
+            try {
+                if (harness != null) {
+                    harness.close();
+                    assertTrue(harness.remainingRunProcesses().isEmpty(), "owned process cleanup incomplete");
+                }
+                deleteOwnedWorkTree(work);
+            } catch (Exception | AssertionError cleanupFailure) {
+                if (primaryFailure != null) primaryFailure.addSuppressed(cleanupFailure);
+                else throw cleanupFailure;
+            }
+        }
+    }
+
     /**
      * client.requirement=REQUIRE_CLIENT must deny a connection whose handshake fails before
      * authentication. A single malformed frame makes the handshake terminal, and the timeout
@@ -1635,6 +1710,8 @@ final class MinecraftProxyPlayerProbeTest {
                 repository.resolve("build/runtime-trusted-disposition/work")
                         .toAbsolutePath().normalize(),
                 repository.resolve("build/runtime-strict-client/work")
+                        .toAbsolutePath().normalize(),
+                repository.resolve("build/runtime-fragmented-auth/work")
                         .toAbsolutePath().normalize());
         boolean owned = expectedParents.stream()
                 .anyMatch(parent -> normalized.startsWith(parent) && !normalized.equals(parent));
@@ -4076,6 +4153,10 @@ final class MinecraftProxyPlayerProbeTest {
         /** Answers the server hello with one malformed handshake byte instead of authenticating. */
         private boolean malformedHandshakeProbe;
         private boolean malformedHandshakeSent;
+        /** Extra canonical loaded-graph entries; enough of them force the bounded payload transfer. */
+        private int syntheticLoadedModCount;
+        /** Sends authentication frames back to back, like the real Fabric client's ordered sender. */
+        private boolean unpacedAuthenticationFrames;
         private boolean activeTrustedDenyProbe;
         private DenyWireObservation inlineDenyObservation;
         private boolean activeCleanReconnectProbe;
@@ -5224,7 +5305,7 @@ final class MinecraftProxyPlayerProbeTest {
                 List<LoadedModObservation> loadedModInput;
                 try {
                     authenticationInput = authenticationBundle(verifiedPolicy);
-                    loadedModInput = probeLoadedModGraph();
+                    loadedModInput = authenticationLoadedModGraph();
                 } finally {
                     authenticationInputNanos = System.nanoTime() - framesStarted;
                 }
@@ -5243,7 +5324,8 @@ final class MinecraftProxyPlayerProbeTest {
                     packetTrace.add("SEND:" + describeEnvelope(frame.data()));
                     sendCustomPayload(frame.channel() == ClientHandshakeEngine.OutboundChannel.PAYLOAD
                             ? "mcace:payload" : "mcace:handshake", frame.data());
-                    if (authenticationFrames.size() > 1 && frame != authenticationFrames.getLast()) {
+                    if (!unpacedAuthenticationFrames && authenticationFrames.size() > 1
+                            && frame != authenticationFrames.getLast()) {
                         Thread.sleep(50);
                     }
                 }
@@ -5380,6 +5462,18 @@ final class MinecraftProxyPlayerProbeTest {
         }
 
         /** The raw peer still advertises Fabric Loader's built-in runtime entry. */
+        private List<LoadedModObservation> authenticationLoadedModGraph() {
+            List<LoadedModObservation> graph = new ArrayList<>(probeLoadedModGraph());
+            for (int index = 0; index < syntheticLoadedModCount; index++) {
+                // Sorted after "fabricloader" and long enough to model a real modpack graph.
+                graph.add(new LoadedModObservation(
+                        String.format("zz.modpack.example.library.%04d", index),
+                        "1.0." + index + "+mc" + harness.wireProfile.minecraftVersion() + "-fabric",
+                        LoadedModObservation.OriginKind.UNKNOWN, "", ""));
+            }
+            return List.copyOf(graph);
+        }
+
         private static List<LoadedModObservation> probeLoadedModGraph() {
             return List.of(new LoadedModObservation(
                     "fabricloader", "0.0.0-mcace-probe",

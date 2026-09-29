@@ -327,9 +327,15 @@ punishment logic; startup/configuration failure leaves review disabled.
   that arrives before its wire-preceding `CLIENT_HELLO`. It does not authenticate
   or publish state at defer time. After `CLIENT_HELLO` establishes the client key,
   the retained envelope must still pass its signature, nonce, session, policy,
-  manifest, and scope checks. A duplicate early request or any other early packet
-  remains a server-confirmed protocol violation; forged deferred requests fail
-  when identification completes.
+  manifest, and scope checks. A duplicate early request remains a server-confirmed
+  protocol violation; forged deferred requests fail when identification completes.
+- The same dispatch reorders a fragmented `AUTH_REQUEST` (`PAYLOAD_BEGIN`, chunks,
+  `PAYLOAD_COMMIT`), so the coordinator holds unverified fragments that arrive ahead
+  of `CLIENT_HELLO` or of their predecessor and applies them strictly by transport
+  sequence. The hold is bounded to one complete transfer (66 fragments and about
+  1 MiB) and ends at the handshake deadline; nothing is verified, nonce-claimed, or
+  published while held. Duplicates, overflow, replays behind the expected sequence,
+  and any fragment that fails verification when applied remain protocol violations.
 
 ### Heartbeat session contract
 

@@ -315,7 +315,7 @@ JAR can be dormant, and a nested or built-in Mod can be loaded without being a
 direct `mods/` file.
 
 Each `LoadedModEntry` contains canonical Mod ID/version plus a bounded origin kind.
-A request contains at most 256 loaded identities. A direct child of
+A request contains at most 2048 loaded identities. A direct child of
 `<gameDir>/mods` may expose only its basename and is marked as
 manifest-matched only when basename, Mod ID, version, size, and SHA-256 reconcile
 with the signed installed `ModEntry`. Nested origins expose only their parent Mod

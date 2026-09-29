@@ -351,6 +351,123 @@ final class HandshakeIntegrationTest {
     }
 
     @Test
+    void acceptsModpackSizedLoadedGraphOverBoundedPayloadTransfer() throws Exception {
+        ClientHandshakeEngine client = client(serverKeys);
+        client.prepareServerHello(server.begin(playerId), "test.example:25565",
+                new VerifiedPolicyCache(temporaryDirectory.resolve("modpack-loaded-graph"), clock));
+        // Fabric reports nested JiJ libraries and every Fabric API module, so ordinary modpacks
+        // exceed the former 256-entry graph bound and the 30 KiB inline frame budget.
+        List<LoadedModObservation> graph = java.util.stream.IntStream.range(0, 900)
+                .mapToObj(index -> new LoadedModObservation(
+                        String.format("modpack.example.mod.%04d", index),
+                        "1.0." + index + "+mc1.21.11-fabric",
+                        LoadedModObservation.OriginKind.UNKNOWN, "", ""))
+                .toList();
+        List<ClientHandshakeEngine.OutboundFrame> frames = client.createAuthenticationFrames(
+                emptyBundle(), List.of(), List.of(), List.of(), graph);
+
+        assertTrue(frames.size() > 2, "a modpack-sized graph must use the bounded payload transfer");
+        HandshakeAction authenticated = sendObservationFrames(frames);
+
+        assertFalse(authenticated.protocolViolation());
+        assertTrue(api.isVerified(playerId));
+    }
+
+    @Test
+    void fragmentedAuthenticationSurvivesProxyReorderedDelivery() throws Exception {
+        for (long seed : new long[] {1L, 7L, 42L, 1234L, 99991L}) {
+            resetHandshakeServer();
+            List<byte[]> frames = modpackAuthenticationFrames("reordered-" + seed);
+            List<byte[]> shuffled = new ArrayList<>(frames);
+            java.util.Collections.shuffle(shuffled, new java.util.Random(seed));
+
+            HandshakeAction last = HandshakeAction.none();
+            for (byte[] frame : shuffled) {
+                HandshakeAction action = server.receive(playerId, frame);
+                assertFalse(action.protocolViolation(), "seed " + seed);
+                if (action.snapshot().isPresent()) last = action;
+            }
+
+            assertEquals(AdmissionStatus.VERIFIED, last.snapshot().orElseThrow().admissionStatus(), "seed " + seed);
+            assertTrue(api.isVerified(playerId), "seed " + seed);
+        }
+    }
+
+    @Test
+    void fragmentsBeforeClientHelloAndReversedFragmentsStillAuthenticate() throws Exception {
+        List<byte[]> frames = modpackAuthenticationFrames("before-hello");
+        for (byte[] fragment : frames.subList(1, frames.size()).reversed()) {
+            assertFalse(server.receive(playerId, fragment).protocolViolation());
+        }
+        assertFalse(api.isVerified(playerId));
+
+        HandshakeAction completed = server.receive(playerId, frames.getFirst());
+
+        assertEquals(AdmissionStatus.VERIFIED, completed.snapshot().orElseThrow().admissionStatus());
+        assertTrue(api.isVerified(playerId));
+    }
+
+    @Test
+    void duplicateOrMissingFragmentsNeverAuthenticate() throws Exception {
+        List<byte[]> frames = modpackAuthenticationFrames("duplicate");
+        server.receive(playerId, frames.getFirst());
+        byte[] lastChunk = frames.get(frames.size() - 2);
+        assertFalse(server.receive(playerId, lastChunk).protocolViolation());
+        assertTrue(server.receive(playerId, lastChunk).protocolViolation());
+        assertFalse(api.isVerified(playerId));
+
+        resetHandshakeServer();
+        List<byte[]> gapped = modpackAuthenticationFrames("missing");
+        for (int index = 0; index < gapped.size(); index++) {
+            if (index == 2) continue;
+            assertFalse(server.receive(playerId, gapped.get(index)).protocolViolation());
+        }
+        assertFalse(api.isVerified(playerId));
+        clock.advance(Duration.ofSeconds(6));
+        assertEquals(1, server.expireTimedOut().size());
+        assertFalse(api.isVerified(playerId));
+    }
+
+    @Test
+    void unverifiedEarlyFragmentBufferIsBounded() throws Exception {
+        List<byte[]> frames = modpackAuthenticationFrames("bounded");
+        KeyPair stranger = Ed25519Keys.generate(new SecureRandom());
+        HandshakeAction action = HandshakeAction.none();
+        int sent = 0;
+        for (long sequence = 2L; sequence < 500L && !action.protocolViolation(); sequence++) {
+            byte[] forged = resign(frames.getFirst(), PacketType.PAYLOAD_CHUNK,
+                    com.ellan.mcace.protocol.generated.BoundedPayloadChunk.newBuilder()
+                            .setTransferId("forged").setTransportSequence(sequence).build().toByteArray(),
+                    stranger);
+            action = server.receive(playerId, forged);
+            sent++;
+        }
+
+        assertTrue(action.protocolViolation());
+        assertEquals(ProtocolConstants.MAX_AUTH_REQUEST_TRANSFER_CHUNKS + 3, sent);
+        assertFalse(api.isVerified(playerId));
+        assertTrue(server.hasFailedBeforeAuthentication(playerId));
+    }
+
+    private List<byte[]> modpackAuthenticationFrames(String cacheSuffix) throws Exception {
+        ClientHandshakeEngine client = client(serverKeys);
+        client.prepareServerHello(server.begin(playerId), "test.example:25565",
+                new VerifiedPolicyCache(temporaryDirectory.resolve(cacheSuffix), clock));
+        List<LoadedModObservation> graph = java.util.stream.IntStream.range(0, 900)
+                .mapToObj(index -> new LoadedModObservation(
+                        String.format("modpack.example.mod.%04d", index),
+                        "1.0." + index + "+mc1.21.11-fabric",
+                        LoadedModObservation.OriginKind.UNKNOWN, "", ""))
+                .toList();
+        List<byte[]> frames = client.createAuthenticationFrames(
+                emptyBundle(), List.of(), List.of(), List.of(), graph).stream()
+                .map(ClientHandshakeEngine.OutboundFrame::data)
+                .toList();
+        assertTrue(frames.size() > 3, "the modpack graph must be fragmented");
+        return frames;
+    }
+
+    @Test
     void rejectsLoadedGraphCapabilityShapeMismatchesAndUnknownValues() throws Exception {
         assertLoadedGraphRequestMutationRejected(
                 "missing-capability", builder -> builder.clearClientCapabilities());
