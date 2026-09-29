@@ -315,7 +315,9 @@ public final class MCAceFabricClient implements ClientModInitializer {
         AtomicReference<FederationTokenVault.TargetHandshakeClaim> claimedTarget =
                 new AtomicReference<>();
         AtomicReference<ClientHandshakeEngine> verifiedCandidate = new AtomicReference<>();
-        Runnable schedulingRollback = () -> {
+        // The policy worker's failure path also runs this, so the session teardown (screens,
+        // evidence queue, handshake fields) is confined to the client thread.
+        Runnable schedulingRollback = () -> runOnClientThread(() -> {
             Optional.ofNullable(claimedTarget.get()).ifPresent(federationVault::cancelTargetClaim);
             ClientHandshakeEngine candidate = verifiedCandidate.get();
             if (candidate != null) {
@@ -323,7 +325,7 @@ public final class MCAceFabricClient implements ClientModInitializer {
             } else if (authenticationAttempts.isActive(generation)) {
                 cancelAuthentication("policy verification scheduling failed");
             }
-        };
+        });
         if (!scheduleOrRollbackOnRuntimeFailure(
                 () -> Thread.ofVirtual().name("mcace-policy-verification").start(() -> {
             try {
@@ -933,10 +935,22 @@ public final class MCAceFabricClient implements ClientModInitializer {
 
     private void abortProvisionalFederationAuthorization(
             ClientHandshakeEngine candidate, long attempt, String reason) {
-        ConnectionEnablementAuthorization authorization = enablementAuthorization;
-        if (authorization != null && authorization.isInheritedProvisional()
-                && authenticationAttempts.isActive(attempt) && handshake == candidate) {
-            cancelAuthentication(candidate, attempt, reason);
+        runOnClientThread(() -> {
+            ConnectionEnablementAuthorization authorization = enablementAuthorization;
+            if (authorization != null && authorization.isInheritedProvisional()
+                    && authenticationAttempts.isActive(attempt) && handshake == candidate) {
+                cancelAuthentication(candidate, attempt, reason);
+            }
+        });
+    }
+
+    /** Federation and policy workers fail on virtual threads; session state is client-thread only. */
+    private static void runOnClientThread(Runnable task) {
+        Minecraft client = Minecraft.getInstance();
+        if (client.isSameThread()) {
+            task.run();
+        } else {
+            client.execute(task);
         }
     }
 
