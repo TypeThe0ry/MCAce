@@ -319,6 +319,8 @@ public final class ServerHandshakeCoordinator {
     }
 
     public synchronized List<PlayerSecuritySnapshot> expireTimedOut() {
+        // Both proxies drive this every second; it also releases unanswered evidence requests.
+        evidenceRuntime.expireStale();
         List<PlayerSecuritySnapshot> expired = new ArrayList<>();
         for (SessionContext context : sessions.values()) {
             if (!context.terminal && !clock.instant().isBefore(context.expiresAt)) {

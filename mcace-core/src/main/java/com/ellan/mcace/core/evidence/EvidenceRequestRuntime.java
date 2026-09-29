@@ -114,6 +114,7 @@ public final class EvidenceRequestRuntime {
         operatorId = requireOperator(operatorId);
         Instant now = clock.instant();
         if (!now.isBefore(session.expiresAt())) return Optional.empty();
+        purgeExpired(clock.millis());
         if (requestByPlayer.containsKey(session.playerId()) || requests.size() >= maxOutstandingRequests) {
             return Optional.empty();
         }
@@ -218,6 +219,15 @@ public final class EvidenceRequestRuntime {
         if (active == null) return false;
         remove(active);
         return true;
+    }
+
+    /**
+     * Releases requests, including any partially received transfer, whose signed expiry has
+     * passed. Without this a client that never answers would hold its per-player slot and
+     * buffered chunks until disconnect, because expiry is otherwise only checked on receive.
+     */
+    public synchronized int expireStale() {
+        return purgeExpired(clock.millis());
     }
 
     public synchronized int outstandingCount() {
@@ -452,6 +462,14 @@ public final class EvidenceRequestRuntime {
         } catch (EnvelopeException exception) {
             return Optional.empty();
         }
+    }
+
+    private int purgeExpired(long nowMillis) {
+        List<ActiveRequest> expired = requests.values().stream()
+                .filter(active -> nowMillis >= active.request.getExpiresAtEpochMs())
+                .toList();
+        expired.forEach(this::remove);
+        return expired.size();
     }
 
     private void remove(ActiveRequest active) {
