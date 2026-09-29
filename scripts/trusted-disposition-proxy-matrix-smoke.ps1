@@ -815,7 +815,7 @@ function Get-NewCaseReport {
 }
 
 function Close-CaseReportStreams {
-    param([Parameter(Mandatory)][System.Collections.Generic.List[object]]$Reports)
+    param([Parameter(Mandatory)][AllowEmptyCollection()][System.Collections.Generic.List[object]]$Reports)
 
     foreach ($report in $Reports) {
         if ($null -ne $report.Stream) {
@@ -826,7 +826,7 @@ function Close-CaseReportStreams {
 }
 
 function Remove-OwnedRawRoots {
-    param([Parameter(Mandatory)][System.Collections.Generic.List[string]]$Roots)
+    param([Parameter(Mandatory)][AllowEmptyCollection()][System.Collections.Generic.List[string]]$Roots)
 
     if (-not (Test-Path -LiteralPath $runsRoot -PathType Container)) { return }
     $expectedParent = (Assert-DirectLocalPath $runsRoot -Directory).TrimEnd('\', '/')
