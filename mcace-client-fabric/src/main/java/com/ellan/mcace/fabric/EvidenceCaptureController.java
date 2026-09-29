@@ -228,7 +228,7 @@ final class EvidenceCaptureController implements AutoCloseable {
             return;
         }
         MinecraftClient client = current.client();
-        client.setScreen(current.previous());
+        restoreIfConsentShowing(client, current);
         if (!allowed) {
             finishOutcome(client, current, EvidenceCollectionStatus.EVIDENCE_COLLECTION_DECLINED);
             return;
@@ -277,8 +277,19 @@ final class EvidenceCaptureController implements AutoCloseable {
         }
         pending = null;
         current.clearSensitive();
-        client.setScreen(current.previous());
+        restoreIfConsentShowing(client, current);
         current.sender().sendOutcome(current.request(), status);
+    }
+
+    /**
+     * Restores the pre-request screen only while this request's own consent screen is showing.
+     * Pre-granted requests never show one, and the player may have opened another screen since.
+     */
+    private static void restoreIfConsentShowing(MinecraftClient client, Pending current) {
+        if (client.currentScreen instanceof EvidenceConsentScreen consent
+                && consent.previous() == current.previous()) {
+            client.setScreen(current.previous());
+        }
     }
 
     private void cancelPending(MinecraftClient client, boolean reportDecline) {
@@ -288,10 +299,7 @@ final class EvidenceCaptureController implements AutoCloseable {
         }
         pending = null;
         current.clearSensitive();
-        if (client.currentScreen instanceof EvidenceConsentScreen consent
-                && consent.previous() == current.previous()) {
-            client.setScreen(current.previous());
-        }
+        restoreIfConsentShowing(client, current);
         if (reportDecline) {
             current.sender().sendOutcome(current.request(), EvidenceCollectionStatus.EVIDENCE_COLLECTION_DECLINED);
         } else {
