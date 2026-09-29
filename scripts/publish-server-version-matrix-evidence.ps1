@@ -414,6 +414,11 @@ function ConvertFrom-StrictJson([string]$Raw, [string]$Role) {
         if ($jsonFailure -match '(?i)duplicat(?:e|ed) (?:json )?(?:object )?(?:key|propert)') {
             throw "MCACE_MATRIX_PUBLISH_JSON_DUPLICATE_PROPERTY|$Role"
         }
+        # The message checks above are English-only; on a localized host the parser failure
+        # text differs, so fall back to the locale-independent pre-scan.
+        if ($hasCaseVariantPropertyName) {
+            throw "MCACE_MATRIX_PUBLISH_JSON_CASE_AMBIGUOUS_PROPERTY|$Role"
+        }
         throw "MCACE_MATRIX_PUBLISH_JSON_INVALID|$Role"
     }
     $propertyTokens = $propertyMatches.Count
@@ -719,13 +724,18 @@ function Read-StrictRawJsonDocument([string]$Path, [string]$Role) {
 
 function ConvertTo-EvidenceTime([object]$Value, [string]$Role) {
     try {
+        # Only explicit-UTC instants: an offset-less or local value would be read in the
+        # publishing host's time zone and shift the receipt expiry window by hours.
         if ($Value -is [DateTimeOffset]) {
+            if (([DateTimeOffset]$Value).Offset -ne [TimeSpan]::Zero) { throw 'invalid' }
             return ([DateTimeOffset]$Value).ToUniversalTime()
         }
         if ($Value -is [DateTime]) {
+            if (([DateTime]$Value).Kind -ne [DateTimeKind]::Utc) { throw 'invalid' }
             return ([DateTimeOffset]([DateTime]$Value)).ToUniversalTime()
         }
-        if ($Value -isnot [string] -or [string]::IsNullOrWhiteSpace([string]$Value)) {
+        if ($Value -isnot [string] -or [string]$Value -cnotmatch
+                '^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d{1,7})?(Z|\+00:00)$') {
             throw 'invalid'
         }
         return [DateTimeOffset]::Parse(

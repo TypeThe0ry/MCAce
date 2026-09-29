@@ -21,6 +21,31 @@ function Assert-True([bool]$Condition, [string]$Message) {
     if (-not $Condition) { throw "TEST_ASSERTION_FAILED|$Message" }
 }
 
+# Receipt/report instants must carry an explicit UTC offset; offset-less or non-UTC values would
+# be read in the publishing host's time zone and move the expiry window.
+$publisherAst = [Management.Automation.Language.Parser]::ParseFile($publisher, [ref]$null, [ref]$null)
+$timeFunction = @($publisherAst.FindAll({
+    param($node)
+    $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -ceq 'ConvertTo-EvidenceTime'
+}, $true))
+Assert-True ($timeFunction.Count -eq 1) 'ConvertTo-EvidenceTime must exist exactly once'
+& {
+    . ([scriptblock]::Create($timeFunction[0].Extent.Text))
+    $utc = ConvertTo-EvidenceTime '2026-09-29T19:11:23.6373061+00:00' 'test'
+    Assert-True ($utc.UtcTicks -eq ([DateTimeOffset]::new(2026,9,29,19,11,23,[TimeSpan]::Zero).UtcTicks + 6373061)) 'explicit +00:00 instant'
+    Assert-True ((ConvertTo-EvidenceTime '2026-09-29T19:11:23Z' 'test').Offset -eq [TimeSpan]::Zero) 'Z instant'
+    foreach ($invalid in @('2026-09-29T19:11:23', '2026-09-29T19:11:23+08:00', '09/29/2026 19:11:23', '')) {
+        $threw = $false
+        try { $null = ConvertTo-EvidenceTime $invalid 'test' } catch {
+            $threw = [string]$_.Exception.Message -clike 'MCACE_MATRIX_PUBLISH_TIMESTAMP_INVALID*'
+        }
+        Assert-True $threw "non-UTC or offset-less instant must be rejected: '$invalid'"
+    }
+    $threw = $false
+    try { $null = ConvertTo-EvidenceTime ([DateTime]::new(2026,9,29,19,11,23,[DateTimeKind]::Local)) 'test' } catch { $threw = $true }
+    Assert-True $threw 'local DateTime must be rejected'
+}
+
 function Get-BytesSha256([byte[]]$Bytes) {
     $hasher = [Security.Cryptography.SHA256]::Create()
     try {
