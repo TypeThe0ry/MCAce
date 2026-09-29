@@ -70,6 +70,15 @@ public final class FederationRuntime {
     private final AtomicLong runtimeAuditFailures = new AtomicLong();
     private final Map<UUID, PendingConsent> pendingByPlayer = new LinkedHashMap<>();
     private final Map<ObservationKey, FederationObservation> observations = new LinkedHashMap<>();
+    /**
+     * Client-driven federation frames per local authenticated session. A handoff needs one consent
+     * response or one presentation; the small budget leaves room for retries while stopping a
+     * VERIFIED client from turning each rejected frame into a durable, fsynced audit record (which
+     * can saturate the audit queue into its sticky fault or exhaust the audit file quota).
+     */
+    private final Map<InboundBudgetKey, Integer> inboundFramesBySession = new java.util.HashMap<>();
+    static final int MAX_INBOUND_FRAMES_PER_SESSION = 8;
+    private static final int MAX_TRACKED_INBOUND_SESSIONS = 16_384;
 
     public FederationRuntime(
             Clock clock,
@@ -270,6 +279,9 @@ public final class FederationRuntime {
             byte[] encodedOuterFrame) {
         Objects.requireNonNull(currentSourceSubject, "currentSourceSubject");
         Objects.requireNonNull(encodedOuterFrame, "encodedOuterFrame");
+        if (!admitInboundFrame(currentSourceSubject)) {
+            return FederationGrantResult.rejected(FederationRuntimeStatus.CAPACITY_REACHED);
+        }
         if (!clockAvailable()) {
             return FederationGrantResult.rejected(FederationRuntimeStatus.DISABLED);
         }
@@ -350,6 +362,10 @@ public final class FederationRuntime {
         Objects.requireNonNull(encodedOuterFrame, "encodedOuterFrame");
         if (!validOperator(operatorId)) {
             return FederationPresentationResult.rejected(FederationRuntimeStatus.INTERNAL_ERROR);
+        }
+        if (!admitInboundFrame(targetSubject)) {
+            // Silent on purpose: no audit record, no verification work.
+            return FederationPresentationResult.rejected(FederationRuntimeStatus.CAPACITY_REACHED);
         }
         if (!clockAvailable()) {
             return FederationPresentationResult.rejected(FederationRuntimeStatus.DISABLED);
@@ -473,6 +489,7 @@ public final class FederationRuntime {
         }
         observations.keySet().removeIf(key -> key.playerId().equals(playerId)
                 && key.targetSessionId().equals(authenticatedSessionId));
+        forgetInboundSession(playerId, authenticatedSessionId);
     }
 
     /** Cancels only an outstanding request; a grant already returned to the client is independent. */
@@ -498,6 +515,34 @@ public final class FederationRuntime {
         Objects.requireNonNull(playerId, "playerId");
         pendingByPlayer.remove(playerId);
         observations.keySet().removeIf(key -> key.playerId().equals(playerId));
+        for (InboundBudgetKey key : List.copyOf(inboundFramesBySession.keySet())) {
+            if (key.playerId().equals(playerId)) {
+                forgetInboundSession(playerId, key.authenticatedSessionId());
+            }
+        }
+    }
+
+    private boolean admitInboundFrame(FederationSubject subject) {
+        InboundBudgetKey key = new InboundBudgetKey(subject.playerId(), subject.authenticatedSessionId());
+        Integer used = inboundFramesBySession.get(key);
+        if (used == null && inboundFramesBySession.size() >= MAX_TRACKED_INBOUND_SESSIONS) {
+            return false;
+        }
+        int next = used == null ? 1 : used + 1;
+        if (next > MAX_INBOUND_FRAMES_PER_SESSION) {
+            return false;
+        }
+        inboundFramesBySession.put(key, next);
+        return true;
+    }
+
+    /**
+     * A disconnected session's id is never accepted again, so its frame budget and its outer
+     * envelope nonces can be released instead of holding shared replay capacity for the window.
+     */
+    private void forgetInboundSession(UUID playerId, String authenticatedSessionId) {
+        inboundFramesBySession.remove(new InboundBudgetKey(playerId, authenticatedSessionId));
+        outerReplayGuard.forgetSession(authenticatedSessionId);
     }
 
     /** Performs a bounded expiry sweep and returns the number of entries removed. */
@@ -813,4 +858,6 @@ public final class FederationRuntime {
     }
 
     private record ObservationKey(UUID playerId, String targetSessionId, String sourceNetworkId) { }
+
+    private record InboundBudgetKey(UUID playerId, String authenticatedSessionId) { }
 }
