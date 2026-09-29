@@ -107,18 +107,16 @@ public final class MCAceFabricClient implements ClientModInitializer {
             pumpEvidenceFrames(client);
             federationVault.discardExpired(Clock.systemUTC());
         });
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-            cancelAuthentication("disconnect", false);
-            federationVault.onConnectionClosed();
-        });
+        // Fabric fires both DISCONNECT events from Netty's channelInactive as well as from the
+        // client thread; the cleanup touches state that the client tick also uses, so always
+        // run it on the client thread (inline when already there).
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(this::onConnectionClosed));
         // The signed challenge and the enablement prompt can happen during the configuration
         // phase, and a proxy backend switch re-enters it. A connection that closes there fires
         // only the configuration DISCONNECT, so clear the per-connection consent, attempt,
         // schedules and armed evidence here too; otherwise they survive into the next server.
-        ClientConfigurationConnectionEvents.DISCONNECT.register((handler, client) -> {
-            cancelAuthentication("disconnect", false);
-            federationVault.onConnectionClosed();
-        });
+        ClientConfigurationConnectionEvents.DISCONNECT.register(
+                (handler, client) -> client.execute(this::onConnectionClosed));
         WorldRenderEvents.END_MAIN.register(
                 context -> evidenceCapture.captureAtEndOfWorldRender(MinecraftClient.getInstance()));
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
@@ -655,6 +653,11 @@ public final class MCAceFabricClient implements ClientModInitializer {
                 }), rollback)) {
             LOGGER.warn("MCAce rolled back the exact federation source export after worker scheduling failed");
         }
+    }
+
+    private void onConnectionClosed() {
+        cancelAuthentication("disconnect", false);
+        federationVault.onConnectionClosed();
     }
 
     static boolean scheduleOrRollbackOnRuntimeFailure(Runnable schedule, Runnable rollback) {
