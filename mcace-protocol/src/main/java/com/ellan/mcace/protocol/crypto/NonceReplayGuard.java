@@ -70,6 +70,20 @@ public final class NonceReplayGuard {
         return true;
     }
 
+    /**
+     * Drops every nonce recorded for a session that can no longer receive frames. Replay
+     * protection is keyed by session, and a removed session id is never accepted again, so
+     * keeping its entries for the full window would only let short-lived connections exhaust
+     * the shared capacity used by every other handshake.
+     */
+    public synchronized void forgetSession(String sessionId) {
+        Objects.requireNonNull(sessionId, "sessionId");
+        if (sessionEntryCounts.remove(sessionId) == null) {
+            return;
+        }
+        seen.keySet().removeIf(key -> key.sessionId().equals(sessionId));
+    }
+
     private void removeExpired(long now) {
         Iterator<Map.Entry<ReplayKey, Long>> iterator = seen.entrySet().iterator();
         while (iterator.hasNext()) {

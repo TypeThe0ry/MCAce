@@ -453,6 +453,9 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
             try {
                 BungeeBridgeAction action = activeBridge().receive(player.getUniqueId(), event.getData());
                 dispatchBridgeAction(player, ticket.orElseThrow(), activeBridge(), action);
+                if (action.snapshot().isPresent()) {
+                    denyFailedHandshakeIfRequired(player, ticket.orElseThrow(), activeBridge());
+                }
             } catch (RuntimeException exception) {
                 getLogger().warning("MCAce rejected a malformed handshake frame from " + player.getName()
                         + ": " + safeMessage(exception));
@@ -1643,6 +1646,33 @@ public final class MCAceBungeePlugin extends Plugin implements Listener {
                 + " risk=" + snapshot.riskScore()
                 + " observedAt=" + snapshot.evaluatedAt() + suffix
                 + " (observational; no automatic punishment)");
+    }
+
+    /**
+     * Frame-path counterpart of the strict timeout sweep. A pre-auth violation or late frame makes
+     * the handshake terminal and {@code expireTimedOut()} never reports it, so without this a single
+     * malformed frame would keep a client without MCAce connected. Call only under
+     * {@link #connectionLifecycleLock}.
+     */
+    private boolean denyFailedHandshakeIfRequired(
+            ProxiedPlayer player, BungeeDeferredDispositionRoutes.LoginTicket ticket, BungeeSessionBridge current) {
+        BungeeDeferredDispositionRoutes routes = deferredDispositionRoutes;
+        if (routes == null || !current.requiresClient()
+                || !current.hasFailedBeforeAuthentication(player.getUniqueId())
+                || !isCurrentPhysicalLogin(player, ticket)) {
+            return false;
+        }
+        retireTerminalConfigurationTicket(
+                challengedPlayers, configurationStartAttempts, terminalConfigurationTickets,
+                player.getUniqueId(), ticket);
+        if (!routes.markDeniedPhysical(player.getUniqueId(), player, ticket)) {
+            return false;
+        }
+        player.disconnect(new TextComponent(
+                "MCAce: a client with MCAce installed is required to join this server."));
+        getLogger().info("MCAce denied a connection without a completed client handshake for "
+                + player.getName() + " (client.requirement=REQUIRE_CLIENT)");
+        return true;
     }
 
     static boolean isMissingClientSnapshot(PlayerSecuritySnapshot snapshot) {

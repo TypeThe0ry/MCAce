@@ -696,6 +696,7 @@ public final class MCAceVelocityPlugin {
             if (!sendHandshakeFrameIfCurrent(player, ticket, response)) return;
         }
         if (!isCurrentPhysicalLogin(player, ticket)) return;
+        if (action.snapshot().isPresent() && denyFailedHandshakeIfRequired(player, ticket)) return;
         if (action.protocolViolation()) {
             action.snapshot().ifPresentOrElse(snapshot -> {
                 logger.warn("MCAce protocol violation from {}: risk={} band={} (no automatic ban)",
@@ -1954,6 +1955,21 @@ public final class MCAceVelocityPlugin {
         if (!requiresClientLocked() || !isMissingClientSnapshot(snapshot)) {
             return false;
         }
+        return denyWithoutCompletedHandshake(player, ticket);
+    }
+
+    /**
+     * Frame-path counterpart of the timeout sweep: a pre-auth violation or late frame makes the
+     * handshake terminal, and {@code expireTimedOut()} never reports terminal handshakes again.
+     */
+    private boolean denyFailedHandshakeIfRequired(Player player, VelocityLoginLifecycle.LoginTicket ticket) {
+        if (!requiresClientLocked() || !coordinator().hasFailedBeforeAuthentication(player.getUniqueId())) {
+            return false;
+        }
+        return denyWithoutCompletedHandshake(player, ticket);
+    }
+
+    private boolean denyWithoutCompletedHandshake(Player player, VelocityLoginLifecycle.LoginTicket ticket) {
         synchronized (connectionLifecycleLock) {
             if (!isCurrentPhysicalLoginLocked(player, ticket)) {
                 return false;

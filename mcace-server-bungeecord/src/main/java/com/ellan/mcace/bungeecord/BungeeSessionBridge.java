@@ -80,6 +80,16 @@ public interface BungeeSessionBridge extends AutoCloseable {
      */
     default boolean requiresClient() { return false; }
 
+    /**
+     * True when the player's current handshake became terminal without authenticating (protocol
+     * violation or late frame). {@link #expireTimedOut()} never reports such handshakes, so strict
+     * bridges must check this after each frame.
+     */
+    default boolean hasFailedBeforeAuthentication(UUID playerId) {
+        Objects.requireNonNull(playerId, "playerId");
+        return false;
+    }
+
     void remove(UUID playerId);
 
     MCAceApi api();

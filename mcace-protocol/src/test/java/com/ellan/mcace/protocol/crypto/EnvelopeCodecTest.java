@@ -95,6 +95,25 @@ final class EnvelopeCodecTest {
     }
 
     @Test
+    void forgettingRemovedSessionsReleasesSharedCapacityWithoutTouchingLiveSessions() {
+        NonceReplayGuard guard = new NonceReplayGuard(clock, Duration.ofMinutes(5), 4, 2);
+
+        assertTrue(guard.accept("closed-1", new byte[] {1}));
+        assertTrue(guard.accept("closed-1", new byte[] {2}));
+        assertTrue(guard.accept("closed-2", new byte[] {1}));
+        assertTrue(guard.accept("live", new byte[] {1}));
+        assertFalse(guard.accept("newcomer", new byte[] {1}));
+
+        guard.forgetSession("closed-1");
+        guard.forgetSession("closed-2");
+        guard.forgetSession("never-seen");
+
+        assertTrue(guard.accept("newcomer", new byte[] {1}));
+        assertFalse(guard.accept("live", new byte[] {1}));
+        assertTrue(guard.accept("live", new byte[] {2}));
+    }
+
+    @Test
     void oneSessionCannotExhaustAnotherSessionsReplayQuota() {
         NonceReplayGuard guard = new NonceReplayGuard(clock, Duration.ofMinutes(5), 100, 2);
 

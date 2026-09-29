@@ -239,7 +239,10 @@ public final class ServerHandshakeCoordinator {
             throw new EnvelopeException("server hello exceeds proxy frame budget", exception);
         }
         SessionContext context = new SessionContext(session, challenge, clock.instant().plus(timeout), policy, policyDigest);
-        sessions.put(playerId, context);
+        SessionContext replaced = sessions.put(playerId, context);
+        if (replaced != null) {
+            replayGuard.forgetSession(replaced.session.id());
+        }
         PlayerSecuritySnapshot snapshot = publish(playerId, TrustLevel.UNKNOWN, AdmissionStatus.VERIFYING, List.of());
         auditSession(context, snapshot);
         return frame;
@@ -251,6 +254,12 @@ public final class ServerHandshakeCoordinator {
         SessionContext context = sessions.get(playerId);
         if (context == null) {
             return violation(playerId, null, RiskEventType.PROTOCOL_VIOLATION);
+        }
+        if (context.terminal && context.authenticatedAt == null) {
+            // A failed pre-auth handshake cannot recover. Drop further frames before signature
+            // verification: verifying would consume shared replay-guard capacity, and re-running
+            // violation()/timeout() would republish, audit and log once per attacker frame.
+            return HandshakeAction.none();
         }
         if (context.session.stage() != SessionStage.AUTHENTICATED && !clock.instant().isBefore(context.expiresAt)) {
             return timeout(context);
@@ -321,6 +330,19 @@ public final class ServerHandshakeCoordinator {
         return context != null
                 && context.session.id().equals(sessionId)
                 && context.session.stage() == SessionStage.AUTHENTICATED;
+    }
+
+    /**
+     * True when the player's current handshake reached a terminal state (protocol violation,
+     * policy mismatch, or a frame after the deadline) without ever authenticating.
+     * {@link #expireTimedOut()} skips terminal contexts, so proxies enforcing
+     * {@code client.requirement=REQUIRE_CLIENT} must also consult this after each frame;
+     * otherwise one malformed pre-auth frame keeps a client without MCAce connected.
+     */
+    public synchronized boolean hasFailedBeforeAuthentication(UUID playerId) {
+        Objects.requireNonNull(playerId, "playerId");
+        SessionContext context = sessions.get(playerId);
+        return context != null && context.terminal && context.authenticatedAt == null;
     }
 
     /**
@@ -516,6 +538,7 @@ public final class ServerHandshakeCoordinator {
     public synchronized void remove(UUID playerId) {
         SessionContext removed = sessions.remove(Objects.requireNonNull(playerId, "playerId"));
         if (removed != null) {
+            replayGuard.forgetSession(removed.session.id());
             evidenceRuntime.removeForSession(removed.session.id());
         }
         api.remove(playerId);
