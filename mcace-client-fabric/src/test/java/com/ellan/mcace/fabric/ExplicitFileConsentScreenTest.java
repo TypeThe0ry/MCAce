@@ -56,6 +56,22 @@ final class ExplicitFileConsentScreenTest {
     }
 
     @Test
+    void approveButtonStaysInactiveUntilTheDisclosureHasBeenVisibleForTheArmDelay() {
+        OneShotRenderMarker marker = new OneShotRenderMarker(() -> { });
+        long renderedAt = 5_000_000_000L;
+
+        assertFalse(ExplicitFileConsentScreen.allowArmed(marker, renderedAt));
+
+        marker.markRendered(renderedAt);
+
+        assertFalse(ExplicitFileConsentScreen.allowArmed(marker, renderedAt));
+        assertFalse(ExplicitFileConsentScreen.allowArmed(marker,
+                renderedAt + ExplicitFileConsentScreen.ALLOW_ARM_DELAY_NANOS - 1));
+        assertTrue(ExplicitFileConsentScreen.allowArmed(marker,
+                renderedAt + ExplicitFileConsentScreen.ALLOW_ARM_DELAY_NANOS));
+    }
+
+    @Test
     void enableDecisionFailsClosedUntilTheDisclosureHasRendered() {
         OneShotRenderMarker marker = new OneShotRenderMarker(() -> { });
 

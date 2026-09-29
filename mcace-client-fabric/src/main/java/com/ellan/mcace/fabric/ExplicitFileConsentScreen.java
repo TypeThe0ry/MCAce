@@ -25,6 +25,11 @@ final class ExplicitFileConsentScreen extends Screen {
     private static final int BUTTON_GAP = 6;
     private static final int BUTTON_ROW_GAP = 4;
     private static final int BOTTOM_MARGIN = 8;
+    /**
+     * The approve button stays inactive this long after the disclosure first renders, so a
+     * click or held key aimed at whatever the server showed before the prompt cannot land on it.
+     */
+    static final long ALLOW_ARM_DELAY_NANOS = 1_000_000_000L;
     private final Screen previous;
     private final VerifiedPolicy policy;
     private final List<String> files;
@@ -35,6 +40,7 @@ final class ExplicitFileConsentScreen extends Screen {
     private final List<String> challengeDisclosure;
     private int page;
     private int scrollOffset;
+    private ButtonWidget allowButton;
 
     ExplicitFileConsentScreen(Screen previous, VerifiedPolicy policy, List<String> files,
             Runnable rendered, Consumer<Boolean> decision) {
@@ -69,6 +75,7 @@ final class ExplicitFileConsentScreen extends Screen {
 
     @Override
     protected void init() {
+        allowButton = null;
         int pages = displayedPageCount();
         boolean hasBack = page > 0;
         boolean lastPage = page + 1 >= pages;
@@ -85,8 +92,9 @@ final class ExplicitFileConsentScreen extends Screen {
                     .dimensions(primary.x(), primary.y(), primary.width(), BUTTON_HEIGHT).build());
         } else {
             String label = enablement ? "Enable MCAce" : "Allow while connected";
-            addDrawableChild(ButtonWidget.builder(Text.literal(label), button -> decide(true))
+            allowButton = addDrawableChild(ButtonWidget.builder(Text.literal(label), button -> decide(true))
                     .dimensions(primary.x(), primary.y(), primary.width(), BUTTON_HEIGHT).build());
+            allowButton.active = allowArmed(firstRender, System.nanoTime());
         }
         ButtonBounds decline = buttons.buttons().get(buttonIndex);
         addDrawableChild(ButtonWidget.builder(Text.literal("Decline"), button -> decide(false))
@@ -114,6 +122,9 @@ final class ExplicitFileConsentScreen extends Screen {
             }
         }
         context.disableScissor();
+        if (allowButton != null) {
+            allowButton.active = allowArmed(firstRender, System.nanoTime());
+        }
         super.render(context, mouseX, mouseY, delta);
         firstRender.markRendered();
     }
@@ -173,7 +184,15 @@ final class ExplicitFileConsentScreen extends Screen {
     }
 
     private void decide(boolean allowed) {
+        if (allowed && !allowArmed(firstRender, System.nanoTime())) {
+            return;
+        }
         decision.accept(visibleDecision(allowed, firstRender));
+    }
+
+    static boolean allowArmed(OneShotRenderMarker firstRender, long nowNanos) {
+        Objects.requireNonNull(firstRender, "firstRender");
+        return firstRender.renderedFor(nowNanos, ALLOW_ARM_DELAY_NANOS);
     }
 
     static boolean visibleDecision(boolean allowed, OneShotRenderMarker firstRender) {
