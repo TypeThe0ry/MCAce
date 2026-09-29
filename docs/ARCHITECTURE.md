@@ -62,7 +62,7 @@ and scope check. Duplicates and other early packet types fail closed.
    explicit files such as `options.txt` first opens a paged visible disclosure;
    the player may authorize those exact paths for the current connection only.
    No file is pre-consented or persisted as consent. It sends a separately signed `AUTH_REQUEST`
-   binding every scope, the selected resource/shader packs, at most 256 loaded Mod identities,
+   binding every scope, the selected resource/shader packs, at most 2048 loaded Mod identities,
    and `CLIENT_CAPABILITY_LOADED_MOD_GRAPH_V1` to the accepted policy digest and sequence.
 5. The proxy validates size, checksum, timestamp, signature, nonce uniqueness,
    session ID, packet order, player UUID, policy compatibility, exact scope set,
@@ -254,7 +254,9 @@ Every Minecraft proxy plugin-message frame is limited to 30 KiB before protobuf
 parsing at the core transport entry. A small
 `AUTH_REQUEST` remains backward compatible on `mcace:handshake`; a larger request
 uses signed `PAYLOAD_BEGIN/CHUNK/COMMIT` envelopes on `mcace:payload`. Chunks are
-limited to 16 KiB and the complete request to 1 MiB/64 chunks. Velocity and
+limited to 16 KiB and the complete request to 1 MiB/64 chunks. Fragments that the
+proxy delivers out of wire order are held (bounded, unverified) and applied by
+transport sequence. Velocity and
 BungeeCord use the same session-bound receiver, ordered sequence, nonce replay
 guard, content hash, Merkle root, and one-minute transfer lifetime. Oversize or
 invalid input degrades safely and never creates a punishment or partial manifest.

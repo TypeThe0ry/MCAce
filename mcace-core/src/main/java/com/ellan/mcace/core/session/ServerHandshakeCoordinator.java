@@ -75,10 +75,20 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.TreeMap;
 import java.util.UUID;
 import java.util.function.Consumer;
 
 public final class ServerHandshakeCoordinator {
+    /** BEGIN + every AUTH_REQUEST chunk + COMMIT may arrive ahead of CLIENT_HELLO or their predecessor. */
+    private static final int MAX_PENDING_AUTH_FRAGMENTS = ProtocolConstants.MAX_AUTH_REQUEST_TRANSFER_CHUNKS + 2;
+    /**
+     * Held fragments are unverified, so bound them by one complete AUTH_REQUEST transfer plus the
+     * per-fragment envelope and header overhead rather than by the raw per-frame budget.
+     */
+    private static final long MAX_PENDING_AUTH_FRAGMENT_BYTES =
+            ProtocolConstants.MAX_AUTH_REQUEST_TRANSFER_BYTES + (long) MAX_PENDING_AUTH_FRAGMENTS * 1024L;
+
     private final Clock clock;
     private final SecureRandom secureRandom;
     private final KeyPair serverKeyPair;
@@ -587,7 +597,7 @@ public final class ServerHandshakeCoordinator {
     }
 
     private HandshakeAction receiveClientHello(SessionContext context, SignedEnvelope envelope)
-            throws EnvelopeException, InvalidProtocolBufferException {
+            throws EnvelopeException, InvalidProtocolBufferException, BoundedPayloadException {
         ClientHello hello = ClientHello.parseFrom(envelope.getPayload());
         PublicKey clientKey = Ed25519Keys.decodePublic(hello.getPublicKeyX509().toByteArray());
         envelopeCodec.verify(envelope, clientKey, replayGuard);
@@ -617,7 +627,10 @@ public final class ServerHandshakeCoordinator {
         api.snapshot(context.session.playerId()).ifPresent(snapshot -> auditSession(context, snapshot));
         SignedEnvelope deferred = context.deferredAuthRequest;
         context.deferredAuthRequest = null;
-        return deferred == null ? HandshakeAction.none() : receiveAuthRequest(context, deferred);
+        if (deferred != null) {
+            return receiveAuthRequest(context, deferred);
+        }
+        return drainPendingAuthFragments(context, HandshakeAction.none());
     }
 
     /**
@@ -654,21 +667,115 @@ public final class ServerHandshakeCoordinator {
         if (context.session.stage() == SessionStage.AUTHENTICATED) {
             return receiveArtifactObservationPayload(context, envelope, encodedFrame);
         }
-        if (context.session.stage() != SessionStage.CLIENT_IDENTIFIED || context.boundedPayloadReceiver == null) {
+        SessionStage stage = context.session.stage();
+        if (stage != SessionStage.CHALLENGE_SENT && stage != SessionStage.CLIENT_IDENTIFIED) {
             return violation(context.session.playerId(), context, RiskEventType.PROTOCOL_VIOLATION);
         }
         BoundedPayloadTransferLimits.validateFrameBytes(encodedFrame.length);
+        long sequence = authFragmentSequence(envelope);
+        if (stage == SessionStage.CLIENT_IDENTIFIED && context.boundedPayloadReceiver != null
+                && isNextAuthFragment(context, envelope, sequence)) {
+            HandshakeAction applied = applyAuthFragment(context, envelope, sequence);
+            return drainPendingAuthFragments(context, applied);
+        }
+        return bufferAuthFragment(context, envelope, sequence);
+    }
+
+    /**
+     * Velocity dispatches adjacent plugin messages on a task pool, so the real client's in-order
+     * CLIENT_HELLO, PAYLOAD_BEGIN, PAYLOAD_CHUNK... and PAYLOAD_COMMIT can reach this synchronized
+     * coordinator in any order. Unverified fragments that are ahead of CLIENT_HELLO or of their
+     * predecessor are held (bounded) and applied strictly by transport sequence; each one is still
+     * signature-, nonce- and receiver-verified when it is applied. Replays, duplicates and gaps
+     * that never close still fail as protocol violations or at the handshake deadline.
+     */
+    private static long authFragmentSequence(SignedEnvelope envelope)
+            throws InvalidProtocolBufferException, BoundedPayloadException {
+        return switch (envelope.getHeader().getPacketType()) {
+            case PAYLOAD_BEGIN -> com.ellan.mcace.protocol.generated.BoundedPayloadBegin
+                    .parseFrom(envelope.getPayload()).getTransportSequence();
+            case PAYLOAD_CHUNK -> com.ellan.mcace.protocol.generated.BoundedPayloadChunk
+                    .parseFrom(envelope.getPayload()).getTransportSequence();
+            case PAYLOAD_COMMIT -> com.ellan.mcace.protocol.generated.BoundedPayloadCommit
+                    .parseFrom(envelope.getPayload()).getTransportSequence();
+            default -> throw new BoundedPayloadException("unexpected packet type for bounded payload");
+        };
+    }
+
+    private static boolean isNextAuthFragment(SessionContext context, SignedEnvelope envelope, long sequence) {
+        if (envelope.getHeader().getPacketType() == PacketType.PAYLOAD_BEGIN) {
+            return context.nextAuthFragmentSequence == 0L;
+        }
+        // Anything behind the expected sequence is a replay or conflict; let the receiver reject it.
+        return context.nextAuthFragmentSequence != 0L && sequence <= context.nextAuthFragmentSequence;
+    }
+
+    private HandshakeAction bufferAuthFragment(SessionContext context, SignedEnvelope envelope, long sequence) {
+        boolean begin = envelope.getHeader().getPacketType() == PacketType.PAYLOAD_BEGIN;
+        long size = envelope.getSerializedSize();
+        int pendingCount = context.pendingAuthFragments.size() + (context.pendingAuthBegin == null ? 0 : 1);
+        if (sequence <= 0L
+                || (begin ? context.pendingAuthBegin != null : context.pendingAuthFragments.containsKey(sequence))
+                || pendingCount >= MAX_PENDING_AUTH_FRAGMENTS
+                || context.pendingAuthFragmentBytes + size > MAX_PENDING_AUTH_FRAGMENT_BYTES) {
+            return violation(context.session.playerId(), context, RiskEventType.PROTOCOL_VIOLATION);
+        }
+        if (begin) {
+            context.pendingAuthBegin = envelope;
+        } else {
+            context.pendingAuthFragments.put(sequence, envelope);
+        }
+        context.pendingAuthFragmentBytes += size;
+        return HandshakeAction.none();
+    }
+
+    private HandshakeAction applyAuthFragment(SessionContext context, SignedEnvelope envelope, long sequence)
+            throws EnvelopeException, InvalidProtocolBufferException, BoundedPayloadException {
         PublicKey clientKey = context.session.clientPublicKey()
                 .orElseThrow(() -> new EnvelopeException("client key is not established"));
         envelopeCodec.verify(envelope, clientKey, replayGuard);
         Optional<BoundedPayloadTransferReceiver.CompletedPayload> completed = context.boundedPayloadReceiver
                 .acceptVerified(envelope);
+        context.nextAuthFragmentSequence = sequence + 1L;
         if (completed.isEmpty()) return HandshakeAction.none();
         BoundedPayloadTransferReceiver.CompletedPayload payload = completed.orElseThrow();
         if (payload.kind() != com.ellan.mcace.protocol.generated.BoundedPayloadKind.BOUNDED_PAYLOAD_AUTH_REQUEST) {
             return violation(context.session.playerId(), context, RiskEventType.PROTOCOL_VIOLATION);
         }
         return receiveAuthRequest(context, AuthRequest.parseFrom(payload.content()));
+    }
+
+    /** Applies held fragments that have become next in sequence; stops at the first gap or failure. */
+    private HandshakeAction drainPendingAuthFragments(SessionContext context, HandshakeAction last)
+            throws EnvelopeException, InvalidProtocolBufferException, BoundedPayloadException {
+        HandshakeAction result = last;
+        while (!context.terminal && context.session.stage() == SessionStage.CLIENT_IDENTIFIED
+                && context.boundedPayloadReceiver != null) {
+            SignedEnvelope next;
+            long sequence;
+            if (context.nextAuthFragmentSequence == 0L) {
+                if (context.pendingAuthBegin == null) break;
+                next = context.pendingAuthBegin;
+                context.pendingAuthBegin = null;
+                sequence = authFragmentSequence(next);
+            } else {
+                sequence = context.nextAuthFragmentSequence;
+                next = context.pendingAuthFragments.remove(sequence);
+                if (next == null) break;
+            }
+            context.pendingAuthFragmentBytes -= next.getSerializedSize();
+            HandshakeAction applied = applyAuthFragment(context, next, sequence);
+            if (!applied.outboundFrames().isEmpty() || applied.snapshot().isPresent()
+                    || applied.protocolViolation()) {
+                result = applied;
+            }
+        }
+        if (context.terminal) {
+            context.pendingAuthFragments.clear();
+            context.pendingAuthBegin = null;
+            context.pendingAuthFragmentBytes = 0L;
+        }
+        return result;
     }
 
     /**
@@ -1337,6 +1444,12 @@ public final class ServerHandshakeCoordinator {
         private boolean terminal;
         private BoundedPayloadTransferReceiver boundedPayloadReceiver;
         private SignedEnvelope deferredAuthRequest;
+        /** Unverified pre-auth AUTH_REQUEST fragments keyed by transport sequence, applied in order. */
+        private final TreeMap<Long, SignedEnvelope> pendingAuthFragments = new TreeMap<>();
+        private SignedEnvelope pendingAuthBegin;
+        private long pendingAuthFragmentBytes;
+        /** Transport sequence the AUTH_REQUEST receiver expects next; zero until BEGIN is applied. */
+        private long nextAuthFragmentSequence;
         private BoundedPayloadTransferReceiver artifactObservationReceiver;
         private HeartbeatSessionStateMachine heartbeat;
         private HeartbeatHealth lastHeartbeatHealth = HeartbeatHealth.MISSING;

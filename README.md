@@ -338,7 +338,7 @@ loaded.
 
 ![Loaded ModList and installed-artifact binding](docs/assets/loaded-modlist-binding.svg)
 
-The signed snapshot carries at most 256 canonically ordered Mod IDs and versions:
+The signed snapshot carries at most 2048 canonically ordered Mod IDs and versions:
 
 - a direct child of `<gameDir>/mods` contributes only its basename; MCAce matches
   that identity to the installed manifest's Mod ID, version, file size, and

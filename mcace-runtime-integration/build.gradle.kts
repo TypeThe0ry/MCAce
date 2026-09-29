@@ -76,6 +76,9 @@ tasks.test {
         "mcace.runtime.federation.restart.enabled",
         "mcace.runtime.disposition.enabled",
         "mcace.runtime.trusted-disposition.enabled",
+        "mcace.runtime.fragmented-auth.proxy",
+        "mcace.runtime.fragmented-auth.attempts",
+        "mcace.runtime.fragmented-auth.paced",
     ).forEach { key ->
         System.getProperty(key)?.let { value -> systemProperty(key, value) }
     }

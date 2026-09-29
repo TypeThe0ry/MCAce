@@ -273,7 +273,7 @@ UI 弹窗。
 
 ![Loaded ModList 与已安装产物绑定](docs/assets/loaded-modlist-binding.svg)
 
-签名 snapshot 最多携带 256 个按 canonical 顺序排列的 Mod ID 和版本：
+签名 snapshot 最多携带 2048 个按 canonical 顺序排列的 Mod ID 和版本：
 
 - `<gameDir>/mods` 的直接子文件只发送 basename；MCAce 再把该身份与已安装 manifest 的
   Mod ID、版本、文件大小和 SHA-256 对齐；
