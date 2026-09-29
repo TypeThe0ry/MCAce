@@ -82,6 +82,34 @@ final class VerifiedPolicyCacheTest {
                 keys.getPublic()));
     }
 
+    @Test
+    void rotatedPinStartsANewBaselineInsteadOfLockingTheAddressOut() throws Exception {
+        cache.accept("rotated.test", sign(9, "old-root-v9"), keys.getPublic());
+
+        keys = Ed25519Keys.generate(new SecureRandom());
+        cache.accept("rotated.test", sign(1, "new-root-v1"), keys.getPublic());
+
+        assertEquals(1, cache.load("rotated.test", keys.getPublic()).orElseThrow().policy().getSequence());
+        cache.accept("rotated.test", sign(2, "new-root-v2"), keys.getPublic());
+        assertThrows(PolicyException.class,
+                () -> cache.accept("rotated.test", sign(1, "new-root-v1"), keys.getPublic()),
+                "rollback protection still applies under the new pin");
+    }
+
+    @Test
+    void corruptCacheFileIsReplacedByTheNextVerifiedPolicy() throws Exception {
+        cache.accept("corrupt.test", sign(4, "v4"), keys.getPublic());
+        try (var files = java.nio.file.Files.list(directory)) {
+            for (Path file : files.filter(path -> path.toString().endsWith(".policy")).toList()) {
+                java.nio.file.Files.write(file, new byte[] {1, 2, 3});
+            }
+        }
+
+        cache.accept("corrupt.test", sign(4, "v4"), keys.getPublic());
+
+        assertEquals(4, cache.load("corrupt.test", keys.getPublic()).orElseThrow().policy().getSequence());
+    }
+
     private SignedPolicyDocument sign(long sequence, String version) throws Exception {
         SecurityPolicy policy = SecurityPolicy.newBuilder()
                 .setPolicyVersion(version).setSequence(sequence).setServerId("network")
