@@ -143,6 +143,43 @@ final class EvidenceRequestRuntimeTest {
     }
 
     @Test
+    void unansweredRequestReleasesItsSlotOnceExpired() throws Exception {
+        MutableClock clock = new MutableClock(NOW);
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        KeyPair client = Ed25519Keys.generate(new SecureRandom());
+        AuthenticatedObservationSession session = new AuthenticatedObservationSession(
+                UUID.randomUUID(), "session-4", client.getPublic(), NOW.plusSeconds(3600));
+        EvidenceRequestRuntime runtime = new EvidenceRequestRuntime(
+                clock, new SecureRandom(), server.getPrivate(), SecurityAuditSink.noop());
+        EvidenceRequestSpec spec = EvidenceRequestSpec.screenshot(EvidenceCaptureScope.GAME_RENDER_FRAME, "case-4");
+        EvidenceRequestRuntime.IssuedRequest first = runtime.issue(session, spec, "admin").orElseThrow();
+        assertTrue(runtime.issue(session, spec, "admin").isEmpty(), "one outstanding request per player");
+
+        clock.set(Instant.ofEpochMilli(first.request().getExpiresAtEpochMs() - 1));
+        assertEquals(0, runtime.expireStale());
+        assertEquals(1, runtime.outstandingCount());
+
+        clock.set(Instant.ofEpochMilli(first.request().getExpiresAtEpochMs()));
+        assertEquals(1, runtime.expireStale());
+        assertEquals(0, runtime.outstandingCount());
+
+        // Lazy purge on issue covers callers that never run the periodic sweep.
+        runtime.issue(session, spec, "admin").orElseThrow();
+        clock.set(clock.instant().plus(ProtocolConstants.MAX_EVIDENCE_REQUEST_TTL));
+        assertTrue(runtime.issue(session, spec, "admin").isPresent());
+        assertEquals(1, runtime.outstandingCount());
+    }
+
+    private static final class MutableClock extends Clock {
+        private Instant now;
+        private MutableClock(Instant now) { this.now = now; }
+        void set(Instant instant) { now = instant; }
+        @Override public java.time.ZoneId getZone() { return ZoneOffset.UTC; }
+        @Override public Clock withZone(java.time.ZoneId zone) { return this; }
+        @Override public Instant instant() { return now; }
+    }
+
+    @Test
     void oversizedRawFrameIsRejectedBeforeAllocatingEvidenceState() throws Exception {
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         KeyPair server = Ed25519Keys.generate(new SecureRandom());
