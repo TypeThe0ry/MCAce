@@ -298,6 +298,37 @@ final class FederationRuntimeTest {
     }
 
     @Test
+    void floodedRejectedPresentationsStopAuditingAfterPerSessionBudget() throws Exception {
+        Fixture fixture = fixture();
+        GrantExchange exchange = fixture.issueAndGrant();
+        FederationPresentation wrongSession = FederationDocuments.presentation(
+                exchange.grant(), fixture.client().getPrivate(), "attacker-session",
+                fixture.targetChallenge(), fixture.clock());
+        int auditsBefore = fixture.targetAudits().size();
+
+        List<FederationRuntimeStatus> statuses = new ArrayList<>();
+        for (int attempt = 0; attempt < 40; attempt++) {
+            statuses.add(fixture.targetRuntime().receivePresentation(fixture.targetSubject(),
+                    fixture.outerPresentation(wrongSession, fixture.targetSubject()), "target-console").status());
+        }
+
+        int budget = FederationRuntime.MAX_INBOUND_FRAMES_PER_SESSION;
+        assertTrue(statuses.subList(0, budget).stream()
+                .allMatch(status -> status == FederationRuntimeStatus.INVALID_PRESENTATION));
+        assertTrue(statuses.subList(budget, statuses.size()).stream()
+                .allMatch(status -> status == FederationRuntimeStatus.CAPACITY_REACHED));
+        assertEquals(auditsBefore + budget, fixture.targetAudits().size());
+        assertTrue(fixture.targetRuntime().status().auditHealthy());
+
+        // A disconnect releases the session's budget; a fresh session starts with a new one.
+        fixture.targetRuntime().removeForSession(
+                fixture.playerId(), fixture.targetSubject().authenticatedSessionId());
+        assertEquals(FederationRuntimeStatus.INVALID_PRESENTATION,
+                fixture.targetRuntime().receivePresentation(fixture.targetSubject(),
+                        fixture.outerPresentation(wrongSession, fixture.targetSubject()), "target-console").status());
+    }
+
+    @Test
     void wrongPeerKeySessionChallengeAndAudienceAreInertAndDoNotConsumeValidInnerReplay() throws Exception {
         Fixture fixture = fixture();
         GrantExchange exchange = fixture.issueAndGrant();
