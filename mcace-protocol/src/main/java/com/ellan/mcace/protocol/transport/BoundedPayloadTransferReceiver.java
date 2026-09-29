@@ -38,9 +38,20 @@ public final class BoundedPayloadTransferReceiver {
     private final String sessionId;
     private final Clock clock;
     private final long ttlMillis;
+    private final BoundedPayloadKind requiredKind;
     private Active active;
 
     public BoundedPayloadTransferReceiver(String sessionId, Clock clock, Duration ttl) {
+        this(sessionId, clock, ttl, null);
+    }
+
+    /**
+     * A receiver that only ever carries {@code requiredKind}. The kind is enforced at BEGIN, so a
+     * sender cannot reserve a larger kind's byte and chunk budget on a channel meant for another.
+     */
+    public BoundedPayloadTransferReceiver(
+            String sessionId, Clock clock, Duration ttl, BoundedPayloadKind requiredKind) {
+        this.requiredKind = requiredKind;
         this.sessionId = Objects.requireNonNull(sessionId, "sessionId");
         this.clock = Objects.requireNonNull(clock, "clock");
         if (sessionId.isBlank() || Objects.requireNonNull(ttl, "ttl").isNegative() || ttl.isZero()) {
@@ -109,6 +120,9 @@ public final class BoundedPayloadTransferReceiver {
 
     private void begin(BoundedPayloadBegin begin) throws BoundedPayloadException {
         if (active != null) throw new BoundedPayloadException("a payload transfer is already active");
+        if (requiredKind != null && begin.getPayloadKind() != requiredKind) {
+            throw new BoundedPayloadException("payload kind is not accepted on this channel");
+        }
         requireId(begin.getTransferId());
         requireHash(begin.getManifestRootSha256().toByteArray(), "manifest root");
         requireHash(begin.getContentSha256().toByteArray(), "content hash");
@@ -181,6 +195,18 @@ public final class BoundedPayloadTransferReceiver {
         if (active == null || !active.begin.getTransferId().equals(transferId) || active.begin.getPayloadKind() != kind
                 || active.nextSequence != sequence) throw new BoundedPayloadException("out-of-order, replayed, or conflicting transfer fragment");
         return active;
+    }
+
+    /**
+     * Drops an in-flight transfer whose TTL has passed without waiting for the sender's next
+     * fragment, so an abandoned transfer does not keep its buffered chunks until disconnect.
+     */
+    public synchronized boolean expireStale() {
+        if (active != null && clock.millis() - active.startedAt > ttlMillis) {
+            active = null;
+            return true;
+        }
+        return false;
     }
 
     private void expireIfNeeded() throws BoundedPayloadException {
