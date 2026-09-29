@@ -807,7 +807,7 @@ public final class ClientHandshakeEngine {
                 minecraftRoot, consentedExplicitFiles, List.of(), List.of(), List.of(), cancellation);
     }
 
-    public synchronized PreparedArtifactObservationUpdate prepareRescannedArtifactObservationUpdate(
+    public PreparedArtifactObservationUpdate prepareRescannedArtifactObservationUpdate(
             Path minecraftRoot,
             Set<String> consentedExplicitFiles,
             Collection<String> selectedResourcePacks,
@@ -818,7 +818,12 @@ public final class ClientHandshakeEngine {
                 selectedResourcePacks, selectedShaderPacks, List.of(), cancellation);
     }
 
-    public synchronized PreparedArtifactObservationUpdate prepareRescannedArtifactObservationUpdate(
+    /**
+     * Re-hashes the scoped files without holding the engine lock: a full scan can read gigabytes,
+     * and the client thread takes this lock every tick (heartbeatReady) and for every frame. The
+     * result is bound under the lock only if the verified policy did not change meanwhile.
+     */
+    public PreparedArtifactObservationUpdate prepareRescannedArtifactObservationUpdate(
             Path minecraftRoot,
             Set<String> consentedExplicitFiles,
             Collection<String> selectedResourcePacks,
@@ -826,18 +831,27 @@ public final class ClientHandshakeEngine {
             Collection<LoadedModObservation> loadedMods,
             IntegrityScanCancellation cancellation)
             throws EnvelopeException, IntegrityScanException {
-        if (verifiedPolicy == null) {
+        VerifiedPolicy scannedPolicy;
+        synchronized (this) {
+            scannedPolicy = verifiedPolicy;
+        }
+        if (scannedPolicy == null) {
             throw new EnvelopeException("artifact observations require a verified policy");
         }
         Objects.requireNonNull(cancellation, "cancellation").check();
         ClientIntegrityBundle bundle = new PolicyDrivenIntegrityCollector(clock)
-                .collect(Objects.requireNonNull(minecraftRoot, "minecraftRoot"), verifiedPolicy.policy(),
+                .collect(Objects.requireNonNull(minecraftRoot, "minecraftRoot"), scannedPolicy.policy(),
                         Objects.requireNonNull(consentedExplicitFiles, "consentedExplicitFiles"), cancellation);
         cancellation.check();
-        return prepareArtifactObservationUpdate(bundle,
-                new ArtifactObservationCollector().collect(
-                        minecraftRoot, verifiedPolicy.policy(), bundle, cancellation),
-                selectedResourcePacks, selectedShaderPacks, loadedMods);
+        var observations = new ArtifactObservationCollector().collect(
+                minecraftRoot, scannedPolicy.policy(), bundle, cancellation);
+        synchronized (this) {
+            if (verifiedPolicy != scannedPolicy) {
+                throw new EnvelopeException("verified policy changed during the artifact rescan");
+            }
+            return prepareArtifactObservationUpdate(bundle, observations,
+                    selectedResourcePacks, selectedShaderPacks, loadedMods);
+        }
     }
 
     /**

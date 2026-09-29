@@ -82,7 +82,9 @@ final class ResourcePackTextureProbe {
                 }
             }
             return result("complete", checked, transparent);
-        } catch (IOException | IllegalArgumentException exception) {
+        } catch (IOException | RuntimeException exception) {
+            // ImageIO's PNG decoder can throw ArrayIndexOutOfBounds/NegativeArraySize/IllegalState
+            // on malformed data. This low-confidence probe must never fail authentication.
             return result("invalid", 0, 0);
         } catch (NoSuchAlgorithmException impossible) {
             throw new IllegalStateException("SHA-256 is unavailable", impossible);

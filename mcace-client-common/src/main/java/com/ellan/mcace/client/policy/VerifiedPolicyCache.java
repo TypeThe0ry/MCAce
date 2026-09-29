@@ -47,7 +47,16 @@ public final class VerifiedPolicyCache {
                 document, pinnedKey, clock, Duration.ofSeconds(30));
         SecurityPolicy policy = verification.policy();
         Path path = cachePath(serverAddress);
-        Optional<VerifiedPolicy> existing = loadPath(path, pinnedKey, false);
+        Optional<VerifiedPolicy> existing;
+        try {
+            existing = loadPath(path, pinnedKey, false);
+        } catch (PolicyException unverifiable) {
+            // The cached document no longer verifies under the currently pinned key: the operator
+            // rotated the root key (and the user updated the pin) or the file is corrupt. Only a
+            // document that verifies under the same pin is a rollback baseline; keeping this one
+            // would lock the address out until the user deleted the cache by hand.
+            existing = Optional.empty();
+        }
         if (existing.isPresent()) {
             SecurityPolicy cached = existing.orElseThrow().policy();
             if (!cached.getServerId().equals(policy.getServerId())) {
