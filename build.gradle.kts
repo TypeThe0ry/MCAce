@@ -145,7 +145,11 @@ abstract class MCAceReleaseBundleTask : DefaultTask() {
         }
         if (artifactCommit == releaseCommit) return
 
-        val changedPaths = git("diff", "--name-only", "$artifactCommit..$releaseCommit", "--")
+        // --no-renames: with rename detection (Git's default) --name-only prints only the new
+        // path, so moving any release-affecting file into docs/evidence/ would look evidence-only.
+        val changedPaths = git(
+            "diff", "--no-renames", "--name-only", "$artifactCommit..$releaseCommit", "--",
+        )
             .lineSequence()
             .map(String::trim)
             .filter(String::isNotEmpty)
