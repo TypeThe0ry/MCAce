@@ -58,6 +58,12 @@ public final class ServerKeyPins {
         return Optional.ofNullable(exact != null ? exact : pins.get("default"));
     }
 
+    /** Exact-entry lookup without the {@code default} fallback. */
+    public Optional<PublicKey> findExact(String serverAddress) {
+        Objects.requireNonNull(serverAddress, "serverAddress");
+        return Optional.ofNullable(pins.get(normalize(serverAddress)));
+    }
+
     /** Returns a stable diagnostic identifier without exposing key material. */
     public static String fingerprint(PublicKey key) {
         Objects.requireNonNull(key, "key");

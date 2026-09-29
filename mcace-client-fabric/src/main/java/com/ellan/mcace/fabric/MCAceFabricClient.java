@@ -36,6 +36,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientConfigurationConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.world.WorldRenderEvents;
@@ -107,6 +108,14 @@ public final class MCAceFabricClient implements ClientModInitializer {
             federationVault.discardExpired(Clock.systemUTC());
         });
         ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
+            cancelAuthentication("disconnect", false);
+            federationVault.onConnectionClosed();
+        });
+        // The signed challenge and the enablement prompt can happen during the configuration
+        // phase, and a proxy backend switch re-enters it. A connection that closes there fires
+        // only the configuration DISCONNECT, so clear the per-connection consent, attempt,
+        // schedules and armed evidence here too; otherwise they survive into the next server.
+        ClientConfigurationConnectionEvents.DISCONNECT.register((handler, client) -> {
             cancelAuthentication("disconnect", false);
             federationVault.onConnectionClosed();
         });
