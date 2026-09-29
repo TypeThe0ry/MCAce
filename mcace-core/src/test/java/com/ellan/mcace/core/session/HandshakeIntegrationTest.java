@@ -1138,6 +1138,31 @@ final class HandshakeIntegrationTest {
     }
 
     @Test
+    void postAuthenticationFloodIsDroppedAfterTheWindowBudgetAndReportedOnce() throws Exception {
+        ClientHandshakeEngine client = client(serverKeys);
+        List<byte[]> frames = frames(client, server.begin(playerId));
+        server.receive(playerId, frames.get(0));
+        server.receive(playerId, frames.get(1));
+        String sessionId = SignedEnvelope.parseFrom(frames.get(0)).getHeader().getSessionId();
+        byte[] junk = resign(frames.get(0), PacketType.SERVER_HELLO, new byte[0],
+                Ed25519Keys.generate(new SecureRandom()));
+
+        for (int index = 0; index < ServerHandshakeCoordinator.MAX_POST_AUTH_FRAMES_PER_WINDOW; index++) {
+            assertTrue(server.receive(playerId, junk).protocolViolation(), "within budget: " + index);
+        }
+        assertTrue(server.receive(playerId, junk).protocolViolation(), "first over-budget frame is reported");
+        for (int index = 0; index < 100; index++) {
+            HandshakeAction dropped = server.receive(playerId, junk);
+            assertFalse(dropped.protocolViolation());
+            assertTrue(dropped.outboundFrames().isEmpty() && dropped.snapshot().isEmpty());
+        }
+        assertTrue(server.isCurrentAuthenticatedSession(playerId, sessionId));
+
+        clock.advance(Duration.ofMillis(ServerHandshakeCoordinator.POST_AUTH_FRAME_WINDOW_MILLIS));
+        assertTrue(server.receive(playerId, junk).protocolViolation(), "a new window restores processing");
+    }
+
+    @Test
     void authenticatedOrUnknownSessionIsNeverReportedAsFailedBeforeAuthentication() throws Exception {
         assertFalse(server.hasFailedBeforeAuthentication(playerId));
         ClientHandshakeEngine client = client(serverKeys);
