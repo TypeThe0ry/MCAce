@@ -161,6 +161,48 @@ final class LoopbackEvidenceReviewServiceTest {
         }
     }
 
+    @Test
+    void reviewIsRefusedWhenItCannotBeAudited() throws Exception {
+        MutableClock clock = new MutableClock();
+        UUID evidenceId = UUID.randomUUID();
+        AtomicInteger failNext = new AtomicInteger(1);
+        List<EvidenceReviewAuditRecord> audits = new ArrayList<>();
+        EvidenceAuditSink flaky = new EvidenceAuditSink() {
+            @Override public void append(EvidenceAuditRecord ignored) { }
+            @Override public void appendReview(EvidenceReviewAuditRecord record) {
+                if (failNext.getAndDecrement() > 0) throw new IllegalStateException("disk full");
+                audits.add(record);
+            }
+        };
+        try (LoopbackEvidenceReviewService service = start(reader(evidenceId, validArtifact(evidenceId)), flaky, clock)) {
+            assertThrows(IllegalStateException.class, () -> service.issue(evidenceId, "operator-a", "case review"));
+            assertEquals(0, service.status().activeTokens(), "an unaudited capability must not exist");
+
+            LoopbackEvidenceReviewService.ReviewLink link = service.issue(evidenceId, "operator-a", "case review");
+            failNext.set(1);
+            assertEquals(503, open(link.url()).getResponseCode(), "content must not be served unaudited");
+            assertEquals(List.of(EvidenceReviewAuditRecord.Outcome.ISSUED),
+                    audits.stream().map(EvidenceReviewAuditRecord::outcome).toList());
+        }
+    }
+
+    @Test
+    void fileAuditRotatesInsteadOfFailingOnceItsQuotaIsReached(@TempDir Path temporary) throws Exception {
+        Path auditPath = temporary.resolve("evidence-audit.log");
+        FileEvidenceAuditSink sink = new FileEvidenceAuditSink(auditPath, 512);
+        for (int index = 0; index < 200; index++) {
+            sink.appendDeletion(new EvidenceDeletionAuditRecord(
+                    UUID.randomUUID(), Instant.EPOCH, "operator-" + index, "retention", true));
+        }
+        assertTrue(Files.size(auditPath) <= 512);
+        assertTrue(Files.readString(auditPath, StandardCharsets.UTF_8).contains("operator-199"));
+        for (int index = 1; index <= FileEvidenceAuditSink.RETAINED_SEGMENTS; index++) {
+            assertTrue(Files.exists(auditPath.resolveSibling("evidence-audit.log." + index)));
+        }
+        assertFalse(Files.exists(auditPath.resolveSibling(
+                "evidence-audit.log." + (FileEvidenceAuditSink.RETAINED_SEGMENTS + 1))));
+    }
+
     private static String waitForAudit(Path path, String marker) throws Exception {
         long deadline = System.nanoTime() + java.util.concurrent.TimeUnit.SECONDS.toNanos(2);
         String content = "";

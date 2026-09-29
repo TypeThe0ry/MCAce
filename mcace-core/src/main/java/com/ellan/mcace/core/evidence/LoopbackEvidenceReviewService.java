@@ -124,8 +124,9 @@ public final class LoopbackEvidenceReviewService implements AutoCloseable {
             throw new IllegalStateException("unable to allocate evidence review capability");
         }
         Instant expiresAt = clock.instant().plus(tokenTtl);
+        // Issuing a capability to view raw evidence must leave a durable trace: no audit, no link.
+        requireAudit(evidenceId, operatorId, reason, EvidenceReviewAuditRecord.Outcome.ISSUED);
         grants.put(token, new Grant(evidenceId, operatorId, reason, expiresAt));
-        audit(evidenceId, operatorId, reason, EvidenceReviewAuditRecord.Outcome.ISSUED);
         return new ReviewLink(reviewUri(token), expiresAt);
     }
 
@@ -217,8 +218,16 @@ public final class LoopbackEvidenceReviewService implements AutoCloseable {
             }
             byte[] content = artifact.content();
             try {
+                try {
+                    // Record the disclosure before any byte leaves; without an audit trail the
+                    // content is not served.
+                    requireAudit(grant.evidenceId(), grant.operatorId(), grant.reason(),
+                            EvidenceReviewAuditRecord.Outcome.SERVED);
+                } catch (IllegalStateException auditUnavailable) {
+                    writeGeneric(socket, 503);
+                    return;
+                }
                 writePng(socket, content);
-                audit(grant, EvidenceReviewAuditRecord.Outcome.SERVED);
             } finally {
                 java.util.Arrays.fill(content, (byte) 0);
             }
@@ -434,6 +443,15 @@ public final class LoopbackEvidenceReviewService implements AutoCloseable {
 
     private void audit(Grant grant, EvidenceReviewAuditRecord.Outcome outcome) {
         audit(grant.evidenceId(), grant.operatorId(), grant.reason(), outcome);
+    }
+
+    private void requireAudit(
+            UUID evidenceId, String operatorId, String reason, EvidenceReviewAuditRecord.Outcome outcome) {
+        try {
+            auditSink.appendReview(new EvidenceReviewAuditRecord(evidenceId, clock.instant(), operatorId, reason, outcome));
+        } catch (RuntimeException failure) {
+            throw new IllegalStateException("evidence review audit is unavailable", failure);
+        }
     }
 
     private void audit(UUID evidenceId, String operatorId, String reason, EvidenceReviewAuditRecord.Outcome outcome) {

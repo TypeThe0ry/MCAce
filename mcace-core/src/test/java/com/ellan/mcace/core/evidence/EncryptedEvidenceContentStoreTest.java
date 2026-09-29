@@ -107,6 +107,31 @@ final class EncryptedEvidenceContentStoreTest {
     }
 
     @Test
+    void unverifiableFileDoesNotBlockRetentionOfOtherExpiredEvidence(@TempDir Path temp) throws Exception {
+        EncryptedEvidenceContentStore writer = store(temp, 8, 1 << 20);
+        java.util.List<Path> paths = new java.util.ArrayList<>();
+        for (int index = 0; index < 4; index++) {
+            EvidenceContentStore.EvidenceContent content = content(("frame-" + index).getBytes());
+            writer.store(content, metadata(content, "case-" + index));
+            paths.add(temp.resolve(content.evidenceId() + ".mce"));
+        }
+        // Tamper every file but one, so a directory-order abort would strand the good one.
+        for (Path tampered : paths.subList(0, 3)) {
+            byte[] bytes = Files.readAllBytes(tampered);
+            bytes[5 + 12] ^= 1;
+            Files.write(tampered, bytes);
+        }
+        EncryptedEvidenceContentStore later = new EncryptedEvidenceContentStore(temp,
+                new SecretKeySpec(new byte[32], "AES"), new SecureRandom(),
+                Clock.fixed(NOW.plusSeconds(61), ZoneOffset.UTC), disclosure(), 1024, 8, 1 << 20);
+
+        assertThrows(java.io.IOException.class, () -> later.sweepExpired(8));
+
+        assertTrue(!Files.exists(paths.get(3)), "expired verifiable evidence must be deleted");
+        for (Path tampered : paths.subList(0, 3)) assertTrue(Files.exists(tampered));
+    }
+
+    @Test
     void malformedKeyAndRetentionPolicyAreRejected(@TempDir Path temp) {
         assertThrows(IllegalArgumentException.class, () -> new EncryptedEvidenceContentStore(
                 temp, new SecretKeySpec(new byte[16], "AES"), new SecureRandom(),
