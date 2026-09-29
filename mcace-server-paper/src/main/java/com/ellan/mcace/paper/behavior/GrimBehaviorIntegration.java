@@ -15,6 +15,13 @@ public final class GrimBehaviorIntegration implements AutoCloseable {
     private final GrimAbstractAPI api;
     private final GrimPlugin owner;
     private final String providerVersion;
+    /**
+     * Grim exposes no native event id, and its verbose argument is a lazy Supplier whose
+     * toString() is the lambda's identity. Each synchronous flag callback is delivered once, so a
+     * per-integration salt plus a monotonic sequence gives every flag a distinct identity; two
+     * flags with the same check and violation level must never collapse into one "duplicate".
+     */
+    private final EventTokens eventTokens = new EventTokens();
 
     public GrimBehaviorIntegration(Plugin plugin, BehaviorAlertPipeline pipeline, Clock clock) {
         Objects.requireNonNull(plugin, "plugin");
@@ -39,7 +46,8 @@ public final class GrimBehaviorIntegration implements AutoCloseable {
                         String providerEventId = BehaviorAlert.providerEventIdSha256(
                                 "grim", user.getUniqueId().toString(), providerVersion,
                                 stableCheck, checkName, Double.toHexString(violationLevel),
-                                Boolean.toString(experimental), String.valueOf(verbose));
+                                Boolean.toString(experimental),
+                                eventTokens.next());
                         pipeline.accept(carrier, new BehaviorAlert(
                                 user.getUniqueId(), providerEventId, "grim", providerVersion,
                                 checkName, stableCheck, violationLevel, experimental,
@@ -57,6 +65,16 @@ public final class GrimBehaviorIntegration implements AutoCloseable {
     @Override
     public void close() {
         api.getEventBus().unregisterAllListeners(owner);
+    }
+
+    /** Unique per-callback tokens: a random per-integration salt plus a monotonic sequence. */
+    static final class EventTokens {
+        private final String salt = Long.toHexString(new java.security.SecureRandom().nextLong());
+        private final java.util.concurrent.atomic.AtomicLong sequence = new java.util.concurrent.atomic.AtomicLong();
+
+        String next() {
+            return salt + ":" + sequence.incrementAndGet();
+        }
     }
 
     private static String exact(String value, int maximum) {

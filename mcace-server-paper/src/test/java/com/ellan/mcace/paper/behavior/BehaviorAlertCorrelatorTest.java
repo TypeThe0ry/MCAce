@@ -69,6 +69,21 @@ final class BehaviorAlertCorrelatorTest {
     }
 
     @Test
+    void keyBoundEvictsTheLeastRecentlyFlaggedWindowNotTheActiveOne() {
+        BehaviorAlertCorrelator correlator = new BehaviorAlertCorrelator(
+                3, Duration.ofSeconds(10), Duration.ZERO, 2);
+        assertTrue(correlator.accept(alert("grim", "active", NOW)).isEmpty());
+        assertTrue(correlator.accept(alert("grim", "idle", NOW.plusMillis(1))).isEmpty());
+        assertTrue(correlator.accept(alert("grim", "active", NOW.plusMillis(2))).isEmpty());
+        assertTrue(correlator.accept(alert("grim", "newcomer", NOW.plusMillis(3))).isEmpty());
+
+        CloudRiskEvent emitted = correlator.accept(alert("grim", "active", NOW.plusMillis(4))).orElseThrow();
+
+        assertEquals(3, emitted.details().get("flag_count"));
+        assertEquals(2, correlator.trackedKeys());
+    }
+
+    @Test
     void identicalProviderCallbackCannotReachThresholdButDistinctCallbacksCan() {
         BehaviorAlertCorrelator correlator = new BehaviorAlertCorrelator(
                 2, Duration.ofSeconds(10), Duration.ZERO, 100);
