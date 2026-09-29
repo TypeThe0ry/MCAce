@@ -38,6 +38,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientLifecycleEvents;
 import net.fabricmc.fabric.api.client.event.lifecycle.v1.ClientTickEvents;
+import net.fabricmc.fabric.api.client.networking.v1.ClientConfigurationConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayConnectionEvents;
 import net.fabricmc.fabric.api.client.networking.v1.ClientPlayNetworking;
 import net.fabricmc.fabric.api.client.rendering.v1.level.LevelRenderEvents;
@@ -109,10 +110,16 @@ public final class MCAceFabricClient implements ClientModInitializer {
             pumpEvidenceFrames(client);
             federationVault.discardExpired(Clock.systemUTC());
         });
-        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> {
-            cancelAuthentication("disconnect", false);
-            federationVault.onConnectionClosed();
-        });
+        // Fabric fires both DISCONNECT events from Netty's channelInactive as well as from the
+        // client thread; the cleanup touches state that the client tick also uses, so always
+        // run it on the client thread (inline when already there).
+        ClientPlayConnectionEvents.DISCONNECT.register((handler, client) -> client.execute(this::onConnectionClosed));
+        // The signed challenge and the enablement prompt can happen during the configuration
+        // phase, and a proxy backend switch re-enters it. A connection that closes there fires
+        // only the configuration DISCONNECT, so clear the per-connection consent, attempt,
+        // schedules and armed evidence here too; otherwise they survive into the next server.
+        ClientConfigurationConnectionEvents.DISCONNECT.register(
+                (handler, client) -> client.execute(this::onConnectionClosed));
         LevelRenderEvents.END_MAIN.register(
                 context -> evidenceCapture.captureAtEndOfWorldRender(Minecraft.getInstance()));
         ClientLifecycleEvents.CLIENT_STOPPING.register(client -> {
@@ -222,8 +229,12 @@ public final class MCAceFabricClient implements ClientModInitializer {
                 ? System.getProperty("mcace.platform-smoke.server-address", "default")
                 : server.ip;
         ClientPacketListener networkHandler = context.client().getConnection();
-        String address = connectedServerAddress(networkHandler).orElse(configuredAddress);
-        Optional<PublicKey> pinnedKey = serverKeyPins.find(address);
+        Optional<String> connectedAddress = connectedServerAddress(networkHandler);
+        String address = connectedAddress.orElse(configuredAddress);
+        // An exact pin for the connected endpoint wins; otherwise honor the documented pin keyed by
+        // the server-list address (as the 1.21.11 client does) before falling back to default=.
+        Optional<PublicKey> pinnedKey = connectedAddress.flatMap(serverKeyPins::findExact)
+                .or(() -> serverKeyPins.find(configuredAddress));
         if (pinnedKey.isEmpty()) {
             LOGGER.warn("MCAce will not authenticate to {} because no pinned server key is configured", address);
             return;
@@ -684,6 +695,11 @@ public final class MCAceFabricClient implements ClientModInitializer {
                 }), rollback)) {
             LOGGER.warn("MCAce rolled back the exact federation source export after worker scheduling failed");
         }
+    }
+
+    private void onConnectionClosed() {
+        cancelAuthentication("disconnect", false);
+        federationVault.onConnectionClosed();
     }
 
     static boolean scheduleOrRollbackOnRuntimeFailure(Runnable schedule, Runnable rollback) {
