@@ -594,8 +594,8 @@ those runs are not additional release approvals and cannot promote consent.
 The wrappers do not automate the decision or control an existing Minecraft
 process.
 
-A passing local platform pair uses report schema 8 and binding
-`MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6`. It must load only the exact final
+A passing local platform pair uses report schema 9 and binding
+`MCACE_FABRIC_GUI_EVIDENCE_BINDING_V7`. It must load only the exact final
 artifact, bind the entrypoint CodeSource SHA-256, bind current server/JDK/Gradle/
 asset/prepared-tree inputs, bind `velocity_policy_minecraft_versions` and
 `velocity_policy_client_build_ids`, prove both consent chains, and leave zero

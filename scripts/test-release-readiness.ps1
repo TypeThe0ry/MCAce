@@ -288,6 +288,9 @@ foreach ($required in @(
 foreach ($forbidden in @(
         'function Assert-GuiIndex','MCACE_FABRIC_GUI_CONSENT_EVIDENCE_INDEX_V1',
         'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6',
+        # Local platform-smoke pairs (STABLE or EXPERIMENTAL_BETA server lane) are never
+        # release evidence; release readiness must not consume their binding schema.
+        'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V7','EXPERIMENTAL_BETA',
         'MCACE_FABRIC_FEDERATION_GUI_HANDOFF_EXECUTED_V3',
         'MCACE_FABRIC_FEDERATION_GUI_HANDOFF_BINDING_V3',
         'MCACE_FABRIC_FEDERATION_GUI_HANDOFF_COMMIT_V3',

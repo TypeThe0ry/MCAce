@@ -48,8 +48,9 @@ lane (Folia publishes no `26.3` line). The `26.3` cases bind Velocity
 BungeeCord `2085` predate protocol 777; the three original targets keep those
 reviewed proxies. Paper `26.3` has no STABLE build, so its two cases are
 labelled BETA alongside Folia `26.2` (10 STABLE + 4 BETA) and are never
-promoted. No 14-case run is recorded yet; the platform smoke still fails closed
-for `26.3` because it accepts only a STABLE Paper.
+promoted. The platform smoke fails closed for `26.3`
+(`PLATFORM_SMOKE_EXPERIMENTAL_SERVER_LANE_NOT_ALLOWED`) unless the operator
+passes `-AllowExperimentalServerLane`; see the per-target gate below.
 
 Reviewed proxy assets (each case selects the pin whose target set contains its version):
 
@@ -134,9 +135,23 @@ evidence and any binding drift.
 # Optional local GUI compatibility diagnostic on one selected target. This does
 # not mint or promote the single Federation V5 release approval.
 .\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence
+
+# Experimental 26.3 lane (explicit opt-in; never STABLE or release evidence).
+.\scripts\platform-load-smoke.ps1 -FabricTarget 26.3 -WithFabricClient -AllowExperimentalServerLane
 ```
 
-The last command is not a per-target release requirement. The `26.1.2` and
+`-AllowExperimentalServerLane` (Execute only) admits exactly the reviewed
+matrix lane: Velocity `4.2.0-30` selected from the manifest by
+`target_versions` and checked against the smoke's reviewed pin table, plus
+Paper `26.3` build `140` channel BETA. Velocity runs on the exact target JDK
+(Java 25 for 26.x; the 4.2.0-30 pin requires Java 25). Stable targets resolve
+identically with or without the switch. The report and binding record
+`server_lane = 'EXPERIMENTAL_BETA'` and `velocity_server_version`, keep
+`release_evidence = false`, and `-ReportOnly` (which cannot take the switch)
+rejects an experimental report with
+`PLATFORM_SMOKE_REPORT_EXPERIMENTAL_SERVER_LANE_NOT_STABLE_EVIDENCE`.
+
+The `-WithFabricEvidence` command is not a per-target release requirement. The `26.1.2` and
 `26.2` clients may receive separate UI compatibility or visual diagnostics when
 needed, but those runs are not second or third release approvals and cannot mint
 or promote release consent. The three original targets' Mojang version metadata, asset
@@ -150,15 +165,16 @@ before first render is not GUI evidence. Neither wrapper automates input or
 controls an existing Minecraft process, and neither may convert a decline, close,
 expiry, or unsupported result into risk or enforcement.
 
-A passing record uses report schema `8` and binding
-`MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6`. It must bind:
+A passing record uses report schema `9` and binding
+`MCACE_FABRIC_GUI_EVIDENCE_BINDING_V7`. It must bind:
 
 - the target-specific final artifact and unique run build ID;
 - the loaded entrypoint's exact `CodeSource` SHA-256;
 - the exact rewritten `velocity_policy_minecraft_versions` and
   `velocity_policy_client_build_ids` policy tuples;
 - current Velocity and Paper plugin JARs;
-- the pinned Velocity/Paper servers and prepared Paper tree;
+- the server lane (`STABLE` or `EXPERIMENTAL_BETA`), the pinned Velocity/Paper
+  servers, and the prepared Paper tree;
 - the Minecraft version manifest, asset index, and complete cached asset-object
   manifest;
 - isolated `options.txt`, exactly one explicit-file manifest entry, both consent
