@@ -423,7 +423,7 @@ try {
         Copy-Item -LiteralPath $paperPlugin -Destination (Join-Path $phasePlugins 'mcace.jar')
         Copy-Item -LiteralPath $paperServerJar -Destination (Join-Path $phaseRoot 'paper.jar')
         Write-Utf8 (Join-Path $phaseRoot 'eula.txt') "eula=true`n"
-        Write-Utf8 (Join-Path $phaseRoot 'server.properties') "online-mode=false`nserver-ip=127.0.0.1`nserver-port=$phasePort`nenable-query=false`nmotd=MCAce Bungee Paper smoke`n"
+        Write-Utf8 (Join-Path $phaseRoot 'server.properties') "online-mode=false`nserver-ip=127.0.0.1`nserver-port=$phasePort`nenable-query=false`nwhite-list=false`nmotd=MCAce Bungee Paper smoke`n"
     }
     $bungeeConfig = @"
 ip_forward: false

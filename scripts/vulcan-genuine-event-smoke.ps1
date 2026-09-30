@@ -977,7 +977,7 @@ function Write-ServerConfiguration(
     [IO.File]::WriteAllText(
         (Join-Path $ServerRoot 'eula.txt'), "eula=true`n", [Text.UTF8Encoding]::new($false))
     [IO.File]::WriteAllText((Join-Path $ServerRoot 'server.properties'),
-        "online-mode=false`nenforce-secure-profile=false`nserver-ip=127.0.0.1`nserver-port=$PaperPort`n" +
+        "online-mode=false`nenforce-secure-profile=false`nwhite-list=false`nserver-ip=127.0.0.1`nserver-port=$PaperPort`n" +
         "enable-query=false`nspawn-protection=0`nview-distance=4`nsimulation-distance=4`n" +
         "motd=MCAce licensed Vulcan genuine event gate`n",
         [Text.UTF8Encoding]::new($false))

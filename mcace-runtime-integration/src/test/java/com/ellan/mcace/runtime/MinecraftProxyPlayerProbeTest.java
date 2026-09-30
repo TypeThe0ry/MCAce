@@ -2258,9 +2258,11 @@ final class MinecraftProxyPlayerProbeTest {
             Files.copy(backendJar, paperRoot.resolve(backendJarFileName()));
             Files.copy(paperPlugin, paperRoot.resolve("plugins/mcace.jar"));
             Files.writeString(paperRoot.resolve("eula.txt"), "eula=true\n", StandardCharsets.UTF_8);
+            // Minecraft 26.3 enables the whitelist by default for a new server.properties; the
+            // raw-protocol probe player must still be admitted on every supported version.
             Files.writeString(paperRoot.resolve("server.properties"),
                     "online-mode=false\nserver-ip=127.0.0.1\nserver-port=" + paperPort
-                            + "\nenable-query=false\nmotd=MCAce test-only "
+                            + "\nenable-query=false\nwhite-list=false\nmotd=MCAce test-only "
                             + backendKind.name().toLowerCase(java.util.Locale.ROOT) + " player probe\n",
                     StandardCharsets.UTF_8);
             configurePaperForwarding();
@@ -2365,7 +2367,7 @@ final class MinecraftProxyPlayerProbeTest {
             Files.writeString(root.resolve("eula.txt"), "eula=true\n", StandardCharsets.UTF_8);
             Files.writeString(root.resolve("server.properties"),
                     "online-mode=false\nserver-ip=127.0.0.1\nserver-port=" + port
-                            + "\nenable-query=false\nmotd=MCAce test-only disposition backend\n",
+                            + "\nenable-query=false\nwhite-list=false\nmotd=MCAce test-only disposition backend\n",
                     StandardCharsets.UTF_8);
             configurePaperForwarding(root);
         }

@@ -2306,7 +2306,7 @@ Expand-VelocityConfiguration (Join-Path $velocityRoot 'velocity.jar') (Join-Path
     [System.Text.UTF8Encoding]::new($false))
 [System.IO.File]::WriteAllText(
     (Join-Path $paperRoot 'server.properties'),
-    "online-mode=false`nserver-ip=127.0.0.1`nserver-port=$paperPort`nenable-query=false`nmotd=MCAce platform smoke`n",
+    "online-mode=false`nserver-ip=127.0.0.1`nserver-port=$paperPort`nenable-query=false`nwhite-list=false`nmotd=MCAce platform smoke`n",
     [System.Text.UTF8Encoding]::new($false))
 
 $velocity = $null
