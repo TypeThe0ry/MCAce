@@ -223,9 +223,9 @@ $fabricTargets = [ordered]@{
         artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.3\build\libs\mcace-client-fabric-26.3-0.1.0-SNAPSHOT.jar'
         runtime_artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.3\build\libs\mcace-client-fabric-26.3-0.1.0-SNAPSHOT.jar'
         asset_index = '34'
-        version_info_sha1 = 'bc098d111a72e9f6178801544a42099bdfbb0cf2'
-        version_info_sha256 = '061edddc346be236acf38f51b63c2361b084ae7b0d7ca15367242f99b1596839'
-        asset_index_sha1 = '32a06dd28a0a8a981f4a1dffbdb3931f3075ca6c'
+        version_info_sha1 = '4fe1aa1ef8da1cb95c5bad1fb98890ca56dd8ca3'
+        version_info_sha256 = '9a7b39dae3b9c8d30006b650e357aae220629b7852fa0fc7221db7a8646bd5e4'
+        asset_index_sha1 = 'abfaa525f923f807df8b4e4d29c1b5e3a104adbe'
         asset_index_size = 597035L
         # Paper 26.3 exists in the server-version matrix only as the explicit experimental
         # BETA lane (build 140, behind Velocity 4.2.0-30 on Java 25). Resolve-ServerMatrixAssets
