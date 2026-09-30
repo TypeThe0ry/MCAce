@@ -365,6 +365,51 @@ Assert-True ($matrixSetText.Contains('ConvertTo-Json -Depth 30 -Compress') -and
         -not $matrixSetText.Contains('return Get-CompactObjectSha256')) `
     'Matrix set commitments must use the shared no-trailing-newline encoding'
 
+# Matrix V4 shape: 14 ordered cases, Paper-only experimental 26.3 lane on Velocity 4.2.0-30.
+$matrixShapeAssignments = @('matrixTargetVersions','matrixBackendsByVersion','matrixBetaLaneKeys',
+    'matrixExpectedCaseCount','matrixExpectedStableCaseCount','matrixExpectedBetaCaseCount',
+    'matrixBackendAssetKeys','matrixProxyJavaByKey') | ForEach-Object {
+    $variableName = $_
+    $assignment = @($ast.FindAll({
+        param($node)
+        $node -is [Management.Automation.Language.AssignmentStatementAst] -and
+            $node.Left.Extent.Text -ceq "`$$variableName"
+    }, $false))
+    Assert-True ($assignment.Count -eq 1) "Matrix V4 shape assignment is not unique: $variableName"
+    $assignment[0].Extent.Text
+}
+$matrixShape = & ([ScriptBlock]::Create(($matrixShapeAssignments -join "`n") + "`n" +
+    (Get-FunctionText $ast @('Get-ExpectedMatrixCases','Get-MatrixProxyVersion','Get-MatrixPlayLoginId')) + @'
+
+[pscustomobject]@{
+    cases = @(Get-ExpectedMatrixCases)
+    proxies = @('1.21.11','26.1.2','26.2','26.3' | ForEach-Object {
+        "$_=$(Get-MatrixProxyVersion 'velocity' $_)/$(Get-MatrixProxyVersion 'bungeecord' $_)/$(Get-MatrixPlayLoginId $_)"
+    })
+    counts = "$matrixExpectedCaseCount/$matrixExpectedStableCaseCount/$matrixExpectedBetaCaseCount"
+    assets = "$($matrixBackendAssetKeys.Count)+$($matrixProxyJavaByKey.Count)"
+    velocity_420_java = [int]$matrixProxyJavaByKey['velocity|4.2.0-30']
+}
+'@))
+Assert-True ((@($matrixShape.cases | ForEach-Object case_id) -join ',') -ceq (@(
+        '1.21.11-paper-velocity','1.21.11-paper-bungee','1.21.11-folia-velocity','1.21.11-folia-bungee',
+        '26.1.2-paper-velocity','26.1.2-paper-bungee','26.1.2-folia-velocity','26.1.2-folia-bungee',
+        '26.2-paper-velocity','26.2-paper-bungee','26.2-folia-velocity','26.2-folia-bungee',
+        '26.3-paper-velocity','26.3-paper-bungee') -join ',')) `
+    'Matrix V4 expected case order/set is not the 14-case Paper-only-26.3 matrix'
+Assert-True ((@($matrixShape.cases | Where-Object { $_.lane -ceq 'BETA' } | ForEach-Object case_id) -join ',') -ceq
+        '26.2-folia-velocity,26.2-folia-bungee,26.3-paper-velocity,26.3-paper-bungee' -and
+        @($matrixShape.cases | Where-Object { $_.lane -ceq 'STABLE' }).Count -eq 10) `
+    'Matrix V4 BETA lanes must be exactly Folia 26.2 and Paper 26.3'
+Assert-True (@($matrixShape.cases | Where-Object { $_.minecraft_version -ceq '26.3' -and
+        ($_.minecraft_protocol -ne 777 -or $_.server_java_feature -ne 25) }).Count -eq 0) `
+    'Matrix V4 26.3 cases must be protocol 777 on Java 25'
+Assert-True (($matrixShape.proxies -join ';') -ceq
+        '1.21.11=3.5.1-615/2085/0x30;26.1.2=3.5.1-615/2085/0x31;26.2=3.5.1-615/2085/0x31;26.3=4.2.0-30/2100/0x32' -and
+        $matrixShape.counts -ceq '14/10/4' -and $matrixShape.assets -ceq '7+4' -and
+        $matrixShape.velocity_420_java -eq 25) `
+    'Matrix V4 proxy pins, PLAY login ids, or counts drifted'
+
 $releaseReaderFunction = @($ast.FindAll({
     param($node)
     $node -is [Management.Automation.Language.FunctionDefinitionAst] -and

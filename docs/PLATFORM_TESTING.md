@@ -39,19 +39,26 @@ predates `26.3` and covers the three original targets.
 | `1.21.11` | 774 | 21 | build 132, STABLE | build 14, STABLE | final remapped JAR |
 | `26.1.2` | 775 | 25 | build 74, STABLE | build 8, STABLE | final named JAR |
 | `26.2` | 776 | 25 | build 116, STABLE | build 6, **BETA** | final named JAR |
-| `26.3` | 777 | 25 | not in server matrix | not in server matrix | final named JAR |
+| `26.3` | 777 | 25 | build 140, **BETA** (experimental) | none upstream | final named JAR |
 
-The server-version process matrix (Paper/Folia backends) is not extended to
-`26.3`; the `26.3` client artifact is verified by build, unit tests, and the
-compatibility contract. The backend pins below therefore cover only the three
-original targets.
+The server-version process matrix defines 14 cases: Paper and Folia for
+`1.21.11`/`26.1.2`/`26.2`, plus an explicit experimental, Paper-only `26.3`
+lane (Folia publishes no `26.3` line). The `26.3` cases bind Velocity
+`4.2.0-30` (Java 25) and BungeeCord `2100`, because Velocity `3.5.1-615` and
+BungeeCord `2085` predate protocol 777; the three original targets keep those
+reviewed proxies. Paper `26.3` has no STABLE build, so its two cases are
+labelled BETA alongside Folia `26.2` (10 STABLE + 4 BETA) and are never
+promoted. No 14-case run is recorded yet; the platform smoke still fails closed
+for `26.3` because it accepts only a STABLE Paper.
 
-Both proxy assets are shared across the matrix:
+Reviewed proxy assets (each case selects the pin whose target set contains its version):
 
-| Platform | Version/build | SHA-256 |
-| --- | --- | --- |
-| Velocity | `3.5.1-615` | `b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3` |
-| BungeeCord | `2085` | `e6914a29c0ae04c0ed6335f201e409322b3c67548906a91e92e832d665cd6fce` |
+| Platform | Version/build | Targets | SHA-256 |
+| --- | --- | --- | --- |
+| Velocity | `3.5.1-615` | `1.21.11`, `26.1.2`, `26.2` | `b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3` |
+| Velocity | `4.2.0-30` (Java 25) | `26.3` | `35a5596a5468a035d8a32c8de5ebb0dc6b8d8f0cc3ff5169d514aca762af8aa8` |
+| BungeeCord | `2085` | `1.21.11`, `26.1.2`, `26.2` | `e6914a29c0ae04c0ed6335f201e409322b3c67548906a91e92e832d665cd6fce` |
+| BungeeCord | `2100` | `26.3` | `8b9f75994fa6bd027e98827b3f83523f462c9e4b978fdab2fad00182ba4c924b` |
 
 The backend pins are:
 
@@ -60,6 +67,7 @@ The backend pins are:
 | Paper | `1.21.11-132` | STABLE | `5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba` |
 | Paper | `26.1.2-74` | STABLE | `1d70b1dab9cf4a6de615209a536f3a45a2186240253c428213ce2188ab95e5f7` |
 | Paper | `26.2-116` | STABLE | `17eee738bc0f6b747646be4199672c4efcb2084efd7e291ec5254a45d5ae6f2e` |
+| Paper | `26.3-140` | BETA (experimental) | `98aabc113a80b9b5e183475e839a17cf99c39c915a1f46b8f35a5e89fd5de0f1` |
 | Folia | `1.21.11-14` | STABLE | `f52c408490a0225611e67907a3ca19f7e6da2c6bc899e715d5f46844e7103c39` |
 | Folia | `26.1.2-8` | STABLE | `607afd1c3320008e1ffd2eaee6780ace4419d5f8c527b75e79f259be79ebf57b` |
 | Folia | `26.2-6` | BETA | `9a728381da3a3bea6732ee210519f8f6ab7d6affe132a430ee167c44c4603d08` |

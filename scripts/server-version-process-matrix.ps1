@@ -46,7 +46,21 @@ $obsoleteEvidenceSchemas = @(
     'MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V3')
 $preparedTreeDomain = "MCACE_PREPARED_TREE_SHA256_V1`0"
 $preparedRoots = @('cache', 'libraries', 'versions')
-$targetVersions = @('1.21.11', '26.1.2', '26.2')
+$targetVersions = @('1.21.11', '26.1.2', '26.2', '26.3')
+# Folia publishes no 26.3 line, so the 26.3 lane is Paper-only.
+$backendsByVersion = [ordered]@{
+    '1.21.11' = @('paper','folia')
+    '26.1.2' = @('paper','folia')
+    '26.2' = @('paper','folia')
+    '26.3' = @('paper')
+}
+# Explicit experimental lanes, labelled BETA and never promoted to STABLE:
+# Folia 26.2 and Paper 26.3 only have upstream pre-release builds.
+$betaLaneIdentities = @('folia:26.2','paper:26.3')
+$expectedCaseCount = 14
+$expectedStableCaseCount = 10
+$expectedBetaCaseCount = 4
+$expectedPreparedTreeCount = 7
 
 $repoRoot = [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $wrapperPath = [IO.Path]::GetFullPath($MyInvocation.MyCommand.Path)
@@ -75,9 +89,15 @@ $expectedAssets = @(
     [ordered]@{ project='paper'; version='26.2'; build='116'; sha256='17eee738bc0f6b747646be4199672c4efcb2084efd7e291ec5254a45d5ae6f2e'; size=64426830L; channel='STABLE'; java_major=25; url='https://fill-data.papermc.io/v1/objects/17eee738bc0f6b747646be4199672c4efcb2084efd7e291ec5254a45d5ae6f2e/paper-26.2-116.jar' },
     [ordered]@{ project='folia'; version='1.21.11'; build='14'; sha256='f52c408490a0225611e67907a3ca19f7e6da2c6bc899e715d5f46844e7103c39'; size=55082693L; channel='STABLE'; java_major=21; url='https://fill-data.papermc.io/v1/objects/f52c408490a0225611e67907a3ca19f7e6da2c6bc899e715d5f46844e7103c39/folia-1.21.11-14.jar' },
     [ordered]@{ project='folia'; version='26.1.2'; build='8'; sha256='607afd1c3320008e1ffd2eaee6780ace4419d5f8c527b75e79f259be79ebf57b'; size=53184326L; channel='STABLE'; java_major=25; url='https://fill-data.papermc.io/v1/objects/607afd1c3320008e1ffd2eaee6780ace4419d5f8c527b75e79f259be79ebf57b/folia-26.1.2-8.jar' },
+    [ordered]@{ project='paper'; version='26.3'; build='140'; sha256='98aabc113a80b9b5e183475e839a17cf99c39c915a1f46b8f35a5e89fd5de0f1'; size=54017532L; channel='BETA'; java_major=25; url='https://fill-data.papermc.io/v1/objects/98aabc113a80b9b5e183475e839a17cf99c39c915a1f46b8f35a5e89fd5de0f1/paper-26.3-140.jar' },
     [ordered]@{ project='folia'; version='26.2'; build='6'; sha256='9a728381da3a3bea6732ee210519f8f6ab7d6affe132a430ee167c44c4603d08'; size=64694365L; channel='BETA'; java_major=25; url='https://fill-data.papermc.io/v1/objects/9a728381da3a3bea6732ee210519f8f6ab7d6affe132a430ee167c44c4603d08/folia-26.2-6.jar' },
-    [ordered]@{ project='velocity'; version='3.5.1-615'; build='615'; sha256='b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3'; size=18932366L; channel='REVIEWED'; java_major=21; url='https://fill-data.papermc.io/v1/objects/b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3/velocity-3.5.1-615.jar' },
-    [ordered]@{ project='bungeecord'; version='2085'; build='2085'; sha256='e6914a29c0ae04c0ed6335f201e409322b3c67548906a91e92e832d665cd6fce'; size=25599274L; channel='REVIEWED'; java_major=21; url='https://hub.spigotmc.org/jenkins/job/BungeeCord/2085/artifact/bootstrap/target/BungeeCord.jar' }
+    # Proxy pins carry the exact targets they serve; each case selects the unique pin
+    # of its proxy project covering its Minecraft version. Velocity 3.5.1-615 and BungeeCord
+    # 2085 predate protocol 777, so 26.3 binds Velocity 4.2.0-30 (Java 25) and BungeeCord 2100.
+    [ordered]@{ project='velocity'; version='3.5.1-615'; build='615'; sha256='b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3'; size=18932366L; channel='REVIEWED'; java_major=21; url='https://fill-data.papermc.io/v1/objects/b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3/velocity-3.5.1-615.jar'; target_versions=@('1.21.11','26.1.2','26.2') },
+    [ordered]@{ project='velocity'; version='4.2.0-30'; build='30'; sha256='35a5596a5468a035d8a32c8de5ebb0dc6b8d8f0cc3ff5169d514aca762af8aa8'; size=42163652L; channel='REVIEWED'; java_major=25; url='https://fill-data.papermc.io/v1/objects/35a5596a5468a035d8a32c8de5ebb0dc6b8d8f0cc3ff5169d514aca762af8aa8/velocity-4.2.0-30.jar'; target_versions=@('26.3') },
+    [ordered]@{ project='bungeecord'; version='2085'; build='2085'; sha256='e6914a29c0ae04c0ed6335f201e409322b3c67548906a91e92e832d665cd6fce'; size=25599274L; channel='REVIEWED'; java_major=21; url='https://hub.spigotmc.org/jenkins/job/BungeeCord/2085/artifact/bootstrap/target/BungeeCord.jar'; target_versions=@('1.21.11','26.1.2','26.2') },
+    [ordered]@{ project='bungeecord'; version='2100'; build='2100'; sha256='8b9f75994fa6bd027e98827b3f83523f462c9e4b978fdab2fad00182ba4c924b'; size=25823945L; channel='REVIEWED'; java_major=21; url='https://hub.spigotmc.org/jenkins/job/BungeeCord/2100/artifact/bootstrap/target/BungeeCord.jar'; target_versions=@('26.3') }
 )
 
 function ConvertTo-LowerHex([byte[]]$Bytes) {
@@ -432,7 +452,7 @@ function Assert-AssetManifest {
                 'schema','generated_at','prepared_tree_status','assets')) -or
             $manifest.schema -cne 'MCACE_SERVER_VERSION_MATRIX_ASSETS_V1' -or
             [string]$manifest.prepared_tree_status -cne 'DEFERRED' -or
-            @($manifest.assets).Count -ne 8) {
+            @($manifest.assets).Count -ne @($expectedAssets).Count) {
         throw 'SERVER_VERSION_MATRIX_ASSET_MANIFEST_SCHEMA_INVALID'
     }
     try {
@@ -489,7 +509,7 @@ function Assert-AssetManifest {
         }
         if ($isProxy) {
             $versions = [string[]]@($asset.target_versions)
-            if (($versions -join ',') -cne ($targetVersions -join ',')) {
+            if (($versions -join ',') -cne ((@($expected.target_versions)) -join ',')) {
                 throw "SERVER_VERSION_MATRIX_PROXY_TARGET_SET_INVALID|$key"
             }
         }
@@ -541,7 +561,7 @@ function Assert-PreparedManifest([object]$AssetState) {
     if (-not (Test-ExactProperties $manifest @('schema','generated_at','roots','trees')) -or
             $manifest.schema -cne 'MCACE_SERVER_VERSION_MATRIX_PREPARED_V1' -or
             ((@($manifest.roots) -join ',') -cne ($preparedRoots -join ',')) -or
-            @($manifest.trees).Count -ne 6) {
+            @($manifest.trees).Count -ne $expectedPreparedTreeCount) {
         throw 'SERVER_VERSION_MATRIX_PREPARED_MANIFEST_SCHEMA_INVALID'
     }
     try {
@@ -833,23 +853,47 @@ function Get-ProductJars {
     return [pscustomobject]@{ public=[pscustomobject]$public; paths=$internal }
 }
 
+function Get-ProxyExpectedAsset([string]$ProxyProject, [string]$MinecraftVersion) {
+    $matches = @($expectedAssets | Where-Object {
+        $_.project -ceq $ProxyProject -and
+            @($_.target_versions | Where-Object { [string]$_ -ceq $MinecraftVersion }).Count -eq 1
+    })
+    if ($matches.Count -ne 1) {
+        throw "SERVER_VERSION_MATRIX_PROXY_ASSET_SELECTION_INVALID|$ProxyProject|$MinecraftVersion|$($matches.Count)"
+    }
+    return $matches[0]
+}
+
 function Get-MatrixDefinitions([object]$AssetState, [object]$PreparedState) {
-    $protocolByVersion = [ordered]@{ '1.21.11'=774; '26.1.2'=775; '26.2'=776 }
-    $javaByVersion = [ordered]@{ '1.21.11'=21; '26.1.2'=25; '26.2'=25 }
-    $playLoginByVersion = [ordered]@{ '1.21.11'='0x30'; '26.1.2'='0x31'; '26.2'='0x31' }
+    $protocolByVersion = [ordered]@{ '1.21.11'=774; '26.1.2'=775; '26.2'=776; '26.3'=777 }
+    $javaByVersion = [ordered]@{ '1.21.11'=21; '26.1.2'=25; '26.2'=25; '26.3'=25 }
+    $playLoginByVersion = [ordered]@{ '1.21.11'='0x30'; '26.1.2'='0x31'; '26.2'='0x31'; '26.3'='0x32' }
     $definitions = [Collections.Generic.List[object]]::new()
     foreach ($version in $targetVersions) {
-        foreach ($backend in @('paper','folia')) {
+        foreach ($backend in @($backendsByVersion[$version])) {
             $serverExpected = Get-ExpectedAsset $backend $version
             $serverKey = Get-AssetIdentity $serverExpected
             if (-not $AssetState.by_identity.ContainsKey($serverKey) -or
                     -not $PreparedState.by_identity.ContainsKey($serverKey)) {
                 throw "SERVER_VERSION_MATRIX_DEFINITION_SERVER_MISSING|$serverKey"
             }
+            $isBeta = "${backend}:$version" -cin $betaLaneIdentities
+            if (($isBeta -and [string]$serverExpected.channel -cne 'BETA') -or
+                    (-not $isBeta -and [string]$serverExpected.channel -cne 'STABLE')) {
+                throw "SERVER_VERSION_MATRIX_DEFINITION_LANE_INVALID|$serverKey"
+            }
             foreach ($proxy in @('velocity','bungee')) {
                 $proxyProject = if ($proxy -ceq 'velocity') { 'velocity' } else { 'bungeecord' }
-                $proxyExpected = @($expectedAssets | Where-Object { $_.project -ceq $proxyProject })[0]
+                $proxyExpected = Get-ProxyExpectedAsset $proxyProject $version
                 $proxyKey = Get-AssetIdentity $proxyExpected
+                if (-not $AssetState.by_identity.ContainsKey($proxyKey)) {
+                    throw "SERVER_VERSION_MATRIX_DEFINITION_PROXY_MISSING|$proxyKey"
+                }
+                # The harness runs the proxy on the case's server JVM, so a proxy that
+                # needs a newer Java than the case server JVM can never be selected.
+                if ([int]$proxyExpected.java_major -gt [int]$javaByVersion[$version]) {
+                    throw "SERVER_VERSION_MATRIX_DEFINITION_PROXY_JAVA_INVALID|$proxyKey|$version"
+                }
                 $isFolia = $backend -ceq 'folia'
                 $selector = if ($isFolia) {
                     if ($proxy -ceq 'velocity') {
@@ -864,7 +908,7 @@ function Get-MatrixDefinitions([object]$AssetState, [object]$PreparedState) {
                         'com.ellan.mcace.runtime.MinecraftProxyPlayerProbeTest.realBungeeIpForwardingOfflinePlayerProbeReachesMCAceChannel'
                     }
                 }
-                $lane = if ($backend -ceq 'folia' -and $version -ceq '26.2') { 'BETA' } else { 'STABLE' }
+                $lane = if ($isBeta) { 'BETA' } else { 'STABLE' }
                 [void]$definitions.Add([pscustomobject][ordered]@{
                     case_id = "$version-$backend-$proxy"
                     minecraft_version = $version
@@ -888,8 +932,9 @@ function Get-MatrixDefinitions([object]$AssetState, [object]$PreparedState) {
             }
         }
     }
-    if ($definitions.Count -ne 12 -or
-            @($definitions | Where-Object { $_.lane -ceq 'BETA' }).Count -ne 2) {
+    if ($definitions.Count -ne $expectedCaseCount -or
+            @($definitions | Where-Object { $_.lane -ceq 'BETA' }).Count -ne $expectedBetaCaseCount -or
+            @($definitions | Where-Object { $_.lane -ceq 'STABLE' }).Count -ne $expectedStableCaseCount) {
         throw 'SERVER_VERSION_MATRIX_DEFINITION_SET_INVALID'
     }
     return @($definitions)
@@ -932,7 +977,7 @@ function Get-CurrentBinding {
         source_commit = $ExpectedSourceCommit
         product_version = $ProductVersion
         target_versions = @($targetVersions)
-        case_count = 12
+        case_count = $expectedCaseCount
         source_manifest_sha256 = $source.sha256
         source_file_count = $source.file_count
         wrapper_sha256 = $wrapper.sha256
@@ -1601,8 +1646,8 @@ function Assert-PackagedRawReport {
             $cleanupIds.Count -ne [int]$Case.cleanup_process_count) {
         throw "SERVER_VERSION_MATRIX_PACKAGED_RAW_CLEANUP_INVALID|$($Definition.case_id)"
     }
-    $expectedPlay = if ($Definition.minecraft_version -ceq '1.21.11') { '0x30' } else { '0x31' }
-    if (@($Raw.channels | Where-Object { [string]$_ -ceq 'mcace:handshake' }).Count -lt 1 -or
+    $expectedPlay = [string]$Definition.expected_play_login
+    if ($expectedPlay -cnotmatch '^0x[0-9A-F]{2}$' -or @($Raw.channels | Where-Object { [string]$_ -ceq 'mcace:handshake' }).Count -lt 1 -or
             @($Raw.packet_trace | Where-Object { [string]$_ -ceq "PLAY:$expectedPlay" }).Count -ne 1) {
         throw "SERVER_VERSION_MATRIX_PACKAGED_RAW_PROTOCOL_INVALID|$($Definition.case_id)"
     }
@@ -1623,16 +1668,16 @@ function Assert-RawManifest {
             [string]$manifest.source_mode -cne 'EXECUTED' -or
             [string]$manifest.source_commit -cne $ExpectedSourceCommit -or
             [string]$manifest.product_version -cne $ProductVersion -or
-            -not (Test-JsonInteger $manifest.case_count) -or [int]$manifest.case_count -ne 12 -or
+            -not (Test-JsonInteger $manifest.case_count) -or [int]$manifest.case_count -ne $expectedCaseCount -or
             [string]$manifest.ordered_raw_report_set_sha256 -cnotmatch '^[0-9a-f]{64}$' -or
-            @($manifest.reports).Count -ne 12 -or
+            @($manifest.reports).Count -ne $expectedCaseCount -or
             -not (Test-ExactDateTimeOffsetInstant $manifest.generated_at $Report.generated_at `
                 'raw-manifest.generated_at')) {
         throw 'SERVER_VERSION_MATRIX_RAW_MANIFEST_INVALID'
     }
     $rawRoot = Assert-DirectLocalPath (Join-Path $EvidenceDirectory 'raw') -Directory
     $entries = @(Get-ChildItem -LiteralPath $rawRoot -Force -ErrorAction Stop)
-    if ($entries.Count -ne 12 -or @($entries | Where-Object {
+    if ($entries.Count -ne $expectedCaseCount -or @($entries | Where-Object {
                 $_.PSIsContainer -or ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
             }).Count -ne 0) {
         throw 'SERVER_VERSION_MATRIX_RAW_REPORT_SET_INVALID'
@@ -1643,7 +1688,7 @@ function Assert-RawManifest {
         'minecraft_version','backend','proxy','execution_mode','invocation_exit_code',
         'invocation_log_sha256','cleanup_process_count','remaining_run_process_count',
         'process_cleanup_observed')
-    for ($index = 0; $index -lt 12; $index++) {
+    for ($index = 0; $index -lt $expectedCaseCount; $index++) {
         $descriptor = $descriptors[$index]
         $case = $cases[$index]
         $definition = $Current.definitions[$index]
@@ -1867,8 +1912,10 @@ function Assert-Report {
             [string]$Report.release_source_commit -cnotmatch '^[0-9a-f]{40}$' -or
             [string]$Report.product_version -cne $ProductVersion -or
             ((@($Report.target_versions) -join ',') -cne ($targetVersions -join ',')) -or
-            [int]$Report.expected_case_count -ne 12 -or [int]$Report.observed_case_count -ne 12 -or
-            [int]$Report.stable_case_count -ne 10 -or [int]$Report.beta_case_count -ne 2 -or
+            [int]$Report.expected_case_count -ne $expectedCaseCount -or
+            [int]$Report.observed_case_count -ne $expectedCaseCount -or
+            [int]$Report.stable_case_count -ne $expectedStableCaseCount -or
+            [int]$Report.beta_case_count -ne $expectedBetaCaseCount -or
             -not (Test-JsonBoolean $Report.all_cases_passed) -or -not $Report.all_cases_passed -or
             -not (Test-JsonBoolean $Report.cleanup_all_zero) -or -not $Report.cleanup_all_zero -or
             [string]$Report.raw_manifest_schema -cne $rawManifestSchema -or
@@ -1887,7 +1934,7 @@ function Assert-Report {
             -not (Test-JsonBoolean $Report.independent_supervisor_signature_present) -or
             -not [bool]$Report.independent_supervisor_signature_present -or
             -not (Test-JsonBoolean $Report.release_eligible) -or -not [bool]$Report.release_eligible -or
-            @($Report.cases).Count -ne 12) {
+            @($Report.cases).Count -ne $expectedCaseCount) {
         throw 'SERVER_VERSION_MATRIX_REPORT_INVALID'
     }
     try {
@@ -2084,7 +2131,7 @@ function Assert-SupervisorEvidencePackage {
     $productCommitment=Get-MatrixProductCommitment $Current $bundle
     $trustRoot=Read-MatrixSupervisorTrustRoot
     $caseCommitments=[Collections.Generic.List[object]]::new();$processIdentityCount=0
-    for($caseIndex=0;$caseIndex -lt 12;$caseIndex++){
+    for($caseIndex=0;$caseIndex -lt $expectedCaseCount;$caseIndex++){
         $case=@($report.cases)[$caseIndex]
         $rawPath=Join-Path $Directory (([string]$case.raw_report).Replace('/','\'))
         $raw=(Read-StableJson $rawPath).value
@@ -2145,7 +2192,7 @@ function Assert-SupervisorEvidencePackage {
             [string]$request.raw_manifest_sha256 -cne [string]$RawManifestEvidence.digest.sha256 -or
             [long]$request.raw_manifest_size_bytes -ne [long]$RawManifestEvidence.digest.size -or
             [string]$request.case_runtime_commitment_sha256 -cne $caseSha -or
-            [int]$request.case_count -ne 12 -or [int]$request.process_identity_count -ne $processIdentityCount -or
+            [int]$request.case_count -ne $expectedCaseCount -or [int]$request.process_identity_count -ne $processIdentityCount -or
             (Get-SetSha256 $caseRuntimeDomain @($request.case_runtime_commitments)) -cne $caseSha -or
             [string]$request.release_bundle_manifest_sha256 -cne [string]$bundle.manifest_sha256 -or
             [string]$request.release_bundle_artifact_set_sha256 -cne $releaseSha -or
@@ -2310,7 +2357,7 @@ function New-EvidenceTriplet {
         [Parameter(Mandatory)][object]$Current,
         [Parameter(Mandatory)][object[]]$Cases
     )
-    if ($Cases.Count -ne 12) { throw 'SERVER_VERSION_MATRIX_COMPLETE_12_OF_12_REQUIRED' }
+    if ($Cases.Count -ne $expectedCaseCount) { throw 'SERVER_VERSION_MATRIX_COMPLETE_14_OF_14_REQUIRED' }
     $bundle = Read-ReleaseBundleSnapshot
     $productCommitment = Get-MatrixProductCommitment $Current $bundle
     $trustRoot = Read-MatrixSupervisorTrustRoot
@@ -2333,7 +2380,7 @@ function New-EvidenceTriplet {
     $rawSources = [Collections.Generic.List[object]]::new()
     $rawDescriptors = [Collections.Generic.List[object]]::new()
     $publishedCases = [Collections.Generic.List[object]]::new()
-    for ($index = 0; $index -lt 12; $index++) {
+    for ($index = 0; $index -lt $expectedCaseCount; $index++) {
         $case = $Cases[$index]
         $definition = $Current.definitions[$index]
         Assert-CaseBinding $case $definition $Current
@@ -2382,7 +2429,7 @@ function New-EvidenceTriplet {
 
     $caseCommitments = [Collections.Generic.List[object]]::new()
     $processIdentityCount = 0
-    for ($caseIndex=0; $caseIndex -lt 12; $caseIndex++) {
+    for ($caseIndex=0; $caseIndex -lt $expectedCaseCount; $caseIndex++) {
         $case=@($publishedCases)[$caseIndex]; $raw=@($rawSources)[$caseIndex].value
         $processes=[Collections.Generic.List[object]]::new()
         $cleanupIds=@($raw.cleanup_process_ids)
@@ -2419,7 +2466,7 @@ function New-EvidenceTriplet {
     $orderedRawSetSha256=Get-OrderedRawReportSetSha256 $rawDescriptors.ToArray()
     $rawManifest=[pscustomobject][ordered]@{
         schema=$rawManifestSchema; generated_at=$generatedAt; source_mode='EXECUTED'
-        source_commit=$ExpectedSourceCommit; product_version=$ProductVersion; case_count=12
+        source_commit=$ExpectedSourceCommit; product_version=$ProductVersion; case_count=$expectedCaseCount
         ordered_raw_report_set_sha256=$orderedRawSetSha256; reports=$rawDescriptors.ToArray()
     }
     $rawManifestBytes=ConvertTo-CompactJsonBytes $rawManifest
@@ -2430,8 +2477,10 @@ function New-EvidenceTriplet {
         schema=$reportSchema; generated_at=$generatedAt; source_mode='EXECUTED'
         source_commit=$ExpectedSourceCommit; release_source_commit=$bundle.release_source_commit
         artifact_source_commit=$ExpectedArtifactSourceCommit; product_version=$ProductVersion
-        target_versions=@($targetVersions); expected_case_count=12; observed_case_count=12
-        stable_case_count=10; beta_case_count=2; all_cases_passed=$true; cleanup_all_zero=$true
+        target_versions=@($targetVersions); expected_case_count=$expectedCaseCount
+        observed_case_count=$expectedCaseCount
+        stable_case_count=$expectedStableCaseCount; beta_case_count=$expectedBetaCaseCount
+        all_cases_passed=$true; cleanup_all_zero=$true
         raw_manifest_schema=$rawManifestSchema; raw_manifest_sha256=$rawManifestSha256
         raw_manifest_bytes=[long]$rawManifestBytes.Length
         ordered_raw_report_set_sha256=$orderedRawSetSha256
@@ -2491,7 +2540,7 @@ function New-EvidenceTriplet {
         binding_size_bytes=[long]$bindingBytes.Length; raw_manifest_sha256=$rawManifestSha256
         raw_manifest_size_bytes=[long]$rawManifestBytes.Length
         ordered_raw_report_set_sha256=$orderedRawSetSha256
-        case_runtime_commitment_sha256=$caseCommitmentSha256; case_count=12
+        case_runtime_commitment_sha256=$caseCommitmentSha256; case_count=$expectedCaseCount
         process_identity_count=$processIdentityCount; case_runtime_commitments=$caseCommitmentValues
         release_bundle_schema='MCACE_RELEASE_BUNDLE_V4'
         release_bundle_manifest_sha256=$bundle.manifest_sha256
@@ -2553,7 +2602,7 @@ function New-EvidenceTriplet {
             binding_sha256=$bindingSha256; binding_size_bytes=[long]$bindingBytes.Length
             raw_manifest_sha256=$rawManifestSha256; raw_manifest_size_bytes=[long]$rawManifestBytes.Length
             ordered_raw_report_set_sha256=$orderedRawSetSha256
-            case_runtime_commitment_sha256=$caseCommitmentSha256; case_count=12
+            case_runtime_commitment_sha256=$caseCommitmentSha256; case_count=$expectedCaseCount
             process_identity_count=$processIdentityCount; release_bundle_schema='MCACE_RELEASE_BUNDLE_V4'
             release_bundle_manifest_sha256=$bundle.manifest_sha256
             release_bundle_manifest_size_bytes=[long]$bundle.manifest_bytes
@@ -2733,7 +2782,7 @@ function Read-ExecutionCheckpoint([object]$Current) {
     if (-not (Test-ExactProperties $value @('schema','generated_at','current_sha256',
             'case_count','cases')) -or
             [string]$value.schema -cne $checkpointSchema -or
-            [int]$value.case_count -lt 0 -or [int]$value.case_count -gt 12 -or
+            [int]$value.case_count -lt 0 -or [int]$value.case_count -gt $expectedCaseCount -or
             @($value.cases).Count -ne [int]$value.case_count) {
         throw 'SERVER_VERSION_MATRIX_CHECKPOINT_INVALID'
     }
@@ -2802,7 +2851,7 @@ try {
         }
         $ordinal++
     }
-    if ($cases.Count -ne 12) { throw 'SERVER_VERSION_MATRIX_COMPLETE_12_OF_12_REQUIRED' }
+    if ($cases.Count -ne $expectedCaseCount) { throw 'SERVER_VERSION_MATRIX_COMPLETE_14_OF_14_REQUIRED' }
     $currentAfter = Get-CurrentBinding
     Compare-PublicBinding $currentBefore.public $currentAfter.public
     $published = New-EvidenceTriplet $currentAfter $cases.ToArray()

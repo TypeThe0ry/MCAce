@@ -19,8 +19,11 @@ $staticChecks = [ordered]@{
         $source -match '\[switch\]\$Execute'
     explicit_register_prepared = $source -match "ParameterSetName\s*=\s*'RegisterPrepared'" -and
         $source -match '\[switch\]\$RegisterPrepared'
-    six_papermc_targets = $source -match "@\('1\.21\.11', '26\.1\.2', '26\.2'\)" -and
-        $source -match "@\('paper', 'folia'\)"
+    seven_papermc_targets = $source -match "\`$targetVersions = @\('1\.21\.11', '26\.1\.2', '26\.2', '26\.3'\)" -and
+        $source -match "@\('paper', 'folia'\)" -and
+        $source -match "paper = @\('1\.21\.11', '26\.1\.2', '26\.2', '26\.3'\)" -and
+        $source -match "folia = @\('1\.21\.11', '26\.1\.2', '26\.2'\)"
+    explicit_experimental_lanes = $source -match "\`$experimentalLanes = @\('folia:26\.2', 'paper:26\.3'\)"
     exact_cache_layout = $source -match "'build\\runtime-assets'" -and
         $source -match 'Join-Path \$Asset\.build ''server\.jar'''
     immutable_fill_origin = $source -match 'fill-data\\\.papermc\\\.io/v1/objects'
@@ -36,6 +39,12 @@ $staticChecks = [ordered]@{
     velocity_reviewed = $source -match 'velocity-3\.5\.1-615\.jar' -and
         $source -match 'b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3' -and
         $source -match '18932366'
+    velocity_420_reviewed = $source -match 'velocity-4\.2\.0-30\.jar' -and
+        $source -match '35a5596a5468a035d8a32c8de5ebb0dc6b8d8f0cc3ff5169d514aca762af8aa8' -and
+        $source -match '42163652'
+    bungee_2100_reviewed = $source -match 'BungeeCord/2100/artifact/bootstrap/target/BungeeCord\.jar' -and
+        $source -match '8b9f75994fa6bd027e98827b3f83523f462c9e4b978fdab2fad00182ba4c924b' -and
+        $source -match '25823945'
     bungee_2085_reviewed = $source -match 'BungeeCord/2085/artifact/bootstrap/target/BungeeCord\.jar' -and
         $source -match 'e6914a29c0ae04c0ed6335f201e409322b3c67548906a91e92e832d665cd6fce' -and
         $source -match '25599274'
@@ -107,17 +116,30 @@ try {
     Write-Fixture 'folia' '1.21.11' 'STABLE' '6' 400
     Write-Fixture 'folia' '26.1.2' 'RECOMMENDED' '8' 500
     Write-Fixture 'folia' '26.2' 'EXPERIMENTAL' 'a' 600
+    # Paper 26.3 has only pre-release builds. BETA is the explicit experimental
+    # lane; a newer ALPHA must never be selected. No folia-26.3 fixture exists:
+    # requesting it would fail with SERVER_MATRIX_FIXTURE_MISSING.
+    $paper263 = @(
+        (New-FillBuild 700 'BETA' 'paper' '26.3' ('c' * 64) 1000700),
+        (New-FillBuild 701 'BETA' 'paper' '26.3' ('d' * 64) 1000701),
+        (New-FillBuild 702 'ALPHA' 'paper' '26.3' ('e' * 64) 1000702)
+    )
+    [IO.File]::WriteAllText(
+        (Join-Path $fixtureRoot 'paper-26.3.json'),
+        ($paper263 | ConvertTo-Json -Depth 8),
+        [Text.UTF8Encoding]::new($false))
 
     $explicitRaw = (& $target -ReportOnly -MetadataFixtureDirectory $fixtureRoot | Out-String).Trim()
     $explicit = $explicitRaw | ConvertFrom-Json -ErrorAction Stop
     if ($explicit.schema -ne 'MCACE_SERVER_VERSION_MATRIX_PREPARER_REPORT_V1' -or
             $explicit.mode -ne 'REPORT_ONLY' -or $explicit.network_requested -or
             $explicit.write_requested -or $explicit.manifest_written -or
-            -not $explicit.all_assets_resolved -or $explicit.resolved_asset_count -ne 8 -or
-            @($explicit.assets).Count -ne 8) {
+            -not $explicit.all_assets_resolved -or $explicit.resolved_asset_count -ne 11 -or
+            $explicit.expected_asset_count -ne 11 -or @($explicit.assets).Count -ne 11 -or
+            (@($explicit.experimental_lanes) -join ',') -cne 'folia:26.2,paper:26.3') {
         throw 'SERVER_MATRIX_PREPARER_FIXTURE_REPORT_INVALID'
     }
-    if (@($explicit.target_versions) -join ',' -cne '1.21.11,26.1.2,26.2') {
+    if (@($explicit.target_versions) -join ',' -cne '1.21.11,26.1.2,26.2,26.3') {
         throw 'SERVER_MATRIX_PREPARER_FIXTURE_TARGETS_INVALID'
     }
     $paper12111 = @($explicit.assets | Where-Object {
@@ -127,12 +149,30 @@ try {
         $_.project -eq 'folia' -and $_.version -eq '26.2'
     })
     $bungee = @($explicit.assets | Where-Object { $_.project -eq 'bungeecord' })
+    $paper263Selected = @($explicit.assets | Where-Object {
+        $_.project -eq 'paper' -and $_.version -eq '26.3'
+    })
+    $folia263 = @($explicit.assets | Where-Object {
+        $_.project -eq 'folia' -and $_.version -eq '26.3'
+    })
+    $velocity = @($explicit.assets | Where-Object { $_.project -eq 'velocity' })
     if ($paper12111.Count -ne 1 -or $paper12111[0].build -ne '101' -or
             $paper12111[0].java_major -ne 21 -or $folia262.Count -ne 1 -or
             $folia262[0].build -ne '601' -or $folia262[0].channel -ne 'EXPERIMENTAL' -or
-            $folia262[0].java_major -ne 25 -or $bungee.Count -ne 1 -or
+            $folia262[0].java_major -ne 25 -or $bungee.Count -ne 2 -or
             $bungee[0].build -ne '2085' -or
-            $bungee[0].sha256 -ne 'e6914a29c0ae04c0ed6335f201e409322b3c67548906a91e92e832d665cd6fce') {
+            $bungee[0].sha256 -ne 'e6914a29c0ae04c0ed6335f201e409322b3c67548906a91e92e832d665cd6fce' -or
+            (@($bungee[0].target_versions) -join ',') -cne '1.21.11,26.1.2,26.2' -or
+            $bungee[1].build -ne '2100' -or $bungee[1].java_major -ne 21 -or
+            $bungee[1].sha256 -ne '8b9f75994fa6bd027e98827b3f83523f462c9e4b978fdab2fad00182ba4c924b' -or
+            (@($bungee[1].target_versions) -join ',') -cne '26.3' -or
+            $paper263Selected.Count -ne 1 -or $paper263Selected[0].build -ne '701' -or
+            $paper263Selected[0].channel -ne 'BETA' -or $paper263Selected[0].java_major -ne 25 -or
+            $folia263.Count -ne 0 -or $velocity.Count -ne 2 -or
+            $velocity[0].version -cne '3.5.1-615' -or $velocity[0].java_major -ne 21 -or
+            (@($velocity[0].target_versions) -join ',') -cne '1.21.11,26.1.2,26.2' -or
+            $velocity[1].version -cne '4.2.0-30' -or $velocity[1].java_major -ne 25 -or
+            (@($velocity[1].target_versions) -join ',') -cne '26.3') {
         throw 'SERVER_MATRIX_PREPARER_FIXTURE_SELECTION_INVALID'
     }
     if ($explicitRaw.IndexOf($fixtureRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
@@ -143,7 +183,7 @@ try {
     $defaultRaw = (& $target -MetadataFixtureDirectory $fixtureRoot | Out-String).Trim()
     $default = $defaultRaw | ConvertFrom-Json -ErrorAction Stop
     if ($default.mode -ne 'REPORT_ONLY' -or $default.network_requested -or $default.write_requested -or
-            $default.resolved_asset_count -ne 8) {
+            $default.resolved_asset_count -ne 11) {
         throw 'SERVER_MATRIX_PREPARER_DEFAULT_NOT_READ_ONLY'
     }
 
@@ -199,6 +239,27 @@ try {
         $badRejected = $_.Exception.Message -match 'SERVER_MATRIX_DOWNLOAD_ORIGIN_INVALID'
     }
     if (-not $badRejected) { throw 'SERVER_MATRIX_PREPARER_BAD_ORIGIN_NOT_REJECTED' }
+
+    # Paper 26.3 without any BETA build must fail closed rather than fall back to ALPHA.
+    $alphaOnly = @(
+        (New-FillBuild 800 'ALPHA' 'paper' '26.3' ('c' * 64) 1000800),
+        (New-FillBuild 801 'ALPHA' 'paper' '26.3' ('d' * 64) 1000801)
+    )
+    [IO.File]::WriteAllText(
+        (Join-Path $fixtureRoot 'paper-26.2.json'),
+        ((@((New-FillBuild 300 'STABLE' 'paper' '26.2' ('4' * 64) 1000300))) | ConvertTo-Json -Depth 8),
+        [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText(
+        (Join-Path $fixtureRoot 'paper-26.3.json'),
+        ($alphaOnly | ConvertTo-Json -Depth 8),
+        [Text.UTF8Encoding]::new($false))
+    $alphaRejected = $false
+    try {
+        & $target -ReportOnly -MetadataFixtureDirectory $fixtureRoot | Out-Null
+    } catch {
+        $alphaRejected = $_.Exception.Message -match 'SERVER_MATRIX_NO_ALLOWED_BUILD\|paper\|26\.3'
+    }
+    if (-not $alphaRejected) { throw 'SERVER_MATRIX_PREPARER_PAPER_263_ALPHA_NOT_REJECTED' }
 } finally {
     Remove-Item -LiteralPath $fixtureRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
@@ -217,6 +278,7 @@ try {
         [pscustomobject]@{ project = 'paper'; version = '1.21.11'; build = '101'; java = 21; channel = 'STABLE' },
         [pscustomobject]@{ project = 'paper'; version = '26.1.2'; build = '201'; java = 25; channel = 'STABLE' },
         [pscustomobject]@{ project = 'paper'; version = '26.2'; build = '301'; java = 25; channel = 'STABLE' },
+        [pscustomobject]@{ project = 'paper'; version = '26.3'; build = '140'; java = 25; channel = 'BETA' },
         [pscustomobject]@{ project = 'folia'; version = '1.21.11'; build = '401'; java = 21; channel = 'STABLE' },
         [pscustomobject]@{ project = 'folia'; version = '26.1.2'; build = '501'; java = 25; channel = 'STABLE' },
         [pscustomobject]@{ project = 'folia'; version = '26.2'; build = '601'; java = 25; channel = 'BETA' }
@@ -274,6 +336,17 @@ try {
         target_versions = @('1.21.11', '26.1.2', '26.2')
     })
     [void]$frozenAssets.Add([pscustomobject][ordered]@{
+        project = 'velocity'
+        version = '4.2.0-30'
+        build = '30'
+        url = 'https://fill-data.papermc.io/v1/objects/35a5596a5468a035d8a32c8de5ebb0dc6b8d8f0cc3ff5169d514aca762af8aa8/velocity-4.2.0-30.jar'
+        sha256 = '35a5596a5468a035d8a32c8de5ebb0dc6b8d8f0cc3ff5169d514aca762af8aa8'
+        size = 42163652
+        channel = 'REVIEWED'
+        java_major = 25
+        target_versions = @('26.3')
+    })
+    [void]$frozenAssets.Add([pscustomobject][ordered]@{
         project = 'bungeecord'
         version = '2085'
         build = '2085'
@@ -283,6 +356,17 @@ try {
         channel = 'REVIEWED'
         java_major = 21
         target_versions = @('1.21.11', '26.1.2', '26.2')
+    })
+    [void]$frozenAssets.Add([pscustomobject][ordered]@{
+        project = 'bungeecord'
+        version = '2100'
+        build = '2100'
+        url = 'https://hub.spigotmc.org/jenkins/job/BungeeCord/2100/artifact/bootstrap/target/BungeeCord.jar'
+        sha256 = '8b9f75994fa6bd027e98827b3f83523f462c9e4b978fdab2fad00182ba4c924b'
+        size = 25823945
+        channel = 'REVIEWED'
+        java_major = 21
+        target_versions = @('26.3')
     })
     $frozenFixture = [pscustomobject][ordered]@{
         schema = 'MCACE_SERVER_VERSION_MATRIX_ASSETS_V1'
@@ -300,7 +384,8 @@ try {
     if ($register.mode -cne 'REGISTER_PREPARED' -or $register.network_requested -or
             -not $register.write_requested -or -not $register.prepared_manifest_written -or
             $register.prepared_tree_status -cne 'VERIFIED' -or
-            $register.prepared_verified_count -ne 6 -or -not $register.all_prepared_trees_verified) {
+            $register.prepared_verified_count -ne 7 -or $register.prepared_expected_count -ne 7 -or
+            -not $register.all_prepared_trees_verified -or $register.expected_asset_count -ne 11) {
         throw 'SERVER_MATRIX_PREPARED_REGISTER_REPORT_INVALID'
     }
     $preparedFixtureManifest = Join-Path $preparedFixtureAssets 'prepared-manifest.json'
@@ -308,7 +393,7 @@ try {
     $prepared = $preparedRaw | ConvertFrom-Json -ErrorAction Stop
     if ($prepared.schema -cne 'MCACE_SERVER_VERSION_MATRIX_PREPARED_V1' -or
             (@($prepared.roots) -join ',') -cne 'cache,libraries,versions' -or
-            @($prepared.trees).Count -ne 6 -or
+            @($prepared.trees).Count -ne 7 -or
             $preparedRaw.IndexOf($preparedFixtureRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0) {
         throw 'SERVER_MATRIX_PREPARED_MANIFEST_INVALID'
     }
@@ -329,7 +414,7 @@ try {
     $preparedHashAfterReport = (Get-FileHash -LiteralPath $preparedFixtureManifest -Algorithm SHA256).Hash
     if ($preparedReport.mode -cne 'REPORT_ONLY' -or $preparedReport.network_requested -or
             $preparedReport.write_requested -or $preparedReport.prepared_tree_status -cne 'VERIFIED' -or
-            $preparedReport.prepared_verified_count -ne 6 -or
+            $preparedReport.prepared_verified_count -ne 7 -or
             @($preparedReport.prepared_trees | Where-Object { $_.status -cne 'VERIFIED' }).Count -ne 0 -or
             $preparedHashAfterReport -cne $preparedHashBeforeReport) {
         throw 'SERVER_MATRIX_PREPARED_REPORT_RECOMPUTE_INVALID'
@@ -384,6 +469,38 @@ try {
     if (-not $unknownFieldRejected) { throw 'SERVER_MATRIX_PREPARED_UNKNOWN_FIELD_NOT_REJECTED' }
     & $preparedFixtureScript -RegisterPrepared | Out-Null
 
+    # Frozen-manifest negatives: the reviewed proxy pins and experimental lanes are exact.
+    $frozenPath = Join-Path $preparedFixtureAssets 'manifest.json'
+    $frozenOriginal = [IO.File]::ReadAllText($frozenPath)
+    $frozenNegatives = @(
+        [pscustomobject]@{ name = 'velocity-420-serves-262'; code = 'SERVER_MATRIX_REVIEWED_PROXY_INVALID|velocity'; mutate = {
+            param($m) ($m.assets | Where-Object { $_.version -ceq '4.2.0-30' }).target_versions = @('26.2', '26.3') } },
+        [pscustomobject]@{ name = 'velocity-420-java-21'; code = 'SERVER_MATRIX_REVIEWED_PROXY_INVALID|velocity'; mutate = {
+            param($m) ($m.assets | Where-Object { $_.version -ceq '4.2.0-30' }).java_major = 21 } },
+        [pscustomobject]@{ name = 'velocity-3-serves-263'; code = 'SERVER_MATRIX_REVIEWED_PROXY_INVALID|velocity'; mutate = {
+            param($m) ($m.assets | Where-Object { $_.version -ceq '3.5.1-615' }).target_versions = @('1.21.11', '26.1.2', '26.2', '26.3') } },
+        [pscustomobject]@{ name = 'bungee-2085-serves-263'; code = 'SERVER_MATRIX_REVIEWED_PROXY_INVALID|bungeecord'; mutate = {
+            param($m) ($m.assets | Where-Object { $_.version -ceq '2085' }).target_versions = @('1.21.11', '26.1.2', '26.2', '26.3') } },
+        [pscustomobject]@{ name = 'bungee-2100-missing'; code = 'SERVER_MATRIX_MANIFEST_SCHEMA_INVALID'; mutate = {
+            param($m) $m.assets = @($m.assets | Where-Object { $_.version -cne '2100' }) } },
+        [pscustomobject]@{ name = 'paper-263-alpha'; code = 'SERVER_MATRIX_MANIFEST_ASSET_INVALID'; mutate = {
+            param($m) ($m.assets | Where-Object { $_.project -ceq 'paper' -and $_.version -ceq '26.3' }).channel = 'ALPHA' } },
+        [pscustomobject]@{ name = 'folia-263'; code = 'SERVER_MATRIX_MANIFEST_ASSET_INVALID'; mutate = {
+            param($m) ($m.assets | Where-Object { $_.project -ceq 'paper' -and $_.version -ceq '26.3' }).project = 'folia' } }
+    )
+    foreach ($negative in $frozenNegatives) {
+        $mutated = $frozenOriginal | ConvertFrom-Json
+        & $negative.mutate $mutated
+        [IO.File]::WriteAllText($frozenPath, ($mutated | ConvertTo-Json -Depth 20), [Text.UTF8Encoding]::new($false))
+        $negativeRejected = $false
+        try { & $preparedFixtureScript -ReportOnly | Out-Null } catch {
+            $negativeRejected = $_.Exception.Message.StartsWith($negative.code, [StringComparison]::Ordinal)
+        } finally {
+            [IO.File]::WriteAllText($frozenPath, $frozenOriginal, [Text.UTF8Encoding]::new($false))
+        }
+        if (-not $negativeRejected) { throw "SERVER_MATRIX_FROZEN_NEGATIVE_NOT_REJECTED|$($negative.name)" }
+    }
+
     if ([IO.Path]::DirectorySeparatorChar -eq '\') {
         $junctionTarget = Join-Path $preparedFixtureRoot 'junction-target'
         New-Item -ItemType Directory -Path $junctionTarget | Out-Null
@@ -403,7 +520,7 @@ try {
     }
 
     $finalReport = (& $preparedFixtureScript -ReportOnly | Out-String).Trim() | ConvertFrom-Json
-    if ($finalReport.prepared_verified_count -ne 6 -or
+    if ($finalReport.prepared_verified_count -ne 7 -or
             $finalReport.prepared_tree_status -cne 'VERIFIED') {
         throw 'SERVER_MATRIX_PREPARED_FINAL_REPORT_INVALID'
     }

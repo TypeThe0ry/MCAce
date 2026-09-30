@@ -19,7 +19,7 @@ $ErrorActionPreference = 'Stop'
 
 # This preparer has three deliberately separate modes:
 #   * the default/ReportOnly mode performs no network request and no write;
-#   * Execute resolves the six PaperMC builds, downloads only immutable reviewed
+#   * Execute resolves the seven PaperMC builds, downloads only immutable reviewed
 #     artifacts, verifies SHA-256 and size, and writes one path-free manifest.
 #   * RegisterPrepared performs no network request. It binds only the existing
 #     cache/libraries/versions trees to canonical relative names, sizes and hashes.
@@ -29,8 +29,24 @@ $assetRoot = Join-Path $repoRoot 'build\runtime-assets'
 $manifestFile = Join-Path $assetRoot 'manifest.json'
 $preparedManifestFile = Join-Path $assetRoot 'prepared-manifest.json'
 $userAgent = 'MCAce-server-version-matrix-preparer/1 (https://github.com/EllanServer/MCAce)'
-$targetVersions = @('1.21.11', '26.1.2', '26.2')
+$targetVersions = @('1.21.11', '26.1.2', '26.2', '26.3')
 $projects = @('paper', 'folia')
+# Folia publishes no 26.3 line (the fill API answers version_not_found), so the
+# 26.3 lane is Paper-only. Every other target version is prepared for both.
+$projectVersions = [ordered]@{
+    paper = @('1.21.11', '26.1.2', '26.2', '26.3')
+    folia = @('1.21.11', '26.1.2', '26.2')
+}
+# Explicit experimental lanes. They are prepared and labelled with their
+# upstream pre-release channel, never promoted into the stable lane.
+$experimentalLanes = @('folia:26.2', 'paper:26.3')
+$expectedServerAssetCount = 7
+$expectedAssetCount = 11
+$expectedServerAssetIdentities = @(
+    'paper:1.21.11', 'paper:26.1.2', 'paper:26.2', 'paper:26.3',
+    'folia:1.21.11', 'folia:26.1.2', 'folia:26.2')
+$expectedProxyAssetIdentities = @(
+    'velocity:3.5.1-615', 'velocity:4.2.0-30', 'bungeecord:2085', 'bungeecord:2100')
 $reportMode = $PSCmdlet.ParameterSetName -eq 'ReportOnly'
 $executeMode = $PSCmdlet.ParameterSetName -eq 'Execute'
 $registerPreparedMode = $PSCmdlet.ParameterSetName -eq 'RegisterPrepared'
@@ -40,8 +56,17 @@ $javaByVersion = [ordered]@{
     '1.21.11' = 21
     '26.1.2' = 25
     '26.2' = 25
+    '26.3' = 25
 }
 
+# Reviewed proxy pins. Each proxy asset names the exact Minecraft targets it
+# serves; a case selects the unique pin of its proxy project whose
+# target_versions contains the case version. Velocity 3.5.1-615 does not speak
+# protocol 777, so 26.3 uses the separately reviewed Velocity 4.2.0-30, which
+# requires Java 25 (the 26.3 server JVM). BungeeCord 2085 predates protocol 777,
+# so 26.3 uses BungeeCord 2100 (MINECRAFT_26_3 = 777, Java 21). The existing
+# 2085 pin stays on the three established targets: other smokes and retained
+# federation/disposition evidence bind its exact bytes, so it is not replaced.
 $reviewedProxyAssets = @(
     [ordered]@{
         project = 'velocity'
@@ -55,6 +80,17 @@ $reviewedProxyAssets = @(
         target_versions = @('1.21.11', '26.1.2', '26.2')
     },
     [ordered]@{
+        project = 'velocity'
+        version = '4.2.0-30'
+        build = '30'
+        url = 'https://fill-data.papermc.io/v1/objects/35a5596a5468a035d8a32c8de5ebb0dc6b8d8f0cc3ff5169d514aca762af8aa8/velocity-4.2.0-30.jar'
+        sha256 = '35a5596a5468a035d8a32c8de5ebb0dc6b8d8f0cc3ff5169d514aca762af8aa8'
+        size = 42163652
+        channel = 'REVIEWED'
+        java_major = 25
+        target_versions = @('26.3')
+    },
+    [ordered]@{
         project = 'bungeecord'
         version = '2085'
         build = '2085'
@@ -64,6 +100,17 @@ $reviewedProxyAssets = @(
         channel = 'REVIEWED'
         java_major = 21
         target_versions = @('1.21.11', '26.1.2', '26.2')
+    },
+    [ordered]@{
+        project = 'bungeecord'
+        version = '2100'
+        build = '2100'
+        url = 'https://hub.spigotmc.org/jenkins/job/BungeeCord/2100/artifact/bootstrap/target/BungeeCord.jar'
+        sha256 = '8b9f75994fa6bd027e98827b3f83523f462c9e4b978fdab2fad00182ba4c924b'
+        size = 25823945
+        channel = 'REVIEWED'
+        java_major = 21
+        target_versions = @('26.3')
     }
 )
 
@@ -125,10 +172,16 @@ function ConvertTo-BuildArray([object]$Response) {
 function Test-AllowedChannel([string]$Project, [string]$MinecraftVersion, [string]$Channel) {
     $normalized = $Channel.ToUpperInvariant()
     if ($normalized -in @('STABLE', 'RECOMMENDED')) { return $true }
-    # Folia 26.2 is currently an explicit experimental lane. It is prepared and
-    # labelled, never promoted into the stable lane by this tool.
-    return $Project -eq 'folia' -and $MinecraftVersion -eq '26.2' -and
-        $normalized -in @('EXPERIMENTAL', 'ALPHA', 'BETA')
+    # Folia 26.2 and Paper 26.3 are explicit experimental lanes. They are
+    # prepared and labelled, never promoted into the stable lane by this tool.
+    # Paper 26.3 accepts only BETA: its ALPHA builds are not reviewable inputs.
+    if ($Project -eq 'folia' -and $MinecraftVersion -eq '26.2') {
+        return $normalized -in @('EXPERIMENTAL', 'ALPHA', 'BETA')
+    }
+    if ($Project -eq 'paper' -and $MinecraftVersion -eq '26.3') {
+        return $normalized -eq 'BETA'
+    }
+    return $false
 }
 
 function Assert-PaperMcDownload(
@@ -206,21 +259,32 @@ function Assert-ReviewedProxyAsset([object]$Asset) {
     if ($sha256 -notmatch '^[0-9a-f]{64}$' -or [long]$Asset.size -le 0L) {
         throw "SERVER_MATRIX_REVIEWED_PROXY_INVALID|$($Asset.project)"
     }
+    $pins = @($reviewedProxyAssets | Where-Object {
+        $_.project -ceq [string]$Asset.project -and $_.version -ceq [string]$Asset.version
+    })
+    if ($pins.Count -ne 1) {
+        throw "SERVER_MATRIX_REVIEWED_PROXY_INVALID|$($Asset.project)"
+    }
+    $pin = $pins[0]
+    if ([string]$Asset.url -cne $pin.url -or $sha256 -cne $pin.sha256 -or
+            [long]$Asset.size -ne [long]$pin.size -or [string]$Asset.build -cne $pin.build -or
+            [string]$Asset.channel -cne $pin.channel -or
+            [int]$Asset.java_major -ne [int]$pin.java_major -or
+            ((@($Asset.target_versions) -join ',') -cne (@($pin.target_versions) -join ','))) {
+        throw "SERVER_MATRIX_REVIEWED_PROXY_INVALID|$($Asset.project)"
+    }
     if ($Asset.project -eq 'velocity') {
         $match = [regex]::Match(
             [string]$Asset.url,
-            '^https://fill-data\.papermc\.io/v1/objects/(?<sha>[0-9a-f]{64})/velocity-3\.5\.1-615\.jar$')
-        if (-not $match.Success -or $match.Groups['sha'].Value -ne $sha256 -or
-                $sha256 -cne 'b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3' -or
-                [long]$Asset.size -ne 18932366L -or $Asset.version -cne '3.5.1-615' -or
-                $Asset.build -cne '615') {
+            '^https://fill-data\.papermc\.io/v1/objects/(?<sha>[0-9a-f]{64})/velocity-(?<version>[0-9.]+-[0-9]+)\.jar$')
+        if (-not $match.Success -or $match.Groups['sha'].Value -cne $sha256 -or
+                $match.Groups['version'].Value -cne [string]$Asset.version) {
             throw 'SERVER_MATRIX_REVIEWED_PROXY_INVALID|velocity'
         }
     } elseif ($Asset.project -eq 'bungeecord') {
-        if ($Asset.url -cne 'https://hub.spigotmc.org/jenkins/job/BungeeCord/2085/artifact/bootstrap/target/BungeeCord.jar' -or
-                $sha256 -cne 'e6914a29c0ae04c0ed6335f201e409322b3c67548906a91e92e832d665cd6fce' -or
-                [long]$Asset.size -ne 25599274L -or $Asset.version -cne '2085' -or
-                $Asset.build -cne '2085') {
+        $expectedUrl = 'https://hub.spigotmc.org/jenkins/job/BungeeCord/{0}/artifact/bootstrap/target/BungeeCord.jar' -f
+            [string]$Asset.build
+        if ([string]$Asset.url -cne $expectedUrl -or [string]$Asset.version -cne [string]$Asset.build) {
             throw 'SERVER_MATRIX_REVIEWED_PROXY_INVALID|bungeecord'
         }
     } else {
@@ -287,7 +351,8 @@ function Test-ExactAssetFields([object]$Asset) {
 
 function Assert-PathFreeManifest([object]$Manifest) {
     if ($Manifest.schema -cne 'MCACE_SERVER_VERSION_MATRIX_ASSETS_V1' -or
-            $Manifest.prepared_tree_status -cne 'DEFERRED' -or @($Manifest.assets).Count -ne 8) {
+            $Manifest.prepared_tree_status -cne 'DEFERRED' -or
+            @($Manifest.assets).Count -ne $expectedAssetCount) {
         throw 'SERVER_MATRIX_MANIFEST_SCHEMA_INVALID'
     }
     $identities = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -300,7 +365,8 @@ function Assert-PathFreeManifest([object]$Manifest) {
             throw 'SERVER_MATRIX_MANIFEST_ASSET_INVALID'
         }
         if ($asset.project -in @('paper', 'folia')) {
-            if ($asset.version -notin $targetVersions -or $asset.build -notmatch '^[0-9]+$' -or
+            if ($asset.version -notin @($projectVersions[[string]$asset.project]) -or
+                    $asset.build -notmatch '^[0-9]+$' -or
                     [int]$asset.java_major -ne [int]$javaByVersion[$asset.version] -or
                     -not (Test-AllowedChannel $asset.project $asset.version $asset.channel)) {
                 throw 'SERVER_MATRIX_MANIFEST_ASSET_INVALID'
@@ -314,19 +380,13 @@ function Assert-PathFreeManifest([object]$Manifest) {
             $identity = "$($asset.project):$($asset.version)"
         } elseif ($asset.project -in @('velocity', 'bungeecord')) {
             Assert-ReviewedProxyAsset $asset
-            if (@($asset.target_versions) -join ',' -cne '1.21.11,26.1.2,26.2') {
-                throw 'SERVER_MATRIX_MANIFEST_ASSET_INVALID'
-            }
             $identity = "$($asset.project):$($asset.version)"
         } else {
             throw 'SERVER_MATRIX_MANIFEST_ASSET_INVALID'
         }
         if (-not $identities.Add($identity)) { throw 'SERVER_MATRIX_MANIFEST_DUPLICATE_ASSET' }
     }
-    $expectedIdentities = @(
-        'paper:1.21.11', 'paper:26.1.2', 'paper:26.2',
-        'folia:1.21.11', 'folia:26.1.2', 'folia:26.2',
-        'velocity:3.5.1-615', 'bungeecord:2085')
+    $expectedIdentities = @($expectedServerAssetIdentities) + @($expectedProxyAssetIdentities)
     foreach ($identity in $expectedIdentities) {
         if (-not $identities.Contains($identity)) { throw 'SERVER_MATRIX_MANIFEST_ASSET_SET_INVALID' }
     }
@@ -475,7 +535,7 @@ function Get-ServerAssetMap([object]$AssetManifest) {
         if ($result.ContainsKey($identity)) { throw 'SERVER_MATRIX_PREPARED_DUPLICATE_SOURCE_ASSET' }
         $result.Add($identity, $asset)
     }
-    if ($result.Count -ne 6) { throw 'SERVER_MATRIX_PREPARED_SOURCE_ASSET_SET_INVALID' }
+    if ($result.Count -ne $expectedServerAssetCount) { throw 'SERVER_MATRIX_PREPARED_SOURCE_ASSET_SET_INVALID' }
     return $result
 }
 
@@ -484,7 +544,7 @@ function Assert-PreparedManifestStructure([object]$Manifest, [object]$AssetManif
             $Manifest.schema -cne 'MCACE_SERVER_VERSION_MATRIX_PREPARED_V1' -or
             [string]::IsNullOrWhiteSpace([string]$Manifest.generated_at) -or
             ((@($Manifest.roots) -join ',') -cne 'cache,libraries,versions') -or
-            @($Manifest.trees).Count -ne 6) {
+            @($Manifest.trees).Count -ne $expectedServerAssetCount) {
         throw 'SERVER_MATRIX_PREPARED_MANIFEST_SCHEMA_INVALID'
     }
     $sourceAssets = Get-ServerAssetMap $AssetManifest
@@ -572,7 +632,7 @@ function Compare-PreparedManifest([object]$Manifest, [object]$AssetManifest) {
     return [pscustomobject]@{
         status = 'VERIFIED'
         verified_count = $verified.Count
-        expected_count = 6
+        expected_count = $expectedServerAssetCount
         trees = @($verified)
     }
 }
@@ -685,10 +745,11 @@ if ($registerPreparedMode) {
         all_prepared_trees_verified = $preparedSummary.verified_count -eq $preparedSummary.expected_count
         prepared_trees = @($preparedSummary.trees)
         target_versions = @($targetVersions)
+        experimental_lanes = @($experimentalLanes)
         resolved_asset_count = $resolvedAssets.Count
-        expected_asset_count = 8
-        all_assets_resolved = $resolvedAssets.Count -eq 8
-        all_resolved_assets_cached = $resolvedAssets.Count -eq 8 -and
+        expected_asset_count = $expectedAssetCount
+        all_assets_resolved = $resolvedAssets.Count -eq $expectedAssetCount
+        all_resolved_assets_cached = $resolvedAssets.Count -eq $expectedAssetCount -and
             @($reportAssets | Where-Object { $_.cache_status -ne 'VERIFIED' }).Count -eq 0
         assets = @($reportAssets)
     }
@@ -714,7 +775,7 @@ if ($null -ne $frozenManifest) {
     }
 } else {
     foreach ($project in $projects) {
-        foreach ($minecraftVersion in $targetVersions) {
+        foreach ($minecraftVersion in @($projectVersions[$project])) {
             $metadata = Get-OfficialBuilds $project $minecraftVersion
             if ($null -eq $metadata.builds) {
                 [void]$reportAssets.Add((New-UnresolvedReportAsset $project $minecraftVersion))
@@ -735,7 +796,7 @@ if ($null -ne $frozenManifest) {
 
 $manifestWritten = $false
 if ($executeMode) {
-    if ($resolvedAssets.Count -ne 8) { throw 'SERVER_MATRIX_EXECUTE_REQUIRES_EIGHT_RESOLVED_ASSETS' }
+    if ($resolvedAssets.Count -ne $expectedAssetCount) { throw 'SERVER_MATRIX_EXECUTE_REQUIRES_ELEVEN_RESOLVED_ASSETS' }
     foreach ($asset in $resolvedAssets) { Install-VerifiedAsset $asset }
     $manifest = [ordered]@{
         schema = 'MCACE_SERVER_VERSION_MATRIX_ASSETS_V1'
@@ -755,7 +816,7 @@ if ($executeMode) {
 $preparedManifestPresent = Test-Path -LiteralPath $preparedManifestFile -PathType Leaf
 $preparedStatus = 'DEFERRED'
 $preparedVerifiedCount = 0
-$preparedExpectedCount = 6
+$preparedExpectedCount = $expectedServerAssetCount
 $preparedTrees = @()
 if ($reportMode -and [string]::IsNullOrWhiteSpace($MetadataFixtureDirectory) -and
         $preparedManifestPresent) {
@@ -784,10 +845,11 @@ $report = [ordered]@{
     all_prepared_trees_verified = $preparedVerifiedCount -eq $preparedExpectedCount
     prepared_trees = @($preparedTrees)
     target_versions = @($targetVersions)
+    experimental_lanes = @($experimentalLanes)
     resolved_asset_count = $resolvedAssets.Count
-    expected_asset_count = 8
-    all_assets_resolved = $resolvedAssets.Count -eq 8
-    all_resolved_assets_cached = $resolvedAssets.Count -eq 8 -and
+    expected_asset_count = $expectedAssetCount
+    all_assets_resolved = $resolvedAssets.Count -eq $expectedAssetCount
+    all_resolved_assets_cached = $resolvedAssets.Count -eq $expectedAssetCount -and
         @($reportAssets | Where-Object { $_.cache_status -ne 'VERIFIED' }).Count -eq 0
     assets = @($reportAssets)
 }

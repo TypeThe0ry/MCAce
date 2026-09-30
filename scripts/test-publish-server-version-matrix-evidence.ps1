@@ -146,12 +146,15 @@ function New-TestJar([string]$Path, [string]$Marker) {
 
 function Get-ExpectedCaseDefinitions {
     $definitions = New-Object 'Collections.Generic.List[object]'
-    foreach ($version in @('1.21.11','26.1.2','26.2')) {
-        foreach ($backend in @('PAPER','FOLIA')) {
+    foreach ($version in @('1.21.11','26.1.2','26.2','26.3')) {
+        # Folia has no 26.3 line: the 26.3 lane is Paper-only.
+        $backends = if ($version -ceq '26.3') { @('PAPER') } else { @('PAPER','FOLIA') }
+        foreach ($backend in $backends) {
             foreach ($proxy in @('VELOCITY','BUNGEE')) {
-                $protocol = if ($version -ceq '1.21.11') { 774 } elseif ($version -ceq '26.1.2') { 775 } else { 776 }
+                $protocol = if ($version -ceq '1.21.11') { 774 } elseif ($version -ceq '26.1.2') { 775 } elseif ($version -ceq '26.2') { 776 } else { 777 }
                 $java = if ($version -ceq '1.21.11') { 21 } else { 25 }
-                $lane = if ($version -ceq '26.2' -and $backend -ceq 'FOLIA') { 'BETA' } else { 'STABLE' }
+                $lane = if (($version -ceq '26.2' -and $backend -ceq 'FOLIA') -or
+                        ($version -ceq '26.3' -and $backend -ceq 'PAPER')) { 'BETA' } else { 'STABLE' }
                 $selector = if ($backend -ceq 'FOLIA') {
                     if ($proxy -ceq 'VELOCITY') {
                         'com.ellan.mcace.runtime.MinecraftProxyPlayerProbeTest.realVelocityModernForwardingToFoliaReturnsShadowContext'
@@ -271,8 +274,8 @@ function New-MatrixObjects([object]$Bundle, [string]$GeneratedAt) {
     $preparedTrees = New-Object 'Collections.Generic.List[object]'
     $preparedMap = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
     $versionIndex = 0
-    foreach ($version in @('1.21.11','26.1.2','26.2')) {
-        foreach ($project in @('paper','folia')) {
+    foreach ($version in @('1.21.11','26.1.2','26.2','26.3')) {
+        foreach ($project in @($(if ($version -ceq '26.3') { @('paper') } else { @('paper','folia') }))) {
             $build = [string](1000 + ($versionIndex * 10) + $(if ($project -ceq 'paper') { 1 } else { 2 }))
             $assetHash = Get-BytesSha256 ($utf8NoBom.GetBytes("asset|$project|$version|$build"))
             $assetSize = [long](50000000 + ($versionIndex * 100000) + $(if ($project -ceq 'paper') { 1 } else { 2 }))
@@ -282,7 +285,8 @@ function New-MatrixObjects([object]$Bundle, [string]$GeneratedAt) {
                 build=$build
                 sha256=$assetHash
                 size=$assetSize
-                channel=$(if ($project -ceq 'folia' -and $version -ceq '26.2') { 'BETA' } else { 'STABLE' })
+                channel=$(if (($project -ceq 'folia' -and $version -ceq '26.2') -or
+                    ($project -ceq 'paper' -and $version -ceq '26.3')) { 'BETA' } else { 'STABLE' })
                 java_major=$(if ($version -ceq '1.21.11') { 21 } else { 25 })
             }
             [void]$assets.Add($asset)
@@ -303,17 +307,19 @@ function New-MatrixObjects([object]$Bundle, [string]$GeneratedAt) {
         $versionIndex++
     }
     foreach ($proxy in @(
-            [pscustomobject]@{ project='velocity'; version='3.5.1-615'; build='615' },
-            [pscustomobject]@{ project='bungeecord'; version='2085'; build='2085' })) {
+            [pscustomobject]@{ project='velocity'; version='3.5.1-615'; build='615'; java=21 },
+            [pscustomobject]@{ project='velocity'; version='4.2.0-30'; build='30'; java=25 },
+            [pscustomobject]@{ project='bungeecord'; version='2085'; build='2085'; java=21 },
+            [pscustomobject]@{ project='bungeecord'; version='2100'; build='2100'; java=21 })) {
         $asset = [pscustomobject][ordered]@{
             project=$proxy.project
             version=$proxy.version
             build=$proxy.build
             sha256=(Get-BytesSha256 ($utf8NoBom.GetBytes(
                 "asset|$($proxy.project)|$($proxy.version)|$($proxy.build)")))
-            size=[long]$(if ($proxy.project -ceq 'velocity') { 20000000 } else { 21000000 })
+            size=[long]$(if ($proxy.project -ceq 'velocity') { 20000000 } else { 21000000 }) + [long]$proxy.build
             channel='REVIEWED'
-            java_major=21
+            java_major=[int]$proxy.java
         }
         [void]$assets.Add($asset)
         $assetMap.Add("$($proxy.project)|$($proxy.version)", $asset)
@@ -361,7 +367,10 @@ function New-MatrixObjects([object]$Bundle, [string]$GeneratedAt) {
         $backendAsset = $assetMap["$backendProject|$($item.minecraft_version)"]
         $prepared = $preparedMap["$backendProject|$($item.minecraft_version)"]
         $proxyProject = if ($item.proxy -ceq 'VELOCITY') { 'velocity' } else { 'bungeecord' }
-        $proxyVersion = if ($proxyProject -ceq 'velocity') { '3.5.1-615' } else { '2085' }
+        $is263 = $item.minecraft_version -ceq '26.3'
+        $proxyVersion = if ($proxyProject -ceq 'bungeecord') {
+            if ($is263) { '2100' } else { '2085' }
+        } elseif ($is263) { '4.2.0-30' } else { '3.5.1-615' }
         $proxyAsset = $assetMap["$proxyProject|$proxyVersion"]
         $serverIdentity = "$($backendAsset.project):$($backendAsset.version):$($backendAsset.build)"
         $proxyIdentity = "$($proxyAsset.project):$($proxyAsset.version):$($proxyAsset.build)"
@@ -427,8 +436,8 @@ function New-MatrixObjects([object]$Bundle, [string]$GeneratedAt) {
     $current = [pscustomobject][ordered]@{
         source_commit=$artifactCommit
         product_version='0.0.1'
-        target_versions=@('1.21.11','26.1.2','26.2')
-        case_count=12
+        target_versions=@('1.21.11','26.1.2','26.2','26.3')
+        case_count=14
         source_manifest_sha256=('1' * 64)
         source_file_count=42
         wrapper_sha256=('2' * 64)
@@ -451,11 +460,11 @@ function New-MatrixObjects([object]$Bundle, [string]$GeneratedAt) {
         release_source_commit=$releaseCommit
         artifact_source_commit=$artifactCommit
         product_version='0.0.1'
-        target_versions=@('1.21.11','26.1.2','26.2')
-        expected_case_count=12
-        observed_case_count=12
+        target_versions=@('1.21.11','26.1.2','26.2','26.3')
+        expected_case_count=14
+        observed_case_count=14
         stable_case_count=10
-        beta_case_count=2
+        beta_case_count=4
         all_cases_passed=$true
         cleanup_all_zero=$true
         raw_manifest_schema='MCACE_SERVER_VERSION_PROCESS_MATRIX_RAW_MANIFEST_V1'
@@ -489,10 +498,10 @@ function Write-MatrixTriplet([object]$Fixture) {
     $rawRoot=Join-Path $tripletRoot 'raw';[void][IO.Directory]::CreateDirectory($rawRoot)
     $rawDescriptors=[Collections.Generic.List[object]]::new();$rawValues=[Collections.Generic.List[object]]::new()
     $cases=@($Fixture.report.cases)
-    for($index=0;$index -lt 12;$index++){
+    for($index=0;$index -lt 14;$index++){
         $case=$cases[$index]
         $forwarding=if([string]$case.proxy -ceq 'VELOCITY'){'velocity-modern'}else{'bungee-ip-forwarding'}
-        $playId=if([string]$case.minecraft_version -ceq '1.21.11'){'0x30'}else{'0x31'}
+        $playId=switch -CaseSensitive ([string]$case.minecraft_version){'1.21.11'{'0x30'}'26.3'{'0x32'}default{'0x31'}}
         $raw=[pscustomobject][ordered]@{
             schema=4;proxy=[string]$case.proxy;backend_platform=[string]$case.backend
             backend_minecraft_version=[string]$case.minecraft_version;forwarding_mode=$forwarding
@@ -521,14 +530,14 @@ function Write-MatrixTriplet([object]$Fixture) {
     $rawManifest=[pscustomobject][ordered]@{
         schema='MCACE_SERVER_VERSION_PROCESS_MATRIX_RAW_MANIFEST_V1'
         generated_at=$Fixture.report.generated_at;source_mode='EXECUTED';source_commit=$artifactCommit
-        product_version='0.0.1';case_count=12;ordered_raw_report_set_sha256=$rawSet
+        product_version='0.0.1';case_count=14;ordered_raw_report_set_sha256=$rawSet
         reports=$rawDescriptors.ToArray()
     }
     $rawManifestBytes=ConvertTo-CompactJsonBytes $rawManifest
     [IO.File]::WriteAllBytes((Join-Path $tripletRoot 'raw-manifest.json'),$rawManifestBytes)
 
     $caseCommitments=[Collections.Generic.List[object]]::new();$processCount=0
-    for($caseIndex=0;$caseIndex -lt 12;$caseIndex++){
+    for($caseIndex=0;$caseIndex -lt 14;$caseIndex++){
         $case=$cases[$caseIndex];$raw=@($rawValues)[$caseIndex]
         $processes=[Collections.Generic.List[object]]::new();$ids=@($raw.cleanup_process_ids)
         for($processIndex=0;$processIndex -lt $ids.Count;$processIndex++){
@@ -624,7 +633,7 @@ function Write-MatrixTriplet([object]$Fixture) {
         binding_sha256=(Get-BytesSha256 $bindingBytes);binding_size_bytes=[long]$bindingBytes.Length
         raw_manifest_sha256=(Get-BytesSha256 $rawManifestBytes);raw_manifest_size_bytes=[long]$rawManifestBytes.Length
         ordered_raw_report_set_sha256=$rawSet;case_runtime_commitment_sha256=$caseSha
-        case_count=12;process_identity_count=$processCount;case_runtime_commitments=$caseValues
+        case_count=14;process_identity_count=$processCount;case_runtime_commitments=$caseValues
         release_bundle_schema='MCACE_RELEASE_BUNDLE_V4';release_bundle_manifest_sha256=(Get-BytesSha256 $manifestBytes)
         release_bundle_manifest_size_bytes=[long]$manifestBytes.Length
         release_bundle_sha256s_sha256=(Get-BytesSha256 $sumsBytes)
@@ -651,7 +660,7 @@ function Write-MatrixTriplet([object]$Fixture) {
         binding_size_bytes=[long]$request.binding_size_bytes;raw_manifest_sha256=[string]$request.raw_manifest_sha256
         raw_manifest_size_bytes=[long]$request.raw_manifest_size_bytes
         ordered_raw_report_set_sha256=$rawSet;case_runtime_commitment_sha256=$caseSha
-        case_count=12;process_identity_count=$processCount;release_bundle_schema='MCACE_RELEASE_BUNDLE_V4'
+        case_count=14;process_identity_count=$processCount;release_bundle_schema='MCACE_RELEASE_BUNDLE_V4'
         release_bundle_manifest_sha256=[string]$request.release_bundle_manifest_sha256
         release_bundle_manifest_size_bytes=[long]$request.release_bundle_manifest_size_bytes
         release_bundle_sha256s_sha256=[string]$request.release_bundle_sha256s_sha256
@@ -839,7 +848,7 @@ try {
         Assert-True ([long]$descriptor.size_bytes -eq (Get-Item -LiteralPath $path).Length) `
             "published descriptor size mismatch: $role"
     }
-    Assert-True (@($index.canonical_evidence.raw_reports).Count -eq 12) `
+    Assert-True (@($index.canonical_evidence.raw_reports).Count -eq 14) `
         'published raw report descriptor set missing'
     $allPublishedRaw = @(
         [IO.File]::ReadAllText($publishedIndexPath),
@@ -996,7 +1005,7 @@ try {
         (([string]$missingRaw.report.cases[0].raw_report).Replace('/','\'))))
     $missingRawArgs = Get-PublisherArguments $missingRaw 'server-version-process-matrix-missing-one-raw'
     Invoke-ExpectedFailure { & $publisher @missingRawArgs } `
-        'MCACE_MATRIX_PUBLISH_RAW_EXACT_12_FILES_REQUIRED'
+        'MCACE_MATRIX_PUBLISH_RAW_EXACT_14_FILES_REQUIRED'
 
     $syntheticRaw = New-Fixture 'synthetic-raw-marker'
     $syntheticPath = Join-Path $syntheticRaw.triplet_root `
@@ -1091,18 +1100,18 @@ try {
     # wrapper. Keep these fixtures internally self-consistent so each negative proves
     # that the publisher itself rejects a weakened native binding.
     $scalarTargets = New-Fixture 'current-scalar-targets'
-    $scalarTargets.current.target_versions = '1.21.11,26.1.2,26.2'
+    $scalarTargets.current.target_versions = '1.21.11,26.1.2,26.2,26.3'
     Write-MatrixTriplet $scalarTargets
     $scalarTargetsArgs = Get-PublisherArguments $scalarTargets `
         'server-version-process-matrix-current-scalar-targets'
     Invoke-ExpectedFailure { & $publisher @scalarTargetsArgs } `
         'MCACE_MATRIX_PUBLISH_CURRENT_BINDING_INVALID'
 
-    $shortAssets = New-Fixture 'current-seven-assets'
-    $shortAssets.current.assets = @($shortAssets.current.assets | Select-Object -First 7)
+    $shortAssets = New-Fixture 'current-ten-assets'
+    $shortAssets.current.assets = @($shortAssets.current.assets | Select-Object -First 10)
     Write-MatrixTriplet $shortAssets
     $shortAssetsArgs = Get-PublisherArguments $shortAssets `
-        'server-version-process-matrix-current-seven-assets'
+        'server-version-process-matrix-current-ten-assets'
     Invoke-ExpectedFailure { & $publisher @shortAssetsArgs } `
         'MCACE_MATRIX_PUBLISH_CURRENT_BINDING_INVALID'
 
@@ -1122,6 +1131,47 @@ try {
         'server-version-process-matrix-current-backend-asset-policy'
     Invoke-ExpectedFailure { & $publisher @assetPolicyArgs } `
         'MCACE_MATRIX_PUBLISH_BACKEND_ASSET_IDENTITY_INVALID'
+
+    # Paper 26.3 is an explicit experimental lane: a STABLE-labelled 26.3 asset is rejected.
+    $paper263Stable = New-Fixture 'current-paper-263-stable'
+    @($paper263Stable.current.assets | Where-Object {
+        $_.project -ceq 'paper' -and $_.version -ceq '26.3' })[0].channel = 'STABLE'
+    Write-MatrixTriplet $paper263Stable
+    $paper263StableArgs = Get-PublisherArguments $paper263Stable `
+        'server-version-process-matrix-current-paper-263-stable'
+    Invoke-ExpectedFailure { & $publisher @paper263StableArgs } `
+        'MCACE_MATRIX_PUBLISH_BACKEND_ASSET_IDENTITY_INVALID|paper|26.3'
+
+    # Velocity 4.2.0-30 requires Java 25; a Java 21 claim is a reviewed-pin mismatch.
+    $velocityJava = New-Fixture 'current-velocity-420-java'
+    @($velocityJava.current.assets | Where-Object { $_.version -ceq '4.2.0-30' })[0].java_major = 21
+    Write-MatrixTriplet $velocityJava
+    $velocityJavaArgs = Get-PublisherArguments $velocityJava `
+        'server-version-process-matrix-current-velocity-420-java'
+    Invoke-ExpectedFailure { & $publisher @velocityJavaArgs } `
+        'MCACE_MATRIX_PUBLISH_PROXY_ASSET_IDENTITY_INVALID|velocity|4.2.0-30'
+
+    # A 26.3 case bound to Velocity 3.5.1-615 (which cannot speak protocol 777) is rejected.
+    $velocity263 = New-Fixture 'current-velocity-263-old-proxy'
+    $oldVelocity = @($velocity263.current.assets | Where-Object { $_.version -ceq '3.5.1-615' })[0]
+    $definition263 = @($velocity263.current.definitions | Where-Object {
+        $_.case_id -ceq '26.3-paper-velocity' })[0]
+    $definition263.proxy_asset_identity = 'velocity:3.5.1-615:615'
+    $definition263.proxy_asset_sha256 = [string]$oldVelocity.sha256
+    Write-MatrixTriplet $velocity263
+    $velocity263Args = Get-PublisherArguments $velocity263 `
+        'server-version-process-matrix-current-velocity-263-old-proxy'
+    Invoke-ExpectedFailure { & $publisher @velocity263Args } `
+        'MCACE_MATRIX_PUBLISH_DEFINITION_NATIVE_CROSS_BINDING_INVALID|12'
+
+    # A Folia 26.3 case cannot be smuggled into the Paper-only 26.3 lane.
+    $folia263 = New-Fixture 'current-folia-263-lane'
+    @($folia263.current.definitions)[13].backend = 'FOLIA'
+    Write-MatrixTriplet $folia263
+    $folia263Args = Get-PublisherArguments $folia263 `
+        'server-version-process-matrix-current-folia-263-lane'
+    Invoke-ExpectedFailure { & $publisher @folia263Args } `
+        'MCACE_MATRIX_PUBLISH_DEFINITION_INVALID|13'
 
     $shortPrepared = New-Fixture 'current-five-prepared-trees'
     $shortPrepared.current.prepared_trees = @(

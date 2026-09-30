@@ -52,7 +52,31 @@ $releaseArtifactDomain = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_RELEASE_ARTIFACT_S
 $matrixProductDomain = 'MCACE_SERVER_VERSION_PROCESS_MATRIX_PRODUCT_JAR_SET_V1'
 $bundleSchema = 'MCACE_RELEASE_BUNDLE_V4'
 $productVersion = '0.0.1'
-$targetVersions = @('1.21.11', '26.1.2', '26.2')
+$targetVersions = @('1.21.11', '26.1.2', '26.2', '26.3')
+# Folia publishes no 26.3 line, so the 26.3 lane is Paper-only (14 cases).
+$backendsByVersion = [ordered]@{
+    '1.21.11' = @('PAPER', 'FOLIA')
+    '26.1.2' = @('PAPER', 'FOLIA')
+    '26.2' = @('PAPER', 'FOLIA')
+    '26.3' = @('PAPER')
+}
+# Explicit experimental lanes (upstream pre-release only), labelled BETA.
+$betaLaneKeys = @('folia|26.2', 'paper|26.3')
+$expectedCaseCount = 14
+$expectedStableCaseCount = 10
+$expectedBetaCaseCount = 4
+$expectedBackendAssetKeys = @(
+    'paper|1.21.11', 'paper|26.1.2', 'paper|26.2', 'paper|26.3',
+    'folia|1.21.11', 'folia|26.1.2', 'folia|26.2')
+# Reviewed proxy pins: key -> Java feature the proxy requires. Velocity 3.5.1-615 and
+# BungeeCord 2085 cannot speak protocol 777, so 26.3 cases bind the Java 25
+# Velocity 4.2.0-30 and BungeeCord 2100.
+$reviewedProxyJavaByKey = [ordered]@{
+    'velocity|3.5.1-615' = 21
+    'velocity|4.2.0-30' = 25
+    'bungeecord|2085' = 21
+    'bungeecord|2100' = 21
+}
 $maximumJsonBytes = 16777216
 $maximumBundleTextBytes = 1048576
 $maximumBundleArtifactBytes = 134217728
@@ -765,14 +789,40 @@ function Assert-CanonicalRelativePath([object]$Value, [string]$Role) {
     }
 }
 
+function Get-ReviewedProxyVersion([string]$ProxyProject, [string]$MinecraftVersion) {
+    if ($ProxyProject -ceq 'velocity') {
+        if ($MinecraftVersion -ceq '26.3') { return '4.2.0-30' }
+        return '3.5.1-615'
+    }
+    if ($ProxyProject -ceq 'bungeecord') {
+        if ($MinecraftVersion -ceq '26.3') { return '2100' }
+        return '2085'
+    }
+    throw "MCACE_MATRIX_PUBLISH_PROXY_PROJECT_INVALID|$ProxyProject"
+}
+
+function Get-ExpectedPlayLoginId([string]$MinecraftVersion) {
+    switch -CaseSensitive ($MinecraftVersion) {
+        '1.21.11' { return '0x30' }
+        '26.1.2' { return '0x31' }
+        '26.2' { return '0x31' }
+        '26.3' { return '0x32' }
+    }
+    throw "MCACE_MATRIX_PUBLISH_VERSION_INVALID|$MinecraftVersion"
+}
+
 function Get-ExpectedCases {
     $list = New-Object 'Collections.Generic.List[object]'
     foreach ($version in $targetVersions) {
-        foreach ($backend in @('PAPER', 'FOLIA')) {
+        foreach ($backend in @($backendsByVersion[$version])) {
             foreach ($proxy in @('VELOCITY', 'BUNGEE')) {
-                $protocol = if ($version -ceq '1.21.11') { 774 } elseif ($version -ceq '26.1.2') { 775 } else { 776 }
+                $protocol = switch -CaseSensitive ($version) {
+                    '1.21.11' { 774 } '26.1.2' { 775 } '26.2' { 776 } '26.3' { 777 }
+                }
                 $java = if ($version -ceq '1.21.11') { 21 } else { 25 }
-                $lane = if ($version -ceq '26.2' -and $backend -ceq 'FOLIA') { 'BETA' } else { 'STABLE' }
+                $lane = if ("$($backend.ToLowerInvariant())|$version" -cin $betaLaneKeys) {
+                    'BETA'
+                } else { 'STABLE' }
                 $proxyId = if ($proxy -ceq 'VELOCITY') { 'velocity' } else { 'bungee' }
                 $backendId = $backend.ToLowerInvariant()
                 $selector = if ($backend -ceq 'FOLIA') {
@@ -852,7 +902,7 @@ function Assert-RawCaseDocument([object]$Raw, [object]$Case, [object]$Expected) 
             $cleanupIds.Count -ne [int]$Case.cleanup_process_count) {
         throw "MCACE_MATRIX_PUBLISH_RAW_CLEANUP_INVALID|$($Expected.case_id)"
     }
-    $playId = if ([string]$Expected.minecraft_version -ceq '1.21.11') { '0x30' } else { '0x31' }
+    $playId = Get-ExpectedPlayLoginId ([string]$Expected.minecraft_version)
     if (@($Raw.channels | Where-Object { [string]$_ -ceq 'mcace:handshake' }).Count -lt 1 -or
             @($Raw.packet_trace | Where-Object { [string]$_ -ceq "PLAY:$playId" }).Count -ne 1) {
         throw "MCACE_MATRIX_PUBLISH_RAW_PROTOCOL_INVALID|$($Expected.case_id)"
@@ -871,9 +921,9 @@ function Assert-RawEvidencePackage(
             [string]$manifest.source_mode -cne 'EXECUTED' -or
             [string]$manifest.source_commit -cne $ArtifactSourceCommit -or
             [string]$manifest.product_version -cne $productVersion -or
-            -not (Test-JsonInteger $manifest.case_count) -or [int]$manifest.case_count -ne 12 -or
+            -not (Test-JsonInteger $manifest.case_count) -or [int]$manifest.case_count -ne $expectedCaseCount -or
             -not (Test-Sha256 $manifest.ordered_raw_report_set_sha256) -or
-            -not (Test-JsonArray $manifest.reports) -or @($manifest.reports).Count -ne 12) {
+            -not (Test-JsonArray $manifest.reports) -or @($manifest.reports).Count -ne $expectedCaseCount) {
         throw 'MCACE_MATRIX_PUBLISH_RAW_MANIFEST_INVALID'
     }
     Assert-SameTime $manifest.generated_at $Report.generated_at 'raw-manifest.generated_at'
@@ -882,10 +932,10 @@ function Assert-RawEvidencePackage(
         throw 'MCACE_MATRIX_PUBLISH_RAW_DIRECTORY_REQUIRED'
     }
     $rawEntries = @(Get-ChildItem -LiteralPath $rawRoot -Force -ErrorAction Stop)
-    if ($rawEntries.Count -ne 12 -or @($rawEntries | Where-Object {
+    if ($rawEntries.Count -ne $expectedCaseCount -or @($rawEntries | Where-Object {
                 $_.PSIsContainer -or ($_.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0
             }).Count -ne 0) {
-        throw 'MCACE_MATRIX_PUBLISH_RAW_EXACT_12_FILES_REQUIRED'
+        throw 'MCACE_MATRIX_PUBLISH_RAW_EXACT_14_FILES_REQUIRED'
     }
     $descriptorNames = @('ordinal','case_id','path','sha256','size_bytes','raw_schema',
         'minecraft_version','backend','proxy','execution_mode','invocation_exit_code',
@@ -894,7 +944,7 @@ function Assert-RawEvidencePackage(
     $expectedCases = @(Get-ExpectedCases)
     $cases = @($Report.cases)
     $documents = [Collections.Generic.List[object]]::new()
-    for ($index=0; $index -lt 12; $index++) {
+    for ($index=0; $index -lt $expectedCaseCount; $index++) {
         $descriptor = @($manifest.reports)[$index]
         $case = $cases[$index]
         $expected = $expectedCases[$index]
@@ -963,17 +1013,19 @@ function Assert-CurrentBinding([object]$Current, [object]$Report) {
             -not (Test-StringEqual $Current.product_version $productVersion) -or
             -not (Test-JsonArray $Current.target_versions) -or
             ((@($Current.target_versions) -join ',') -cne ($targetVersions -join ',')) -or
-            -not (Test-JsonInteger $Current.case_count) -or [int]$Current.case_count -ne 12 -or
+            -not (Test-JsonInteger $Current.case_count) -or [int]$Current.case_count -ne $expectedCaseCount -or
             -not (Test-Sha256 $Current.source_manifest_sha256) -or
             -not (Test-JsonInteger $Current.source_file_count) -or [int]$Current.source_file_count -lt 20 -or
             -not (Test-Sha256 $Current.wrapper_sha256) -or
             -not (Test-Sha256 $Current.wrapper_test_sha256) -or
             -not (Test-Sha256 $Current.runtime_assets_manifest_sha256) -or
             -not (Test-Sha256 $Current.prepared_manifest_sha256) -or
-            -not (Test-JsonArray $Current.assets) -or @($Current.assets).Count -ne 8 -or
-            -not (Test-JsonArray $Current.prepared_trees) -or @($Current.prepared_trees).Count -ne 6 -or
+            -not (Test-JsonArray $Current.assets) -or
+            @($Current.assets).Count -ne ($expectedBackendAssetKeys.Count + $reviewedProxyJavaByKey.Count) -or
+            -not (Test-JsonArray $Current.prepared_trees) -or
+            @($Current.prepared_trees).Count -ne $expectedBackendAssetKeys.Count -or
             -not (Test-JsonArray $Current.server_jdks) -or @($Current.server_jdks).Count -ne 2 -or
-            -not (Test-JsonArray $Current.definitions) -or @($Current.definitions).Count -ne 12) {
+            -not (Test-JsonArray $Current.definitions) -or @($Current.definitions).Count -ne $expectedCaseCount) {
         throw 'MCACE_MATRIX_PUBLISH_CURRENT_BINDING_INVALID'
     }
 
@@ -997,28 +1049,22 @@ function Assert-CurrentBinding([object]$Current, [object]$Report) {
         }
         if ($project -in @('paper','folia')) {
             $expectedJava = if ($version -ceq '1.21.11') { 21 } else { 25 }
-            $expectedChannel = if ($project -ceq 'folia' -and $version -ceq '26.2') {
-                'BETA'
-            } else { 'STABLE' }
-            if ($version -notin $targetVersions -or
+            $expectedChannel = if ($key -cin $betaLaneKeys) { 'BETA' } else { 'STABLE' }
+            if ($key -cnotin $expectedBackendAssetKeys -or
                     [int]$asset.java_major -ne $expectedJava -or
                     -not (Test-StringEqual $asset.channel $expectedChannel)) {
                 throw "MCACE_MATRIX_PUBLISH_BACKEND_ASSET_IDENTITY_INVALID|$key"
             }
         } else {
-            if (($project -ceq 'velocity' -and $version -cne '3.5.1-615') -or
-                    ($project -ceq 'bungeecord' -and $version -cne '2085') -or
-                    [int]$asset.java_major -ne 21 -or
+            if (-not $reviewedProxyJavaByKey.Contains($key) -or
+                    [int]$asset.java_major -ne [int]$reviewedProxyJavaByKey[$key] -or
                     -not (Test-StringEqual $asset.channel 'REVIEWED')) {
                 throw "MCACE_MATRIX_PUBLISH_PROXY_ASSET_IDENTITY_INVALID|$key"
             }
         }
         $assetMap.Add($key, $asset)
     }
-    $expectedAssetKeys = @(
-        'paper|1.21.11','paper|26.1.2','paper|26.2',
-        'folia|1.21.11','folia|26.1.2','folia|26.2',
-        'velocity|3.5.1-615','bungeecord|2085')
+    $expectedAssetKeys = @($expectedBackendAssetKeys) + @($reviewedProxyJavaByKey.Keys)
     foreach ($key in $expectedAssetKeys) {
         if (-not $assetMap.ContainsKey($key)) {
             throw "MCACE_MATRIX_PUBLISH_ASSET_MISSING|$key"
@@ -1056,9 +1102,7 @@ function Assert-CurrentBinding([object]$Current, [object]$Report) {
         }
         $preparedMap.Add($key, $prepared)
     }
-    foreach ($key in @(
-            'paper|1.21.11','paper|26.1.2','paper|26.2',
-            'folia|1.21.11','folia|26.1.2','folia|26.2')) {
+    foreach ($key in $expectedBackendAssetKeys) {
         if (-not $preparedMap.ContainsKey($key)) {
             throw "MCACE_MATRIX_PUBLISH_PREPARED_TREE_MISSING|$key"
         }
@@ -1135,7 +1179,7 @@ function Assert-CurrentBinding([object]$Current, [object]$Report) {
         'backend','proxy','lane','selector','server_asset_identity','server_asset_sha256',
         'prepared_tree_sha256','proxy_asset_identity','proxy_asset_sha256')
     $definitionMap = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
-    for ($index = 0; $index -lt 12; $index++) {
+    for ($index = 0; $index -lt $expectedCaseCount; $index++) {
         $actual = $definitions[$index]
         $expected = $expectedCases[$index]
         if (-not (Test-ExactProperties $actual $definitionNames) -or
@@ -1153,7 +1197,7 @@ function Assert-CurrentBinding([object]$Current, [object]$Report) {
         }
         $backendKey = "$(([string]$actual.backend).ToLowerInvariant())|$($actual.minecraft_version)"
         $proxyProject = if ([string]$actual.proxy -ceq 'VELOCITY') { 'velocity' } else { 'bungeecord' }
-        $proxyVersion = if ($proxyProject -ceq 'velocity') { '3.5.1-615' } else { '2085' }
+        $proxyVersion = Get-ReviewedProxyVersion $proxyProject ([string]$actual.minecraft_version)
         if (-not $assetMap.ContainsKey($backendKey) -or
                 -not $preparedMap.ContainsKey($backendKey) -or
                 -not $assetMap.ContainsKey("$proxyProject|$proxyVersion")) {
@@ -1179,7 +1223,7 @@ function Assert-CurrentBinding([object]$Current, [object]$Report) {
     }
 
     $cases = @($Report.cases)
-    if ($cases.Count -ne 12) {
+    if ($cases.Count -ne $expectedCaseCount) {
         throw 'MCACE_MATRIX_PUBLISH_CURRENT_REPORT_CASE_SET_INVALID'
     }
     foreach ($case in $cases) {
@@ -1197,7 +1241,7 @@ function Assert-CurrentBinding([object]$Current, [object]$Report) {
         }
         $backendKey = "$(([string]$case.backend).ToLowerInvariant())|$($case.minecraft_version)"
         $proxyProject = if ([string]$case.proxy -ceq 'VELOCITY') { 'velocity' } else { 'bungeecord' }
-        $proxyVersion = if ($proxyProject -ceq 'velocity') { '3.5.1-615' } else { '2085' }
+        $proxyVersion = Get-ReviewedProxyVersion $proxyProject ([string]$case.minecraft_version)
         $backendAsset = $assetMap[$backendKey]
         $proxyAsset = $assetMap["$proxyProject|$proxyVersion"]
         $prepared = $preparedMap[$backendKey]
@@ -1271,10 +1315,10 @@ function Assert-Report([object]$Report, [object]$Products) {
             -not (Test-Commit $Report.release_source_commit) -or
             [string]$Report.product_version -cne $productVersion -or
             ((@($Report.target_versions) -join ',') -cne ($targetVersions -join ',')) -or
-            -not (Test-JsonInteger $Report.expected_case_count) -or [int]$Report.expected_case_count -ne 12 -or
-            -not (Test-JsonInteger $Report.observed_case_count) -or [int]$Report.observed_case_count -ne 12 -or
-            -not (Test-JsonInteger $Report.stable_case_count) -or [int]$Report.stable_case_count -ne 10 -or
-            -not (Test-JsonInteger $Report.beta_case_count) -or [int]$Report.beta_case_count -ne 2 -or
+            -not (Test-JsonInteger $Report.expected_case_count) -or [int]$Report.expected_case_count -ne $expectedCaseCount -or
+            -not (Test-JsonInteger $Report.observed_case_count) -or [int]$Report.observed_case_count -ne $expectedCaseCount -or
+            -not (Test-JsonInteger $Report.stable_case_count) -or [int]$Report.stable_case_count -ne $expectedStableCaseCount -or
+            -not (Test-JsonInteger $Report.beta_case_count) -or [int]$Report.beta_case_count -ne $expectedBetaCaseCount -or
             -not (Test-True $Report.all_cases_passed) -or
             -not (Test-True $Report.cleanup_all_zero) -or
             [string]$Report.raw_manifest_schema -cne $rawManifestSchema -or
@@ -1297,7 +1341,7 @@ function Assert-Report([object]$Report, [object]$Products) {
     }
     $generated = ConvertTo-EvidenceTime $Report.generated_at 'report.generated_at'
     $cases = @($Report.cases)
-    if ($cases.Count -ne 12) { throw 'MCACE_MATRIX_PUBLISH_COMPLETE_12_OF_12_REQUIRED' }
+    if ($cases.Count -ne $expectedCaseCount) { throw 'MCACE_MATRIX_PUBLISH_COMPLETE_14_OF_14_REQUIRED' }
     $expectedCases = @(Get-ExpectedCases)
     $seenOrdinal = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     $seenFolded = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
@@ -1307,7 +1351,7 @@ function Assert-Report([object]$Report, [object]$Products) {
         'raw_report','raw_report_sha256','raw_report_size','raw_report_last_write_at',
         'server_asset_identity','proxy_asset_identity','run_root','cleanup_process_count',
         'remaining_run_process_count','sensitive_artifact_count','process_cleanup_observed','passed')
-    for ($index = 0; $index -lt 12; $index++) {
+    for ($index = 0; $index -lt $expectedCaseCount; $index++) {
         $case = $cases[$index]
         $expected = $expectedCases[$index]
         $caseId = [string]$case.case_id
@@ -1700,7 +1744,7 @@ function Assert-CrossBinding([object]$Products, [object]$Bundle) {
 function Get-CaseRuntimeCommitments([object]$Report, [object]$RawEvidence) {
     $commitments = [Collections.Generic.List[object]]::new()
     $processCount = 0
-    for ($caseIndex = 0; $caseIndex -lt 12; $caseIndex++) {
+    for ($caseIndex = 0; $caseIndex -lt $expectedCaseCount; $caseIndex++) {
         $case = @($Report.cases)[$caseIndex]
         $raw = @($RawEvidence.documents)[$caseIndex].value
         $processes = [Collections.Generic.List[object]]::new()
@@ -1744,7 +1788,7 @@ function Get-CaseRuntimeCommitments([object]$Report, [object]$RawEvidence) {
     }
     return [pscustomobject]@{
         values=$commitments.ToArray()
-        count=12
+        count=$expectedCaseCount
         process_count=$processCount
         sha256=Get-SetSha256 $caseRuntimeDomain $commitments.ToArray()
     }
@@ -1818,7 +1862,7 @@ function Assert-SupervisorSigningRequest(
             [string]$request.ordered_raw_report_set_sha256 -cne
                 [string]$Report.ordered_raw_report_set_sha256 -or
             [string]$request.case_runtime_commitment_sha256 -cne [string]$CaseCommitment.sha256 -or
-            [int]$request.case_count -ne 12 -or
+            [int]$request.case_count -ne $expectedCaseCount -or
             [int]$request.process_identity_count -ne [int]$CaseCommitment.process_count -or
             [string]$request.release_bundle_schema -cne $bundleSchema -or
             [string]$request.release_bundle_manifest_sha256 -cne [string]$Bundle.manifest_sha256 -or
@@ -2035,10 +2079,10 @@ function Assert-ImmutableIdentity([object]$Existing, [object]$Expected) {
     }
     $oldRaw = @($old.canonical_evidence.raw_reports)
     $newRaw = @($Expected.canonical_evidence.raw_reports)
-    if ($oldRaw.Count -ne 12 -or $newRaw.Count -ne 12) {
+    if ($oldRaw.Count -ne $expectedCaseCount -or $newRaw.Count -ne $expectedCaseCount) {
         throw 'MCACE_MATRIX_PUBLISH_DIVERGENT_IMMUTABLE_EVIDENCE_ID'
     }
-    for ($index=0; $index -lt 12; $index++) {
+    for ($index=0; $index -lt $expectedCaseCount; $index++) {
         foreach ($name in @('path','sha256','size_bytes')) {
             if ([string]$oldRaw[$index].$name -cne [string]$newRaw[$index].$name) {
                 throw 'MCACE_MATRIX_PUBLISH_DIVERGENT_IMMUTABLE_EVIDENCE_ID'
@@ -2137,8 +2181,8 @@ $index = [pscustomobject][ordered]@{
     artifact_source_commit = $ArtifactSourceCommit
     product_version = $productVersion
     target_versions = @($targetVersions)
-    expected_case_count = 12
-    observed_case_count = 12
+    expected_case_count = $expectedCaseCount
+    observed_case_count = $expectedCaseCount
     all_cases_passed = $true
     cleanup_all_zero = $true
     evidence_class = 'EXECUTED_EXTERNALLY_SUPERVISED_RELEASE_EVIDENCE'
@@ -2236,7 +2280,7 @@ try {
             (Join-Path $stagingDirectory ([string]$pair.Key)),
             [byte[]]$pair.Value.bytes)
     }
-    for ($rawIndex=0; $rawIndex -lt 12; $rawIndex++) {
+    for ($rawIndex=0; $rawIndex -lt $expectedCaseCount; $rawIndex++) {
         $rawDescriptor = @($rawEvidence.reports)[$rawIndex]
         $rawDocument = @($rawEvidence.documents)[$rawIndex]
         [IO.File]::WriteAllBytes(

@@ -1946,7 +1946,7 @@ function Resolve-FederationServerAssets {
     try { $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json -ErrorAction Stop }
     catch { throw 'FABRIC_FEDERATION_GUI_SERVER_MATRIX_MANIFEST_INVALID' }
     if ($manifest.schema -cne 'MCACE_SERVER_VERSION_MATRIX_ASSETS_V1' -or
-            @($manifest.assets).Count -ne 8) {
+            @($manifest.assets).Count -ne 11) {
         throw 'FABRIC_FEDERATION_GUI_SERVER_MATRIX_MANIFEST_INVALID'
     }
     $bungee = @($manifest.assets | Where-Object {
