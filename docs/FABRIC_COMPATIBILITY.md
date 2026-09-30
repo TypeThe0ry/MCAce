@@ -76,8 +76,8 @@ render-frame, and federation paths inherit that decision, so the reviewed
 multi-target compatibility matrix requires no repeated approvals. Automation
 must not manufacture the one source-side decision.
 
-A passing retained pair uses report schema `8` and binding schema
-`MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6`. `-ReportOnly` also requires
+A passing retained pair uses report schema `9` and binding schema
+`MCACE_FABRIC_GUI_EVIDENCE_BINDING_V7`. `-ReportOnly` also requires
 `-FabricTarget` plus independently reviewed SHA-256 values for the Fabric
 artifact, both MCAce server plugins, Velocity, Paper, the prepared Paper tree,
 and the target's Minecraft asset bindings. It also binds the exact rewritten

@@ -13,6 +13,12 @@ param(
     [string]$FabricEvidencePlayerName,
     [Parameter(ParameterSetName = 'Execute')]
     [switch]$RetainDiagnostics,
+    # Explicit opt-in for the server matrix's experimental lane (today only 26.3:
+    # Paper 26.3 BETA build 140 behind Velocity 4.2.0-30). Execute-only: -ReportOnly
+    # never validates an experimental report, and the resulting report records
+    # server_lane = 'EXPERIMENTAL_BETA' so it can never stand in for STABLE evidence.
+    [Parameter(ParameterSetName = 'Execute')]
+    [switch]$AllowExperimentalServerLane,
     [Parameter(ParameterSetName = 'Execute')]
     [ValidateRange(30, 600)]
     [int]$ManualConsentTimeoutSeconds = 120,
@@ -113,8 +119,8 @@ $serverHandshakeSafetyMarginSeconds = if ($WithFabricEvidence) { 30 } else { 0 }
 $velocityHandshakeTimeoutSeconds = [Math]::Min(
     300, $manualConsentHandshakeTimeoutSeconds + $serverHandshakeSafetyMarginSeconds)
 $gradleVersion = '9.6.1'
-$reportSchema = 8
-$bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6'
+$reportSchema = 9
+$bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V7'
 $fabricArtifactClass = 'sanitized-final-fabric-gui-evidence'
 $fabricArtifactVersion = '0.1.0-SNAPSHOT'
 $fabricSmokeBuildId = "platform-smoke-$runId"
@@ -146,7 +152,9 @@ $fabricTargets = [ordered]@{
         version_info_sha256 = '13e195800429ad001c3d897dd646638b2bc9a9fc5ce01d840d440eb0f2ea5351'
         asset_index_sha1 = 'adb0a43fae291fd88ee27d85a372ba6f2072b0a3'
         asset_index_size = 529966L
+        server_lane = 'STABLE'
         paper_build = '132'
+        paper_channel = 'STABLE'
         paper_sha256 = '5ffef465eeeb5f2a3c23a24419d97c51afd7dbb4923ff42df9a3f58bba1ccfba'
         paper_size = 54846016L
     }
@@ -169,7 +177,9 @@ $fabricTargets = [ordered]@{
         version_info_sha256 = '2e7b23dcfb78ab3921ea663347be48508cbb286756d2b46027b47008a006c85c'
         asset_index_sha1 = '1cf55e789e49796e91b0258d4012e653b0e6acc3'
         asset_index_size = 548391L
+        server_lane = 'STABLE'
         paper_build = '74'
+        paper_channel = 'STABLE'
         paper_sha256 = '1d70b1dab9cf4a6de615209a536f3a45a2186240253c428213ce2188ab95e5f7'
         paper_size = 52893229L
     }
@@ -192,7 +202,9 @@ $fabricTargets = [ordered]@{
         version_info_sha256 = 'aaeca0a201d12c0d2259a7afe137099b1318602c073a17deccc77c7767d2f8c6'
         asset_index_sha1 = '52695890153d94cf946455da532806db8c530831'
         asset_index_size = 586366L
+        server_lane = 'STABLE'
         paper_build = '116'
+        paper_channel = 'STABLE'
         paper_sha256 = '17eee738bc0f6b747646be4199672c4efcb2084efd7e291ec5254a45d5ae6f2e'
         paper_size = 64426830L
     }
@@ -216,12 +228,14 @@ $fabricTargets = [ordered]@{
         asset_index_sha1 = '32a06dd28a0a8a981f4a1dffbdb3931f3075ca6c'
         asset_index_size = 597035L
         # Paper 26.3 exists in the server-version matrix only as the explicit experimental
-        # BETA lane (build 140, behind Velocity 4.2.0-30). This smoke accepts only a STABLE
-        # Paper behind Velocity 3.5.1-615, so the 26.3 lane fails closed with
-        # PLATFORM_SMOKE_SERVER_MATRIX_TARGET_ASSET_REQUIRED until a STABLE build is reviewed.
-        paper_build = ''
-        paper_sha256 = ''
-        paper_size = 0L
+        # BETA lane (build 140, behind Velocity 4.2.0-30 on Java 25). Resolve-ServerMatrixAssets
+        # rejects this lane with PLATFORM_SMOKE_EXPERIMENTAL_SERVER_LANE_NOT_ALLOWED unless the
+        # operator passes -AllowExperimentalServerLane; such a run is never STABLE evidence.
+        server_lane = 'EXPERIMENTAL_BETA'
+        paper_build = '140'
+        paper_channel = 'BETA'
+        paper_sha256 = '98aabc113a80b9b5e183475e839a17cf99c39c915a1f46b8f35a5e89fd5de0f1'
+        paper_size = 54017532L
     }
 }
 $fabricDescriptor = $fabricTargets[$FabricTarget]
@@ -230,12 +244,6 @@ $fabricRuntimeMode = [string]$fabricDescriptor.runtime_mode
 $fabricArtifactJar = [string]$fabricDescriptor.artifact_path
 $fabricRuntimeArtifactJar = [string]$fabricDescriptor.runtime_artifact_path
 $preparedPaperRoot = ''
-
-$velocityArtifact = @{
-    Name = 'velocity-3.5.1-615.jar'
-    Url = 'https://fill-data.papermc.io/v1/objects/b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3/velocity-3.5.1-615.jar'
-    Sha256 = 'b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3'
-}
 
 function Get-Sha256([string]$Path) {
     return (Get-FileHash -LiteralPath $Path -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -252,7 +260,40 @@ function Get-ObjectProperty([object]$Value, [string]$Name) {
     return $property.Value
 }
 
-function Resolve-ServerMatrixAssets {
+function Resolve-ServerMatrixAssets([switch]$AllowExperimentalLane) {
+    # Reviewed proxy pins: identity, served targets, Java floor, and lane of every Velocity
+    # build this smoke may launch. The manifest may only select one of these, never add one.
+    # Kept inside the function because fabric-federation-gui-handoff-smoke.ps1 imports this
+    # function's AST verbatim (and never passes -AllowExperimentalLane).
+    $reviewedVelocityPins = [ordered]@{
+        '3.5.1-615' = [ordered]@{
+            build = '615'
+            sha256 = 'b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3'
+            size = 18932366L
+            java_major = 21
+            url = 'https://fill-data.papermc.io/v1/objects/b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3/velocity-3.5.1-615.jar'
+            target_versions = '1.21.11,26.1.2,26.2'
+            server_lane = 'STABLE'
+        }
+        '4.2.0-30' = [ordered]@{
+            build = '30'
+            sha256 = '35a5596a5468a035d8a32c8de5ebb0dc6b8d8f0cc3ff5169d514aca762af8aa8'
+            size = 42163652L
+            java_major = 25
+            url = 'https://fill-data.papermc.io/v1/objects/35a5596a5468a035d8a32c8de5ebb0dc6b8d8f0cc3ff5169d514aca762af8aa8/velocity-4.2.0-30.jar'
+            target_versions = '26.3'
+            server_lane = 'EXPERIMENTAL_BETA'
+        }
+    }
+    # The only reviewed experimental backend pin; a descriptor edit cannot widen this set.
+    $reviewedExperimentalPaperPins = [ordered]@{
+        '26.3' = [ordered]@{
+            build = '140'
+            sha256 = '98aabc113a80b9b5e183475e839a17cf99c39c915a1f46b8f35a5e89fd5de0f1'
+            size = 54017532L
+            channel = 'BETA'
+        }
+    }
     if (-not (Test-Path -LiteralPath $serverMatrixManifest -PathType Leaf)) {
         throw 'PLATFORM_SMOKE_SERVER_MATRIX_MANIFEST_REQUIRED'
     }
@@ -266,8 +307,36 @@ function Resolve-ServerMatrixAssets {
     if ([string]::IsNullOrEmpty([string]$fabricDescriptor.paper_build)) {
         throw 'PLATFORM_SMOKE_SERVER_MATRIX_TARGET_ASSET_REQUIRED'
     }
+    $serverLane = [string]$fabricDescriptor['server_lane']
+    if ($serverLane -ceq 'EXPERIMENTAL_BETA') {
+        if (-not $AllowExperimentalLane) {
+            throw 'PLATFORM_SMOKE_EXPERIMENTAL_SERVER_LANE_NOT_ALLOWED'
+        }
+        $experimentalPin = if ($reviewedExperimentalPaperPins.Contains($FabricTarget)) {
+            $reviewedExperimentalPaperPins[$FabricTarget]
+        } else { $null }
+        if ($null -eq $experimentalPin -or
+                [string]$fabricDescriptor.paper_build -cne [string]$experimentalPin.build -or
+                [string]$fabricDescriptor.paper_sha256 -cne [string]$experimentalPin.sha256 -or
+                [long]$fabricDescriptor.paper_size -ne [long]$experimentalPin.size -or
+                [string]$fabricDescriptor['paper_channel'] -cne [string]$experimentalPin.channel) {
+            throw 'PLATFORM_SMOKE_EXPERIMENTAL_SERVER_LANE_PIN_INVALID'
+        }
+    } elseif ($serverLane -ceq 'STABLE') {
+        if ([string]$fabricDescriptor['paper_channel'] -cne 'STABLE' -or
+                $reviewedExperimentalPaperPins.Contains($FabricTarget)) {
+            throw 'PLATFORM_SMOKE_TARGET_PAPER_IDENTITY_INVALID'
+        }
+    } else {
+        throw 'PLATFORM_SMOKE_SERVER_LANE_INVALID'
+    }
+    $expectedPaperChannel = [string]$fabricDescriptor['paper_channel']
+    # Select the unique Velocity pin whose reviewed target set serves this target.
     $velocity = @($manifest.assets | Where-Object {
-        $_.project -ceq 'velocity' -and $_.version -ceq '3.5.1-615'
+        $_.project -ceq 'velocity' -and
+            @(@(Get-ObjectProperty $_ 'target_versions') | Where-Object {
+                [string]$_ -ceq $FabricTarget
+            }).Count -eq 1
     })
     $paper = @($manifest.assets | Where-Object {
         $_.project -ceq 'paper' -and $_.version -ceq $FabricTarget
@@ -290,25 +359,47 @@ function Resolve-ServerMatrixAssets {
             throw 'PLATFORM_SMOKE_SERVER_MATRIX_ASSET_ORIGIN_INVALID'
         }
     }
-    if ($velocity[0].sha256 -cne $velocityArtifact.Sha256 -or
-            $velocity[0].url -cne $velocityArtifact.Url) {
+    $velocityVersion = [string](Get-ObjectProperty $velocity[0] 'version')
+    $velocityPin = if ($reviewedVelocityPins.Contains($velocityVersion)) {
+        $reviewedVelocityPins[$velocityVersion]
+    } else { $null }
+    if ($null -eq $velocityPin -or
+            [string](Get-ObjectProperty $velocity[0] 'build') -cne [string]$velocityPin.build -or
+            [string]$velocity[0].sha256 -cne [string]$velocityPin.sha256 -or
+            [string]$velocity[0].url -cne [string]$velocityPin.url -or
+            [long]$velocity[0].size -ne [long]$velocityPin.size -or
+            [string](Get-ObjectProperty $velocity[0] 'java_major') -cne [string]$velocityPin.java_major -or
+            [string](Get-ObjectProperty $velocity[0] 'channel') -cne 'REVIEWED' -or
+            ((@(Get-ObjectProperty $velocity[0] 'target_versions') | ForEach-Object { [string]$_ }) -join ',') -cne
+                [string]$velocityPin.target_versions -or
+            [string]$velocityPin.server_lane -cne $serverLane) {
         throw 'PLATFORM_SMOKE_REVIEWED_VELOCITY_IDENTITY_INVALID'
+    }
+    # Velocity is launched on the exact target JDK (Start-JavaService uses TargetJavaPath:
+    # Java 21 for 1.21.11, Java 25 for 26.x), so the pin's Java floor must fit that JDK.
+    # Velocity 4.2.0-30 (class file 69) therefore only ever runs on the 26.3 Java 25 JDK.
+    if ([int]$velocityPin.java_major -gt [int]$fabricDescriptor.java_major) {
+        throw 'PLATFORM_SMOKE_VELOCITY_JAVA_MAJOR_UNSUPPORTED'
     }
     if ([string]$paper[0].build -cne [string]$fabricDescriptor.paper_build -or
             [string]$paper[0].sha256 -cne [string]$fabricDescriptor.paper_sha256 -or
             [long]$paper[0].size -ne [long]$fabricDescriptor.paper_size -or
-            [string]$paper[0].channel -cne 'STABLE' -or
+            [string]$paper[0].channel -cne $expectedPaperChannel -or
             [int]$paper[0].java_major -ne [int]$fabricDescriptor.java_major) {
         throw 'PLATFORM_SMOKE_TARGET_PAPER_IDENTITY_INVALID'
     }
-    $velocityPath = Join-Path $serverMatrixRoot 'velocity\3.5.1-615\server.jar'
+    $velocityPath = Join-Path $serverMatrixRoot ('velocity\{0}\server.jar' -f $velocityVersion)
     $paperDirectory = Join-Path $serverMatrixRoot (
         'paper\{0}\{1}' -f $FabricTarget, [string]$fabricDescriptor.paper_build)
     return [pscustomobject]@{
         manifest_path = $manifestPath
         manifest_sha256 = Get-Sha256 $manifestPath
+        server_lane = $serverLane
+        velocity_version = $velocityVersion
+        velocity_java_major = [int]$velocityPin.java_major
+        paper_channel = [string]$paper[0].channel
         velocity = [ordered]@{
-            Name = 'velocity-3.5.1-615.jar'
+            Name = "velocity-$velocityVersion.jar"
             Url = [string]$velocity[0].url
             Sha256 = [string]$velocity[0].sha256
             Size = [Convert]::ToInt64($velocity[0].size)
@@ -847,6 +938,8 @@ function New-SanitizedReleaseReport(
         status = 'passed'
         release_evidence = $false
         diagnostics_retained = $DiagnosticsRetained
+        server_lane = [string]$script:ServerAssets.server_lane
+        velocity_server_version = [string]$script:ServerAssets.velocity_version
         fabric_target = $FabricTarget
         minecraft_version = [string]$fabricDescriptor.minecraft_version
         velocity_policy_minecraft_versions = [string]$VelocityPolicyTuple['velocity_policy_minecraft_versions']
@@ -1691,7 +1784,7 @@ function Get-ImmutableInputSnapshot {
     $rootJava = Resolve-RootJava21
     $targetJava = Resolve-TargetJava
     $gradle = Resolve-OfflineGradle961
-    $serverAssets = Resolve-ServerMatrixAssets
+    $serverAssets = Resolve-ServerMatrixAssets -AllowExperimentalLane:$AllowExperimentalServerLane
     if ([string]$serverAssets.prepared_root -cne $preparedPaperRoot) {
         throw 'PLATFORM_SMOKE_PREPARED_PAPER_TARGET_CHANGED'
     }
@@ -1710,6 +1803,8 @@ function Get-ImmutableInputSnapshot {
         script_sha256 = $executedScriptSha256
         source_manifest_sha256 = $source.sha256
         source_file_count = $source.file_count
+        server_lane = [string]$serverAssets.server_lane
+        velocity_server_version = [string]$serverAssets.velocity_version
         velocity_server_sha256 = Get-Sha256 $velocityServer
         paper_server_sha256 = Get-Sha256 $paperServer
         server_matrix_manifest_sha256 = $serverAssets.manifest_sha256
@@ -1827,9 +1922,11 @@ function Open-LockedEvidence([string]$Path) {
     }
 }
 
-function Assert-PassingReportRaw([string]$Raw, [switch]$RequireFullFabricEvidence) {
+function Assert-PassingReportRaw([string]$Raw, [switch]$RequireFullFabricEvidence,
+        [switch]$AllowExperimentalServerLane) {
     $names = @('schema', 'generated_at', 'artifact_class', 'status', 'release_evidence',
-        'diagnostics_retained', 'fabric_target', 'minecraft_version', 'fabric_api_version',
+        'diagnostics_retained', 'server_lane', 'velocity_server_version',
+        'fabric_target', 'minecraft_version', 'fabric_api_version',
         'velocity_policy_minecraft_versions', 'velocity_policy_client_build_ids',
         'fabric_artifact_kind', 'fabric_java_major', 'fabric_runtime_mode',
         'fabric_runtime_jar_loaded', 'fabric_release_jar_loaded',
@@ -1849,6 +1946,23 @@ function Assert-PassingReportRaw([string]$Raw, [switch]$RequireFullFabricEvidenc
     try { $report = $Raw | ConvertFrom-Json -ErrorAction Stop }
     catch { throw 'PLATFORM_SMOKE_REPORT_JSON_INVALID' }
     if (-not (Test-ExactJsonProperties $report $names)) { throw 'PLATFORM_SMOKE_REPORT_SCHEMA_INVALID' }
+    # Only a STABLE-lane report is platform evidence. An experimental-lane report is accepted
+    # solely by the run that produced it (which passed -AllowExperimentalServerLane), never by
+    # -ReportOnly or any other stable consumer.
+    if ($report.server_lane -isnot [string] -or
+            $report.server_lane -cnotin @('STABLE', 'EXPERIMENTAL_BETA') -or
+            $report.server_lane -cne [string]$fabricDescriptor['server_lane']) {
+        throw 'PLATFORM_SMOKE_REPORT_SERVER_LANE_INVALID'
+    }
+    if ($report.server_lane -cne 'STABLE' -and -not $AllowExperimentalServerLane) {
+        throw 'PLATFORM_SMOKE_REPORT_EXPERIMENTAL_SERVER_LANE_NOT_STABLE_EVIDENCE'
+    }
+    if ($report.velocity_server_version -isnot [string] -or
+            $report.velocity_server_version -cnotin @('3.5.1-615', '4.2.0-30') -or
+            (($report.velocity_server_version -ceq '4.2.0-30') -ne
+                ($report.server_lane -ceq 'EXPERIMENTAL_BETA'))) {
+        throw 'PLATFORM_SMOKE_REPORT_SERVER_LANE_INVALID'
+    }
     $timestampMatch = [regex]::Match(
         $Raw, '"generated_at"\s*:\s*"(?<timestamp>[^"\\]+)"',
         [System.Text.RegularExpressions.RegexOptions]::CultureInvariant)
@@ -1956,7 +2070,8 @@ function Assert-BindingRaw([string]$Raw, [string]$ReportSha256, [object]$Report,
         'fabric_artifact_marker_observed', 'fabric_build_id', 'script_sha256',
         'source_manifest_sha256', 'source_file_count', 'fabric_artifact_sha256',
         'fabric_runtime_artifact_sha256',
-        'velocity_plugin_sha256', 'paper_plugin_sha256', 'velocity_server_sha256',
+        'velocity_plugin_sha256', 'paper_plugin_sha256', 'server_lane',
+        'velocity_server_version', 'velocity_server_sha256',
         'paper_server_sha256', 'server_matrix_manifest_sha256',
         'paper_prepared_manifest_sha256', 'paper_prepared_tree_sha256',
         'paper_prepared_file_count', 'paper_prepared_total_size',
@@ -1976,6 +2091,8 @@ function Assert-BindingRaw([string]$Raw, [string]$ReportSha256, [object]$Report,
             $binding.report_sha256 -cne $ReportSha256 -or $binding.source_mode -cne 'EXECUTED' -or
             $binding.fabric_target -cne $FabricTarget -or
             $binding.fabric_target -cne $Report.fabric_target -or
+            $binding.server_lane -cne $Report.server_lane -or
+            $binding.velocity_server_version -cne $Report.velocity_server_version -or
             $binding.minecraft_version -cne [string]$fabricDescriptor.minecraft_version -or
             $binding.minecraft_version -cne $Report.minecraft_version -or
             $binding.velocity_policy_minecraft_versions -cne [string]$fabricDescriptor.minecraft_version -or
@@ -2033,7 +2150,8 @@ function Assert-BindingRaw([string]$Raw, [string]$ReportSha256, [object]$Report,
             'velocity_policy_minecraft_versions', 'velocity_policy_client_build_ids',
             'fabric_artifact_kind', 'fabric_runtime_mode', 'fabric_build_id', 'script_sha256',
             'source_manifest_sha256', 'fabric_artifact_sha256', 'fabric_runtime_artifact_sha256',
-            'velocity_plugin_sha256', 'paper_plugin_sha256', 'velocity_server_sha256',
+            'velocity_plugin_sha256', 'paper_plugin_sha256', 'server_lane',
+            'velocity_server_version', 'velocity_server_sha256',
             'paper_server_sha256', 'server_matrix_manifest_sha256',
             'paper_prepared_manifest_sha256', 'paper_prepared_tree_sha256',
             'fabric_version_info_sha1', 'fabric_version_info_sha256',
@@ -2059,14 +2177,16 @@ function Assert-BindingRaw([string]$Raw, [string]$ReportSha256, [object]$Report,
 }
 
 function Assert-EvidencePair([string]$ReportPath, [System.Collections.IDictionary]$Current,
-        [switch]$RequireFullFabricEvidence) {
+        [switch]$RequireFullFabricEvidence, [switch]$AllowExperimentalServerLane) {
     $reportEvidence = $null
     $bindingEvidence = $null
     try {
         $reportEvidence = Open-LockedEvidence $ReportPath
         $bindingPath = Join-Path (Split-Path -Parent $ReportPath) 'binding.json'
         $bindingEvidence = Open-LockedEvidence $bindingPath
-        $report = Assert-PassingReportRaw $reportEvidence.raw -RequireFullFabricEvidence:$RequireFullFabricEvidence
+        $report = Assert-PassingReportRaw $reportEvidence.raw `
+            -RequireFullFabricEvidence:$RequireFullFabricEvidence `
+            -AllowExperimentalServerLane:$AllowExperimentalServerLane
         Assert-BindingRaw $bindingEvidence.raw $reportEvidence.sha256 $report $Current
         return $report
     } finally {
@@ -2133,6 +2253,8 @@ function New-EvidenceBinding([byte[]]$ReportBytes, [object]$Report,
         fabric_runtime_artifact_sha256 = $Current.fabric_runtime_artifact_sha256
         velocity_plugin_sha256 = $Current.velocity_plugin_sha256
         paper_plugin_sha256 = $Current.paper_plugin_sha256
+        server_lane = $Current.server_lane
+        velocity_server_version = $Current.velocity_server_version
         velocity_server_sha256 = $Current.velocity_server_sha256
         paper_server_sha256 = $Current.paper_server_sha256
         server_matrix_manifest_sha256 = $Current.server_matrix_manifest_sha256
@@ -2171,7 +2293,12 @@ function Assert-BindingSnapshotUnchanged(
     }
 }
 
-$script:ServerAssets = Resolve-ServerMatrixAssets
+$script:ServerAssets = Resolve-ServerMatrixAssets -AllowExperimentalLane:$AllowExperimentalServerLane
+if ([string]$script:ServerAssets.server_lane -cne 'STABLE') {
+    Write-Warning ("PLATFORM_SMOKE_EXPERIMENTAL_SERVER_LANE|target=$FabricTarget|" +
+        "velocity=$($script:ServerAssets.velocity_version)|paper_channel=$($script:ServerAssets.paper_channel)|" +
+        'this run is NOT stable platform evidence and -ReportOnly will never accept it')
+}
 $preparedPaperRoot = [string]$script:ServerAssets.prepared_root
 
 if ($ReportOnly) {
@@ -2733,6 +2860,8 @@ try {
             status = 'failed'
             release_evidence = $false
             diagnostics_retained = [bool]$RetainDiagnostics
+            server_lane = [string]$script:ServerAssets.server_lane
+            velocity_server_version = [string]$script:ServerAssets.velocity_version
             fabric_target = $FabricTarget
             minecraft_version = [string]$fabricDescriptor.minecraft_version
             fabric_api_version = [string]$fabricDescriptor.fabric_api_version
@@ -2793,7 +2922,8 @@ try {
         [System.IO.File]::WriteAllText(
             $bindingPath, ($binding | ConvertTo-Json -Depth 4),
             [System.Text.UTF8Encoding]::new($false))
-        $null = Assert-EvidencePair $reportPath $currentEvidenceBinding
+        $null = Assert-EvidencePair $reportPath $currentEvidenceBinding `
+            -AllowExperimentalServerLane:$AllowExperimentalServerLane
         if ($RetainDiagnostics) {
             Write-DiagnosticsNotice $runRoot 'Diagnostics were retained because -RetainDiagnostics was explicitly supplied.'
         } else {
@@ -2805,4 +2935,4 @@ try {
 if ($null -ne $smokeFailure -or -not $passed -or -not $cleanupCompleted) {
     throw 'MCAce platform load smoke did not complete cleanly; inspect report.json'
 }
-Write-Output "PLATFORM_LOAD_SMOKE_PASS|$runRoot"
+Write-Output "PLATFORM_LOAD_SMOKE_PASS|$runRoot|server_lane=$($script:ServerAssets.server_lane)"

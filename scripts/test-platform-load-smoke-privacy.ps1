@@ -207,6 +207,8 @@ $expectedKeys = @(
     'status',
     'release_evidence',
     'diagnostics_retained',
+    'server_lane',
+    'velocity_server_version',
     'fabric_target',
     'minecraft_version',
     'velocity_policy_minecraft_versions',
@@ -286,7 +288,8 @@ $expectedBindingKeys = @(
     'fabric_release_jar_loaded', 'fabric_artifact_marker_observed', 'fabric_build_id', 'script_sha256',
     'source_manifest_sha256', 'source_file_count', 'fabric_artifact_sha256',
     'fabric_runtime_artifact_sha256',
-    'velocity_plugin_sha256', 'paper_plugin_sha256', 'velocity_server_sha256',
+    'velocity_plugin_sha256', 'paper_plugin_sha256', 'server_lane', 'velocity_server_version',
+    'velocity_server_sha256',
     'paper_server_sha256', 'server_matrix_manifest_sha256',
     'paper_prepared_manifest_sha256', 'paper_prepared_tree_sha256',
     'paper_prepared_file_count', 'paper_prepared_total_size',
@@ -352,7 +355,7 @@ foreach ($required in @(
         'diagnostics_retained = [bool]$RetainDiagnostics',
         "fabric_runtime_mode = `$fabricRuntimeMode",
         'fabric_release_jar_loaded = $FabricReleaseJarLoaded',
-        "`$reportSchema = 8",
+        "`$reportSchema = 9",
         "runtime_mode = 'LOOM_FINAL_REMAP_ARTIFACT'",
         "runtime_mode = 'LOOM_FINAL_NAMED_JAR_ARTIFACT'",
         "artifact_kind = 'FINAL_REMAP_JAR'",
@@ -379,7 +382,7 @@ foreach ($required in @(
         'velocity_policy_minecraft_versions = $Current.velocity_policy_minecraft_versions',
         'velocity_policy_client_build_ids = $Current.velocity_policy_client_build_ids',
         'fabric_artifact_marker_observed = [bool]$Report.fabric_runtime_jar_loaded',
-        "`$bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6'",
+        "`$bindingSchema = 'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V7'",
         'function Set-ExactVelocityPolicyTuple',
         "'policy.minecraft-versions' = `$MinecraftVersion",
         "'policy.client-build-ids' = `$ClientBuildId",
@@ -497,7 +500,8 @@ foreach ($required in @(
 foreach ($forbidden in @('Invoke-WebRequest', 'Invoke-RestMethod',
         'org.gradle.wrapper.GradleWrapperMain', "Join-Path `$repoRoot 'gradlew.bat'",
         'Get-RunMarkerJavaProcesses', 'Stop-RunMarkerJavaProcesses',
-        'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V3', '$reportSchema = 5')) {
+        'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V3', '$reportSchema = 5', '$reportSchema = 8',
+        'MCACE_FABRIC_GUI_EVIDENCE_BINDING_V6', '$velocityArtifact = ')) {
     Assert-True ($source.IndexOf($forbidden, [StringComparison]::OrdinalIgnoreCase) -lt 0) `
         "platform smoke retained a forbidden online/wrapper path: $forbidden"
 }
@@ -1204,76 +1208,291 @@ foreach ($requiredModernArtifactModeClosure in @(
 }
 
 # Execute the real server-matrix asset resolver against the eleven-asset manifest. The
-# 26.3 target must stay fail-closed: Paper 26.3 is only an experimental BETA matrix lane.
-foreach ($name in @('Get-Sha256', 'Get-ObjectProperty', 'Resolve-ServerMatrixAssets')) {
+# 26.3 target is the experimental BETA lane (Paper 26.3-140 behind Velocity 4.2.0-30): it
+# must fail closed unless -AllowExperimentalServerLane is passed, and stable targets must
+# resolve identically with or without the switch.
+$allowExperimentalParameter = @($ast.ParamBlock.Parameters | Where-Object {
+    $_.Name.VariablePath.UserPath -ceq 'AllowExperimentalServerLane'
+})
+Assert-True ($allowExperimentalParameter.Count -eq 1 -and
+        $allowExperimentalParameter[0].StaticType -eq [System.Management.Automation.SwitchParameter]) `
+    'AllowExperimentalServerLane must be an explicit switch'
+$allowExperimentalSets = @($allowExperimentalParameter[0].Attributes | Where-Object {
+    $_ -is [System.Management.Automation.Language.AttributeAst] -and $_.TypeName.Name -ceq 'Parameter'
+} | ForEach-Object { $_.NamedArguments | Where-Object ArgumentName -CEQ 'ParameterSetName' } |
+    ForEach-Object { $_.Argument.Extent.Text })
+Assert-True (($allowExperimentalSets -join ',') -ceq "'Execute'") `
+    'AllowExperimentalServerLane must be Execute-only; -ReportOnly never validates an experimental lane'
+foreach ($required in @(
+        '$script:ServerAssets = Resolve-ServerMatrixAssets -AllowExperimentalLane:$AllowExperimentalServerLane',
+        '$serverAssets = Resolve-ServerMatrixAssets -AllowExperimentalLane:$AllowExperimentalServerLane',
+        '$null = Assert-EvidencePair $latestReport $currentEvidenceBinding -RequireFullFabricEvidence' + "`n",
+        "server_lane = 'EXPERIMENTAL_BETA'",
+        "throw 'PLATFORM_SMOKE_EXPERIMENTAL_SERVER_LANE_NOT_ALLOWED'",
+        "throw 'PLATFORM_SMOKE_REPORT_EXPERIMENTAL_SERVER_LANE_NOT_STABLE_EVIDENCE'",
+        "throw 'PLATFORM_SMOKE_VELOCITY_JAVA_MAJOR_UNSUPPORTED'",
+        'server_lane = [string]$script:ServerAssets.server_lane',
+        'server_lane = $Current.server_lane')) {
+    Assert-True ($source.IndexOf($required, [StringComparison]::Ordinal) -ge 0) `
+        "experimental server-lane contract is missing: $required"
+}
+# Velocity runs on the exact target JDK; the 4.2.0-30 (Java 25) lane relies on that.
+$javaServiceAst = Get-TargetFunctionAst 'Start-JavaService'
+Assert-True ($null -ne $javaServiceAst -and
+        $javaServiceAst.Extent.Text.Contains('$java = $script:TargetJavaPath')) `
+    'Velocity/Paper must launch on the exact target JDK'
+$federationSource = [System.IO.File]::ReadAllText((Join-Path $PSScriptRoot 'fabric-federation-gui-handoff-smoke.ps1'))
+Assert-True ($federationSource.Contains('$platformAssets = Resolve-ServerMatrixAssets' + "`n") -and
+        -not $federationSource.Contains('AllowExperimental')) `
+    'federation handoff smoke must reuse the resolver without the experimental lane'
+Assert-True ([string]$fabricTargets['26.3'].server_lane -ceq 'EXPERIMENTAL_BETA' -and
+        [string]$fabricTargets['26.3'].paper_build -ceq '140' -and
+        [string]$fabricTargets['26.3'].paper_channel -ceq 'BETA' -and
+        [string]$fabricTargets['26.3'].paper_sha256 -ceq '98aabc113a80b9b5e183475e839a17cf99c39c915a1f46b8f35a5e89fd5de0f1' -and
+        [long]$fabricTargets['26.3'].paper_size -eq 54017532L) `
+    '26.3 descriptor must pin exactly Paper 26.3-140 BETA as the experimental lane'
+foreach ($targetName in @('1.21.11', '26.1.2', '26.2')) {
+    Assert-True ([string]$fabricTargets[$targetName].server_lane -ceq 'STABLE' -and
+            [string]$fabricTargets[$targetName].paper_channel -ceq 'STABLE') `
+        "stable target lane drifted: $targetName"
+}
+
+foreach ($name in @('Get-Sha256', 'Get-ObjectProperty', 'Resolve-ServerMatrixAssets',
+        'Get-JsonPropertyNames', 'Test-ExactJsonProperties', 'Test-JsonInteger',
+        'Assert-PassingReportRaw')) {
     $functionAst = Get-TargetFunctionAst $name
     Assert-True ($null -ne $functionAst) "server-matrix resolver helper is missing: $name"
     Invoke-Expression $functionAst.Extent.Text
 }
-$velocityArtifactAssignment = $ast.Find({
-    param($node)
-    $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
-        $node.Left.Extent.Text -ceq '$velocityArtifact'
-}, $false)
-Assert-True ($null -ne $velocityArtifactAssignment) 'reviewed Velocity artifact pin is missing'
-Invoke-Expression $velocityArtifactAssignment.Extent.Text
+function Assert-Throws([scriptblock]$Action, [string]$Expected, [string]$Message) {
+    $failure = $null
+    try { $null = & $Action } catch { $failure = $_.Exception.Message }
+    Assert-True ($failure -ceq $Expected) "${Message}: $failure"
+}
+function Use-FabricTarget([string]$Name) {
+    $script:FabricTarget = $Name
+    $script:fabricDescriptor = $fabricTargets[$Name]
+    $script:fabricRuntimeMode = [string]$fabricTargets[$Name].runtime_mode
+}
 $serverMatrixRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
     'mcace-platform-server-matrix-' + [Guid]::NewGuid().ToString('N'))
 $serverMatrixManifest = Join-Path $serverMatrixRoot 'manifest.json'
+$velocity3Sha = 'b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3'
+$velocity4Sha = '35a5596a5468a035d8a32c8de5ebb0dc6b8d8f0cc3ff5169d514aca762af8aa8'
 try {
     $null = New-Item -ItemType Directory -Path $serverMatrixRoot -ErrorAction Stop
     function New-MatrixFixtureAsset([string]$Project, [string]$Version, [string]$Build,
-            [string]$Sha256, [long]$Size, [string]$Channel, [int]$Java) {
-        return [ordered]@{
+            [string]$Sha256, [long]$Size, [string]$Channel, [int]$Java, [string[]]$Targets) {
+        $asset = [ordered]@{
             project = $Project; version = $Version; build = $Build
-            url = "https://fill-data.papermc.io/v1/objects/$Sha256/$Project-$Version-$Build.jar"
+            url = "https://fill-data.papermc.io/v1/objects/$Sha256/$Project-$Version.jar"
             sha256 = $Sha256; size = $Size; channel = $Channel; java_major = $Java
         }
+        if ($null -ne $Targets) { $asset['target_versions'] = @($Targets) }
+        return $asset
     }
-    $matrixAssets = [System.Collections.Generic.List[object]]::new()
-    foreach ($targetName in @('1.21.11', '26.1.2', '26.2')) {
-        $descriptor = $fabricTargets[$targetName]
-        [void]$matrixAssets.Add((New-MatrixFixtureAsset 'paper' $targetName ([string]$descriptor.paper_build) `
-            ([string]$descriptor.paper_sha256) ([long]$descriptor.paper_size) 'STABLE' ([int]$descriptor.java_major)))
-        [void]$matrixAssets.Add((New-MatrixFixtureAsset 'folia' $targetName '1' ('a' * 64) 1L 'STABLE' ([int]$descriptor.java_major)))
+    function New-MatrixFixture {
+        $assets = [System.Collections.Generic.List[object]]::new()
+        foreach ($targetName in @('1.21.11', '26.1.2', '26.2')) {
+            $descriptor = $fabricTargets[$targetName]
+            [void]$assets.Add((New-MatrixFixtureAsset 'paper' $targetName ([string]$descriptor.paper_build) `
+                ([string]$descriptor.paper_sha256) ([long]$descriptor.paper_size) 'STABLE' ([int]$descriptor.java_major) $null))
+            [void]$assets.Add((New-MatrixFixtureAsset 'folia' $targetName '1' ('a' * 64) 1L 'STABLE' ([int]$descriptor.java_major) $null))
+        }
+        [void]$assets.Add((New-MatrixFixtureAsset 'paper' '26.3' '140' `
+            '98aabc113a80b9b5e183475e839a17cf99c39c915a1f46b8f35a5e89fd5de0f1' 54017532L 'BETA' 25 $null))
+        [void]$assets.Add((New-MatrixFixtureAsset 'velocity' '3.5.1-615' '615' $velocity3Sha 18932366L 'REVIEWED' 21 `
+            @('1.21.11', '26.1.2', '26.2')))
+        [void]$assets.Add((New-MatrixFixtureAsset 'velocity' '4.2.0-30' '30' $velocity4Sha 42163652L 'REVIEWED' 25 @('26.3')))
+        [void]$assets.Add((New-MatrixFixtureAsset 'bungeecord' '2085' '2085' ('c' * 64) 1L 'REVIEWED' 21 `
+            @('1.21.11', '26.1.2', '26.2')))
+        [void]$assets.Add((New-MatrixFixtureAsset 'bungeecord' '2100' '2100' ('d' * 64) 1L 'REVIEWED' 21 @('26.3')))
+        return ,$assets
     }
-    [void]$matrixAssets.Add((New-MatrixFixtureAsset 'paper' '26.3' '140' `
-        '98aabc113a80b9b5e183475e839a17cf99c39c915a1f46b8f35a5e89fd5de0f1' 54017532L 'BETA' 25))
-    $velocity = [ordered]@{
-        project = 'velocity'; version = '3.5.1-615'; build = '615'; url = $velocityArtifact.Url
-        sha256 = $velocityArtifact.Sha256; size = 18932366L; channel = 'REVIEWED'; java_major = 21
-    }
-    [void]$matrixAssets.Add($velocity)
-    [void]$matrixAssets.Add((New-MatrixFixtureAsset 'velocity' '4.2.0-30' '30' ('b' * 64) 1L 'REVIEWED' 25))
-    [void]$matrixAssets.Add((New-MatrixFixtureAsset 'bungeecord' '2085' '2085' ('c' * 64) 1L 'REVIEWED' 21))
-    [void]$matrixAssets.Add((New-MatrixFixtureAsset 'bungeecord' '2100' '2100' ('d' * 64) 1L 'REVIEWED' 21))
-    Assert-True ($matrixAssets.Count -eq 11) 'server-matrix fixture must hold eleven assets'
     function Write-MatrixFixture([object[]]$Assets) {
         [System.IO.File]::WriteAllText($serverMatrixManifest, ([ordered]@{
             schema = 'MCACE_SERVER_VERSION_MATRIX_ASSETS_V1'; assets = @($Assets)
         } | ConvertTo-Json -Depth 6), [System.Text.UTF8Encoding]::new($false))
     }
+    function Get-FixtureAsset([object]$Assets, [string]$Project, [string]$Version) {
+        return @($Assets | Where-Object { $_.project -ceq $Project -and $_.version -ceq $Version })[0]
+    }
+    $matrixAssets = New-MatrixFixture
+    Assert-True ($matrixAssets.Count -eq 11) 'server-matrix fixture must hold eleven assets'
     Write-MatrixFixture $matrixAssets.ToArray()
-    $FabricTarget = '26.2'
-    $fabricDescriptor = $fabricTargets[$FabricTarget]
-    $resolved = Resolve-ServerMatrixAssets
-    Assert-True ([string]$resolved.velocity.Name -ceq 'velocity-3.5.1-615.jar' -and
-            [string]$resolved.paper.Build -ceq '116' -and
-            [string]$resolved.paper.Sha256 -ceq [string]$fabricDescriptor.paper_sha256) `
-        'server-matrix resolver did not bind the reviewed 26.2 Paper/Velocity pair'
-    $FabricTarget = '26.3'
-    $fabricDescriptor = $fabricTargets[$FabricTarget]
-    $failure = $null
-    try { $null = Resolve-ServerMatrixAssets } catch { $failure = $_.Exception.Message }
-    Assert-True ($failure -ceq 'PLATFORM_SMOKE_SERVER_MATRIX_TARGET_ASSET_REQUIRED') `
-        "26.3 platform lane must fail closed on the experimental Paper lane: $failure"
-    $FabricTarget = '26.2'
-    $fabricDescriptor = $fabricTargets[$FabricTarget]
+
+    # Stable targets: unchanged, and identical with or without the experimental switch.
+    foreach ($targetName in @('1.21.11', '26.1.2', '26.2')) {
+        Use-FabricTarget $targetName
+        $plain = Resolve-ServerMatrixAssets
+        $opted = Resolve-ServerMatrixAssets -AllowExperimentalLane
+        foreach ($resolved in @($plain, $opted)) {
+            Assert-True ([string]$resolved.server_lane -ceq 'STABLE' -and
+                    [string]$resolved.velocity_version -ceq '3.5.1-615' -and
+                    [int]$resolved.velocity_java_major -eq 21 -and
+                    [string]$resolved.velocity.Name -ceq 'velocity-3.5.1-615.jar' -and
+                    [string]$resolved.velocity.Sha256 -ceq $velocity3Sha -and
+                    [string]$resolved.velocity.Path -ceq (Join-Path $serverMatrixRoot 'velocity\3.5.1-615\server.jar') -and
+                    [string]$resolved.paper_channel -ceq 'STABLE' -and
+                    [string]$resolved.paper.Build -ceq [string]$fabricDescriptor.paper_build -and
+                    [string]$resolved.paper.Sha256 -ceq [string]$fabricDescriptor.paper_sha256) `
+                "server-matrix resolver did not bind the reviewed stable pair for $targetName"
+        }
+        Assert-True ((($plain | ConvertTo-Json -Depth 4) -ceq ($opted | ConvertTo-Json -Depth 4))) `
+            "experimental switch changed the stable resolution for $targetName"
+    }
+
+    # 26.3 without the switch: fail closed.
+    Use-FabricTarget '26.3'
+    Assert-Throws { Resolve-ServerMatrixAssets } 'PLATFORM_SMOKE_EXPERIMENTAL_SERVER_LANE_NOT_ALLOWED' `
+        '26.3 platform lane must fail closed without -AllowExperimentalServerLane'
+    # 26.3 with the switch: Velocity 4.2.0-30 (Java 25) + Paper 26.3-140 BETA.
+    $experimental = Resolve-ServerMatrixAssets -AllowExperimentalLane
+    Assert-True ([string]$experimental.server_lane -ceq 'EXPERIMENTAL_BETA' -and
+            [string]$experimental.velocity_version -ceq '4.2.0-30' -and
+            [int]$experimental.velocity_java_major -eq 25 -and
+            [string]$experimental.velocity.Name -ceq 'velocity-4.2.0-30.jar' -and
+            [string]$experimental.velocity.Sha256 -ceq $velocity4Sha -and
+            [long]$experimental.velocity.Size -eq 42163652L -and
+            [string]$experimental.velocity.Url -ceq "https://fill-data.papermc.io/v1/objects/$velocity4Sha/velocity-4.2.0-30.jar" -and
+            [string]$experimental.velocity.Path -ceq (Join-Path $serverMatrixRoot 'velocity\4.2.0-30\server.jar') -and
+            [string]$experimental.paper_channel -ceq 'BETA' -and
+            [string]$experimental.paper.Build -ceq '140' -and
+            [string]$experimental.paper.Name -ceq 'paper-26.3-140.jar' -and
+            [string]$experimental.paper.Sha256 -ceq '98aabc113a80b9b5e183475e839a17cf99c39c915a1f46b8f35a5e89fd5de0f1' -and
+            [string]$experimental.prepared_root -ceq (Join-Path $serverMatrixRoot 'paper\26.3\140\prepared')) `
+        '26.3 experimental lane did not resolve Velocity 4.2.0-30 + Paper 26.3-140 BETA'
+
+    # Tampered manifests are rejected even with the switch.
+    $tampered = New-MatrixFixture
+    (Get-FixtureAsset $tampered 'velocity' '4.2.0-30').size = 42163653L
+    Write-MatrixFixture $tampered.ToArray()
+    Assert-Throws { Resolve-ServerMatrixAssets -AllowExperimentalLane } 'PLATFORM_SMOKE_REVIEWED_VELOCITY_IDENTITY_INVALID' `
+        'resolver accepted a Velocity 4.2.0-30 size drift'
+    $tampered = New-MatrixFixture
+    (Get-FixtureAsset $tampered 'velocity' '4.2.0-30').java_major = 21
+    Write-MatrixFixture $tampered.ToArray()
+    Assert-Throws { Resolve-ServerMatrixAssets -AllowExperimentalLane } 'PLATFORM_SMOKE_REVIEWED_VELOCITY_IDENTITY_INVALID' `
+        'resolver accepted a Velocity 4.2.0-30 Java-floor drift'
+    $tampered = New-MatrixFixture
+    (Get-FixtureAsset $tampered 'velocity' '3.5.1-615').target_versions = @('1.21.11', '26.1.2', '26.2', '26.3')
+    Write-MatrixFixture $tampered.ToArray()
+    Assert-Throws { Resolve-ServerMatrixAssets -AllowExperimentalLane } 'PLATFORM_SMOKE_SERVER_MATRIX_TARGET_ASSET_REQUIRED' `
+        'resolver accepted two Velocity pins serving 26.3'
+    $tampered = New-MatrixFixture
+    (Get-FixtureAsset $tampered 'velocity' '4.2.0-30').target_versions = @('26.2', '26.3')
+    (Get-FixtureAsset $tampered 'velocity' '3.5.1-615').target_versions = @('1.21.11', '26.1.2')
+    Write-MatrixFixture $tampered.ToArray()
+    Use-FabricTarget '26.2'
+    Assert-Throws { Resolve-ServerMatrixAssets -AllowExperimentalLane } 'PLATFORM_SMOKE_REVIEWED_VELOCITY_IDENTITY_INVALID' `
+        'resolver let a stable target select the experimental Velocity pin'
+    Use-FabricTarget '26.3'
+    $tampered = New-MatrixFixture
+    (Get-FixtureAsset $tampered 'paper' '26.3').channel = 'STABLE'
+    Write-MatrixFixture $tampered.ToArray()
+    Assert-Throws { Resolve-ServerMatrixAssets -AllowExperimentalLane } 'PLATFORM_SMOKE_TARGET_PAPER_IDENTITY_INVALID' `
+        'resolver accepted a Paper 26.3 channel other than the reviewed BETA'
+    $tampered = New-MatrixFixture
+    (Get-FixtureAsset $tampered 'paper' '26.2').channel = 'BETA'
+    Write-MatrixFixture $tampered.ToArray()
+    Use-FabricTarget '26.2'
+    Assert-Throws { Resolve-ServerMatrixAssets -AllowExperimentalLane } 'PLATFORM_SMOKE_TARGET_PAPER_IDENTITY_INVALID' `
+        'experimental switch let a stable target accept a BETA Paper'
+    Write-MatrixFixture $matrixAssets.ToArray()
+
+    # Descriptor edits cannot widen the reviewed experimental set or the Velocity Java floor.
+    $savedTargets = $fabricTargets
+    try {
+        $fabricTargets = [ordered]@{}
+        foreach ($key in @($savedTargets.Keys)) {
+            $copy = [ordered]@{}
+            foreach ($field in @($savedTargets[$key].Keys)) { $copy[$field] = $savedTargets[$key][$field] }
+            $fabricTargets[$key] = $copy
+        }
+        $fabricTargets['26.2'].server_lane = 'EXPERIMENTAL_BETA'
+        Use-FabricTarget '26.2'
+        Assert-Throws { Resolve-ServerMatrixAssets -AllowExperimentalLane } 'PLATFORM_SMOKE_EXPERIMENTAL_SERVER_LANE_PIN_INVALID' `
+            'a stable target descriptor was promoted to the experimental lane'
+        $fabricTargets['26.3'].server_lane = 'STABLE'
+        $fabricTargets['26.3'].paper_channel = 'STABLE'
+        Use-FabricTarget '26.3'
+        Assert-Throws { Resolve-ServerMatrixAssets } 'PLATFORM_SMOKE_TARGET_PAPER_IDENTITY_INVALID' `
+            'the 26.3 descriptor was relabelled STABLE'
+        $fabricTargets['26.3'].server_lane = 'EXPERIMENTAL_BETA'
+        $fabricTargets['26.3'].paper_channel = 'BETA'
+        $fabricTargets['26.3'].java_major = 21
+        Use-FabricTarget '26.3'
+        Assert-Throws { Resolve-ServerMatrixAssets -AllowExperimentalLane } 'PLATFORM_SMOKE_VELOCITY_JAVA_MAJOR_UNSUPPORTED' `
+            'Velocity 4.2.0-30 was allowed on a JDK below its Java 25 floor'
+        $fabricTargets['26.3'].java_major = 25
+        $fabricTargets['26.3'].server_lane = 'UNREVIEWED'
+        Assert-Throws { Resolve-ServerMatrixAssets -AllowExperimentalLane } 'PLATFORM_SMOKE_SERVER_LANE_INVALID' `
+            'an unknown server lane was accepted'
+    } finally {
+        $fabricTargets = $savedTargets
+    }
+
+    # Reports: an experimental-lane report is never accepted where a stable report is required.
+    $reportSchema = 9
+    $fabricArtifactClass = 'sanitized-final-fabric-gui-evidence'
+    $MaximumReportAgeMinutes = 60
+    function New-PlatformReportFixture([string]$Lane, [string]$VelocityVersion) {
+        $report = [ordered]@{}
+        foreach ($key in $expectedKeys) { $report[$key] = $false }
+        foreach ($key in @('persistent_identity_unchanged', 'velocity_transport_classes_present',
+                'paper_admission_channel_enabled', 'paper_missing_pin_failure_observed',
+                'paper_missing_pin_plugin_disabled', 'paper_missing_pin_channel_absent',
+                'cleanup_completed', 'cleanup_ports_free')) { $report[$key] = $true }
+        $report['schema'] = 9
+        $report['generated_at'] = [DateTimeOffset]::UtcNow.ToString('o')
+        $report['artifact_class'] = $fabricArtifactClass
+        $report['status'] = 'passed'
+        $report['server_lane'] = $Lane
+        $report['velocity_server_version'] = $VelocityVersion
+        $report['fabric_target'] = $FabricTarget
+        $report['minecraft_version'] = [string]$fabricDescriptor.minecraft_version
+        $report['velocity_policy_minecraft_versions'] = [string]$fabricDescriptor.minecraft_version
+        $report['velocity_policy_client_build_ids'] = 'platform-smoke-20260930T120000000Z'
+        $report['fabric_api_version'] = [string]$fabricDescriptor.fabric_api_version
+        $report['fabric_artifact_kind'] = [string]$fabricDescriptor.artifact_kind
+        $report['fabric_java_major'] = [int]$fabricDescriptor.java_major
+        $report['fabric_runtime_mode'] = $fabricRuntimeMode
+        $report['explicit_file_manifest_entries'] = 0
+        $report['loopback_listener_count'] = 2
+        $report['assertion_count'] = 6
+        $report['remaining_owned_process_count'] = 0
+        return ($report | ConvertTo-Json -Depth 4)
+    }
+    Use-FabricTarget '26.2'
+    $stableReport = New-PlatformReportFixture 'STABLE' '3.5.1-615'
+    Assert-True ([string](Assert-PassingReportRaw $stableReport).server_lane -ceq 'STABLE') `
+        'a valid stable 26.2 report was rejected'
+    Assert-True ([string](Assert-PassingReportRaw $stableReport -AllowExperimentalServerLane).server_lane -ceq 'STABLE') `
+        'the experimental switch changed stable report validation'
+    Assert-Throws { Assert-PassingReportRaw (New-PlatformReportFixture 'EXPERIMENTAL_BETA' '4.2.0-30') -AllowExperimentalServerLane } `
+        'PLATFORM_SMOKE_REPORT_SERVER_LANE_INVALID' 'a stable target accepted an experimental-lane report'
+    Assert-Throws { Assert-PassingReportRaw ($stableReport -replace '"release_evidence":\s*false', '"release_evidence": true') } `
+        'PLATFORM_SMOKE_REPORT_INVALID' 'a platform report claimed release evidence'
+    Use-FabricTarget '26.3'
+    $experimentalReport = New-PlatformReportFixture 'EXPERIMENTAL_BETA' '4.2.0-30'
+    Assert-Throws { Assert-PassingReportRaw $experimentalReport } `
+        'PLATFORM_SMOKE_REPORT_EXPERIMENTAL_SERVER_LANE_NOT_STABLE_EVIDENCE' `
+        'an experimental-lane report was accepted as stable platform evidence'
+    Assert-Throws { Assert-PassingReportRaw $experimentalReport -RequireFullFabricEvidence } `
+        'PLATFORM_SMOKE_REPORT_EXPERIMENTAL_SERVER_LANE_NOT_STABLE_EVIDENCE' `
+        'ReportOnly-style validation accepted an experimental-lane report'
+    $accepted = Assert-PassingReportRaw $experimentalReport -AllowExperimentalServerLane
+    Assert-True ([string]$accepted.server_lane -ceq 'EXPERIMENTAL_BETA' -and -not [bool]$accepted.release_evidence) `
+        'the producing experimental run could not self-validate its non-release report'
+    Assert-Throws { Assert-PassingReportRaw (New-PlatformReportFixture 'STABLE' '4.2.0-30') -AllowExperimentalServerLane } `
+        'PLATFORM_SMOKE_REPORT_SERVER_LANE_INVALID' 'a 26.3 report was relabelled STABLE'
+    Assert-Throws { Assert-PassingReportRaw (New-PlatformReportFixture 'EXPERIMENTAL_BETA' '3.5.1-615') -AllowExperimentalServerLane } `
+        'PLATFORM_SMOKE_REPORT_SERVER_LANE_INVALID' 'an experimental report bound the stable Velocity pin'
+
+    Use-FabricTarget '26.2'
     Write-MatrixFixture @($matrixAssets | Select-Object -First 10)
-    $failure = $null
-    try { $null = Resolve-ServerMatrixAssets } catch { $failure = $_.Exception.Message }
-    Assert-True ($failure -ceq 'PLATFORM_SMOKE_SERVER_MATRIX_MANIFEST_INVALID') `
-        "server-matrix resolver accepted a ten-asset manifest: $failure"
+    Assert-Throws { Resolve-ServerMatrixAssets } 'PLATFORM_SMOKE_SERVER_MATRIX_MANIFEST_INVALID' `
+        'server-matrix resolver accepted a ten-asset manifest'
 } finally {
     if (Test-Path -LiteralPath $serverMatrixRoot) {
         Remove-Item -LiteralPath $serverMatrixRoot -Recurse -Force
