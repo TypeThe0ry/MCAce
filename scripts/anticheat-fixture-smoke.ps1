@@ -3,7 +3,7 @@ param(
     [Parameter(ParameterSetName = 'Execute', Mandatory)] [switch]$Execute,
     [Parameter(ParameterSetName = 'Report', Mandatory)] [switch]$ReportOnly,
     [Parameter(ParameterSetName = 'Execute', Mandatory)]
-    [ValidateSet('1.21.11', '26.1.2', '26.2')] [string]$MinecraftVersion,
+    [ValidateSet('1.21.11', '26.1.2', '26.2', '26.3')] [string]$MinecraftVersion,
     [Parameter(ParameterSetName = 'Execute', Mandatory)] [string]$MeteorJar,
     [Parameter(ParameterSetName = 'Execute', Mandatory)]
     [ValidatePattern('^[0-9a-fA-F]{64}$')] [string]$MeteorSha256,

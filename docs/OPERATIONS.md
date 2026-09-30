@@ -14,7 +14,8 @@ proxy-plugin initialization, with a passing pure marker unit test. The current
 restart result records
 `residual_reacceptance=true`, `durable_replay_protection=false`, and
 `fabric_gui_coverage=false`.
-The Federation V5 graphical handoff wrapper is implemented for all three targets,
+The Federation V5 graphical handoff wrapper is implemented for the three original
+targets (`1.21.11`, `26.1.2`, `26.2`; no `26.3` run is recorded),
 with PowerShell 7 and Windows PowerShell 5 parser/static contract tests passing.
 The client renders one connection-level `Enable MCAce` screen at the source; an
 accepted flow may hand off to one exact pinned target with no second prompt. No
@@ -25,8 +26,9 @@ independently signed real visible-session V5 index/receipt exists yet.
 - Put either the Velocity or BungeeCord artifact in the proxy `plugins` directory.
 - Put exactly one target-matched Fabric artifact and its exact Fabric API in the
   client's `mods` directory: `1.21.11` / `0.141.6+1.21.11` on Java 21,
-  `26.1.2` / `0.155.2+26.1.2` on Java 25, or `26.2` /
-  `0.157.0+26.2` on Java 25. All are built and tested with Loader `0.19.3`.
+  `26.1.2` / `0.155.2+26.1.2` on Java 25, `26.2` /
+  `0.157.0+26.2` on Java 25, or `26.3` / `0.161.0+26.3` on Java 25. All are
+  built and tested with Loader `0.19.3`.
 - Put the Paper artifact in every Paper/Folia backend's `plugins` directory and
   install the selected proxy public-key pin described below. The backend exposes
   the SDK/status command and consumes short-lived signed admission snapshots.
@@ -203,15 +205,15 @@ handshakes retain at most their configured short timeout; new handshakes receive
 the replacement trust state.
 
 The generated development policy is a bounded exact allowlist. For development,
-choose one supported Minecraft/build-ID pair. A three-target release uses the
+choose one supported Minecraft/build-ID pair. A four-target release uses the
 target-specific immutable commit-bound IDs documented in
 `FABRIC_COMPATIBILITY.md`:
 
 ```text
 # Velocity plugins/<MCAce data>/mcace.properties
 policy.server-id=network-east
-policy.minecraft-versions=1.21.11,26.1.2,26.2
-policy.client-build-ids=fabric-1.21.11-<commit>,fabric-26.1.2-<commit>,fabric-26.2-<commit>
+policy.minecraft-versions=1.21.11,26.1.2,26.2,26.3
+policy.client-build-ids=fabric-1.21.11-<commit>,fabric-26.1.2-<commit>,fabric-26.2-<commit>,fabric-26.3-<commit>
 
 # Bungee plugins/MCAce/mcace.properties
 server.id=network-east
@@ -224,7 +226,7 @@ Fabric embeds the Gradle build ID plus the resolved Mod and Minecraft versions i
 reuse the development ID for distinct release bytes. Velocity accepts bounded,
 comma-separated version/build lists for staged migration. Bungee accepts one exact
 Minecraft version and one exact client build ID per configuration; use the matching
-`26.1.2` or `26.2` tuple instead when that proxy serves a modern target, rather than
+`26.1.2`, `26.2`, or `26.3` tuple instead when that proxy serves a modern target, rather than
 placing comma-separated values in those fields. A configuration change immediately
 publishes a higher-sequence policy; changing `server-id` also rotates the delegated
 signer so the trust statement cannot retain the old network ID.
@@ -260,18 +262,20 @@ produced byte-identical exact-eight bundles. Durable sanitized evidence is
 [`evidence/local-build-2026-08-20.json`](evidence/local-build-2026-08-20.json);
 files below `build/` remain mutable diagnostics.
 
-`build/local-verification-bundle/` contains exactly:
+`build/local-verification-bundle/` built from current source contains exactly
+nine entries (the August 20 runs above predate `26.3` and had eight):
 
 | File | Role |
 | --- | --- |
 | `mcace-client-fabric-1.21.11.jar` | Fabric 1.21.11 remapped client |
 | `mcace-client-fabric-26.1.2.jar` | Fabric 26.1.2 named client |
 | `mcace-client-fabric-26.2.jar` | Fabric 26.2 named client |
+| `mcace-client-fabric-26.3.jar` | Fabric 26.3 named client |
 | `mcace-server-velocity.jar` | Velocity proxy plugin |
 | `mcace-server-bungeecord.jar` | BungeeCord proxy plugin |
 | `mcace-server-paper.jar` | Paper/Folia backend plugin |
 | `release-manifest.properties` | release identity and artifact metadata |
-| `SHA256SUMS` | authoritative six-JAR hashes |
+| `SHA256SUMS` | authoritative seven-JAR hashes |
 
 The local manifest is `MCACE_LOCAL_VERIFICATION_BUNDLE_V1`, has
 `bundle_profile=LOCAL_VERIFICATION`, `release_identity=false`, and
@@ -281,7 +285,7 @@ After review and commit, create the release candidate with the same strict flags
 `releaseBundle`, `-PmcaceModernJavaHome=<reviewed JDK 25 home>`, and
 `-PmcaceSourceCommit=<exact lowercase 40-hex HEAD>`. `releaseBundle` requires the
 tracked and untracked worktree to be clean, requires the supplied commit to equal
-`git rev-parse HEAD`, and re-reads all exact-eight entries. Exact-commit protected
+`git rev-parse HEAD`, and re-reads all exact-nine entries. Exact-commit protected
 CI must pass before publication.
 
 Current Linux run `cb6dc44ddad744b5a20dc2986c0a6d70` passed with the
@@ -546,7 +550,9 @@ The authoritative release wrapper is:
 .\scripts\server-version-process-matrix.ps1 -ReportOnly
 ```
 
-It executes the complete 3 versions × Paper/Folia × Velocity/Bungee matrix. The
+It executes the complete 3 versions × Paper/Folia × Velocity/Bungee matrix
+(`1.21.11`, `26.1.2`, `26.2`; the server-version matrix is not extended to
+`26.3`). The
 retained historical Helio run `2026-08-24T21-33-47-1914356Z` passed 12/12 and then passed
 `-ReportOnly`: Paper 6/6, Folia 6/6, Velocity 6/6, Bungee 6/6, with 10 STABLE
 cases and two Folia 26.2 BETA cases. Retained commit-bound diagnostic evidence is
@@ -569,7 +575,7 @@ BungeeCord 2028, and Folia 1.21.4-6 ALPHA assets cannot satisfy the current
 `-FabricTarget` is mandatory:
 
 ```powershell
-# Server-only startup; passed for all three targets.
+# Server-only startup; passed for the three original targets (no 26.3 run recorded).
 .\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11
 .\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2
 .\scripts\platform-load-smoke.ps1 -FabricTarget 26.2
@@ -582,7 +588,7 @@ BungeeCord 2028, and Folia 1.21.4-6 ALPHA assets cannot satisfy the current
 All target version manifests, asset indexes, and asset objects are already in the
 validated cache. The release gate uses exactly one human-origin, source-side,
 visible, connection-bound `Enable MCAce` approval in the Federation V5 handoff.
-The target inherits that decision and opens no second prompt. The other two
+The target inherits that decision and opens no second prompt. The other
 Fabric targets may receive optional UI compatibility/visual diagnostics, but
 those runs are not additional release approvals and cannot promote consent.
 The wrappers do not automate the decision or control an existing Minecraft
@@ -593,7 +599,7 @@ A passing local platform pair uses report schema 8 and binding
 artifact, bind the entrypoint CodeSource SHA-256, bind current server/JDK/Gradle/
 asset/prepared-tree inputs, bind `velocity_policy_minecraft_versions` and
 `velocity_policy_client_build_ids`, prove both consent chains, and leave zero
-exact run-token Java processes. 1.21.11 uses the final remapped JAR; both 26.x
+exact run-token Java processes. 1.21.11 uses the final remapped JAR; all 26.x
 targets use final named JARs.
 
 The GUI pair is LOCAL process evidence, not automatic release identity. Revalidate
@@ -653,7 +659,7 @@ report; it is fail-closed diagnostic output, and the release gate still requires
 aggregate audit marker. Operators must investigate version, clock, and sequence continuity without
 automatic player action.
 
-Current real-process evidence covers Paper and Folia 1.21.11, 26.1.2, and 26.2 through both Velocity and BungeeCord. The authoritative 12-case aggregate is linked above; Folia 26.2 remains a BETA lane. This does not establish online-mode identity, GUI consent, public-network behavior, or production-configuration compatibility.
+Current real-process evidence covers Paper and Folia 1.21.11, 26.1.2, and 26.2 through both Velocity and BungeeCord; it does not cover the `26.3` client target. The authoritative 12-case aggregate is linked above; Folia 26.2 remains a BETA lane. This does not establish online-mode identity, GUI consent, public-network behavior, or production-configuration compatibility.
 
 ## Backend-local session actions
 Paper and Folia consume only an admission snapshot that has already passed the

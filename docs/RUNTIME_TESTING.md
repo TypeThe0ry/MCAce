@@ -16,7 +16,8 @@ The August 20 strict offline Windows A/D builds each completed 118/118 tasks wit
 JDK `21.0.7+6`, isolated modern JDK `25.0.3+9`, and Gradle `9.6.1`. Root results
 were 147 suites / 681 tests / 0 failures / 0 errors / 28 skipped; modern results
 were 24 / 74 / 0 / 0 / 0; combined results were 171 / 755 / 0 / 0 / 28. The
-exact-eight local bundle was byte-identical across A and D. Durable sanitized
+exact-eight local bundle (which predates the `26.3` target; a current-source
+bundle is exact-nine) was byte-identical across A and D. Durable sanitized
 evidence is
 [`evidence/local-build-2026-08-20.json`](evidence/local-build-2026-08-20.json);
 build output remains mutable. The current bundle remains LOCAL verification
@@ -68,6 +69,10 @@ The matrix executes exactly 12 cases:
 | Proxies | Velocity, BungeeCord |
 | Java | JDK 21 for 1.21.11; JDK 25 for 26.1.2 and 26.2 servers |
 | Lanes | 10 STABLE; 2 BETA for Folia 26.2 |
+
+The matrix is not extended to the `26.3` Fabric client target. The `26.3`
+client artifact is verified by build, unit tests, and the compatibility
+contract only.
 
 Each case reaches accepted proxy authentication, accepts the proxy-signed backend
 admission, emits the content-free backend-context shadow audit, and leaves zero
@@ -203,11 +208,12 @@ consent only because the gate was explicitly enabled;
 schema-1 reports.
 
 The separate `scripts/fabric-federation-gui-handoff-smoke.ps1` release contract
-is now Federation V5 and accepts exactly `1.21.11`, `26.1.2`, or `26.2`. One
+is now Federation V5 and accepts exactly `1.21.11`, `26.1.2`, or `26.2`
+(`26.3` is not yet part of its target set). One
 representative source-side connection receives the sole visible human decision;
 source export consumes that connection-bound authorization, and the direct
 target join inherits the signed handoff without a second target prompt. The
-other two Fabric versions are non-promoting compatibility/visual smokes only.
+other Fabric versions are non-promoting compatibility/visual smokes only.
 Static contract tests pass under PowerShell 7 and Windows PowerShell 5, but a
 genuine execution remains pending. Release evidence must be the exact eight-file
 package: report, binding, commit, GUI signing request, decoded PNG, runtime

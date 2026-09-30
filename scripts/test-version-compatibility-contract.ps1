@@ -35,8 +35,9 @@ foreach ($token in @(
         "'1.21.11'",
         "'26.1.2'",
         "'26.2'",
+        "'26.3'",
         "'1.21.1'",
-        "'26.3'")) {
+        "'26.4'")) {
     if ($source.IndexOf($token, [StringComparison]::Ordinal) -lt 0) {
         throw "MCACE_VERSION_COMPATIBILITY_STATIC_TOKEN_MISSING|$token"
     }
@@ -46,7 +47,7 @@ if ($source -match "targetVersions\s*=.*1\.21\.1" -or
         $source -match "ValidateSet\([^)]*1\.21\.1") {
     throw 'MCACE_VERSION_COMPATIBILITY_LEGACY_TARGET_ACCEPTED'
 }
-if ($source -notmatch 'bundle_entry_count.*-ne 8' -or
+if ($source -notmatch 'bundle_entry_count.*-ne 9' -or
         $source -notmatch 'unsupported_versions_are_fail_closed') {
     throw 'MCACE_VERSION_COMPATIBILITY_FAIL_CLOSED_ASSERTION_MISSING'
 }
@@ -105,6 +106,10 @@ function New-CompatibilityFixture {
         [ordered]@{
             version='26.2'; loader='0.19.3'; api='0.157.0+26.2'; java=25
             nested=@('META-INF/jars/protobuf-java-4.32.1.jar')
+        },
+        [ordered]@{
+            version='26.3'; loader='0.19.3'; api='0.161.0+26.3'; java=25
+            nested=@('META-INF/jars/protobuf-java-4.32.1.jar')
         }
     )
     $jarNames = @()
@@ -140,8 +145,8 @@ function New-CompatibilityFixture {
             'schema=MCACE_RELEASE_BUNDLE_V4',
             'bundle_profile=RELEASE',
             'release_identity=true',
-            'deployable_count=6',
-            'bundle_entry_count=8',
+            'deployable_count=7',
+            'bundle_entry_count=9',
             "product_version=$version",
             "source_commit=$sourceCommit",
             "artifact_source_commit=$artifactCommit",

@@ -546,10 +546,10 @@ function Get-NativeReleaseBundleBinding([string]$Root, [string]$ExpectedArtifact
     }
     $expectedNames = @('SHA256SUMS','release-manifest.properties',
         'mcace-client-fabric-1.21.11.jar','mcace-client-fabric-26.1.2.jar',
-        'mcace-client-fabric-26.2.jar','mcace-server-velocity.jar',
+        'mcace-client-fabric-26.2.jar','mcace-client-fabric-26.3.jar','mcace-server-velocity.jar',
         'mcace-server-bungeecord.jar','mcace-server-paper.jar')
     $entries = @(Get-ChildItem -LiteralPath $resolvedRoot -Force -ErrorAction Stop)
-    if ($entries.Count -ne 8 -or
+    if ($entries.Count -ne 9 -or
             ((@($entries.Name | Sort-Object) -join '|') -cne
                 (($expectedNames | Sort-Object) -join '|'))) {
         throw 'MCACE_NATIVE_EVIDENCE_RELEASE_BUNDLE_FILE_SET_INVALID'
@@ -609,15 +609,15 @@ function Get-NativeReleaseBundleBinding([string]$Root, [string]$ExpectedArtifact
             [string]$manifest.schema -cne 'MCACE_RELEASE_BUNDLE_V4' -or
             [string]$manifest.bundle_profile -cne 'RELEASE' -or
             [string]$manifest.release_identity -cne 'true' -or
-            [string]$manifest.deployable_count -cne '6' -or
-            [string]$manifest.bundle_entry_count -cne '8' -or
+            [string]$manifest.deployable_count -cne '7' -or
+            [string]$manifest.bundle_entry_count -cne '9' -or
             [string]$manifest.product_version -cne '0.0.1' -or
             [string]$manifest.source_commit -cnotmatch '^[0-9a-f]{40}$' -or
             [string]$manifest.artifact_source_commit -cne $ExpectedArtifactSourceCommit) {
         throw 'MCACE_NATIVE_EVIDENCE_RELEASE_BUNDLE_MANIFEST_INVALID'
     }
     $sumLines = @($sumsRaw.TrimEnd("`n") -split "`n")
-    if ($sumLines.Count -ne 6) {
+    if ($sumLines.Count -ne 7) {
         throw 'MCACE_NATIVE_EVIDENCE_RELEASE_BUNDLE_SHA256SUMS_INVALID'
     }
     $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
@@ -638,7 +638,7 @@ function Get-NativeReleaseBundleBinding([string]$Root, [string]$ExpectedArtifact
                 [string]$manifest."artifact.$key.sha256" -cne $sumSha256) {
             throw 'MCACE_NATIVE_EVIDENCE_RELEASE_BUNDLE_ARTIFACT_BINDING_INVALID'
         }
-        if ($sumFile -cmatch '^mcace-client-fabric-(?<target>1\.21\.11|26\.1\.2|26\.2)\.jar$' -and
+        if ($sumFile -cmatch '^mcace-client-fabric-(?<target>1\.21\.11|26\.1\.2|26\.2|26\.3)\.jar$' -and
                 ([string]$manifest."artifact.$key.minecraft_version" -cne $Matches.target -or
                  [string]$manifest."artifact.$key.client_build_id" -cne
                     "fabric-$($Matches.target)-$ExpectedArtifactSourceCommit")) {
@@ -648,7 +648,7 @@ function Get-NativeReleaseBundleBinding([string]$Root, [string]$ExpectedArtifact
             file=$sumFile; sha256=$jarDoc.sha256; size_bytes=[long]$jarDoc.size_bytes
         }
     }
-    if ($seen.Count -ne 6) { throw 'MCACE_NATIVE_EVIDENCE_RELEASE_BUNDLE_SHA256SUMS_INVALID' }
+    if ($seen.Count -ne 7) { throw 'MCACE_NATIVE_EVIDENCE_RELEASE_BUNDLE_SHA256SUMS_INVALID' }
     return [pscustomobject]@{
         root=$resolvedRoot; manifest_sha256=$manifestDoc.sha256
         source_commit=[string]$manifest.source_commit
@@ -879,6 +879,13 @@ Set-StrictMode -Version Latest
     '26.2' = [ordered]@{
         minecraft_version = '26.2'
         fabric_api_version = '0.157.0+26.2'
+        java_major = 25
+        artifact_kind = 'FINAL_NAMED_JAR'
+        runtime_mode = 'LOOM_FINAL_NAMED_JAR_ARTIFACT'
+    }
+    '26.3' = [ordered]@{
+        minecraft_version = '26.3'
+        fabric_api_version = '0.161.0+26.3'
         java_major = 25
         artifact_kind = 'FINAL_NAMED_JAR'
         runtime_mode = 'LOOM_FINAL_NAMED_JAR_ARTIFACT'
@@ -1300,7 +1307,7 @@ switch ($Gate) {
             throw 'FABRIC_FEDERATION_GUI_COMMIT_SCHEMA_INVALID'
         }
         $target = [string](Get-RequiredProperty $report 'fabric_target' 'report')
-        if ($target -notin @('1.21.11','26.1.2','26.2')) {
+        if ($target -notin @('1.21.11','26.1.2','26.2','26.3')) {
             throw 'MCACE_NATIVE_EVIDENCE_FEDERATION_TARGET_INVALID'
         }
         $sourceProxy = [string](Get-RequiredProperty $report 'source_proxy' 'report')

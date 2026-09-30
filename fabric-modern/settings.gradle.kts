@@ -9,4 +9,4 @@ pluginManagement {
 
 rootProject.name = "mcace-fabric-modern"
 
-include("client-26.1.2", "client-26.2")
+include("client-26.1.2", "client-26.2", "client-26.3")

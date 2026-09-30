@@ -212,9 +212,10 @@ jobs:
           test -s fabric-modern/gradle/verification-metadata.xml
           test -s fabric-modern/client-26.1.2/gradle.lockfile
           test -s fabric-modern/client-26.2/gradle.lockfile
+          test -s fabric-modern/client-26.3/gradle.lockfile
           test "$(find . -name gradle.lockfile -type f \
             -not -path './.gradle/*' -not -path '*/.gradle/*' \
-            -not -path '*/build/*' | wc -l)" -eq 15
+            -not -path '*/build/*' | wc -l)" -eq 16
       - name: Build and test
         env:
           MCACE_SOURCE_COMMIT: ${{ github.sha }}

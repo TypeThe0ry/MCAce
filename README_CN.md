@@ -50,7 +50,7 @@ smoke。截图只负责展示视觉 provenance；反作弊的权威证据仍是�
 
 ![受控 Xray 隔离对照图](docs/assets/anticheat-xray-quarantine-controlled.png)
 
-已跟踪的可执行 fixture 覆盖三个支持版本（`1.21.11`、`26.1.2`、`26.2`）：
+已跟踪的可执行 fixture 覆盖最初的三个支持版本（`1.21.11`、`26.1.2`、`26.2`；新增的 `26.3` 目标尚未运行该 fixture）：
 上报客户端 ModList，关联独立服务端信号，产生签名实验室的
 `SERVER_CONFIRMED / QUARANTINE` 状态；干净对照保持 `OBSERVE`，误报计数为 0。已发布服务端
 authority 仍是 `MONITOR`/`NONE`。证据明确标记为 MCAce 自有 loopback fixture，不是公网真实外挂执行，
@@ -102,6 +102,12 @@ Paper/Folia 后端插件。
 `1007e55b7aae29bb0d761132a5fafad30e7e7351` 构建；精确八文件 bundle、manifest
 与 SHA-256 已附在 Release 中。早期 `rc1`–`rc3` 仍保留为历史预览。
 
+当前源码新增第四个 Fabric 客户端目标 Minecraft `26.3`（`mcace-client-fabric-26.3.jar`），
+因此下一版 `MCACE_RELEASE_BUNDLE_V4` bundle 为七个可部署 JAR、九项内容，兼容性合同覆盖四个目标。
+该产物集尚未发布；其 Matrix V4 等发布证据必须重新生成，且外部 release-authority 签名方需先接受
+七产物 bundle 与 `26.3` 目标，才能为其签署 GUI、Vulcan 或 Matrix 证据。服务端版本进程矩阵
+（Paper/Folia 后端）不扩展到 `26.3`。
+
 **2026-09-08 开发更新：** ZIP 材质包的有界 PNG 内容特征已接入客户端签名清单，
 服务端可将它与单独上报的材质包选中状态一起用于策略评估。它仍是低置信度遥测，
 不是作弊实锤，也没有默认开启处罚。见[纹理探测实现与测试记录](docs/evidence/TEXTURE_PROBE_2026-09-08.md)
@@ -109,7 +115,7 @@ Paper/Folia 后端插件。
 当前源码的发布级 GUI 与 federation 验收仍待完成，先前发布包不包含本次代码。
 
 **2026-09-28 核心验证：** 已对当前 `main` 源码运行三版本可执行反作弊
-fixture 和完整 Gradle 测试套件。fixture 在 `1.21.11`、`26.1.2`、`26.2`
+fixture 和完整 Gradle 测试套件（该记录早于 `26.3` 目标）。fixture 在 `1.21.11`、`26.1.2`、`26.2`
 上读取并上报客户端 ModList，与同一 session 的独立服务端信号关联，产生 3 个签名实验室
 `SERVER_CONFIRMED / QUARANTINE` 结果，干净对照误报为 0。完整仓库测试在在线补齐 Fabric
 编译依赖后成功完成。精确提交、命令、报告哈希和边界见
@@ -212,7 +218,7 @@ MCAce v0.0.1 **不是**腾讯 ACE 等价的内核级反作弊。它没有 launch
 
 ### 产品边界与隐私契约
 
-- 精确 Fabric 目标：`1.21.11`、`26.1.2`、`26.2`。
+- 精确 Fabric 目标：`1.21.11`、`26.1.2`、`26.2`、`26.3`。
 - Velocity、BungeeCord 代理适配；Paper、Folia 后端路径。
 - MCAce 默认禁用。运行时同意仅绑定当前连接，断开后不持久化。
 - 客户端来源事实保持 `CLIENT_REPORTED / LOW`，不能单独授权高影响动作。
@@ -240,6 +246,7 @@ MCAce v0.0.1 **不是**腾讯 ACE 等价的内核级反作弊。它没有 launch
 | `1.21.11` | `774` | `>=21` | `>=0.19.3` | `0.141.6+1.21.11` | 最终 remap JAR |
 | `26.1.2` | `775` | `>=25` | `>=0.19.3` | `0.155.2+26.1.2` | 最终 named JAR |
 | `26.2` | `776` | `>=25` | `>=0.19.3` | `0.157.0+26.2` | 最终 named JAR；Folia 26.2 仍是 BETA lane |
+| `26.3` | `777` | `>=25` | `>=0.19.3` | `0.161.0+26.3` | 最终 named JAR；已由构建、单元测试和兼容性合同验证；不在服务端版本进程矩阵内 |
 
 对当前 bundle 运行兼容性合同：
 
@@ -256,8 +263,8 @@ MCAce v0.0.1 **不是**腾讯 ACE 等价的内核级反作弊。它没有 launch
 federation handoff 继承同一个连接决定，不再打开第二个确认窗口。
 
 对 **v0.0.1 发布验收**，只由一个代表性连接产生真人 GUI 批准证据。整个 release gate
-只保留一次确认，不是每个 Minecraft target 各确认一次，更不是六次批准。披露页内的翻页
-不产生新的决定。其他两个版本的 UI smoke 只是可选兼容性覆盖，不会产生额外发布批准。
+只保留一次确认，不是每个 Minecraft target 各确认一次，更不是七次批准。披露页内的翻页
+不产生新的决定。其他版本的 UI smoke 只是可选兼容性覆盖，不会产生额外发布批准。
 
 release-grade GUI 记录属于 Federation V5：一个独立批准的 GUI signer 绑定可见 prompt、
 decision window、process/session/attempt、随机 challenge 和完整解码 PNG；另一个不同的已批准
@@ -366,7 +373,7 @@ server-confirmed evidence；authority path 必须消费真实 Paper-local provid
 
 | 结果 | 实测 |
 | --- | ---: |
-| 覆盖版本 | `1.21.11`、`26.1.2`、`26.2` |
+| 覆盖版本 | `1.21.11`、`26.1.2`、`26.2`（早于 `26.3` 目标） |
 | MCAce 自有可执行 fixture 加载 | `3 / 3` |
 | 同一 session 独立服务端信号 | `3 / 3` |
 | 签名实验室 policy 下 `SERVER_CONFIRMED / QUARANTINE` | `3 / 3` |
@@ -418,7 +425,7 @@ Vulcan V3、Authority V4、Federation V5 或受保护发布门。
 Matrix V4 是第一个在结构上有资格满足 `server_matrix_exact_source` 的 Matrix schema。
 它精确覆盖：
 
-- 三个 Minecraft 版本；
+- 三个 Minecraft 版本（`1.21.11`、`26.1.2`、`26.2`；服务端版本进程矩阵不扩展到 `26.3` 客户端目标）；
 - Paper 和 Folia；
 - Velocity 和 BungeeCord；
 - `3 × 2 × 2 = 12` 个真实进程 case。
@@ -443,7 +450,7 @@ supervisor receipt，但没有绑定当前 `2a6274a` source/artifact pair，因�
 receipt SHA-256 为 `878ee99995f46fc63d02ea568dee1f16e11c504546f1bad49732fb912c8e53ad`。
 
 producer 冻结全部 raw report、report/binding/raw-manifest 字节、ordered raw root、case 与
-process-incarnation identity、invocation 与 cleanup 事实、精确 V4 bundle、六份发布 JAR，以及
+process-incarnation identity、invocation 与 cleanup 事实、精确 V4 bundle、全部发布 JAR（历史 package 为六份，当前源码 bundle 为七份），以及
 三份 Matrix 服务端 JAR。仓库外独立 RSA supervisor 必须在受保护 trust-root pin 下返回新鲜
 detached receipt，producer 才能最后写入 `commit.json`。publisher 与 readiness 随后重新校验
 signature、expiry、replay、no-follow identity、稳定重读、bundle hash 和 JAR cross-binding。
@@ -552,22 +559,24 @@ $env:JAVA_HOME = '<所选 target 对应的 JDK21 或 JDK25>'
 
 如需检查版本特定 UI 兼容性，可以可选地把同一 smoke 重复到 `26.1.2` 与 `26.2`。这些可选
 运行**不是额外发布批准**，platform-only evidence 也不能替代唯一的外部签名 GUI/Federation V5
-package。超时报告只能作为 diagnostic。
+package。超时报告只能作为 diagnostic。目前尚无 `26.3` 的 platform smoke 或 Federation V5 运行记录。
 
 ## 发布产物
 
-精确分发包固定为八项：六个可部署 JAR、`release-manifest.properties`、`SHA256SUMS`。
+当前源码构建的精确分发包固定为九项：七个可部署 JAR、`release-manifest.properties`、`SHA256SUMS`。
+（已发布的 v0.0.1 bundle 早于 `26.3`，为八项 / 六个 JAR。）
 
 | 文件 | 作用 |
 | --- | --- |
 | `mcace-client-fabric-1.21.11.jar` | Fabric 1.21.11 客户端 |
 | `mcace-client-fabric-26.1.2.jar` | Fabric 26.1.2 客户端 |
 | `mcace-client-fabric-26.2.jar` | Fabric 26.2 客户端 |
+| `mcace-client-fabric-26.3.jar` | Fabric 26.3 客户端 |
 | `mcace-server-velocity.jar` | Velocity 代理插件 |
 | `mcace-server-bungeecord.jar` | BungeeCord 代理插件 |
 | `mcace-server-paper.jar` | Paper/Folia 后端插件 |
 | `release-manifest.properties` | V4 最终源码、artifact source、runtime、toolchain 与 bundle identity |
-| `SHA256SUMS` | 六份 JAR 的权威 hash |
+| `SHA256SUMS` | 七份 JAR 的权威 hash |
 
 只有干净的受保护 main/tag `MCACE_RELEASE_BUNDLE_V4` 才能发布。manifest 的最终
 `source_commit`、`artifact_source_commit`、canonical tracked artifact-source marker 和全部
@@ -593,7 +602,7 @@ note 或 tag 提供产物。
 
 ```mermaid
 flowchart LR
-  C[Fabric 客户端\n1.21.11 / 26.1.2 / 26.2]
+  C[Fabric 客户端\n1.21.11 / 26.1.2 / 26.2 / 26.3]
   P[Velocity / BungeeCord]
   B[Paper / Folia]
   O[CLIENT_REPORTED / LOW\nloaded Mods + selected packs]
@@ -621,7 +630,7 @@ MONITOR 日志。
 | `mcace-core` | session、admission、policy、risk、disposition、federation、服务端 authority 原语 |
 | `mcace-client-common` | loader-neutral integrity、Loaded ModList model、证据和连接 enablement 原语 |
 | `mcace-client-fabric` | Fabric 1.21.11 客户端、loaded-graph collector、consent UI |
-| `fabric-modern` | 26.1.2 与 26.2 的 JDK 25 official-namespace 客户端 |
+| `fabric-modern` | 26.1.2、26.2 与 26.3 的 JDK 25 official-namespace 客户端 |
 | `mcace-server-velocity` | Velocity admission、policy、federation 与可选 authority adapter |
 | `mcace-server-bungeecord` | BungeeCord admission、policy、federation 与可选 authority adapter |
 | `mcace-server-paper` | Paper/Folia context、provider adapter、durable MONITOR authority path |

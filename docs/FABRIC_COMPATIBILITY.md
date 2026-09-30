@@ -8,6 +8,7 @@ Minecraft release, a broad `1.21.x` range, or a successful server-only run.
 | `1.21.11` | Yarn/remapped; final `remapJar` | 21 | `0.19.3` | `0.141.6+1.21.11` | Build, final-artifact isolation, and package verification passed; retained Matrix V1 process diagnostic only | One selected version receives the sole source-side release approval; otherwise this row is a non-promoting compatibility smoke |
 | `26.1.2` | Official named namespace; final named JAR | 25 | `0.19.3` | `0.155.2+26.1.2` | Build, final-artifact isolation, and package verification passed; retained Matrix V1 process diagnostic only | One selected version receives the sole source-side release approval; otherwise this row is a non-promoting compatibility smoke |
 | `26.2` | Official named namespace; final named JAR | 25 | `0.19.3` | `0.157.0+26.2` | Build, final-artifact isolation, and package verification passed; retained Matrix V1 process diagnostic only | One selected version receives the sole source-side release approval; otherwise this row is a non-promoting compatibility smoke |
+| `26.3` | Official named namespace; final named JAR | 25 | `0.19.3` | `0.161.0+26.3` | Built by `fabric-modern` project `:client-26.3`; verified by build, unit tests, and the bundle compatibility contract; no server-version process matrix, platform-smoke, or GUI record | Not yet runnable through the GUI/Federation V5 wrappers; no release approval recorded |
 
 The retained historical server-process diagnostic is the Helio Execute+ReportOnly
 12/12 Matrix V1 record
@@ -18,6 +19,14 @@ It binds 686 source files from its exact historical snapshot, all three protocol
 profiles, and the reviewed upstream artifacts. It is not current Matrix V4 or
 release evidence. Paper 26.2 build 116 is STABLE; only the two Folia 26.2
 combinations use the upstream BETA lane (build 6).
+
+Minecraft `26.3` (protocol `777`, released 2026-09-15) is the fourth exact
+target. It uses the same `fabric-modern` source set as `26.1.2`/`26.2`: 26.3
+replaced GLFW with SDL, but MCAce reads key codes through Minecraft's
+`InputConstants`, so no target-specific input code is required. The
+server-version process matrix (Paper/Folia backends) is not extended to `26.3`;
+the `26.3` client artifact is verified by build, unit tests, and the
+compatibility contract only.
 
 The root build is configured and executed by JDK `21.0.7+6`. The isolated
 `fabric-modern/` composite is configured and executed by JDK `25.0.3+9`; it
@@ -40,7 +49,8 @@ output directories and fallback MCAce JARs cannot satisfy artifact mode.
 Compatibility wrappers always require an explicit target:
 
 ```powershell
-# Three non-promoting compatibility smokes; these do not mint GUI approval.
+# Non-promoting compatibility smokes; these do not mint GUI approval.
+# 26.3 has no recorded platform-smoke run.
 .\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11
 .\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2
 .\scripts\platform-load-smoke.ps1 -FabricTarget 26.2
@@ -54,15 +64,16 @@ The standalone `-WithFabricEvidence` run is a local GUI diagnostic. Release
 evidence is minted only when that same selected target and one source-side
 decision are captured by the Federation V5 wrapper as an externally signed
 eight-file package with `MCACE_VISIBLE_GUI_ATTESTATION_V3`; target import opens no
-second prompt. Running `-WithFabricEvidence` on either unselected version is an
+second prompt. Running `-WithFabricEvidence` on any unselected version is an
 optional non-promoting UI compatibility smoke, not another approval.
 
 All three Mojang version manifests, asset indexes, and asset-object sets are
-already present in the verified local cache. That removes asset download as a
+already present in the verified local cache for the three original targets;
+`26.3` asset prewarm is not yet recorded. That removes asset download as a
 blocker. It does not replace the human gate: the reviewed client shows one
 visible connection-level MCAce enablement decision. The explicit-file,
 render-frame, and federation paths inherit that decision, so the reviewed
-three-target compatibility matrix requires no repeated approvals. Automation
+multi-target compatibility matrix requires no repeated approvals. Automation
 must not manufacture the one source-side decision.
 
 A passing retained pair uses report schema `8` and binding schema
@@ -72,7 +83,7 @@ artifact, both MCAce server plugins, Velocity, Paper, the prepared Paper tree,
 and the target's Minecraft asset bindings. It also binds the exact rewritten
 Velocity policy values in `velocity_policy_minecraft_versions` and
 `velocity_policy_client_build_ids`. The 1.21.11 record must identify
-`FINAL_REMAP_JAR` / `LOOM_FINAL_REMAP_ARTIFACT`; both 26.x records must identify
+`FINAL_REMAP_JAR` / `LOOM_FINAL_REMAP_ARTIFACT`; all 26.x records must identify
 `FINAL_NAMED_JAR` / `LOOM_FINAL_NAMED_JAR_ARTIFACT`.
 
 ## Release identity contract
@@ -84,8 +95,8 @@ Velocity policy values in `velocity_policy_minecraft_versions` and
   `-PmcaceSourceCommit=<40-lowercase-hex-HEAD>`. The task requires a clean
   tracked and untracked worktree and exact equality with `git rev-parse HEAD`.
 - Every Fabric target receives its own immutable build ID:
-  `fabric-1.21.11-<commit>`, `fabric-26.1.2-<commit>`, or
-  `fabric-26.2-<commit>`.
+  `fabric-1.21.11-<commit>`, `fabric-26.1.2-<commit>`,
+  `fabric-26.2-<commit>`, or `fabric-26.3-<commit>`.
 - Velocity policy allowlists must name exact Minecraft versions and build IDs; a
   staged migration may use bounded, duplicate-free reviewed lists. Bungee's
   built-in configuration accepts one exact Minecraft version and one exact build
@@ -98,4 +109,6 @@ Adding a target requires an exact dependency tuple, a final-artifact verificatio
 task, the complete client/common/protocol suite, all four real proxy/backend
 matrix cases for that version, server-only platform startup, and the one visible
 connection-level enablement decision. Editing only a policy allowlist does not
-add support.
+add support. `26.3` currently satisfies the tuple, final-artifact, and
+client/common/protocol parts of this list; its proxy/backend matrix cases,
+server-only startup, and visible enablement decision are not yet recorded.

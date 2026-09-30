@@ -328,7 +328,7 @@ foreach ($copy in $rawLogCopies) {
 
 $source = [System.IO.File]::ReadAllText($target)
 foreach ($required in @(
-        "[ValidateSet('1.21.11', '26.1.2', '26.2')]",
+        "[ValidateSet('1.21.11', '26.1.2', '26.2', '26.3')]",
         '$fabricDescriptor = $fabricTargets[$FabricTarget]',
         "Join-Path `$fabricRoot 'options.txt'",
         '"fov:0.5`nrenderDistance:8`n"',
@@ -426,6 +426,7 @@ foreach ($required in @(
         "'gradle\verification-metadata.xml'",
         "'client-26.1.2\gradle.lockfile'",
         "'client-26.2\gradle.lockfile'",
+        "'client-26.3\gradle.lockfile'",
         '$summary.fabric_target -ceq $FabricTarget',
         "`$gradleVersion = '9.6.1'",
         'function Invoke-PinnedOfflineGradle',
@@ -625,7 +626,7 @@ try {
     }
 }
 
-# Lock the three reviewed target identities.  These values are the immutable Mojang
+# Lock the four reviewed target identities.  These values are the immutable Mojang
 # version-info and asset-index identities consumed by Assert-FabricAssetCache; the
 # per-object manifest is then derived from every unique, SHA-1-verified cache object.
 $fabricTargetsAssignment = $ast.Find({
@@ -661,6 +662,14 @@ $expectedTargetPins = [ordered]@{
         asset_index_sha1 = '52695890153d94cf946455da532806db8c530831'
         asset_index_size = 586366L
     }
+    '26.3' = [ordered]@{
+        java_major = 25
+        asset_index = '34'
+        version_info_sha1 = 'bc098d111a72e9f6178801544a42099bdfbb0cf2'
+        version_info_sha256 = '061edddc346be236acf38f51b63c2361b084ae7b0d7ca15367242f99b1596839'
+        asset_index_sha1 = '32a06dd28a0a8a981f4a1dffbdb3931f3075ca6c'
+        asset_index_size = 597035L
+    }
 }
 Assert-True (($fabricTargets.Keys -join '|') -ceq ($expectedTargetPins.Keys -join '|')) `
     'Fabric target identity set or order drifted'
@@ -686,11 +695,11 @@ Assert-True ($legacyLoomOffset -ge 0 -and $legacyLoomConsentOffset -gt $legacyLo
     'legacy Loom client run must propagate the supervised consent timeout'
 Assert-True (([regex]::Matches($legacyBuild, [regex]::Escape($legacyConsentProperty))).Count -ge 3) `
     'legacy build must retain both development and release consent propagation paths'
-Assert-True (@($fabricTargets.Values.version_info_sha1 | Sort-Object -Unique).Count -eq 3) `
+Assert-True (@($fabricTargets.Values.version_info_sha1 | Sort-Object -Unique).Count -eq 4) `
     'each Fabric target must pin a unique version-info SHA-1'
-Assert-True (@($fabricTargets.Values.version_info_sha256 | Sort-Object -Unique).Count -eq 3) `
+Assert-True (@($fabricTargets.Values.version_info_sha256 | Sort-Object -Unique).Count -eq 4) `
     'each Fabric target must pin a unique version-info SHA-256'
-Assert-True (@($fabricTargets.Values.asset_index_sha1 | Sort-Object -Unique).Count -eq 3) `
+Assert-True (@($fabricTargets.Values.asset_index_sha1 | Sort-Object -Unique).Count -eq 4) `
     'each Fabric target must pin a unique asset-index SHA-1'
 
 # Prove ordering rather than merely proving that the closure tokens exist somewhere.
@@ -781,6 +790,7 @@ foreach ($contract in @(
         "'gradle\verification-metadata.xml'",
         "'client-26.1.2\gradle.lockfile'",
         "'client-26.2\gradle.lockfile'",
+        "'client-26.3\gradle.lockfile'",
         "Join-Path `$modernRoot 'src'")) {
     Assert-True ($sourceManifestVerifier.Extent.Text.IndexOf(
             $contract, [StringComparison]::Ordinal) -ge 0) `

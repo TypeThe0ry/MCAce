@@ -6,7 +6,7 @@ capture component.
 
 ## Release JAR identity
 
-Both Fabric client lines (`1.21.11` and modern `26.1.2`/`26.2`) expose a
+Both Fabric client lines (`1.21.11` and modern `26.1.2`/`26.2`/`26.3`) expose a
 release marker containing the build ID and the SHA-256 of the local CodeSource
 JAR. When `mcace.platform.smoke.expected-artifact-sha256` is configured, the
 platform smoke path calls `verifiedCodeSourceSha256` and fails closed if the

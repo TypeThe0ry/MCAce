@@ -13,7 +13,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.network.chat.Component;
 import net.minecraft.util.FormattedCharSequence;
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
 
 /** A per-request, visible consent prompt. Closing the prompt is always a decline. */
 final class EvidenceConsentScreen extends Screen {
@@ -180,12 +180,12 @@ final class EvidenceConsentScreen extends Screen {
     public boolean keyPressed(KeyEvent input) {
         ConsentLayout layout = layout();
         int next = switch (input.key()) {
-            case GLFW.GLFW_KEY_PAGE_UP -> ConsentUiSupport.clampScroll(
+            case InputConstants.KEY_PAGEUP -> ConsentUiSupport.clampScroll(
                     scrollOffset - (layout.viewportBottom() - layout.viewportTop()), layout.maxScroll());
-            case GLFW.GLFW_KEY_PAGE_DOWN -> ConsentUiSupport.clampScroll(
+            case InputConstants.KEY_PAGEDOWN -> ConsentUiSupport.clampScroll(
                     scrollOffset + (layout.viewportBottom() - layout.viewportTop()), layout.maxScroll());
-            case GLFW.GLFW_KEY_HOME -> 0;
-            case GLFW.GLFW_KEY_END -> layout.maxScroll();
+            case InputConstants.KEY_HOME -> 0;
+            case InputConstants.KEY_END -> layout.maxScroll();
             default -> scrollOffset;
         };
         if (next != scrollOffset) {

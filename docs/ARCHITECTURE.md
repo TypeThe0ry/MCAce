@@ -1,6 +1,6 @@
 # Architecture
 
-The current release path is the three target-specific Fabric clients plus
+The current release path is the four target-specific Fabric clients plus
 Velocity/BungeeCord and Paper/Folia. The Cloud, Portal, PostgreSQL, and Launcher
 sections below document retained frozen foundations; they are not prerequisites,
 alternate trust paths, or release gates for that primary topology.
@@ -238,7 +238,8 @@ The backend artifact declares Folia support and selects Paper or Folia schedulin
 at runtime. Expiry work runs on the global scheduler; player-bound delivery and
 cleanup use the owning entity scheduler; future location work has an explicit
 region scheduler entry point. The current Helio process matrix passed all 12
-combinations of 1.21.11/26.1.2/26.2, Paper/Folia, and Velocity/Bungee, then
+combinations of 1.21.11/26.1.2/26.2, Paper/Folia, and Velocity/Bungee (the
+server-version matrix is not extended to the 26.3 client target), then
 passed `-ReportOnly`, on exact source `f404971…`. Standard-backend admission and
 context are accepted only while the same raw-peer connection remains live;
 post-close log fallback is not evidence. Paper 26.2 build 116 is STABLE; Folia
@@ -406,8 +407,14 @@ ledger must retain exact requests and deduplicate by anchor ID.
 | Minecraft/Fabric `1.21.11` | Yarn + final remapped JAR | 21 | 0.19.3 | 0.141.6+1.21.11 |
 | Minecraft/Fabric `26.1.2` | official named + final named JAR | 25 | 0.19.3 | 0.155.2+26.1.2 |
 | Minecraft/Fabric `26.2` | official named + final named JAR | 25 | 0.19.3 | 0.157.0+26.2 |
+| Minecraft/Fabric `26.3` | official named + final named JAR | 25 | 0.19.3 | 0.161.0+26.3 |
 
 The root and server plugin build uses JDK 21.0.7+6; the isolated modern Fabric
 build uses JDK 25.0.3+9. Both use Gradle 9.6.1. Server validation pins Velocity
 3.5.1-615, BungeeCord 2085, exact Paper/Folia builds for each target, and marks
-only the two Folia 26.2 combinations BETA.
+only the two Folia 26.2 combinations BETA. The 26.x clients (26.1.2, 26.2, and
+26.3, the last built by `fabric-modern` project `:client-26.3`) share one source
+set; 26.3 replaced GLFW with SDL, but MCAce reads key codes through Minecraft's
+`InputConstants`, so the same source applies. Paper/Folia pins cover only the
+three server-matrix versions; 26.3 is verified by build, unit tests, and the
+compatibility contract.

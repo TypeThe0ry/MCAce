@@ -2,7 +2,7 @@
 param(
     [Parameter(ParameterSetName = 'Execute', Mandatory)]
     [Parameter(ParameterSetName = 'Report', Mandatory)]
-    [ValidateSet('1.21.11', '26.1.2', '26.2')]
+    [ValidateSet('1.21.11', '26.1.2', '26.2', '26.3')]
     [string]$FabricTarget,
     [Parameter(ParameterSetName = 'Execute')]
     [switch]$WithFabricClient,
@@ -195,6 +195,32 @@ $fabricTargets = [ordered]@{
         paper_build = '116'
         paper_sha256 = '17eee738bc0f6b747646be4199672c4efcb2084efd7e291ec5254a45d5ae6f2e'
         paper_size = 64426830L
+    }
+    '26.3' = [ordered]@{
+        minecraft_version = '26.3'
+        fabric_api_version = '0.161.0+26.3'
+        java_major = 25
+        artifact_kind = 'FINAL_NAMED_JAR'
+        runtime_mode = 'LOOM_FINAL_NAMED_JAR_ARTIFACT'
+        runtime_artifact_kind = 'FINAL_NAMED_JAR'
+        project_directory = Join-Path $repoRoot 'fabric-modern\client-26.3'
+        gradle_project_directory = Join-Path $repoRoot 'fabric-modern'
+        build_task = ':client-26.3:jar'
+        verify_task = ':client-26.3:verifySmokeArtifactMode'
+        run_task = ':client-26.3:runClient'
+        artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.3\build\libs\mcace-client-fabric-26.3-0.1.0-SNAPSHOT.jar'
+        runtime_artifact_path = Join-Path $repoRoot 'fabric-modern\client-26.3\build\libs\mcace-client-fabric-26.3-0.1.0-SNAPSHOT.jar'
+        asset_index = '34'
+        version_info_sha1 = 'bc098d111a72e9f6178801544a42099bdfbb0cf2'
+        version_info_sha256 = '061edddc346be236acf38f51b63c2361b084ae7b0d7ca15367242f99b1596839'
+        asset_index_sha1 = '32a06dd28a0a8a981f4a1dffbdb3931f3075ca6c'
+        asset_index_size = 597035L
+        # No reviewed Paper 26.3 server is pinned in the server-version matrix (server-side
+        # versions are intentionally not extended), so this lane fails closed with
+        # PLATFORM_SMOKE_SERVER_MATRIX_TARGET_ASSET_REQUIRED until one is reviewed.
+        paper_build = ''
+        paper_sha256 = ''
+        paper_size = 0L
     }
 }
 $fabricDescriptor = $fabricTargets[$FabricTarget]
@@ -427,7 +453,7 @@ function Assert-DirectLocalPath([string]$Path, [switch]$Directory) {
 
 function Set-ExactVelocityPolicyTuple(
         [string]$ConfigPath,
-        [ValidateSet('1.21.11', '26.1.2', '26.2')]
+        [ValidateSet('1.21.11', '26.1.2', '26.2', '26.3')]
         [string]$MinecraftVersion,
         [string]$ClientBuildId) {
     if ($ClientBuildId -cnotmatch '^platform-smoke-[0-9]{8}T[0-9]{9}Z$') {
@@ -475,7 +501,7 @@ function Set-ExactVelocityPolicyTuple(
 }
 
 function Test-SmokeRunLeaf([string]$Leaf) {
-    return $Leaf -cmatch '^[0-9]{8}T[0-9]{9}Z-(?:1_21_11|26_1_2|26_2)-[0-9a-f]{32}$'
+    return $Leaf -cmatch '^[0-9]{8}T[0-9]{9}Z-(?:1_21_11|26_1_2|26_2|26_3)-[0-9a-f]{32}$'
 }
 
 function Assert-SmokeRunLeaf([string]$Leaf) {
@@ -1499,7 +1525,8 @@ function Get-SourceManifestBinding {
             'gradle.properties',
             'gradle\verification-metadata.xml',
             'client-26.1.2\gradle.lockfile',
-            'client-26.2\gradle.lockfile')) {
+            'client-26.2\gradle.lockfile',
+            'client-26.3\gradle.lockfile')) {
         $candidate = Join-Path $modernRoot $relative
         if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) {
             throw "PLATFORM_SMOKE_MODERN_SOURCE_INPUT_REQUIRED: $relative"
