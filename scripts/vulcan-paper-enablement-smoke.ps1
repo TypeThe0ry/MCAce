@@ -187,7 +187,7 @@ function Write-ServerConfiguration([string]$ServerRoot, [int]$Port, [string]$Pre
     [System.IO.File]::WriteAllText((Join-Path $ServerRoot 'eula.txt'), "eula=true`n",
         [System.Text.UTF8Encoding]::new($false))
     [System.IO.File]::WriteAllText((Join-Path $ServerRoot 'server.properties'),
-        "online-mode=false`nserver-ip=127.0.0.1`nserver-port=$Port`nenable-query=false`nspawn-protection=0`nmotd=MCAce licensed Vulcan enablement gate`n",
+        "online-mode=false`nserver-ip=127.0.0.1`nserver-port=$Port`nenable-query=false`nwhite-list=false`nspawn-protection=0`nmotd=MCAce licensed Vulcan enablement gate`n",
         [System.Text.UTF8Encoding]::new($false))
     [System.IO.File]::WriteAllText((Join-Path $bstats 'config.yml'), "enabled: false`n",
         [System.Text.UTF8Encoding]::new($false))

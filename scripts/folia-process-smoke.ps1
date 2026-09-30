@@ -406,7 +406,7 @@ function Write-ServerFiles([string]$Root, [int]$Port) {
         (Join-Path $Root 'eula.txt'), "eula=true`n", [System.Text.UTF8Encoding]::new($false))
     [System.IO.File]::WriteAllText(
         (Join-Path $Root 'server.properties'),
-        "online-mode=false`nserver-ip=127.0.0.1`nserver-port=$Port`nenable-query=false`nspawn-protection=0`nmotd=MCAce Folia process smoke`n",
+        "online-mode=false`nserver-ip=127.0.0.1`nserver-port=$Port`nenable-query=false`nwhite-list=false`nspawn-protection=0`nmotd=MCAce Folia process smoke`n",
         [System.Text.UTF8Encoding]::new($false))
 }
 

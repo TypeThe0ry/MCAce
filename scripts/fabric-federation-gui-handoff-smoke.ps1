@@ -3503,7 +3503,7 @@ function Initialize-PaperRuntime(
     Copy-Item -LiteralPath $ProxyPublicKeyPath -Destination (Join-Path $data 'proxy-public-key.txt')
     Write-Utf8 (Join-Path $Root 'eula.txt') "eula=true`n"
     Write-Utf8 (Join-Path $Root 'server.properties') `
-        "online-mode=false`nserver-ip=127.0.0.1`nserver-port=$Port`nenable-query=false`nmotd=MCAce federation $Side`n"
+        "online-mode=false`nserver-ip=127.0.0.1`nserver-port=$Port`nenable-query=false`nwhite-list=false`nmotd=MCAce federation $Side`n"
     return [pscustomobject]@{
         Side = $Side
         Root = $Root

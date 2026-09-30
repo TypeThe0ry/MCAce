@@ -480,7 +480,7 @@ try {
     Copy-Item -LiteralPath $observerJar -Destination (Join-Path $workRoot 'plugins\mcace-runtime-observer.jar')
     [IO.File]::WriteAllText((Join-Path $workRoot 'eula.txt'), "eula=true`n", [Text.UTF8Encoding]::new($false))
     [IO.File]::WriteAllText((Join-Path $workRoot 'server.properties'),
-        "online-mode=false`nserver-ip=127.0.0.1`nserver-port=$port`nenable-query=false`nspawn-protection=0`n",
+        "online-mode=false`nserver-ip=127.0.0.1`nserver-port=$port`nenable-query=false`nwhite-list=false`nspawn-protection=0`n",
         [Text.UTF8Encoding]::new($false))
     $workPrepared = $true
 
