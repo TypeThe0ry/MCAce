@@ -2,7 +2,7 @@
 
 ## Authoritative delivery shape
 
-MCAce is delivered as three target-specific Fabric client Mod artifacts plus
+MCAce is delivered as four target-specific Fabric client Mod artifacts plus
 server plugins. A deployment installs exactly the artifact matching its target:
 
 ```text
@@ -25,9 +25,11 @@ the authoritative policy, replay, correlation, and admission boundary.
 
 ## Required platforms
 
-- Client: Fabric for the exact supported targets `1.21.11`, `26.1.2`, and
-  `26.2`. The first is a Java 21 final-remap build; both 26.x clients are
-  isolated Java 25 official-namespace final named JARs.
+- Client: Fabric for the exact supported targets `1.21.11`, `26.1.2`, `26.2`,
+  and `26.3`. The first is a Java 21 final-remap build; all 26.x clients are
+  isolated Java 25 official-namespace final named JARs. `26.3` (protocol 777)
+  is verified by build, unit tests, and the compatibility contract; it is not
+  part of the server-version process matrix.
 - Proxy plugins: Velocity and BungeeCord.
 - Backend plugin: one Paper-compatible implementation with explicit Folia-safe
   scheduling and runtime validation.
@@ -92,13 +94,14 @@ does not automatically ban, punish, or create a confirmed-cheat label.
   The current repository has bounded encrypted storage controls and an optional
   loopback-only, console-issued local reviewer; it has no public raw-image portal.
   Real Minecraft UI/proxy evidence-flow smoke remains a
-  release gate. Server-only startup and asset prewarm have passed for all three
-  targets; the single enablement decision covers explicit-file, frame, and
+  release gate. Server-only startup and asset prewarm have passed for the three
+  original targets (not yet recorded for `26.3`); the single enablement decision covers explicit-file, frame, and
   federation operations for the current connection.
 
-The three-version server process matrix itself is current and passed 12/12 under
+The three-version server process matrix (`1.21.11`, `26.1.2`, `26.2`; not
+extended to `26.3`) passed 12/12 under
 the Helio Execute+ReportOnly record bound to code commit `f404971…` (see
-`evidence/server-version-process-matrix-2026-08-25-f404971.json`). Separately, all three Fabric clients now
+`evidence/server-version-process-matrix-2026-08-25-f404971.json`). Separately, all four Fabric clients now
 contain one connection-level federation enablement decision inherited by source
 export and target import, but the real human-carried source-to-target GUI run
 remains pending.

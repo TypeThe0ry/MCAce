@@ -6,7 +6,7 @@ param(
     [switch]$ReportOnly,
     [Parameter(ParameterSetName = 'Execute', Mandatory)]
     [Parameter(ParameterSetName = 'Report', Mandatory)]
-    [ValidateSet('1.21.11', '26.1.2', '26.2')]
+    [ValidateSet('1.21.11', '26.1.2', '26.2', '26.3')]
     [string]$FabricTarget,
     [Parameter(ParameterSetName = 'Execute', Mandatory)]
     [Parameter(ParameterSetName = 'Report', Mandatory)]
@@ -241,8 +241,8 @@ if ($targetAssignments.Count -ne 1) {
     throw 'FABRIC_FEDERATION_GUI_PLATFORM_TARGET_DESCRIPTOR_CONTRACT_INVALID'
 }
 $fabricTargets = Invoke-Expression $targetAssignments[0].Right.Extent.Text
-if (@($fabricTargets.Keys).Count -ne 3 -or
-        ((@($fabricTargets.Keys) -join ',') -cne '1.21.11,26.1.2,26.2')) {
+if (@($fabricTargets.Keys).Count -ne 4 -or
+        ((@($fabricTargets.Keys) -join ',') -cne '1.21.11,26.1.2,26.2,26.3')) {
     throw 'FABRIC_FEDERATION_GUI_PLATFORM_TARGET_SET_INVALID'
 }
 $fabricDescriptor = $fabricTargets[$FabricTarget]
@@ -866,7 +866,7 @@ function Assert-VisibleGuiSigningRequest(
             $request.source_commit -cnotmatch '^[0-9a-f]{40}$' -or
             $request.artifact_source_commit -cnotmatch '^[0-9a-f]{40}$' -or
             $request.product_version -cne '0.0.1' -or
-            $request.fabric_target -notin @('1.21.11','26.1.2','26.2') -or
+            $request.fabric_target -notin @('1.21.11','26.1.2','26.2','26.3') -or
             $request.source_proxy -notin @('VELOCITY','BUNGEE') -or
             $request.target_proxy -notin @('VELOCITY','BUNGEE') -or
             -not (Test-Sha256 $request.release_bundle_manifest_sha256) -or
@@ -1318,7 +1318,7 @@ function Assert-PostRunReceipt(
     if ($receipt.release_source_commit -cnotmatch '^[0-9a-f]{40}$' -or
             $receipt.artifact_source_commit -cnotmatch '^[0-9a-f]{40}$' -or
             $receipt.product_version -cne '0.0.1' -or
-            $receipt.fabric_target -notin @('1.21.11','26.1.2','26.2') -or
+            $receipt.fabric_target -notin @('1.21.11','26.1.2','26.2','26.3') -or
             $receipt.source_proxy -notin @('VELOCITY','BUNGEE') -or
             $receipt.target_proxy -notin @('VELOCITY','BUNGEE') -or
             $receipt.run_attempt_id -cnotmatch '^[0-9a-f]{32}$' -or
@@ -1456,10 +1456,10 @@ function Get-ReleaseBundleTargetBinding(
     $resolvedRoot = Assert-DirectLocalPath $Root -Directory
     $expectedNames = @('SHA256SUMS','release-manifest.properties',
         'mcace-client-fabric-1.21.11.jar','mcace-client-fabric-26.1.2.jar',
-        'mcace-client-fabric-26.2.jar','mcace-server-velocity.jar',
-        'mcace-server-bungeecord.jar','mcace-server-paper.jar')
+        'mcace-client-fabric-26.2.jar','mcace-client-fabric-26.3.jar',
+        'mcace-server-velocity.jar','mcace-server-bungeecord.jar','mcace-server-paper.jar')
     $entries = @(Get-ChildItem -LiteralPath $resolvedRoot -Force -ErrorAction Stop)
-    if ($entries.Count -ne 8 -or
+    if ($entries.Count -ne 9 -or
             ((@($entries.Name | Sort-Object) -join '|') -cne (($expectedNames | Sort-Object) -join '|'))) {
         throw 'FABRIC_FEDERATION_GUI_RELEASE_BUNDLE_FILE_SET_INVALID'
     }
@@ -1479,7 +1479,7 @@ function Get-ReleaseBundleTargetBinding(
                 $manifest['product_version'] -cne '0.0.1' -or
                 $manifest['source_commit'] -cne $ExpectedBundleSourceCommit -or
                 $manifest['artifact_source_commit'] -cne $ExpectedArtifactSourceCommit -or
-                $manifest['deployable_count'] -cne '6' -or $manifest['bundle_entry_count'] -cne '8') {
+                $manifest['deployable_count'] -cne '7' -or $manifest['bundle_entry_count'] -cne '9') {
             throw 'FABRIC_FEDERATION_GUI_RELEASE_BUNDLE_MANIFEST_INVALID'
         }
         $jarName = "mcace-client-fabric-$Target.jar"
@@ -1503,9 +1503,9 @@ function Get-ReleaseBundleTargetBinding(
         }
         $sumEntries = @($sumsRaw.TrimEnd("`n") -split "`n")
         $expectedJarNames = @('mcace-client-fabric-1.21.11.jar','mcace-client-fabric-26.1.2.jar',
-            'mcace-client-fabric-26.2.jar','mcace-server-velocity.jar',
-            'mcace-server-bungeecord.jar','mcace-server-paper.jar')
-        if ($sumEntries.Count -ne 6) { throw 'FABRIC_FEDERATION_GUI_RELEASE_SHA256SUMS_SET_INVALID' }
+            'mcace-client-fabric-26.2.jar','mcace-client-fabric-26.3.jar',
+            'mcace-server-velocity.jar','mcace-server-bungeecord.jar','mcace-server-paper.jar')
+        if ($sumEntries.Count -ne 7) { throw 'FABRIC_FEDERATION_GUI_RELEASE_SHA256SUMS_SET_INVALID' }
         $seenSums = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
         $sumMap = @{}
         foreach ($line in $sumEntries) {
@@ -1721,7 +1721,7 @@ function Assert-RuntimeLedgerBytes(
         throw 'FABRIC_FEDERATION_GUI_RUNTIME_LEDGER_SIZE_OR_TERMINATOR_INVALID'
     }
     if ($ExpectedSourceCommit -cnotmatch '^[0-9a-f]{40}$' -or
-            $ExpectedTarget -notin @('1.21.11','26.1.2','26.2') -or
+            $ExpectedTarget -notin @('1.21.11','26.1.2','26.2','26.3') -or
             $ExpectedRunAttemptId -cnotmatch '^[0-9a-f]{32}$' -or
             $ExpectedChallengeNonce -cnotmatch '^[0-9a-f]{64}$') {
         throw 'FABRIC_FEDERATION_GUI_RUNTIME_LEDGER_EXPECTED_BINDING_INVALID'
@@ -2052,7 +2052,7 @@ function Get-ImmutableInputBinding {
 }
 
 function Get-ReleaseArtifactSourceCommit {
-    # The six runtime JARs are built at the immutable artifact source A.  GUI/federation
+    # The seven runtime JARs are built at the immutable artifact source A.  GUI/federation
     # evidence and the eventual protected release may be descendants that only add
     # docs/evidence, so do not silently substitute the current checkout R for A.
     $markerPath = Assert-DirectLocalPath (Join-Path $repoRoot 'docs/evidence/release-artifact-source.txt')
@@ -3943,7 +3943,7 @@ function Get-DistinctLoopbackPorts([int]$Count) {
 }
 
 function Assert-FederationRunLeaf([string]$Leaf) {
-    if ($Leaf -cnotmatch '^[0-9]{8}T[0-9]{9}Z-(?:1_21_11|26_1_2|26_2)-(?:VELOCITY|BUNGEE)-to-(?:VELOCITY|BUNGEE)-[0-9a-f]{32}$') {
+    if ($Leaf -cnotmatch '^[0-9]{8}T[0-9]{9}Z-(?:1_21_11|26_1_2|26_2|26_3)-(?:VELOCITY|BUNGEE)-to-(?:VELOCITY|BUNGEE)-[0-9a-f]{32}$') {
         throw 'FABRIC_FEDERATION_GUI_CSPRNG_RUN_LEAF_REQUIRED'
     }
 }

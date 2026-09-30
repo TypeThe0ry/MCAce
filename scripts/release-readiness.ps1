@@ -719,6 +719,10 @@ Set-StrictMode -Version Latest
         minecraft_version='26.2'; fabric_api_version='0.157.0+26.2'; java_major=25
         artifact_kind='FINAL_NAMED_JAR'; runtime_mode='LOOM_FINAL_NAMED_JAR_ARTIFACT'
     }
+    '26.3' = [ordered]@{
+        minecraft_version='26.3'; fabric_api_version='0.161.0+26.3'; java_major=25
+        artifact_kind='FINAL_NAMED_JAR'; runtime_mode='LOOM_FINAL_NAMED_JAR_ARTIFACT'
+    }
 }
 
 "@
@@ -838,21 +842,22 @@ function Assert-CompatibilityReport(
             -not (Test-StringEqual $Report.schema 'MCACE_VERSION_COMPATIBILITY_CONTRACT_V2') -or
             -not (Test-StringEqual $Report.source_commit $ExpectedCommit) -or
             -not (Test-StringEqual $Report.artifact_source_commit $ExpectedArtifactSourceCommit) -or
-            -not (Test-JsonInteger $Report.target_count) -or [int]$Report.target_count -ne 3 -or
-            -not (Test-JsonInteger $Report.exact_bundle_entry_count) -or [int]$Report.exact_bundle_entry_count -ne 8 -or
+            -not (Test-JsonInteger $Report.target_count) -or [int]$Report.target_count -ne 4 -or
+            -not (Test-JsonInteger $Report.exact_bundle_entry_count) -or [int]$Report.exact_bundle_entry_count -ne 9 -or
             -not (Test-True $Report.unsupported_versions_are_fail_closed) -or -not (Test-True $Report.passed) -or
             -not (Test-JsonArray $Report.unsupported_examples) -or
-            ((@($Report.unsupported_examples) -join ',') -cne '1.21.1,1.21.10,26.1,26.3') -or
-            -not (Test-JsonArray $Report.targets) -or @($Report.targets).Count -ne 3) {
+            ((@($Report.unsupported_examples) -join ',') -cne '1.21.1,1.21.10,26.1,26.4') -or
+            -not (Test-JsonArray $Report.targets) -or @($Report.targets).Count -ne 4) {
         throw 'MCACE_RELEASE_COMPATIBILITY_REPORT_INVALID'
     }
     $null = Assert-FreshEvidenceTime $Report.generated_at
     $expected = @(
         [pscustomobject]@{ version='1.21.11'; protocol=774; java=21; mode='FINAL_REMAP_JAR'; artifact='mcace-client-fabric-1.21.11.jar'; nested=5 },
         [pscustomobject]@{ version='26.1.2'; protocol=775; java=25; mode='FINAL_NAMED_JAR'; artifact='mcace-client-fabric-26.1.2.jar'; nested=1 },
-        [pscustomobject]@{ version='26.2'; protocol=776; java=25; mode='FINAL_NAMED_JAR'; artifact='mcace-client-fabric-26.2.jar'; nested=1 }
+        [pscustomobject]@{ version='26.2'; protocol=776; java=25; mode='FINAL_NAMED_JAR'; artifact='mcace-client-fabric-26.2.jar'; nested=1 },
+        [pscustomobject]@{ version='26.3'; protocol=777; java=25; mode='FINAL_NAMED_JAR'; artifact='mcace-client-fabric-26.3.jar'; nested=1 }
     )
-    for ($i = 0; $i -lt 3; $i++) {
+    for ($i = 0; $i -lt 4; $i++) {
         $target = @($Report.targets)[$i]
         $want = $expected[$i]
         if (-not (Test-ExactProperties $target @('minecraft_version','protocol','java_major','artifact_mode','artifact','sha256','nested_jar_count','passed')) -or
@@ -881,7 +886,7 @@ function Test-ExactReleaseBundleEntrySet([string]$Root, [string[]]$ExpectedNames
         # payload cannot evade an ordinary -File listing. Release artifacts are
         # regular, visible files only; reparse-backed files are not accepted.
         $entries = @(Get-ChildItem -LiteralPath $Root -Force -ErrorAction Stop)
-        if ($entries.Count -ne 8) { return $false }
+        if ($entries.Count -ne 9) { return $false }
         foreach ($entry in $entries) {
             if ($entry.PSIsContainer -or
                     ($entry.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0 -or
@@ -908,11 +913,12 @@ function Test-BuildReleaseBundle(
         $manifest = Read-PropertiesFile $manifestPath
         if ($null -eq $manifest -or [string]$manifest.schema -cne 'MCACE_RELEASE_BUNDLE_V4' -or
                 [string]$manifest.bundle_profile -cne 'RELEASE' -or [string]$manifest.release_identity -cne 'true' -or
-                [string]$manifest.product_version -cne '0.0.1' -or [int]$manifest.deployable_count -ne 6 -or
-                [int]$manifest.bundle_entry_count -ne 8 -or
+                [string]$manifest.product_version -cne '0.0.1' -or [int]$manifest.deployable_count -ne 7 -or
+                [int]$manifest.bundle_entry_count -ne 9 -or
                 [string]$manifest.source_commit -cne $ExpectedCommit -or
                 [string]$manifest.artifact_source_commit -cne $ExpectedArtifactSourceCommit) { return $false }
         $jarNames = @('mcace-client-fabric-1.21.11.jar','mcace-client-fabric-26.1.2.jar','mcace-client-fabric-26.2.jar',
+            'mcace-client-fabric-26.3.jar',
             'mcace-server-velocity.jar','mcace-server-bungeecord.jar','mcace-server-paper.jar')
         $manifestNames = @(
             'schema','bundle_profile','release_identity','deployable_count','bundle_entry_count',
@@ -935,7 +941,7 @@ function Test-BuildReleaseBundle(
         $sumRaw = [Text.UTF8Encoding]::new($false, $true).GetString($sumDoc.bytes)
         if ($sumRaw.Contains("`r") -or -not $sumRaw.EndsWith("`n")) { return $false }
         $sumLines = @($sumRaw.TrimEnd("`n") -split "`n")
-        if ($sumLines.Count -ne 6) { return $false }
+        if ($sumLines.Count -ne 7) { return $false }
         $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
         foreach ($line in $sumLines) {
             $parts = ([string]$line) -split '  ', 2
@@ -947,13 +953,13 @@ function Test-BuildReleaseBundle(
             $key = $parts[1].Remove($parts[1].Length - 4).Replace('-', '_').Replace('.', '_')
             if ([string]$manifest."artifact.$key.file" -cne $parts[1] -or
                     [string]$manifest."artifact.$key.sha256" -cne $parts[0]) { return $false }
-            if ($parts[1] -cmatch '^mcace-client-fabric-(?<target>1\.21\.11|26\.1\.2|26\.2)\.jar$') {
+            if ($parts[1] -cmatch '^mcace-client-fabric-(?<target>1\.21\.11|26\.1\.2|26\.2|26\.3)\.jar$') {
                 if ([string]$manifest."artifact.$key.minecraft_version" -cne $Matches.target -or
                         [string]$manifest."artifact.$key.client_build_id" -cne
                             "fabric-$($Matches.target)-$ExpectedArtifactSourceCommit") { return $false }
             }
         }
-        if ($seen.Count -ne 6) { return $false }
+        if ($seen.Count -ne 7) { return $false }
         $compatibilityReport = Read-StrictAbsoluteJson (
             Join-Path $buildRoot 'compatibility-contract/report.json')
         if ($null -eq $compatibilityReport) { return $false }
@@ -977,7 +983,7 @@ function Get-ProtectedReleaseBundleArtifactBinding(
     $manifestDoc = Read-ReleaseLockedFileBytes $manifestPath 64 1048576 `
         'PROTECTED_RELEASE_MANIFEST'
     $allowed = @('mcace-client-fabric-1.21.11.jar','mcace-client-fabric-26.1.2.jar',
-        'mcace-client-fabric-26.2.jar','mcace-server-velocity.jar',
+        'mcace-client-fabric-26.2.jar','mcace-client-fabric-26.3.jar','mcace-server-velocity.jar',
         'mcace-server-bungeecord.jar','mcace-server-paper.jar')
     if ($ArtifactFile -cnotin $allowed) { throw 'MCACE_RELEASE_BUNDLE_ARTIFACT_FILE_INVALID' }
     $key = $ArtifactFile.Remove($ArtifactFile.Length - 4).Replace('-', '_').Replace('.', '_')
@@ -1745,7 +1751,7 @@ function Assert-MatrixSupervisorSigningRequest(
             -not (Test-StringEqual $request.release_bundle_sha256s_sha256 ([string]$Index.release_bundle.sha256sums_sha256)) -or
             [long]$request.release_bundle_sha256s_size_bytes -ne [long]$Index.release_bundle.sha256sums_size_bytes -or
             -not (Test-StringEqual $request.release_bundle_artifact_set_sha256 ([string]$ReleaseCommitment.sha256)) -or
-            [int]$request.release_bundle_artifact_count -ne 6 -or
+            [int]$request.release_bundle_artifact_count -ne 7 -or
             -not (Test-StringEqual $request.matrix_product_jar_set_sha256 ([string]$ProductCommitment.sha256)) -or
             [int]$request.matrix_product_jar_count -ne 3 -or
             -not (Test-StringEqual $request.supervisor_trust_root_sha256 ([string]$TrustRoot.document.sha256)) -or
@@ -1936,7 +1942,7 @@ function Assert-MatrixIndex([object]$Index, [string]$IndexRelative, [string]$Req
             -not (Test-JsonInteger $Index.release_bundle.sha256sums_size_bytes) -or
             [long]$Index.release_bundle.sha256sums_size_bytes -le 0 -or
             -not (Test-JsonArray $Index.release_bundle.artifacts) -or
-            @($Index.release_bundle.artifacts).Count -ne 6) {
+            @($Index.release_bundle.artifacts).Count -ne 7) {
         throw 'MCACE_RELEASE_MATRIX_BUNDLE_INDEX_INVALID'
     }
     if (-not (Test-BuildReleaseBundle $ReleaseBundleRoot $RequestedCommit $artifactSourceCommit)) {
@@ -1961,7 +1967,7 @@ function Assert-MatrixIndex([object]$Index, [string]$IndexRelative, [string]$Req
     }
 
     $bundleJarNames = @('mcace-client-fabric-1.21.11.jar','mcace-client-fabric-26.1.2.jar',
-        'mcace-client-fabric-26.2.jar','mcace-server-bungeecord.jar',
+        'mcace-client-fabric-26.2.jar','mcace-client-fabric-26.3.jar','mcace-server-bungeecord.jar',
         'mcace-server-paper.jar','mcace-server-velocity.jar')
     $bundleArtifacts = [Collections.Generic.Dictionary[string,object]]::new([StringComparer]::Ordinal)
     $indexedBundleArtifacts = @($Index.release_bundle.artifacts)
@@ -2557,7 +2563,7 @@ function Assert-FederationIndex(
         throw 'MCACE_RELEASE_FEDERATION_SIGNER_PINS_MUST_DIFFER'
     }
     $target = [string]$Index.fabric_target
-    if ($target -notin @('1.21.11','26.1.2','26.2') -or
+    if ($target -notin @('1.21.11','26.1.2','26.2','26.3') -or
             [string]$Index.source_proxy -notin @('VELOCITY','BUNGEE') -or
             [string]$Index.target_proxy -notin @('VELOCITY','BUNGEE') -or
             [string]$Index.release_bundle_fabric_jar_file -cne

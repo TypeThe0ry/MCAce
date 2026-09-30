@@ -51,12 +51,13 @@ function New-TestReleaseBundle(
         'mcace-client-fabric-1.21.11.jar',
         'mcace-client-fabric-26.1.2.jar',
         'mcace-client-fabric-26.2.jar',
+        'mcace-client-fabric-26.3.jar',
         'mcace-server-velocity.jar',
         'mcace-server-bungeecord.jar',
         'mcace-server-paper.jar')
     $manifest = [ordered]@{
         schema='MCACE_RELEASE_BUNDLE_V4'; bundle_profile='RELEASE'
-        release_identity='true'; deployable_count='6'; bundle_entry_count='8'
+        release_identity='true'; deployable_count='7'; bundle_entry_count='9'
         product_version='0.0.1'; source_commit=$FinalCommit
         artifact_source_commit=$ArtifactCommit
         root_java_version='25'; root_java_specification_version='25'; root_gradle_version='9.1'
@@ -74,7 +75,7 @@ function New-TestReleaseBundle(
         $key = $name.Remove($name.Length - 4).Replace('-','_').Replace('.','_')
         $manifest["artifact.$key.file"] = $name
         $manifest["artifact.$key.sha256"] = $sha
-        if ($name -cmatch '^mcace-client-fabric-(?<target>1\.21\.11|26\.1\.2|26\.2)\.jar$') {
+        if ($name -cmatch '^mcace-client-fabric-(?<target>1\.21\.11|26\.1\.2|26\.2|26\.3)\.jar$') {
             $manifest["artifact.$key.minecraft_version"] = $Matches.target
             $manifest["artifact.$key.client_build_id"] = "fabric-$($Matches.target)-$ArtifactCommit"
         }

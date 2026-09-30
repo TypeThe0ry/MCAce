@@ -37,7 +37,7 @@ final class AntiCheatLiveFixtureIntegrationTest {
     @Test
     @Timeout(60)
     void executedCheatFixtureIsCorrelatedAndBenignClientIsNot() throws Exception {
-        for (String version : List.of("1.21.11", "26.1.2", "26.2")) {
+        for (String version : List.of("1.21.11", "26.1.2", "26.2", "26.3")) {
             Path fixture = createFixture(version);
             Process server = process("server", fixture.toString(), "2").start();
             try {
@@ -87,7 +87,7 @@ final class AntiCheatLiveFixtureIntegrationTest {
                 destroy(server);
             }
         }
-        System.out.println("ANTICHEAT_LIVE_FIXTURE_INTEGRATION_PASS|versions=3|executed=true|server_confirmed=3|clean_false_positive=0");
+        System.out.println("ANTICHEAT_LIVE_FIXTURE_INTEGRATION_PASS|versions=4|executed=true|server_confirmed=4|clean_false_positive=0");
     }
 
     private ProcessBuilder process(String... arguments) {

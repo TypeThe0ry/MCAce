@@ -33,6 +33,7 @@ require(GradleVersion.current().version == "9.6.1") {
 val targetVersions = mapOf(
     "client-26.1.2" to Pair("26.1.2", "0.155.2+26.1.2"),
     "client-26.2" to Pair("26.2", "0.157.0+26.2"),
+    "client-26.3" to Pair("26.3", "0.161.0+26.3"),
 )
 val stagedDependencies = providers.gradleProperty("mcaceRootDepsDir")
     .map { rootProject.file(it) }

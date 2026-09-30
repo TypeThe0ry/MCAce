@@ -62,6 +62,16 @@ $targets = @(
         artifact_mode = 'FINAL_NAMED_JAR'
         expected_nested = @('META-INF/jars/protobuf-java-4.32.1.jar')
     }
+    [ordered]@{
+        minecraft_version = '26.3'
+        protocol = 777
+        java_major = 25
+        loader = '0.19.3'
+        fabric_api = '0.161.0+26.3'
+        artifact = 'mcace-client-fabric-26.3.jar'
+        artifact_mode = 'FINAL_NAMED_JAR'
+        expected_nested = @('META-INF/jars/protobuf-java-4.32.1.jar')
+    }
 )
 
 function Get-Sha256([string]$Path) {
@@ -326,8 +336,8 @@ function Invoke-Execute {
             [string]$manifest.bundle_profile -cne 'RELEASE' -or
             [string]$manifest.release_identity -cne 'true' -or
             [string]$manifest.product_version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+(?:-[0-9A-Za-z.-]+)?$' -or
-            [int]$manifest.deployable_count -ne 6 -or
-            [int]$manifest.bundle_entry_count -ne 8 -or
+            [int]$manifest.deployable_count -ne 7 -or
+            [int]$manifest.bundle_entry_count -ne 9 -or
             [string]$manifest.root_java_version -cnotmatch '^21(?:\.|$)' -or
             [string]$manifest.root_java_specification_version -cne '21' -or
             [string]$manifest.root_gradle_version -cne '9.6.1' -or
@@ -352,7 +362,7 @@ function Invoke-Execute {
         throw "MCACE_COMPATIBILITY_ARTIFACT_SOURCE_COMMIT_MISMATCH|expected=$($ExpectedArtifactSourceCommit.Trim().ToLowerInvariant())|actual=$($manifest.artifact_source_commit)"
     }
     $sumLines = @(Get-Content -LiteralPath $sumsPath)
-    if (@($sumLines).Count -ne 6) { throw 'MCACE_COMPATIBILITY_SHA256SUMS_COUNT_INVALID' }
+    if (@($sumLines).Count -ne 7) { throw 'MCACE_COMPATIBILITY_SHA256SUMS_COUNT_INVALID' }
     $seenSumNames = @{}
     foreach ($line in $sumLines) {
         if ($line -cnotmatch '^([0-9a-f]{64})  ([A-Za-z0-9][A-Za-z0-9._-]*\.jar)$') {
@@ -395,7 +405,7 @@ function Invoke-Execute {
         target_count = @($results).Count
         exact_bundle_entry_count = [int]$manifest.bundle_entry_count
         unsupported_versions_are_fail_closed = $true
-        unsupported_examples = @('1.21.1', '1.21.10', '26.1', '26.3')
+        unsupported_examples = @('1.21.1', '1.21.10', '26.1', '26.4')
         targets = $results
         passed = $true
     }
@@ -426,10 +436,10 @@ function Invoke-ReportOnly {
             $report.passed -ne $true -or
             [string]$report.source_commit -cnotmatch '^[0-9a-f]{40}$' -or
             [string]$report.artifact_source_commit -cnotmatch '^[0-9a-f]{40}$' -or
-            [int]$report.target_count -ne 3 -or
-            [int]$report.exact_bundle_entry_count -ne 8 -or
+            [int]$report.target_count -ne 4 -or
+            [int]$report.exact_bundle_entry_count -ne 9 -or
             $report.unsupported_versions_are_fail_closed -ne $true -or
-            @($report.targets).Count -ne 3 -or
+            @($report.targets).Count -ne 4 -or
             @($report.targets | Where-Object { $_.passed -ne $true }).Count -ne 0) {
         throw 'MCACE_COMPATIBILITY_REPORT_CONTRACT_INVALID'
     }
@@ -443,11 +453,11 @@ function Invoke-ReportOnly {
         throw 'MCACE_COMPATIBILITY_REPORT_ARTIFACT_SOURCE_COMMIT_MISMATCH'
     }
     if ((@($report.unsupported_examples | ForEach-Object { [string]$_ }) -join '|') -cne
-            '1.21.1|1.21.10|26.1|26.3') {
+            '1.21.1|1.21.10|26.1|26.4') {
         throw 'MCACE_COMPATIBILITY_REPORT_UNSUPPORTED_EXAMPLES_INVALID'
     }
-    $expectedVersions = @('1.21.11', '26.1.2', '26.2')
-    for ($i = 0; $i -lt 3; $i++) {
+    $expectedVersions = @('1.21.11', '26.1.2', '26.2', '26.3')
+    for ($i = 0; $i -lt 4; $i++) {
         $target = $report.targets[$i]
         Assert-ExactPropertySet $target @(
             'minecraft_version', 'protocol', 'java_major', 'artifact_mode',

@@ -63,7 +63,7 @@ restrict an already connected player.
 5. Keep every enforcement setting in `MONITOR` while pins, policies, and known
    good client flows are being checked.
 
-Use the current three-target strict regression path before deployment; it does
+Use the current four-target strict regression path before deployment; it does
 not replace live process validation:
 
 ```powershell
@@ -195,7 +195,10 @@ access. The plugin routes player-facing work through the entity scheduler and
 expiry/cleanup through the global scheduler. Before deploying any supported
 version, run the authoritative three-version process matrix and confirm the exact
 target row. Folia 26.2 build 6 is a BETA lane and requires an explicit rollout
-decision; 1.21.11 and 26.1.2 use the reviewed STABLE Folia builds.
+decision; 1.21.11 and 26.1.2 use the reviewed STABLE Folia builds. The 26.3
+Fabric client target has no server-matrix row: the matrix is not extended to
+26.3, whose client artifact is verified by build, unit tests, and the
+compatibility contract only.
 
 ### Phase 1 verification and rollback
 
@@ -206,7 +209,8 @@ Run the authoritative process gate from a controlled machine:
 .\scripts\server-version-process-matrix.ps1 -ReportOnly
 ```
 
-This loopback/offline gate covers all 12 supported version/backend/proxy cases and
+This loopback/offline gate covers all 12 version/backend/proxy cases (1.21.11,
+26.1.2, 26.2; not 26.3) and
 binds current source, product JARs, fixed upstream assets, prepared trees, Java
 runtimes, raw reports, signed admission, shadow context, and cleanup. It does not
 prove online-mode identity or public-network deployment. The older 1.21.1/1.21.4
@@ -461,7 +465,8 @@ same approved retention policy. An optional local reviewer, when separately
 enabled, is loopback-only and console-issued; it is not a public raw-image
 portal.
 
-Run the three versions as non-promoting compatibility smokes:
+Run the three original versions as non-promoting compatibility smokes (no 26.3
+platform-smoke run is recorded):
 
 ```powershell
 .\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11
@@ -585,7 +590,8 @@ consent and the complete privacy scan remain release gates; do not treat the
 matrix as proof of those rows.
 
 The current `scripts/fabric-federation-gui-handoff-smoke.ps1` is a fail-closed V5
-wrapper for all three supported Fabric targets. Its PowerShell 7 and Windows
+wrapper for the three original Fabric targets (26.3 is not yet part of its
+target set). Its PowerShell 7 and Windows
 PowerShell 5 parser/static contract tests pass. A migration still needs one real,
 externally attested `Enable MCAce` decision at the source, then source issue,
 disconnect and Direct Connection to the exact target with no second prompt, and

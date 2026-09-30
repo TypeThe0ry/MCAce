@@ -78,11 +78,12 @@ function New-ReleaseBundle([string]$Root,[switch]$FakePaper){
         'mcace-client-fabric-1.21.11.jar'='fabric/client/Client.class'
         'mcace-client-fabric-26.1.2.jar'='fabric/client/Client.class'
         'mcace-client-fabric-26.2.jar'='fabric/client/Client.class'
+        'mcace-client-fabric-26.3.jar'='fabric/client/Client.class'
         'mcace-server-velocity.jar'='com/ellan/mcace/velocity/MCAceVelocityPlugin.class'
         'mcace-server-bungeecord.jar'='com/ellan/mcace/bungeecord/MCAceBungeePlugin.class'
         'mcace-server-paper.jar'='com/ellan/mcace/paper/MCAcePaperPlugin.class'
     }
-    $manifest=[ordered]@{schema='MCACE_RELEASE_BUNDLE_V4';bundle_profile='RELEASE';release_identity='true';deployable_count='6';bundle_entry_count='8';product_version='0.0.1';source_commit=$sourceCommit;artifact_source_commit=$sourceCommit;root_java_version='25';root_java_specification_version='25';root_gradle_version='9.1';modern_java_version='25';modern_java_specification_version='25';modern_gradle_version='9.1'}
+    $manifest=[ordered]@{schema='MCACE_RELEASE_BUNDLE_V4';bundle_profile='RELEASE';release_identity='true';deployable_count='7';bundle_entry_count='9';product_version='0.0.1';source_commit=$sourceCommit;artifact_source_commit=$sourceCommit;root_java_version='25';root_java_specification_version='25';root_gradle_version='9.1';modern_java_version='25';modern_java_specification_version='25';modern_gradle_version='9.1'}
     $sums=New-Object 'Collections.Generic.List[string]'
     foreach ($entry in $jars.GetEnumerator()){
         $path=Join-Path $Root $entry.Key

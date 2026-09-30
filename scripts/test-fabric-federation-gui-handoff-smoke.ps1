@@ -151,8 +151,8 @@ foreach ($name in @('VisibleGuiSigningRequestPath','VisibleGuiAttestationPath','
     Assert-True (Test-MandatoryParameter $name 'Execute') "$name is not Execute-mandatory"
     Assert-True (-not (Test-MandatoryParameter $name 'Report')) "$name leaks into ReportOnly"
 }
-Assert-True (((Get-ValidateSet 'FabricTarget') -join ',') -ceq '1.21.11,26.1.2,26.2') `
-    'three-version Fabric matrix changed'
+Assert-True (((Get-ValidateSet 'FabricTarget') -join ',') -ceq '1.21.11,26.1.2,26.2,26.3') `
+    'four-version Fabric matrix changed'
 Assert-True ($source -match '(?m)\[int\]\$FederationAssertionTtlSeconds\s*=\s*300,') `
     'GUI handoff default assertion TTL must cover the human transition window'
 Assert-True ($source.Contains('$federationTransitionSafetyMarginSeconds = 15') -and
@@ -983,8 +983,8 @@ try {
     $bundle = Join-Path $tempRoot 'release-bundle'
     [IO.Directory]::CreateDirectory($bundle) | Out-Null
     $jarNames = @('mcace-client-fabric-1.21.11.jar','mcace-client-fabric-26.1.2.jar',
-        'mcace-client-fabric-26.2.jar','mcace-server-velocity.jar',
-        'mcace-server-bungeecord.jar','mcace-server-paper.jar')
+        'mcace-client-fabric-26.2.jar','mcace-client-fabric-26.3.jar',
+        'mcace-server-velocity.jar','mcace-server-bungeecord.jar','mcace-server-paper.jar')
     $hashes = [ordered]@{}
     for ($index = 0; $index -lt $jarNames.Count; $index++) {
         $bytes = New-Object byte[] (2048 + $index)
@@ -997,12 +997,16 @@ try {
     $targetJar = 'mcace-client-fabric-26.2.jar'
     $manifest = @(
         'schema=MCACE_RELEASE_BUNDLE_V4','bundle_profile=RELEASE','release_identity=true',
-        'deployable_count=6','bundle_entry_count=8','product_version=0.0.1',
+        'deployable_count=7','bundle_entry_count=9','product_version=0.0.1',
         "source_commit=$releaseCommit","artifact_source_commit=$artifactCommit",
         "artifact.mcace_client_fabric_26_2.file=$targetJar",
         "artifact.mcace_client_fabric_26_2.sha256=$($hashes[$targetJar])",
         'artifact.mcace_client_fabric_26_2.minecraft_version=26.2',
         "artifact.mcace_client_fabric_26_2.client_build_id=fabric-26.2-$artifactCommit",
+        'artifact.mcace_client_fabric_26_3.file=mcace-client-fabric-26.3.jar',
+        "artifact.mcace_client_fabric_26_3.sha256=$($hashes['mcace-client-fabric-26.3.jar'])",
+        'artifact.mcace_client_fabric_26_3.minecraft_version=26.3',
+        "artifact.mcace_client_fabric_26_3.client_build_id=fabric-26.3-$artifactCommit",
         'artifact.mcace_server_velocity.file=mcace-server-velocity.jar',
         "artifact.mcace_server_velocity.sha256=$($hashes['mcace-server-velocity.jar'])",
         'artifact.mcace_server_bungeecord.file=mcace-server-bungeecord.jar',
@@ -1020,6 +1024,12 @@ try {
         'V4 bundle target JAR did not validate'
     Assert-True ([string]$bundleBinding.artifact_source_commit -ceq $artifactCommit) `
         'artifact_source_commit did not survive bundle validation'
+    $bundleBinding263 = & $validator {
+        param($Root,$BundleCommit,$ArtifactCommit,$Target,$SourceProxy,$TargetProxy)
+        Get-ReleaseBundleTargetBinding $Root $BundleCommit $ArtifactCommit $Target $SourceProxy $TargetProxy
+    } $bundle $releaseCommit $artifactCommit '26.3' 'VELOCITY' 'BUNGEE'
+    Assert-True ([string]$bundleBinding263.fabric_jar_sha256 -ceq $hashes['mcace-client-fabric-26.3.jar']) `
+        'V4 bundle 26.3 target JAR did not validate'
     Assert-True ([string]$bundleBinding.paper_jar_sha256 -ceq $hashes['mcace-server-paper.jar']) `
         'Paper runtime JAR did not validate'
     Assert-True ([string]$bundleBinding.source_proxy_jar_sha256 -ceq $hashes['mcace-server-velocity.jar']) `

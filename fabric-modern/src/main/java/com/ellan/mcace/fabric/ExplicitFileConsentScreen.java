@@ -12,7 +12,7 @@ import net.minecraft.client.gui.components.Button;
 import net.minecraft.client.input.KeyEvent;
 import net.minecraft.util.FormattedCharSequence;
 import net.minecraft.network.chat.Component;
-import org.lwjgl.glfw.GLFW;
+import com.mojang.blaze3d.platform.InputConstants;
 
 /** Visible, paged disclosure for signed-policy explicit files. Closing always declines. */
 final class ExplicitFileConsentScreen extends Screen {
@@ -309,12 +309,12 @@ final class ExplicitFileConsentScreen extends Screen {
     public boolean keyPressed(KeyEvent input) {
         ExplicitLayout layout = layout();
         int next = switch (input.key()) {
-            case GLFW.GLFW_KEY_PAGE_UP -> ConsentUiSupport.clampScroll(
+            case InputConstants.KEY_PAGEUP -> ConsentUiSupport.clampScroll(
                     scrollOffset - (layout.viewportBottom() - layout.viewportTop()), layout.maxScroll());
-            case GLFW.GLFW_KEY_PAGE_DOWN -> ConsentUiSupport.clampScroll(
+            case InputConstants.KEY_PAGEDOWN -> ConsentUiSupport.clampScroll(
                     scrollOffset + (layout.viewportBottom() - layout.viewportTop()), layout.maxScroll());
-            case GLFW.GLFW_KEY_HOME -> 0;
-            case GLFW.GLFW_KEY_END -> layout.maxScroll();
+            case InputConstants.KEY_HOME -> 0;
+            case InputConstants.KEY_END -> layout.maxScroll();
             default -> scrollOffset;
         };
         if (next != scrollOffset) {

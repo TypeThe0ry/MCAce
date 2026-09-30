@@ -57,6 +57,7 @@ $expected = @(
     'mcace-client-fabric-1.21.11.jar',
     'mcace-client-fabric-26.1.2.jar',
     'mcace-client-fabric-26.2.jar',
+    'mcace-client-fabric-26.3.jar',
     'mcace-server-velocity.jar',
     'mcace-server-bungeecord.jar',
     'mcace-server-paper.jar',
@@ -72,7 +73,7 @@ if ($manifest.schema -cne 'MCACE_RELEASE_BUNDLE_V4' -or
     $manifest.product_version -cne '0.0.1' -or
     $manifest.source_commit -cne $SourceCommit -or
     $manifest.artifact_source_commit -cne $ArtifactSourceCommit -or
-    $manifest.deployable_count -ne '6' -or $manifest.bundle_entry_count -ne '8') {
+    $manifest.deployable_count -ne '7' -or $manifest.bundle_entry_count -ne '9') {
     Fail 'MANIFEST_IDENTITY_INVALID'
 }
 
@@ -92,7 +93,7 @@ $compat = Get-Content -Raw -LiteralPath $compatPath | ConvertFrom-Json
 if ($compat.schema -cne 'MCACE_VERSION_COMPATIBILITY_CONTRACT_V2' -or
     $compat.source_commit -cne $SourceCommit -or
     $compat.artifact_source_commit -cne $ArtifactSourceCommit -or
-    $compat.target_count -ne 3 -or $compat.exact_bundle_entry_count -ne 8 -or
+    $compat.target_count -ne 4 -or $compat.exact_bundle_entry_count -ne 9 -or
     $compat.passed -ne $true) { Fail 'COMPATIBILITY_REPORT_INVALID' }
 
 $report = [ordered]@{
@@ -103,8 +104,8 @@ $report = [ordered]@{
     artifact_source_commit=$ArtifactSourceCommit
     product_version='0.0.1'
     bundle_root=$BundleRoot
-    bundle_entries=8
-    compatibility_targets=3
+    bundle_entries=9
+    compatibility_targets=4
     extended_certification='PENDING_EXTERNAL_EVIDENCE'
     interpretation='Core release is executable and source-bound. Extended GUI/Federation/Vulcan/Authority evidence remains a separate certification layer.'
 }

@@ -24,11 +24,13 @@ Before a process or GUI run, validate the release bundle itself:
   -ReportPath .\build\compatibility-contract\report.json
 ```
 
-This is an exact allowlist for `1.21.11`/774/JDK21, `26.1.2`/775/JDK25, and
-`26.2`/776/JDK25. It verifies commit-bound `fabric.mod.json` metadata, final
-remap versus final named artifact mode, nested-JAR shape, exact-eight bundle
-membership, and explicit rejection of unlisted `1.21.x`/26.x patches. The
-durable result is [`version-compatibility-contract-2026-08-21.json`](evidence/version-compatibility-contract-2026-08-21.json).
+This is an exact allowlist for `1.21.11`/774/JDK21, `26.1.2`/775/JDK25,
+`26.2`/776/JDK25, and `26.3`/777/JDK25. It verifies commit-bound
+`fabric.mod.json` metadata, final remap versus final named artifact mode,
+nested-JAR shape, exact-nine bundle membership (seven deployable JARs), and
+explicit rejection of unlisted `1.21.x`/26.x patches. The retained durable
+result [`version-compatibility-contract-2026-08-21.json`](evidence/version-compatibility-contract-2026-08-21.json)
+predates `26.3` and covers the three original targets.
 
 ## Supported target and artifact matrix
 
@@ -37,6 +39,12 @@ durable result is [`version-compatibility-contract-2026-08-21.json`](evidence/ve
 | `1.21.11` | 774 | 21 | build 132, STABLE | build 14, STABLE | final remapped JAR |
 | `26.1.2` | 775 | 25 | build 74, STABLE | build 8, STABLE | final named JAR |
 | `26.2` | 776 | 25 | build 116, STABLE | build 6, **BETA** | final named JAR |
+| `26.3` | 777 | 25 | not in server matrix | not in server matrix | final named JAR |
+
+The server-version process matrix (Paper/Folia backends) is not extended to
+`26.3`; the `26.3` client artifact is verified by build, unit tests, and the
+compatibility contract. The backend pins below therefore cover only the three
+original targets.
 
 Both proxy assets are shared across the matrix:
 
@@ -106,7 +114,8 @@ evidence and any binding drift.
 `-FabricTarget` is mandatory:
 
 ```powershell
-# Server-only startup. All three targets have passed this mode.
+# Server-only startup. The three original targets have passed this mode;
+# no 26.3 run is recorded.
 .\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11
 .\scripts\platform-load-smoke.ps1 -FabricTarget 26.1.2
 .\scripts\platform-load-smoke.ps1 -FabricTarget 26.2
@@ -119,10 +128,10 @@ evidence and any binding drift.
 .\scripts\platform-load-smoke.ps1 -FabricTarget 1.21.11 -WithFabricEvidence
 ```
 
-The last command is not a three-target release requirement. The `26.1.2` and
+The last command is not a per-target release requirement. The `26.1.2` and
 `26.2` clients may receive separate UI compatibility or visual diagnostics when
 needed, but those runs are not second or third release approvals and cannot mint
-or promote release consent. All three targets' Mojang version metadata, asset
+or promote release consent. The three original targets' Mojang version metadata, asset
 indexes, and asset objects are already present in the validated cache, so there
 is no remaining asset-download blocker.
 
@@ -184,13 +193,15 @@ their own retained evidence, but they do not add Fabric-version support:
   6/6 ADMIN_REVIEWED V4 routes per target; LIMIT and QUARANTINE are distinct
   and DENY closes only the current connection. Repeat once for each target;
   retained 2026-08-13 evidence is historical until refreshed.
+- Neither disposition wrapper has a recorded `26.3` run.
 - `federation-proxy-matrix-smoke.ps1 -Pair All`: 4/4 raw-peer federation
   protocol/audit matrix. `fabric_gui_coverage=false` remains true.
 - `federation-target-restart-residual-smoke.ps1`: process-local replay-state
   residual characterization; it truthfully records
   `durable_replay_protection=false`.
 
-The Fabric Federation V5 wrapper is implemented for all three targets. Its
+The Fabric Federation V5 wrapper is implemented for the three original targets
+(`1.21.11`, `26.1.2`, `26.2`); no `26.3` run is recorded. Its
 PowerShell 7 and Windows PowerShell 5 parser/static contract tests pass. A real
 run still needs one independently attested visible `Enable MCAce` decision at the
 source, followed by source authorization, source disconnect, direct join to the
@@ -217,7 +228,7 @@ three-version matrix:
 
 They are retained as legacy debugging or historical evidence only. Their old
 Paper 1.21.1-133, BungeeCord 2028, and Folia 1.21.4-6 ALPHA pins are not current
-release inputs and cannot satisfy the 1.21.11/26.1.2/26.2 release gate.
+release inputs and cannot satisfy the 1.21.11/26.1.2/26.2/26.3 release gate.
 
 ## Evidence boundary
 

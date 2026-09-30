@@ -1,7 +1,7 @@
 # MCAce Cloud control-plane foundation
 
 > **Frozen legacy/optional scope.** Cloud and the portal are retained to preserve
-> earlier work, but they are not part of the current Fabric 1.21.11/26.1.2/26.2
+> earlier work, but they are not part of the current Fabric 1.21.11/26.1.2/26.2/26.3
 > plus Velocity/Bungee/Paper/Folia delivery path, release bundle, or trust
 > prerequisite.
 

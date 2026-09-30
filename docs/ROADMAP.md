@@ -2,16 +2,25 @@
 
 ## Current roadmap and retained exact-commit baseline
 
-- [x] Support exactly three Fabric targets: 1.21.11 on JDK 21 as a final remapped
-  JAR, and 26.1.2/26.2 on isolated JDK 25 as final named JARs. All use Fabric
-  Loader 0.19.3 and the exact API tuples in `FABRIC_COMPATIBILITY.md`.
+- [x] Support exactly four Fabric targets: 1.21.11 on JDK 21 as a final remapped
+  JAR, and 26.1.2/26.2/26.3 on isolated JDK 25 as final named JARs. All use Fabric
+  Loader 0.19.3 and the exact API tuples in `FABRIC_COMPATIBILITY.md`. The
+  26.3 target (protocol 777, Fabric API 0.161.0+26.3, `fabric-modern` project
+  `:client-26.3`) is verified by build, unit tests, and the four-target
+  compatibility contract; the server-version process matrix is not extended to it.
+- [ ] Regenerate release evidence (Matrix V4 and the other signed packages) for
+  the seven-deployable / nine-entry `MCACE_RELEASE_BUNDLE_V4` bundle that adds
+  `mcace-client-fabric-26.3.jar`. The external release-authority signers must
+  first accept the seven-artifact bundle and the 26.3 target before GUI, Vulcan,
+  or Matrix evidence can be signed for it.
 - [x] Retain the historical strict offline Windows A/D witness with Temurin 21.0.7+6, isolated Temurin
   25.0.3+9, and Gradle 9.6.1. Each run completed 118/118 tasks. Root results:
   147 suites / 681 tests / 0 failures / 0 errors / 28 skipped; modern results:
   24 / 74 / 0 / 0 / 0; combined: 171 / 755 / 0 / 0 / 28. These totals are
   commit-bound history and must be replaced by the final exact-source run rather
   than described as current-working-tree totals.
-- [x] Generate byte-identical exact-eight LOCAL verification bundles in A/D: six
+- [x] Generate byte-identical exact-eight LOCAL verification bundles in A/D (before
+  the 26.3 target; current source builds exact-nine with seven): six
   deployables, `release-manifest.properties`, and `SHA256SUMS`. Retained evidence:
   `docs/evidence/local-build-2026-08-20.json`; `build/` remains mutable.
 - [x] Reduce current exact synthetic trust to 47 root Loom-local entries plus two
@@ -25,11 +34,11 @@
   not current-working-tree or release-grade Matrix V4 evidence.
 - [ ] Execute, externally supervise, publish, and revalidate the Matrix V4
   twelve-case package against the frozen artifact source and protected bundle.
-- [x] Pass server-only `platform-load-smoke.ps1 -FabricTarget <target>` for all
-  three targets and prewarm/verify all required Minecraft asset objects.
+- [x] Pass server-only `platform-load-smoke.ps1 -FabricTarget <target>` for the
+  three original targets (not yet recorded for 26.3) and prewarm/verify all required Minecraft asset objects.
 - [ ] Complete exactly one source-side, human-visible, connection-bound
   `Enable MCAce` release approval inside the real Federation V5 handoff. The
-  target inherits that decision and opens no second prompt; the other two Fabric
+  target inherits that decision and opens no second prompt; the other Fabric
   versions receive compatibility/visual diagnostics only and cannot promote
   release consent.
 - [ ] Rerun the licensed Vulcan structural preflight against the frozen source,
@@ -56,7 +65,7 @@ action, and Cloud/Portal/PostgreSQL/Launcher remain frozen outside the product.
 - Replay-resistant session lifecycle
 - Explainable, policy-driven risk scoring
 - Loader-neutral client integrity manifest
-- Fabric bootstrap for the exact 1.21.11, 26.1.2, and 26.2 targets with
+- Fabric bootstrap for the exact 1.21.11, 26.1.2, 26.2, and 26.3 targets with
   asynchronous scoped mod scanning
 - SDK plus Paper and Velocity adapter foundations
 - Unit tests and documented trust boundaries
@@ -67,7 +76,7 @@ decision relies on an unverified client assertion.
 
 ## Phase 2 — Level 1 VERIFIED (complete)
 
-- [x] Fabric 1.21.11 remapped client plus 26.1.2/26.2 named clients and the
+- [x] Fabric 1.21.11 remapped client plus 26.1.2/26.2/26.3 named clients and the
   common custom-payload handshake
 - [x] Velocity channel challenge, authentication timeout, monitor mode, and opt-in limited routing
 - [x] Persistent Ed25519 server identity and mandatory client public-key pins
@@ -106,7 +115,7 @@ decision relies on an unverified client assertion.
 ## Re-scoped platform delivery — Mod + plugins
 
 - [x] Fabric 1.21.11 client, final remap artifact, Java 21, signed custom-payload handshake
-- [x] Fabric 26.1.2 and 26.2 clients, final named artifacts, isolated Java 25
+- [x] Fabric 26.1.2, 26.2, and 26.3 clients, final named artifacts, isolated Java 25
 - [x] Target-specific immutable build-ID and metadata contracts
 - [x] Velocity proxy plugin with monitor/limited-route modes
 - [x] BungeeCord proxy plugin using the shared handshake/admission core

@@ -129,11 +129,11 @@ function New-TestReleaseBundle(
         [string]$ArtifactCommit) {
     [IO.Directory]::CreateDirectory($Root) | Out-Null
     $jarNames = @('mcace-client-fabric-1.21.11.jar','mcace-client-fabric-26.1.2.jar',
-        'mcace-client-fabric-26.2.jar','mcace-server-velocity.jar',
+        'mcace-client-fabric-26.2.jar','mcace-client-fabric-26.3.jar','mcace-server-velocity.jar',
         'mcace-server-bungeecord.jar','mcace-server-paper.jar')
     $manifest = [ordered]@{
         schema='MCACE_RELEASE_BUNDLE_V4'; bundle_profile='RELEASE'; release_identity='true'
-        deployable_count='6'; bundle_entry_count='8'; product_version='0.0.1'
+        deployable_count='7'; bundle_entry_count='9'; product_version='0.0.1'
         source_commit=$FinalCommit; artifact_source_commit=$ArtifactCommit
         root_java_version='25'; root_java_specification_version='25'; root_gradle_version='9.1'
         modern_java_version='25'; modern_java_specification_version='25'; modern_gradle_version='9.1'
@@ -152,7 +152,7 @@ function New-TestReleaseBundle(
         $key = $name.Remove($name.Length - 4).Replace('-','_').Replace('.','_')
         $manifest["artifact.$key.file"] = $name
         $manifest["artifact.$key.sha256"] = $sha
-        if ($name -cmatch '^mcace-client-fabric-(?<target>1\.21\.11|26\.1\.2|26\.2)\.jar$') {
+        if ($name -cmatch '^mcace-client-fabric-(?<target>1\.21\.11|26\.1\.2|26\.2|26\.3)\.jar$') {
             $manifest["artifact.$key.minecraft_version"] = $Matches.target
             $manifest["artifact.$key.client_build_id"] = "fabric-$($Matches.target)-$ArtifactCommit"
         }
@@ -185,14 +185,18 @@ function Write-CompatibilityReport(
         [ordered]@{ minecraft_version='26.2'; protocol=776; java_major=25
             artifact_mode='FINAL_NAMED_JAR'; artifact='mcace-client-fabric-26.2.jar'
             sha256=[string]$Bundle.hashes.'mcace-client-fabric-26.2.jar'
+            nested_jar_count=1; passed=$true },
+        [ordered]@{ minecraft_version='26.3'; protocol=777; java_major=25
+            artifact_mode='FINAL_NAMED_JAR'; artifact='mcace-client-fabric-26.3.jar'
+            sha256=[string]$Bundle.hashes.'mcace-client-fabric-26.3.jar'
             nested_jar_count=1; passed=$true })
     Write-JsonNoBom $path ([ordered]@{
         schema='MCACE_VERSION_COMPATIBILITY_CONTRACT_V2'
         generated_at=[DateTimeOffset]::UtcNow.ToString('o')
         source_commit=$FinalCommit; artifact_source_commit=$ArtifactCommit
-        target_count=3; exact_bundle_entry_count=8
+        target_count=4; exact_bundle_entry_count=9
         unsupported_versions_are_fail_closed=$true
-        unsupported_examples=@('1.21.1','1.21.10','26.1','26.3')
+        unsupported_examples=@('1.21.1','1.21.10','26.1','26.4')
         targets=$targets; passed=$true
     }) 12
 }
@@ -618,7 +622,7 @@ try {
         process_identity_count=24; release_bundle_schema='MCACE_RELEASE_BUNDLE_V4'
         release_bundle_manifest_sha256='b' * 64; release_bundle_manifest_size_bytes=700L
         release_bundle_sha256s_sha256='c' * 64; release_bundle_sha256s_size_bytes=600L
-        release_bundle_artifact_set_sha256='d' * 64; release_bundle_artifact_count=6
+        release_bundle_artifact_set_sha256='d' * 64; release_bundle_artifact_count=7
         matrix_product_jar_set_sha256='e' * 64; matrix_product_jar_count=3
     }
     $receipt = [pscustomobject][ordered]@{
@@ -639,7 +643,7 @@ try {
         release_bundle_sha256s_sha256=$request.release_bundle_sha256s_sha256
         release_bundle_sha256s_size_bytes=600L
         release_bundle_artifact_set_sha256=$request.release_bundle_artifact_set_sha256
-        release_bundle_artifact_count=6
+        release_bundle_artifact_count=7
         matrix_product_jar_set_sha256=$request.matrix_product_jar_set_sha256
         matrix_product_jar_count=3; supervisor_independent=$true; signer_key_id=$keyId
         signer_trust_root_sha256=$rootSha; signature_algorithm='RSA_PKCS1_SHA256'
@@ -848,14 +852,14 @@ try {
     Remove-Module $vulcanReadinessValidator -Force -ErrorAction SilentlyContinue
 }
 
-# Verify the exact eight-file directory shape independently from manifest semantics.
+# Verify the exact nine-file directory shape independently from manifest semantics.
 $entryModule = New-Module -ScriptBlock ([scriptblock]::Create(
     "Set-StrictMode -Version Latest`n" +
     (Get-FunctionText $ast @('Test-ExactReleaseBundleEntrySet'))))
 $shapeRoot = Join-Path ([IO.Path]::GetTempPath()) `
     ('mcace-readiness-shape-' + [Guid]::NewGuid().ToString('N'))
 $entryNames = @('mcace-client-fabric-1.21.11.jar','mcace-client-fabric-26.1.2.jar',
-    'mcace-client-fabric-26.2.jar','mcace-server-velocity.jar',
+    'mcace-client-fabric-26.2.jar','mcace-client-fabric-26.3.jar','mcace-server-velocity.jar',
     'mcace-server-bungeecord.jar','mcace-server-paper.jar',
     'release-manifest.properties','SHA256SUMS')
 try {
@@ -864,7 +868,7 @@ try {
         [IO.File]::WriteAllBytes((Join-Path $shapeRoot $name), [byte[]](1,2,3))
     }
     Assert-True (& $entryModule { param($Root,$Names) Test-ExactReleaseBundleEntrySet $Root $Names } `
-        $shapeRoot $entryNames) 'exact eight-file bundle shape rejected'
+        $shapeRoot $entryNames) 'exact nine-file bundle shape rejected'
     [IO.File]::WriteAllBytes((Join-Path $shapeRoot 'extra.bin'), [byte[]](4))
     Assert-True (-not (& $entryModule { param($Root,$Names) Test-ExactReleaseBundleEntrySet $Root $Names } `
         $shapeRoot $entryNames)) 'extra bundle entry accepted'

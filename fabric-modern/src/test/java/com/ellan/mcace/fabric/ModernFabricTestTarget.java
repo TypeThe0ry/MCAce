@@ -12,7 +12,7 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
 
-/** Shared target discovery for the identical 26.1.2 and 26.2 test source set. */
+/** Shared target discovery for the identical 26.1.2, 26.2 and 26.3 test source set. */
 final class ModernFabricTestTarget {
     static final String DEPLOYABLE_JAR_PROPERTY = "mcace.fabric.deployable-jar";
     static final String MINECRAFT_VERSION_PROPERTY = "mcace.fabric.minecraft-version";
@@ -20,7 +20,8 @@ final class ModernFabricTestTarget {
     static final String BUILD_ID_PROPERTY = "mcace.fabric.client-build-id";
     private static final Map<String, String> SUPPORTED_TARGETS = Map.of(
             "26.1.2", "0.155.2+26.1.2",
-            "26.2", "0.157.0+26.2");
+            "26.2", "0.157.0+26.2",
+            "26.3", "0.161.0+26.3");
     private static final Pattern SAFE_MARKER =
             Pattern.compile("[A-Za-z0-9][A-Za-z0-9._+\\-]{0,127}");
 

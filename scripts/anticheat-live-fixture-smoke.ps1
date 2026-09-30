@@ -202,7 +202,7 @@ if ($null -eq $testXml -or $testXml.LastWriteTimeUtc -lt $startedAt -or $testXml
     throw 'ANTICHEAT_LIVE_FIXTURE_JUNIT_STALE_OR_MISSING'
 }
 $testOutput = Get-Content -LiteralPath $testXmlPath -Raw
-if (($output + $testOutput) -notmatch 'ANTICHEAT_LIVE_FIXTURE_INTEGRATION_PASS\|versions=3\|executed=true\|server_confirmed=3\|clean_false_positive=0') {
+if (($output + $testOutput) -notmatch 'ANTICHEAT_LIVE_FIXTURE_INTEGRATION_PASS\|versions=4\|executed=true\|server_confirmed=4\|clean_false_positive=0') {
     throw 'ANTICHEAT_LIVE_FIXTURE_PASS_MARKER_MISSING'
 }
 
@@ -227,7 +227,7 @@ $report = [ordered]@{
     third_party_network_access = $false
     public_server = $false
     actual_fabric_client = $false
-    versions = @('1.21.11', '26.1.2', '26.2')
+    versions = @('1.21.11', '26.1.2', '26.2', '26.3')
     negative_boundary = [ordered]@{
         clean_client_no_mod_observation = $true
         clean_client_no_impossible_movement = $true

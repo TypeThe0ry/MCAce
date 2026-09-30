@@ -1552,11 +1552,11 @@ function Read-ReleaseBundle([string]$Root) {
         throw 'MCACE_MATRIX_PUBLISH_RELEASE_BUNDLE_DIRECTORY_REQUIRED'
     }
     $jarNames = @('mcace-client-fabric-1.21.11.jar','mcace-client-fabric-26.1.2.jar',
-        'mcace-client-fabric-26.2.jar','mcace-server-velocity.jar',
+        'mcace-client-fabric-26.2.jar','mcace-client-fabric-26.3.jar','mcace-server-velocity.jar',
         'mcace-server-bungeecord.jar','mcace-server-paper.jar')
     $expectedNames = @('SHA256SUMS','release-manifest.properties') + $jarNames
     $entries = @(Get-ChildItem -LiteralPath $rootFull -Force -ErrorAction Stop)
-    if ($entries.Count -ne 8 -or
+    if ($entries.Count -ne 9 -or
             ((@($entries.Name | Sort-Object) -join '|') -cne (($expectedNames | Sort-Object) -join '|'))) {
         throw 'MCACE_MATRIX_PUBLISH_RELEASE_BUNDLE_FILE_SET_INVALID'
     }
@@ -1616,15 +1616,15 @@ function Read-ReleaseBundle([string]$Root) {
             [string]$manifest.schema -cne $bundleSchema -or
             [string]$manifest.bundle_profile -cne 'RELEASE' -or
             [string]$manifest.release_identity -cne 'true' -or
-            [string]$manifest.deployable_count -cne '6' -or
-            [string]$manifest.bundle_entry_count -cne '8' -or
+            [string]$manifest.deployable_count -cne '7' -or
+            [string]$manifest.bundle_entry_count -cne '9' -or
             [string]$manifest.product_version -cne $productVersion -or
             -not (Test-Commit $manifest.source_commit) -or
             [string]$manifest.artifact_source_commit -cne $ArtifactSourceCommit) {
         throw 'MCACE_MATRIX_PUBLISH_RELEASE_MANIFEST_INVALID'
     }
     $sumLines = @($sumsRaw.TrimEnd("`n") -split "`n")
-    if ($sumLines.Count -ne 6) { throw 'MCACE_MATRIX_PUBLISH_RELEASE_SHA256SUMS_INVALID' }
+    if ($sumLines.Count -ne 7) { throw 'MCACE_MATRIX_PUBLISH_RELEASE_SHA256SUMS_INVALID' }
     $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     $artifactsByName = [ordered]@{}
     foreach ($line in $sumLines) {
@@ -1643,7 +1643,7 @@ function Read-ReleaseBundle([string]$Root) {
             throw "MCACE_MATRIX_PUBLISH_RELEASE_ARTIFACT_BINDING_INVALID|$fileName"
         }
         Assert-ServerJarBytes ([byte[]]$artifact.bytes) $fileName
-        if ($fileName -cmatch '^mcace-client-fabric-(?<target>1\.21\.11|26\.1\.2|26\.2)\.jar$') {
+        if ($fileName -cmatch '^mcace-client-fabric-(?<target>1\.21\.11|26\.1\.2|26\.2|26\.3)\.jar$') {
             $fabricTarget = [string]$Matches.target
             if ([string]$manifest["artifact.$key.minecraft_version"] -cne $fabricTarget -or
                     [string]$manifest["artifact.$key.client_build_id"] -cne
@@ -1657,7 +1657,7 @@ function Read-ReleaseBundle([string]$Root) {
             size_bytes = [long]$artifact.size_bytes
         }
     }
-    if ($seen.Count -ne 6) { throw 'MCACE_MATRIX_PUBLISH_RELEASE_SHA256SUMS_INVALID' }
+    if ($seen.Count -ne 7) { throw 'MCACE_MATRIX_PUBLISH_RELEASE_SHA256SUMS_INVALID' }
     return [pscustomobject]@{
         schema = $bundleSchema
         source_commit = [string]$manifest.source_commit
@@ -1826,7 +1826,7 @@ function Assert-SupervisorSigningRequest(
             [string]$request.release_bundle_sha256s_sha256 -cne [string]$Bundle.sha256sums_sha256 -or
             [long]$request.release_bundle_sha256s_size_bytes -ne [long]$Bundle.sha256sums_size_bytes -or
             [string]$request.release_bundle_artifact_set_sha256 -cne [string]$ReleaseCommitment.sha256 -or
-            [int]$request.release_bundle_artifact_count -ne 6 -or
+            [int]$request.release_bundle_artifact_count -ne 7 -or
             [string]$request.matrix_product_jar_set_sha256 -cne [string]$ProductCommitment.sha256 -or
             [int]$request.matrix_product_jar_count -ne 3 -or
             [string]$request.supervisor_trust_root_sha256 -cne [string]$TrustRoot.document.sha256 -or

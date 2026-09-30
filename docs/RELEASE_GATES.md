@@ -28,7 +28,7 @@ missing external witnesses as a build failure.
 
 The release product is exactly:
 
-- Fabric client Mods for `1.21.11`, `26.1.2`, and `26.2`;
+- Fabric client Mods for `1.21.11`, `26.1.2`, `26.2`, and `26.3`;
 - Velocity and BungeeCord proxy plugins;
 - one Paper/Folia backend plugin.
 
@@ -37,11 +37,13 @@ Agent, additional loader, standalone client, mandatory Cloud service, desktop or
 window capture, permanent automatic ban, or reconnect-spanning DENY is part of
 the release. `MONITOR` is the default. DENY closes only the current connection.
 
-The distribution boundary is exact-eight: six deployable JARs,
-`release-manifest.properties`, and `SHA256SUMS`. Release manifests use
+The distribution boundary is exact-nine: seven deployable JARs (three server
+JARs and four Fabric client JARs), `release-manifest.properties`, and
+`SHA256SUMS`. The published v0.0.1 bundle predates the `26.3` target and is
+exact-eight with six JARs. Release manifests use
 `MCACE_RELEASE_BUNDLE_V4`: `source_commit` is the protected final release HEAD,
 while `artifact_source_commit` identifies the immutable source that produced all
-six JARs. The tracked selector `docs/evidence/release-artifact-source.txt` must
+seven JARs (six for v0.0.1). The tracked selector `docs/evidence/release-artifact-source.txt` must
 be exactly one lowercase 40-hex commit plus LF, with no BOM, and must equal
 the manifest artifact commit plus the selected Federation and server-matrix
 artifact-source commits. The August 20 strict-offline records use
@@ -84,10 +86,10 @@ commit or final-manifest hash would create an impossible Git self-reference.
 | Retained exact-source regression suite | Passed 15/15 locally plus Helio Gradle verification for `473ef5b…` | [`static-regression-2026-08-24-473ef5b.json`](evidence/static-regression-2026-08-24-473ef5b.json) records all wrapper hashes for exact source `473ef5b…`; [`cluster-helio-473ef5b-gradle-test-2026-08-24.json`](evidence/cluster-helio-473ef5b-gradle-test-2026-08-24.json) records Helio `BUILD SUCCESSFUL`, 69 tasks, JDK 21.0.10. Push [`32652019710`](https://github.com/TypeThe0ry/MCAce/actions/runs/32652019710) and rerun [`32652017358`](https://github.com/TypeThe0ry/MCAce/actions/runs/32652017358) both passed after one Linux cancellation-test flake. | Historical exact-source regression evidence; it does not close any external gate or protected V4 CI. |
 | Retained Helio Paper module test | Passed 37 tests (0 failures, 0 errors, 1 skip) for `cc91c632…` | [`cluster-helio-cc91c63-paper-test-2026-08-23.json`](evidence/cluster-helio-cc91c63-paper-test-2026-08-23.json) records exact detached source `cc91c632…`, Helio `BUILD SUCCESSFUL`, 179.005 s, `c2_crash=false`, and result/log hashes. | Historical module evidence only; it is not protected V4 bundle CI and does not close GUI, Federation V5, Vulcan V3, or Authority V4. |
 | Retained Helio static wrappers | Passed 15/15 for `cd3921c…` | [`cluster-helio-cd3921c-static-2026-08-23.json`](evidence/cluster-helio-cd3921c-static-2026-08-23.json) records all 15 wrapper exit codes as zero under Windows PowerShell 5.1; it closed the prior `GetRelativePath`/`FromHexString` compatibility failure for that source. | Historical wrapper evidence only; the external and protected release gates remain separate. |
-| Fabric packaging, all targets | Passed | 1.21.11 final remapped artifact; 26.1.2 and 26.2 final named artifacts; target-specific metadata, build IDs, CodeSource/hash contracts, and package tests passed. | Packaging support is implemented for exactly the three documented tuples. |
-| Paper/Folia × Velocity/Bungee version process matrix | **PASSED — current-source Matrix V4 external-supervisor evidence** | The current-source Helio run for `9619a50` records 12/12 real cases (10 STABLE + 2 BETA), all startup/login/MCAce hello/auth/backend-admission checks passed, and cleanup zero. A D-drive out-of-band RSA supervisor signed the fresh request; the local publisher emitted the [release-eligible Matrix V4 index](evidence/server-version-process-matrix-20260915-v4-current.json). Receipt SHA-256: `85961ce9ddf40be1f98f1d72de6d33c8ea75f2d9d59751bdca59cb2aa322259c`. | [Matrix V4](SERVER_VERSION_MATRIX_EVIDENCE_V4.md) is release-capable for this gate. Paper 26.2 build 116 is STABLE; Folia 26.2 build 6 remains the two-case BETA lane. Online-mode/public-network behavior is not claimed. |
-| Fabric server-only platform startup | Passed for all three targets | `platform-load-smoke.ps1 -FabricTarget <target>` passed for 1.21.11, 26.1.2, and 26.2 after full Minecraft asset prewarm. | Assets and server startup are not blockers. They are not visible-client consent evidence. |
-| Fabric MCAce enablement consent | **PENDING — exactly one connection-bound visible `Enable MCAce` confirmation for the entire release acceptance** | One selected real connection must render one visible screen and record one human approval. That same decision is consumed by the Federation V5 handoff. `MCACE_VISIBLE_GUI_ATTESTATION_V3` is signed by the approved GUI key; after runtime, a distinct approved supervisor key signs `MCACE_FABRIC_FEDERATION_POSTRUN_RECEIPT_V1`. The other two Fabric versions receive UI compatibility/visual smoke only: they are not extra approvals and cannot mint or promote release consent. The latest current-source 26.2 attempt is recorded in [`extended-gates-attempt-20260928.json`](evidence/extended-gates-attempt-20260928.json); the current-source Computer Use capability check is [`computer-use-native-window-check-20260928-current.json`](evidence/computer-use-native-window-check-20260928-current.json). | This is one release-acceptance witness and not reusable consent for later connections. The real client and consent screen rendered, but the available Computer Use backend exposed no native Windows app binding, so no click was synthesized and the runner timed out fail-closed. Close, decline, timeout, missing/invalid receipt, headless/synthetic input, fixture/self-approved keys, equal pins, or byte mutation leaves MCAce disabled and the gate pending. The post-run signature adds no UI. Client smokes were blocked from 2026-09-28 by an upstream Mojang asset-index republish; the reviewed pins were refreshed in [`FABRIC_ASSET_PIN_REFRESH_20260929.md`](evidence/FABRIC_ASSET_PIN_REFRESH_20260929.md) and the current-source client renders the screen again. |
+| Fabric packaging, all targets | Passed | 1.21.11 final remapped artifact; 26.1.2, 26.2, and 26.3 final named artifacts (`26.3` is built by `fabric-modern` project `:client-26.3`); target-specific metadata, build IDs, CodeSource/hash contracts, and package tests. `26.3` is verified by build, unit tests, and the four-target compatibility contract. | Packaging support is implemented for exactly the four documented tuples. |
+| Paper/Folia × Velocity/Bungee version process matrix | **PASSED — current-source Matrix V4 external-supervisor evidence** | The current-source Helio run for `9619a50` records 12/12 real cases (10 STABLE + 2 BETA), all startup/login/MCAce hello/auth/backend-admission checks passed, and cleanup zero. A D-drive out-of-band RSA supervisor signed the fresh request; the local publisher emitted the [release-eligible Matrix V4 index](evidence/server-version-process-matrix-20260915-v4-current.json). Receipt SHA-256: `85961ce9ddf40be1f98f1d72de6d33c8ea75f2d9d59751bdca59cb2aa322259c`. | [Matrix V4](SERVER_VERSION_MATRIX_EVIDENCE_V4.md) is release-capable for this gate. Paper 26.2 build 116 is STABLE; Folia 26.2 build 6 remains the two-case BETA lane. Online-mode/public-network behavior is not claimed. The server-version matrix is not extended to `26.3`. This evidence binds the six-JAR bundle; it must be regenerated for the seven-artifact bundle, which requires the external supervisor to accept the new artifact set first. |
+| Fabric server-only platform startup | Passed for the three original targets; not recorded for `26.3` | `platform-load-smoke.ps1 -FabricTarget <target>` passed for 1.21.11, 26.1.2, and 26.2 after full Minecraft asset prewarm. | Assets and server startup are not blockers. They are not visible-client consent evidence. |
+| Fabric MCAce enablement consent | **PENDING — exactly one connection-bound visible `Enable MCAce` confirmation for the entire release acceptance** | One selected real connection must render one visible screen and record one human approval. That same decision is consumed by the Federation V5 handoff. `MCACE_VISIBLE_GUI_ATTESTATION_V3` is signed by the approved GUI key; after runtime, a distinct approved supervisor key signs `MCACE_FABRIC_FEDERATION_POSTRUN_RECEIPT_V1`. The other Fabric versions receive UI compatibility/visual smoke only: they are not extra approvals and cannot mint or promote release consent. The latest current-source 26.2 attempt is recorded in [`extended-gates-attempt-20260928.json`](evidence/extended-gates-attempt-20260928.json); the current-source Computer Use capability check is [`computer-use-native-window-check-20260928-current.json`](evidence/computer-use-native-window-check-20260928-current.json). | This is one release-acceptance witness and not reusable consent for later connections. The real client and consent screen rendered, but the available Computer Use backend exposed no native Windows app binding, so no click was synthesized and the runner timed out fail-closed. Close, decline, timeout, missing/invalid receipt, headless/synthetic input, fixture/self-approved keys, equal pins, or byte mutation leaves MCAce disabled and the gate pending. The post-run signature adds no UI. Client smokes were blocked from 2026-09-28 by an upstream Mojang asset-index republish; the reviewed pins were refreshed in [`FABRIC_ASSET_PIN_REFRESH_20260929.md`](evidence/FABRIC_ASSET_PIN_REFRESH_20260929.md) and the current-source client renders the screen again. |
 | Client-origin enforcement guard | Passed in the retained August 21 record, 24/24 | [`disposition-current-2026-08-21.json`](evidence/disposition-current-2026-08-21.json); 8/8 on each of 1.21.11, 26.1.2, and 26.2; Execute and ReportOnly both passed. | `CLIENT_REPORTED` LIMIT/QUARANTINE/DENY remained advisory and no high-impact route executed. This remains distinct from SERVER_CONFIRMED. |
 | Trusted administrator disposition | Passed in the retained August 21 record, 18/18 | [`disposition-current-2026-08-21.json`](evidence/disposition-current-2026-08-21.json); 6/6 on each of 1.21.11, 26.1.2, and 26.2; Execute and ReportOnly both passed; `UUID_CONTEXT_COMMITMENT_V3`. | Durable authorization preceded execution and DENY remained connection-local; the real Grim producer is recorded separately in [`anti-cheat-real-server-2026-08-22.json`](evidence/anti-cheat-real-server-2026-08-22.json). |
 | Real server anti-cheat detection/interception | Passed for real 1.21.11 loopback server and repeated against the tested MCAce artifact | [`rerun-2026-08-23.json`](evidence/real-server-2026-08-23/rerun-2026-08-23.json) binds tested source `27bb101…` to a Helio repeat run with Leaf 1.21.11 + real GrimAC `2.3.74-155abaf`: 40 movement probes, `AimDuplicateLook`/`Simulation`/`TickTimer`, three `SERVER_CONFIRMED` `BEHAVIOR_HIGH_RISK` events and three loopback risk uploads. | Detection and interception/upload are proven twice. `MONITOR`/`NONE` is intentional; no automatic kick/ban is asserted. Vulcan, GUI/federation, and production topology gates remain separate. |
@@ -132,6 +134,10 @@ The byte-identical August 20 A/D local bundle recorded in
 | `mcace-server-paper.jar` | Paper/Folia backend plugin |
 | `release-manifest.properties` | release identity and artifact metadata |
 | `SHA256SUMS` | authoritative six-JAR hashes |
+
+This witness predates the `26.3` target. A bundle built from current source
+additionally contains `mcace-client-fabric-26.3.jar` (Fabric 26.3 named client),
+for nine entries and seven JAR hashes in `SHA256SUMS`.
 
 Build the dirty-safe local verification set with exact Java homes:
 
@@ -293,7 +299,7 @@ context but are not the three-version release gate.
    canonical `docs/evidence/release-artifact-source.txt`. Retain a passing protected-
    branch GitHub Actions run whose V4 manifest final commit is the protected HEAD and
    whose artifact commit equals that marker, the Federation V5 evidence, and the
-   Matrix V4 evidence. Generate and verify the exact-eight bundle, publish the full
+   Matrix V4 evidence. Generate and verify the exact-nine bundle, publish the full
    native Matrix V4 package with its twelve raw reports, supervisor receipt, and
    three server-JAR cross-bindings, and rerun readiness before any tag or release
    action. Protected V4 `main`/tag CI remains **PENDING** until that run succeeds.
@@ -302,7 +308,11 @@ context but are not the three-version release gate.
 
 The core v0.0.1 release is published and installable for the three documented
 Fabric targets with six deployables, exact bundle provenance, checksums, and
-protected CI. Extended certification remains **PENDING** until exactly one
+protected CI. Current source adds the `26.3` target, so the next release bundle
+has seven deployables and nine entries; its Matrix V4 and other release
+evidence must be regenerated, and the external release-authority signers must
+accept the seven-artifact bundle and the `26.3` target before GUI, Vulcan, or
+Matrix evidence can be signed for it. Extended certification remains **PENDING** until exactly one
 signed visible GUI acceptance and real Federation V5 handoff complete, Matrix
 V4/Vulcan V3/Authority V4 receive genuine external supervisor evidence, and the
 strict readiness package is regenerated for that certified descendant.

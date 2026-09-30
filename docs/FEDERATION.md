@@ -412,7 +412,8 @@ It intentionally records `fabric_gui_coverage=false`, so `FED-CONSENT-01` and
 `FED-E2E-01` still require a real Fabric GUI transition.
 
 `scripts/fabric-federation-gui-handoff-smoke.ps1` is now the default-deny V5
-contract for exactly `1.21.11`, `26.1.2`, or `26.2`. It reuses the platform
+contract for exactly `1.21.11`, `26.1.2`, or `26.2` (`26.3` is not yet part of
+this wrapper's target set). It reuses the platform
 wrapper's exact target/cache/artifact authority, launches current Velocity or
 Bungee source and target proxies plus source/target Paper, loads only the selected
 final release-bundle Fabric JAR, and produces exactly eight native files:

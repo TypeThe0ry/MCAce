@@ -1159,8 +1159,8 @@ function Read-ReleaseBundle([string]$Root, [string]$SourceCommit, [string]$Artif
         Throw-Authority 'PRODUCTION_AUTHORITY_RELEASE_BUNDLE_DIRECTORY_REQUIRED'
     }
     $names = @('SHA256SUMS','release-manifest.properties','mcace-client-fabric-1.21.11.jar',
-        'mcace-client-fabric-26.1.2.jar','mcace-client-fabric-26.2.jar','mcace-server-velocity.jar',
-        'mcace-server-bungeecord.jar','mcace-server-paper.jar')
+        'mcace-client-fabric-26.1.2.jar','mcace-client-fabric-26.2.jar','mcace-client-fabric-26.3.jar',
+        'mcace-server-velocity.jar','mcace-server-bungeecord.jar','mcace-server-paper.jar')
     $entries = @(Get-ChildItem -LiteralPath $absolute -Force -ErrorAction Stop)
     if ($entries.Count -ne $names.Count -or
             ((@($entries.Name | Sort-Object) -join '|') -cne (($names | Sort-Object) -join '|'))) {
@@ -1207,7 +1207,7 @@ function Read-ReleaseBundle([string]$Root, [string]$SourceCommit, [string]$Artif
     if (-not (Test-ExactProperties ([pscustomobject]$map) $manifestNames) -or
             [string]$map.schema -cne 'MCACE_RELEASE_BUNDLE_V4' -or
             [string]$map.bundle_profile -cne 'RELEASE' -or [string]$map.release_identity -cne 'true' -or
-            [string]$map.deployable_count -cne '6' -or [string]$map.bundle_entry_count -cne '8' -or
+            [string]$map.deployable_count -cne '7' -or [string]$map.bundle_entry_count -cne '9' -or
             [string]$map.source_commit -cne $SourceCommit -or
             [string]$map.artifact_source_commit -cne $ArtifactCommit -or
             [string]$map.product_version -cne '0.0.1') {
@@ -1219,7 +1219,7 @@ function Read-ReleaseBundle([string]$Root, [string]$SourceCommit, [string]$Artif
                 $sumMap.ContainsKey($Matches.file)) { Throw-Authority 'PRODUCTION_AUTHORITY_SHA256SUMS_INVALID' }
         $sumMap[$Matches.file] = $Matches.hash
     }
-    if ($sumMap.Count -ne 6) { Throw-Authority 'PRODUCTION_AUTHORITY_SHA256SUMS_COUNT_INVALID' }
+    if ($sumMap.Count -ne 7) { Throw-Authority 'PRODUCTION_AUTHORITY_SHA256SUMS_COUNT_INVALID' }
     $artifacts = @{}
     foreach ($name in $jarNames) {
         $doc = Read-LockedRegularFile (Join-Path $absolute $name) $script:MaximumArtifactBytes "bundle-$name" 128
@@ -1229,7 +1229,7 @@ function Read-ReleaseBundle([string]$Root, [string]$SourceCommit, [string]$Artif
                 [string]$sumMap[$name] -cne $doc.sha256) {
             Throw-Authority "PRODUCTION_AUTHORITY_RELEASE_BUNDLE_ARTIFACT_MISMATCH|$name"
         }
-        if ($name -cmatch '^mcace-client-fabric-(?<target>1\.21\.11|26\.1\.2|26\.2)\.jar$' -and
+        if ($name -cmatch '^mcace-client-fabric-(?<target>1\.21\.11|26\.1\.2|26\.2|26\.3)\.jar$' -and
                 ([string]$map."artifact.$key.minecraft_version" -cne $Matches.target -or
                  [string]$map."artifact.$key.client_build_id" -cne
                     "fabric-$($Matches.target)-$ArtifactCommit")) {

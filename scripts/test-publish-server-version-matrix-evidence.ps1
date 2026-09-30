@@ -187,6 +187,7 @@ function New-ReleaseBundle([string]$Root) {
         'mcace-client-fabric-1.21.11.jar',
         'mcace-client-fabric-26.1.2.jar',
         'mcace-client-fabric-26.2.jar',
+        'mcace-client-fabric-26.3.jar',
         'mcace-server-velocity.jar',
         'mcace-server-bungeecord.jar',
         'mcace-server-paper.jar')
@@ -212,8 +213,8 @@ function New-ReleaseBundle([string]$Root) {
             'schema=MCACE_RELEASE_BUNDLE_V4',
             'bundle_profile=RELEASE',
             'release_identity=true',
-            'deployable_count=6',
-            'bundle_entry_count=8',
+            'deployable_count=7',
+            'bundle_entry_count=9',
             'product_version=0.0.1',
             "source_commit=$releaseCommit",
             "artifact_source_commit=$artifactCommit",
@@ -229,7 +230,7 @@ function New-ReleaseBundle([string]$Root) {
         $key = $jarName.Remove($jarName.Length - 4).Replace('-', '_').Replace('.', '_')
         [void]$manifestLines.Add("artifact.$key.file=$jarName")
         [void]$manifestLines.Add("artifact.$key.sha256=$($artifacts[$jarName].sha256)")
-        if ($jarName -cmatch '^mcace-client-fabric-(?<target>1\.21\.11|26\.1\.2|26\.2)\.jar$') {
+        if ($jarName -cmatch '^mcace-client-fabric-(?<target>1\.21\.11|26\.1\.2|26\.2|26\.3)\.jar$') {
             [void]$manifestLines.Add("artifact.$key.minecraft_version=$($Matches.target)")
             [void]$manifestLines.Add("artifact.$key.client_build_id=fabric-$($Matches.target)-$artifactCommit")
         }
@@ -628,7 +629,7 @@ function Write-MatrixTriplet([object]$Fixture) {
         release_bundle_manifest_size_bytes=[long]$manifestBytes.Length
         release_bundle_sha256s_sha256=(Get-BytesSha256 $sumsBytes)
         release_bundle_sha256s_size_bytes=[long]$sumsBytes.Length
-        release_bundle_artifact_set_sha256=$artifactSha;release_bundle_artifact_count=6
+        release_bundle_artifact_set_sha256=$artifactSha;release_bundle_artifact_count=7
         release_bundle_artifacts=$artifactValues;matrix_product_jar_set_sha256=$productSha
         matrix_product_jar_count=3;matrix_product_jars=$productValues
         supervisor_trust_root_sha256=$trustRootSha256;supervisor_signer_key_id='matrix-supervisor-test-key-01'
@@ -655,7 +656,7 @@ function Write-MatrixTriplet([object]$Fixture) {
         release_bundle_manifest_size_bytes=[long]$request.release_bundle_manifest_size_bytes
         release_bundle_sha256s_sha256=[string]$request.release_bundle_sha256s_sha256
         release_bundle_sha256s_size_bytes=[long]$request.release_bundle_sha256s_size_bytes
-        release_bundle_artifact_set_sha256=$artifactSha;release_bundle_artifact_count=6
+        release_bundle_artifact_set_sha256=$artifactSha;release_bundle_artifact_count=7
         matrix_product_jar_set_sha256=$productSha;matrix_product_jar_count=3
         supervisor_independent=$true;signer_key_id='matrix-supervisor-test-key-01'
         signer_trust_root_sha256=$trustRootSha256;signature_algorithm='RSA_PKCS1_SHA256'
@@ -827,7 +828,7 @@ try {
         'signed index was not promoted or source commit was not cross-bound'
     Assert-True ([string]$index.artifact_source_commit -ceq $artifactCommit) `
         'index artifact source commit mismatch'
-    Assert-True (@($index.release_bundle.artifacts).Count -eq 6) 'index six-artifact binding missing'
+    Assert-True (@($index.release_bundle.artifacts).Count -eq 7) 'index seven-artifact binding missing'
     Assert-True (@($index.matrix_product_jars).Count -eq 3) 'index three matrix products missing'
     foreach ($role in @('report','binding','commit','raw_manifest','signing_request',
             'supervisor_receipt')) {

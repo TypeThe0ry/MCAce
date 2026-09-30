@@ -35,6 +35,10 @@ abstract class MCAceReleaseBundleTask : DefaultTask() {
 
     @get:InputFile
     @get:PathSensitive(PathSensitivity.NONE)
+    abstract val fabric263Jar: RegularFileProperty
+
+    @get:InputFile
+    @get:PathSensitive(PathSensitivity.NONE)
     abstract val velocityJar: RegularFileProperty
 
     @get:InputFile
@@ -74,6 +78,9 @@ abstract class MCAceReleaseBundleTask : DefaultTask() {
 
     @get:Input
     abstract val fabric262BuildId: Property<String>
+
+    @get:Input
+    abstract val fabric263BuildId: Property<String>
 
     @get:Input
     abstract val rootJavaVersion: Property<String>
@@ -244,6 +251,7 @@ abstract class MCAceReleaseBundleTask : DefaultTask() {
             fabric12111BuildId.get(),
             fabric2612BuildId.get(),
             fabric262BuildId.get(),
+            fabric263BuildId.get(),
         )
         require(clientBuildIds.distinct().size == clientBuildIds.size) {
             "each supported Fabric target must have a different immutable build ID: $clientBuildIds"
@@ -252,6 +260,7 @@ abstract class MCAceReleaseBundleTask : DefaultTask() {
             "mcace-client-fabric-1.21.11.jar" to fabric12111Jar.get().asFile.toPath(),
             "mcace-client-fabric-26.1.2.jar" to fabric2612Jar.get().asFile.toPath(),
             "mcace-client-fabric-26.2.jar" to fabric262Jar.get().asFile.toPath(),
+            "mcace-client-fabric-26.3.jar" to fabric263Jar.get().asFile.toPath(),
             "mcace-server-velocity.jar" to velocityJar.get().asFile.toPath(),
             "mcace-server-bungeecord.jar" to bungeeJar.get().asFile.toPath(),
             "mcace-server-paper.jar" to paperJar.get().asFile.toPath(),
@@ -265,6 +274,7 @@ abstract class MCAceReleaseBundleTask : DefaultTask() {
             "mcace-client-fabric-1.21.11.jar" to Pair("1.21.11", fabric12111BuildId.get()),
             "mcace-client-fabric-26.1.2.jar" to Pair("26.1.2", fabric2612BuildId.get()),
             "mcace-client-fabric-26.2.jar" to Pair("26.2", fabric262BuildId.get()),
+            "mcace-client-fabric-26.3.jar" to Pair("26.3", fabric263BuildId.get()),
         )
         verifyFabricArtifact(
             artifacts.getValue("mcace-client-fabric-1.21.11.jar"),
@@ -289,6 +299,14 @@ abstract class MCAceReleaseBundleTask : DefaultTask() {
             "0.157.0+26.2",
             ">=25",
             fabric262BuildId.get(),
+        )
+        verifyFabricArtifact(
+            artifacts.getValue("mcace-client-fabric-26.3.jar"),
+            "26.3",
+            ">=0.19.3",
+            "0.161.0+26.3",
+            ">=25",
+            fabric263BuildId.get(),
         )
         val modernIdentity = Properties().apply {
             modernRuntimeIdentity.get().asFile.inputStream().buffered().use(::load)
@@ -338,8 +356,8 @@ abstract class MCAceReleaseBundleTask : DefaultTask() {
             append("schema=$manifestSchema\n")
             append("bundle_profile=$profile\n")
             append("release_identity=$releaseIdentity\n")
-            append("deployable_count=6\n")
-            append("bundle_entry_count=8\n")
+            append("deployable_count=7\n")
+            append("bundle_entry_count=9\n")
             append("product_version=${productVersion.get()}\n")
             append("source_commit=$commit\n")
             append("artifact_source_commit=$artifactCommit\n")
@@ -367,7 +385,7 @@ abstract class MCAceReleaseBundleTask : DefaultTask() {
             stream.map { it.fileName.toString() }.toList().toSet()
         }
         check(actualNames == expectedNames) {
-            "release bundle entries differ from the exact eight-file contract; " +
+            "release bundle entries differ from the exact nine-file contract; " +
                 "expected=$expectedNames actual=$actualNames"
         }
         hashes.forEach { (name, expectedHash) ->
@@ -512,6 +530,7 @@ val cleanModernFabric = tasks.register<Delete>("cleanModernFabric") {
         modernFabricProjectDirectory.dir("build"),
         modernFabricProjectDirectory.dir("client-26.1.2/build"),
         modernFabricProjectDirectory.dir("client-26.2/build"),
+        modernFabricProjectDirectory.dir("client-26.3/build"),
     )
 }
 
@@ -530,10 +549,15 @@ val configuredFabric2612BuildId = explicitClientBuildId
 val configuredFabric262BuildId = explicitClientBuildId
     .orElse(artifactSourceCommitProperty.map { commit -> "fabric-26.2-$commit" })
     .orElse("fabric-26.2-dev")
+val configuredFabric263BuildId = explicitClientBuildId
+    .orElse(artifactSourceCommitProperty.map { commit -> "fabric-26.3-$commit" })
+    .orElse("fabric-26.3-dev")
 val modernFabric2612Jar = modernFabricProjectDirectory.file(
     "client-26.1.2/build/libs/mcace-client-fabric-26.1.2-${project.version}.jar")
 val modernFabric262Jar = modernFabricProjectDirectory.file(
     "client-26.2/build/libs/mcace-client-fabric-26.2-${project.version}.jar")
+val modernFabric263Jar = modernFabricProjectDirectory.file(
+    "client-26.3/build/libs/mcace-client-fabric-26.3-${project.version}.jar")
 val modernRuntimeIdentityFile = modernFabricProjectDirectory.file(
     "build/modern-build-runtime.properties")
 
@@ -583,7 +607,7 @@ val verifyModernFabricInvocationContract = tasks.register("verifyModernFabricInv
 
 val modernFabricBuild = tasks.register<Exec>("modernFabricBuild") {
     group = "build"
-    description = "Builds Fabric 26.1.2 and 26.2 in an isolated Gradle invocation on explicit JDK 25."
+    description = "Builds Fabric 26.1.2, 26.2 and 26.3 in an isolated Gradle invocation on explicit JDK 25."
     dependsOn(stageModernFabricDeps, verifyModernFabricInvocationContract)
     mustRunAfter(cleanModernFabric)
     inputs.files(fileTree(modernFabricProjectDirectory) {
@@ -607,7 +631,7 @@ val modernFabricBuild = tasks.register<Exec>("modernFabricBuild") {
         "nestedExecutionArguments",
         modernFabricNestedExecutionArguments(gradle.startParameter.isOffline),
     )
-    outputs.files(modernFabric2612Jar, modernFabric262Jar, modernRuntimeIdentityFile)
+    outputs.files(modernFabric2612Jar, modernFabric262Jar, modernFabric263Jar, modernRuntimeIdentityFile)
 
     doFirst {
         val javaHome = modernJavaHome.orNull?.let(::File)
@@ -681,7 +705,7 @@ tasks.named("build") {
 
 tasks.register<MCAceReleaseBundleTask>("releaseBundle") {
     group = "distribution"
-    description = "Builds the six supported deployables as an exact eight-file release bundle."
+    description = "Builds the seven supported deployables as an exact nine-file release bundle."
     // Source identity and worktree cleanliness are live release assertions, not
     // properties that an earlier up-to-date result may safely stand in for.
     outputs.upToDateWhen { false }
@@ -696,6 +720,7 @@ tasks.register<MCAceReleaseBundleTask>("releaseBundle") {
         "libs/mcace-client-fabric-${project.version}.jar"))
     fabric2612Jar.set(modernFabric2612Jar)
     fabric262Jar.set(modernFabric262Jar)
+    fabric263Jar.set(modernFabric263Jar)
     velocityJar.set(project(":mcace-server-velocity").layout.buildDirectory.file(
         "libs/mcace-server-velocity-${project.version}.jar"))
     bungeeJar.set(project(":mcace-server-bungeecord").layout.buildDirectory.file(
@@ -712,6 +737,8 @@ tasks.register<MCAceReleaseBundleTask>("releaseBundle") {
         artifactSourceCommitProperty.map { commit -> "fabric-26.1.2-$commit" }.orElse("MISSING"))
     fabric262BuildId.set(
         artifactSourceCommitProperty.map { commit -> "fabric-26.2-$commit" }.orElse("MISSING"))
+    fabric263BuildId.set(
+        artifactSourceCommitProperty.map { commit -> "fabric-26.3-$commit" }.orElse("MISSING"))
     rootJavaVersion.set(providers.systemProperty("java.version"))
     rootGradleVersion.set(GradleVersion.current().version)
     modernRuntimeIdentity.set(modernRuntimeIdentityFile)
@@ -722,7 +749,7 @@ tasks.register<MCAceReleaseBundleTask>("releaseBundle") {
 tasks.register<MCAceReleaseBundleTask>("localVerificationBundle") {
     group = "verification"
     description =
-        "Builds a non-release exact-eight-file bundle with an explicit LOCAL_UNSPECIFIED identity."
+        "Builds a non-release exact-nine-file bundle with an explicit LOCAL_UNSPECIFIED identity."
     outputs.upToDateWhen { false }
     dependsOn(
         ":mcace-client-fabric:remapJar",
@@ -735,6 +762,7 @@ tasks.register<MCAceReleaseBundleTask>("localVerificationBundle") {
         "libs/mcace-client-fabric-${project.version}.jar"))
     fabric2612Jar.set(modernFabric2612Jar)
     fabric262Jar.set(modernFabric262Jar)
+    fabric263Jar.set(modernFabric263Jar)
     velocityJar.set(project(":mcace-server-velocity").layout.buildDirectory.file(
         "libs/mcace-server-velocity-${project.version}.jar"))
     bungeeJar.set(project(":mcace-server-bungeecord").layout.buildDirectory.file(
@@ -748,6 +776,7 @@ tasks.register<MCAceReleaseBundleTask>("localVerificationBundle") {
     fabric12111BuildId.set(configuredFabric12111BuildId)
     fabric2612BuildId.set(configuredFabric2612BuildId)
     fabric262BuildId.set(configuredFabric262BuildId)
+    fabric263BuildId.set(configuredFabric263BuildId)
     rootJavaVersion.set(providers.systemProperty("java.version"))
     rootGradleVersion.set(GradleVersion.current().version)
     modernRuntimeIdentity.set(modernRuntimeIdentityFile)

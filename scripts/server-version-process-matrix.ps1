@@ -1108,11 +1108,11 @@ function Read-ReleaseBundleSnapshot {
     }
     $root = Assert-DirectLocalPath ([IO.Path]::GetFullPath($ReleaseBundleRoot)) -Directory
     $jarNames = @('mcace-client-fabric-1.21.11.jar','mcace-client-fabric-26.1.2.jar',
-        'mcace-client-fabric-26.2.jar','mcace-server-velocity.jar',
+        'mcace-client-fabric-26.2.jar','mcace-client-fabric-26.3.jar','mcace-server-velocity.jar',
         'mcace-server-bungeecord.jar','mcace-server-paper.jar')
     $expectedNames = @('SHA256SUMS','release-manifest.properties') + $jarNames
     $entries = @(Get-ChildItem -LiteralPath $root -Force -ErrorAction Stop)
-    if ($entries.Count -ne 8 -or
+    if ($entries.Count -ne 9 -or
             ((@($entries.Name | Sort-Object) -join '|') -cne
                 (($expectedNames | Sort-Object) -join '|')) -or
             @($entries | Where-Object { $_.PSIsContainer -or
@@ -1138,15 +1138,15 @@ function Read-ReleaseBundleSnapshot {
     if ([string]$manifest.schema -cne 'MCACE_RELEASE_BUNDLE_V4' -or
             [string]$manifest.bundle_profile -cne 'RELEASE' -or
             [string]$manifest.release_identity -cne 'true' -or
-            [string]$manifest.deployable_count -cne '6' -or
-            [string]$manifest.bundle_entry_count -cne '8' -or
+            [string]$manifest.deployable_count -cne '7' -or
+            [string]$manifest.bundle_entry_count -cne '9' -or
             [string]$manifest.product_version -cne $ProductVersion -or
             [string]$manifest.source_commit -cne $ExpectedSourceCommit -or
             [string]$manifest.artifact_source_commit -cne $ExpectedArtifactSourceCommit) {
         throw 'SERVER_VERSION_MATRIX_RELEASE_MANIFEST_INVALID'
     }
     $sumLines = @($sumsRaw.TrimEnd("`n") -split "`n")
-    if ($sumLines.Count -ne 6) { throw 'SERVER_VERSION_MATRIX_RELEASE_SHA256SUMS_INVALID' }
+    if ($sumLines.Count -ne 7) { throw 'SERVER_VERSION_MATRIX_RELEASE_SHA256SUMS_INVALID' }
     $artifacts = [Collections.Generic.List[object]]::new()
     $byName = [ordered]@{}
     foreach ($line in $sumLines) {
@@ -2499,7 +2499,7 @@ function New-EvidenceTriplet {
         release_bundle_sha256s_sha256=$bundle.sha256s_sha256
         release_bundle_sha256s_size_bytes=[long]$bundle.sha256s_bytes
         release_bundle_artifact_set_sha256=$bundle.artifact_set_sha256
-        release_bundle_artifact_count=6; release_bundle_artifacts=$bundle.artifacts
+        release_bundle_artifact_count=7; release_bundle_artifacts=$bundle.artifacts
         matrix_product_jar_set_sha256=$productCommitment.sha256
         matrix_product_jar_count=3; matrix_product_jars=$productCommitment.values
         supervisor_trust_root_sha256=[string]$trustRoot.evidence.digest.sha256
@@ -2560,7 +2560,7 @@ function New-EvidenceTriplet {
             release_bundle_sha256s_sha256=$bundle.sha256s_sha256
             release_bundle_sha256s_size_bytes=[long]$bundle.sha256s_bytes
             release_bundle_artifact_set_sha256=$bundle.artifact_set_sha256
-            release_bundle_artifact_count=6; matrix_product_jar_set_sha256=$productCommitment.sha256
+            release_bundle_artifact_count=7; matrix_product_jar_set_sha256=$productCommitment.sha256
             matrix_product_jar_count=3
         }
         if([string]$receipt.schema -cne $receiptSchema -or

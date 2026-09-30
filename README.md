@@ -63,8 +63,9 @@ real server screenshots, or a Tencent ACE/kernel-coverage claim:
 
 ![Controlled Xray quarantine comparison](docs/assets/anticheat-xray-quarantine-controlled.png)
 
-The tracked executable fixture covers all three supported versions
-(`1.21.11`, `26.1.2`, `26.2`), reports the client ModList, correlates an
+The tracked executable fixture covers the three originally supported versions
+(`1.21.11`, `26.1.2`, `26.2`; the newer `26.3` target has not yet been run
+through it), reports the client ModList, correlates an
 independent server signal, produces the signed-lab
 `SERVER_CONFIRMED / QUARANTINE` state, and keeps the clean control at `OBSERVE`
 with zero false positives. The released server authority remains
@@ -132,6 +133,15 @@ The release is built by protected GitHub CI from commit
 manifest, and SHA-256 values are attached to the release. Earlier `rc1`–`rc3`
 builds remain historical previews.
 
+Current source adds a fourth Fabric client target, Minecraft `26.3`
+(`mcace-client-fabric-26.3.jar`), so the next `MCACE_RELEASE_BUNDLE_V4` bundle
+has seven deployable JARs and nine entries and the compatibility contract covers
+four targets. That artifact set is not yet released; its Matrix V4 and other
+release evidence must be regenerated for it, and the external release-authority
+signers must accept the seven-artifact bundle and the `26.3` target before
+GUI, Vulcan, or Matrix evidence can be signed for it. The server-version
+process matrix (Paper/Folia backends) is not extended to `26.3`.
+
 [中文 README](README_CN.md) · [architecture](docs/ARCHITECTURE.md) ·
 [security model](docs/SECURITY.md) · [release gates](docs/RELEASE_GATES.md) ·
 [operations](docs/OPERATIONS.md) · [current progress ledger](docs/evidence/PROGRESS_2026-09-06.md) · [2026-09-07 update](docs/evidence/PROGRESS_2026-09-07.md)
@@ -146,7 +156,8 @@ The `live16` references below are historical; current-source release-grade GUI
 and federation acceptance remain pending. Earlier bundles predate this change.
 
 **2026-09-28 core validation:** the current `main` source was exercised with the
-executable three-version anti-cheat fixture and the whole Gradle test suite.
+executable three-version anti-cheat fixture and the whole Gradle test suite
+(this record predates the `26.3` target).
 The fixture reported the client ModList, correlated an independent server
 signal on the same session, produced three signed-lab
 `SERVER_CONFIRMED / QUARANTINE` results, and recorded zero clean false
@@ -264,7 +275,7 @@ public-server precision or recall, or production kick/deny/ban efficacy.
 
 ### Scope and privacy contract
 
-- Exact Fabric targets: `1.21.11`, `26.1.2`, and `26.2`.
+- Exact Fabric targets: `1.21.11`, `26.1.2`, `26.2`, and `26.3`.
 - Velocity and BungeeCord proxy adapters; Paper and Folia backend paths.
 - MCAce starts disabled. Runtime consent is connection-scoped and is not
   persisted across disconnects.
@@ -298,6 +309,7 @@ exercised. `1.21.11` is the only verified `1.21.x` patch.
 | `1.21.11` | `774` | `>=21` | `>=0.19.3` | `0.141.6+1.21.11` | final remapped JAR |
 | `26.1.2` | `775` | `>=25` | `>=0.19.3` | `0.155.2+26.1.2` | final named JAR |
 | `26.2` | `776` | `>=25` | `>=0.19.3` | `0.157.0+26.2` | final named JAR; Folia 26.2 remains the BETA lane |
+| `26.3` | `777` | `>=25` | `>=0.19.3` | `0.161.0+26.3` | final named JAR; verified by build, unit tests, and the compatibility contract; not in the server-version process matrix |
 
 Run the bundle compatibility contract with:
 
@@ -317,8 +329,8 @@ they do not open a second prompt.
 
 For **v0.0.1 release acceptance**, only one representative connection produces
 the human GUI approval evidence. This is one confirmation for the entire release
-gate, not one confirmation per Minecraft target and not six approvals. Navigation
-inside the disclosure screen does not create another decision. UI smoke on the other two
+gate, not one confirmation per Minecraft target and not seven approvals. Navigation
+inside the disclosure screen does not create another decision. UI smoke on the other
 versions is optional compatibility coverage and does not create additional
 release approvals.
 
@@ -450,7 +462,7 @@ bound to source `2c898762dd770723957ea0a8279f68c6c5e5abb3` and a Helio Windows/J
 
 | Result | Observed |
 | --- | ---: |
-| Supported versions exercised | `1.21.11`, `26.1.2`, `26.2` |
+| Supported versions exercised | `1.21.11`, `26.1.2`, `26.2` (predates the `26.3` target) |
 | MCAce-owned executable fixture loaded | `3 / 3` |
 | Independent same-session server signal | `3 / 3` |
 | `SERVER_CONFIRMED / QUARANTINE` under signed lab policy | `3 / 3` |
@@ -509,7 +521,8 @@ loading only.
 Matrix V4 is the first Matrix schema structurally capable of satisfying
 `server_matrix_exact_source`. It covers exactly:
 
-- three Minecraft versions;
+- three Minecraft versions (`1.21.11`, `26.1.2`, `26.2`; the server-version
+  process matrix is not extended to the `26.3` client target);
 - Paper and Folia;
 - Velocity and BungeeCord;
 - `3 × 2 × 2 = 12` real process cases.
@@ -535,7 +548,8 @@ SHA-256 `878ee99995f46fc63d02ea568dee1f16e11c504546f1bad49732fb912c8e53ad`.
 
 The producer freezes all raw reports, report/binding/raw-manifest bytes, ordered
 raw root, case and process-incarnation identities, invocation and cleanup facts,
-the exact V4 bundle, all six release JARs, and the three Matrix server JARs. An
+the exact V4 bundle, all release JARs (six in the retained packages; seven for
+the current-source bundle), and the three Matrix server JARs. An
 independent out-of-repository RSA supervisor must return a fresh detached receipt
 under a protected trust-root pin before `commit.json` is written last. Publisher
 and readiness then revalidate signature, expiry, replay, no-follow identity,
@@ -660,22 +674,25 @@ The same smoke may optionally be repeated with `26.1.2` and `26.2` to inspect
 version-specific UI compatibility. Those optional runs are **not additional
 release approvals** and platform-only evidence cannot replace the single
 externally signed GUI/Federation V5 package. A timeout remains diagnostic-only.
+No platform-smoke or Federation V5 run has been recorded for `26.3`.
 
 ## Release artifacts
 
-The exact distribution has eight entries: six deployable JARs,
-`release-manifest.properties`, and `SHA256SUMS`.
+The exact distribution built from current source has nine entries: seven
+deployable JARs, `release-manifest.properties`, and `SHA256SUMS`. (The published
+v0.0.1 bundle predates `26.3` and has eight entries / six JARs.)
 
 | Entry | Role |
 | --- | --- |
 | `mcace-client-fabric-1.21.11.jar` | Fabric 1.21.11 client |
 | `mcace-client-fabric-26.1.2.jar` | Fabric 26.1.2 client |
 | `mcace-client-fabric-26.2.jar` | Fabric 26.2 client |
+| `mcace-client-fabric-26.3.jar` | Fabric 26.3 client |
 | `mcace-server-velocity.jar` | Velocity proxy plugin |
 | `mcace-server-bungeecord.jar` | BungeeCord proxy plugin |
 | `mcace-server-paper.jar` | Paper/Folia backend plugin |
 | `release-manifest.properties` | V4 final-source, artifact-source, runtime, toolchain, and bundle identity |
-| `SHA256SUMS` | authoritative six-JAR hashes |
+| `SHA256SUMS` | authoritative seven-JAR hashes |
 
 Only a clean protected-main/tag `MCACE_RELEASE_BUNDLE_V4` may be published. The
 manifest's final `source_commit`, `artifact_source_commit`, canonical tracked
@@ -703,7 +720,7 @@ current release evidence:
 
 ```mermaid
 flowchart LR
-  C[Fabric client\n1.21.11 / 26.1.2 / 26.2]
+  C[Fabric client\n1.21.11 / 26.1.2 / 26.2 / 26.3]
   P[Velocity / BungeeCord]
   B[Paper / Folia]
   O[CLIENT_REPORTED / LOW\nloaded Mods + selected packs]
@@ -731,7 +748,7 @@ the Production Authority V4 output currently terminates at MONITOR logging.
 | `mcace-core` | session, admission, policy, risk, disposition, federation, server authority primitives |
 | `mcace-client-common` | loader-neutral integrity, Loaded ModList model, evidence and connection-enable primitives |
 | `mcace-client-fabric` | Fabric 1.21.11 client, loaded-graph collector, consent UI |
-| `fabric-modern` | JDK 25 official-namespace clients for 26.1.2 and 26.2 |
+| `fabric-modern` | JDK 25 official-namespace clients for 26.1.2, 26.2, and 26.3 |
 | `mcace-server-velocity` | Velocity admission, policy, federation, and optional authority adapter |
 | `mcace-server-bungeecord` | BungeeCord admission, policy, federation, and optional authority adapter |
 | `mcace-server-paper` | Paper/Folia context, provider adapters, durable MONITOR authority path |
