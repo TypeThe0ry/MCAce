@@ -6,6 +6,7 @@
       <trusted-artifacts>
          <trust group="net.minecraft" name="minecraft-merged-043a8b3edf" version="26.1.2" file="minecraft-merged-043a8b3edf-26.1.2.jar"/>
          <trust group="net.minecraft" name="minecraft-merged-043a8b3edf" version="26.2" file="minecraft-merged-043a8b3edf-26.2.jar"/>
+         <trust group="net.minecraft" name="minecraft-merged-7e9a32a5b8" version="26.3" file="minecraft-merged-7e9a32a5b8-26.3.jar"/>
       </trusted-artifacts>
    </configuration>
    <components>
