@@ -37,6 +37,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.TreeMap;
 import java.util.UUID;
 
 /**
@@ -67,6 +68,8 @@ public final class EvidenceRequestRuntime {
     private final int maxOutstandingRequests;
     private final Map<String, ActiveRequest> requests = new HashMap<>();
     private final Map<UUID, String> requestByPlayer = new HashMap<>();
+    /** Authentic frames may be held at most this many transport sequences ahead (~1 MiB). */
+    static final int MAX_REORDER_WINDOW = 32;
 
     public EvidenceRequestRuntime(
             Clock clock,
@@ -187,13 +190,11 @@ public final class EvidenceRequestRuntime {
                         "unexpected evidence packet");
             }
             envelopeCodec.verify(envelope, session.clientPublicKey(), active.replayGuard);
-            return switch (packetType) {
-                case EVIDENCE_RESPONSE -> response(active, EvidenceResponse.parseFrom(envelope.getPayload()));
-                case EVIDENCE_BEGIN -> begin(active, EvidenceBegin.parseFrom(envelope.getPayload()));
-                case EVIDENCE_CHUNK -> chunk(active, EvidenceChunk.parseFrom(envelope.getPayload()));
-                case EVIDENCE_COMMIT -> commit(active, EvidenceCommit.parseFrom(envelope.getPayload()));
-                default -> throw new AssertionError(packetType);
-            };
+            long sequence = transportSequence(packetType, envelope);
+            if (sequence > active.nextSequence) {
+                return holdAhead(active, sequence, packetType, envelope);
+            }
+            return drainHeld(active, dispatch(active, packetType, envelope));
         } catch (ProtocolFailure failure) {
             return reject(active, packetType, failure.code, failure.sequence, failure.getMessage());
         } catch (InvalidProtocolBufferException | EnvelopeException | IllegalArgumentException exception) {
@@ -202,6 +203,68 @@ public final class EvidenceRequestRuntime {
                     : EvidenceErrorCode.EVIDENCE_ERROR_INVALID_TRANSFER;
             return reject(active, packetType, code, active.nextSequence, "evidence frame rejected");
         }
+    }
+
+    private EvidenceIngressResult dispatch(ActiveRequest active, PacketType packetType, SignedEnvelope envelope)
+            throws InvalidProtocolBufferException {
+        return switch (packetType) {
+            case EVIDENCE_RESPONSE -> response(active, EvidenceResponse.parseFrom(envelope.getPayload()));
+            case EVIDENCE_BEGIN -> begin(active, EvidenceBegin.parseFrom(envelope.getPayload()));
+            case EVIDENCE_CHUNK -> chunk(active, EvidenceChunk.parseFrom(envelope.getPayload()));
+            case EVIDENCE_COMMIT -> commit(active, EvidenceCommit.parseFrom(envelope.getPayload()));
+            default -> throw new AssertionError(packetType);
+        };
+    }
+
+    private static long transportSequence(PacketType packetType, SignedEnvelope envelope)
+            throws InvalidProtocolBufferException {
+        return switch (packetType) {
+            case EVIDENCE_BEGIN -> EvidenceBegin.parseFrom(envelope.getPayload()).getTransportSequence();
+            case EVIDENCE_CHUNK -> EvidenceChunk.parseFrom(envelope.getPayload()).getTransportSequence();
+            case EVIDENCE_COMMIT -> EvidenceCommit.parseFrom(envelope.getPayload()).getTransportSequence();
+            default -> 0L;
+        };
+    }
+
+    /**
+     * Velocity dispatches adjacent plugin messages on a task pool, so a client's in-order
+     * BEGIN/CHUNK/COMMIT burst can reach this runtime out of order. An authentic (signature and
+     * nonce verified) frame slightly ahead of the expected transport sequence is held in a small
+     * per-request window and applied strictly in order; duplicates or frames beyond the window
+     * still fail the request.
+     */
+    private EvidenceIngressResult holdAhead(
+            ActiveRequest active, long sequence, PacketType packetType, SignedEnvelope envelope) {
+        if (sequence - active.nextSequence > MAX_REORDER_WINDOW || active.held.size() >= MAX_REORDER_WINDOW) {
+            throw new ProtocolFailure(EvidenceErrorCode.EVIDENCE_ERROR_INVALID_TRANSFER, active.nextSequence,
+                    "evidence frame is too far ahead of the transfer sequence");
+        }
+        if (active.held.putIfAbsent(sequence, new HeldFrame(packetType, envelope)) != null) {
+            throw new ProtocolFailure(EvidenceErrorCode.EVIDENCE_ERROR_INVALID_TRANSFER, active.nextSequence,
+                    "duplicate evidence transport sequence");
+        }
+        return new EvidenceIngressResult(EvidenceIngressResult.Status.ACCEPTED, List.of(), "");
+    }
+
+    private EvidenceIngressResult drainHeld(ActiveRequest active, EvidenceIngressResult first) {
+        if (active.held.isEmpty()) return first;
+        List<byte[]> frames = new ArrayList<>(first.outboundFrames());
+        EvidenceIngressResult last = first;
+        while (last.status() == EvidenceIngressResult.Status.ACCEPTED
+                && requests.get(active.request.getRequestId()) == active) {
+            HeldFrame next = active.held.remove(active.nextSequence);
+            if (next == null) break;
+            try {
+                last = dispatch(active, next.packetType(), next.envelope());
+            } catch (ProtocolFailure failure) {
+                last = reject(active, next.packetType(), failure.code, failure.sequence, failure.getMessage());
+            } catch (InvalidProtocolBufferException | IllegalArgumentException exception) {
+                last = reject(active, next.packetType(), EvidenceErrorCode.EVIDENCE_ERROR_INVALID_TRANSFER,
+                        active.nextSequence, "evidence frame rejected");
+            }
+            frames.addAll(last.outboundFrames());
+        }
+        return new EvidenceIngressResult(last.status(), List.copyOf(frames), last.detail());
     }
 
     public synchronized void removeForSession(String sessionId) {
@@ -517,6 +580,7 @@ public final class EvidenceRequestRuntime {
         private final NonceReplayGuard replayGuard;
         private ActiveTransfer transfer;
         private long nextSequence;
+        private final TreeMap<Long, HeldFrame> held = new TreeMap<>();
 
         private ActiveRequest(AuthenticatedObservationSession session, EvidenceRequest request,
                               String operatorId, NonceReplayGuard replayGuard) {
@@ -527,6 +591,8 @@ public final class EvidenceRequestRuntime {
             this.nextSequence = 1L;
         }
     }
+
+    private record HeldFrame(PacketType packetType, SignedEnvelope envelope) { }
 
     private static final class ActiveTransfer {
         private final EvidenceBegin begin;

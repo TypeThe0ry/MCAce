@@ -143,6 +143,114 @@ final class EvidenceRequestRuntimeTest {
     }
 
     @Test
+    void outOfOrderTransferFramesWithinTheWindowAreAppliedInSequence() throws Exception {
+        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        KeyPair client = Ed25519Keys.generate(new SecureRandom());
+        UUID playerId = UUID.randomUUID();
+        List<EvidenceContentStore.EvidenceContent> stored = new ArrayList<>();
+        EvidenceContentStore.RetentionDisclosure disclosure = new EvidenceContentStore.RetentionDisclosure(
+                true, 3600, "test-policy", "test-purpose");
+        EvidenceContentStore store = new EvidenceContentStore() {
+            @Override public StoreResult store(EvidenceContent content) {
+                stored.add(content);
+                return new StoreResult("memory://test/" + content.evidenceId());
+            }
+            @Override public RetentionDisclosure retentionDisclosure() { return disclosure; }
+        };
+        EvidenceRequestRuntime runtime = new EvidenceRequestRuntime(
+                clock, new SecureRandom(), server.getPrivate(), SecurityAuditSink.noop(),
+                EvidenceAuditSink.noop(), store, 4);
+        AuthenticatedObservationSession session = new AuthenticatedObservationSession(
+                playerId, "session-reorder", client.getPublic(), NOW.plusSeconds(300));
+        EvidenceRequestRuntime.IssuedRequest issued = runtime.issue(
+                session, EvidenceRequestSpec.retainedScreenshot(EvidenceCaptureScope.GAME_RENDER_FRAME,
+                        "case-reorder", Duration.ofSeconds(60), 3600, "test-policy", "test-purpose"), "admin")
+                .orElseThrow();
+        int chunkBytes = ProtocolConstants.MAX_EVIDENCE_CHUNK_BYTES;
+        byte[] content = new byte[chunkBytes * 2 + 100];
+        new SecureRandom().nextBytes(content);
+        List<byte[]> parts = List.of(
+                java.util.Arrays.copyOfRange(content, 0, chunkBytes),
+                java.util.Arrays.copyOfRange(content, chunkBytes, chunkBytes * 2),
+                java.util.Arrays.copyOfRange(content, chunkBytes * 2, content.length));
+        List<byte[]> hashes = new ArrayList<>();
+        for (byte[] part : parts) hashes.add(sha256(part));
+        byte[] merkle = com.ellan.mcace.protocol.transport.BoundedPayloadTransferLimits.merkleRoot(hashes);
+        EvidenceBegin begin = EvidenceBegin.newBuilder()
+                .setEvidenceId(issued.request().getEvidenceId()).setRequestId(issued.request().getRequestId())
+                .setPlayerId(playerId.toString()).setType(EvidenceType.SCREENSHOT)
+                .setCaptureScope(EvidenceCaptureScope.GAME_RENDER_FRAME)
+                .setCollectionStatus(EvidenceCollectionStatus.EVIDENCE_COLLECTION_COLLECTED)
+                .setCapturedAtEpochMs(NOW.toEpochMilli()).setTotalBytes(content.length).setTotalChunks(3)
+                .setWidthPixels(1).setHeightPixels(1).setContentSha256(ByteString.copyFrom(sha256(content)))
+                .setMerkleRootSha256(ByteString.copyFrom(merkle)).setTransportSequence(1).build();
+        EnvelopeCodec codec = new EnvelopeCodec(clock, new SecureRandom(), ProtocolConstants.MAX_PAYLOAD_BYTES,
+                ProtocolConstants.DEFAULT_CLOCK_SKEW);
+        List<byte[]> frames = new ArrayList<>();
+        frames.add(codec.sign(PacketType.EVIDENCE_BEGIN, session.sessionId(), begin.toByteArray(),
+                client.getPrivate()).toByteArray());
+        for (int index = 0; index < 3; index++) {
+            EvidenceChunk chunk = EvidenceChunk.newBuilder()
+                    .setEvidenceId(begin.getEvidenceId()).setRequestId(begin.getRequestId())
+                    .setPlayerId(playerId.toString()).setChunkIndex(index)
+                    .setContent(ByteString.copyFrom(parts.get(index)))
+                    .setChunkSha256(ByteString.copyFrom(hashes.get(index)))
+                    .setTransportSequence(index + 2L).build();
+            frames.add(codec.sign(PacketType.EVIDENCE_CHUNK, session.sessionId(), chunk.toByteArray(),
+                    client.getPrivate()).toByteArray());
+        }
+        var commit = com.ellan.mcace.protocol.generated.EvidenceCommit.newBuilder()
+                .setEvidenceId(begin.getEvidenceId()).setRequestId(begin.getRequestId()).setPlayerId(playerId.toString())
+                .setTotalBytes(content.length).setTotalChunks(3).setContentSha256(ByteString.copyFrom(sha256(content)))
+                .setMerkleRootSha256(ByteString.copyFrom(merkle))
+                .setCollectionStatus(EvidenceCollectionStatus.EVIDENCE_COLLECTION_COLLECTED)
+                .setTransportSequence(5).build();
+        frames.add(codec.sign(PacketType.EVIDENCE_COMMIT, session.sessionId(), commit.toByteArray(),
+                client.getPrivate()).toByteArray());
+
+        // Delivery order as a proxy task pool may produce it: chunk#2, BEGIN, COMMIT, chunk#1, chunk#3.
+        EvidenceIngressResult last = null;
+        for (int index : new int[] {2, 0, 4, 1, 3}) {
+            last = runtime.receive(session, frames.get(index));
+            assertTrue(last.status() == EvidenceIngressResult.Status.ACCEPTED
+                    || last.status() == EvidenceIngressResult.Status.COMPLETE, last.detail());
+        }
+        assertEquals(EvidenceIngressResult.Status.COMPLETE, last.status());
+        assertEquals(1, stored.size());
+        assertArrayEquals(content, stored.getFirst().content());
+        assertEquals(0, runtime.outstandingCount());
+    }
+
+    @Test
+    void framesBeyondTheReorderWindowStillFailTheRequest() throws Exception {
+        Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
+        KeyPair server = Ed25519Keys.generate(new SecureRandom());
+        KeyPair client = Ed25519Keys.generate(new SecureRandom());
+        UUID playerId = UUID.randomUUID();
+        EvidenceRequestRuntime runtime = new EvidenceRequestRuntime(
+                clock, new SecureRandom(), server.getPrivate(), SecurityAuditSink.noop());
+        AuthenticatedObservationSession session = new AuthenticatedObservationSession(
+                playerId, "session-window", client.getPublic(), NOW.plusSeconds(300));
+        EvidenceRequestRuntime.IssuedRequest issued = runtime.issue(
+                session, EvidenceRequestSpec.screenshot(EvidenceCaptureScope.GAME_RENDER_FRAME, "case-window"), "admin")
+                .orElseThrow();
+        EnvelopeCodec codec = new EnvelopeCodec(clock, new SecureRandom(), ProtocolConstants.MAX_PAYLOAD_BYTES,
+                ProtocolConstants.DEFAULT_CLOCK_SKEW);
+        EvidenceChunk farAhead = EvidenceChunk.newBuilder()
+                .setEvidenceId(issued.request().getEvidenceId()).setRequestId(issued.request().getRequestId())
+                .setPlayerId(playerId.toString()).setChunkIndex(0)
+                .setContent(ByteString.copyFrom(new byte[] {1}))
+                .setChunkSha256(ByteString.copyFrom(sha256(new byte[] {1})))
+                .setTransportSequence(2L + EvidenceRequestRuntime.MAX_REORDER_WINDOW).build();
+        EvidenceIngressResult result = runtime.receive(session, codec.sign(PacketType.EVIDENCE_CHUNK,
+                session.sessionId(), farAhead.toByteArray(), client.getPrivate()).toByteArray());
+
+        assertEquals(EvidenceIngressResult.Status.REJECTED, result.status());
+        assertEquals(0, runtime.outstandingCount());
+    }
+
+    @Test
     void unansweredRequestReleasesItsSlotOnceExpired() throws Exception {
         MutableClock clock = new MutableClock(NOW);
         KeyPair server = Ed25519Keys.generate(new SecureRandom());

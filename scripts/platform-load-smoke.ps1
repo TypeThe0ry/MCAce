@@ -2595,8 +2595,10 @@ try {
     $paperPinBackup = "$paperPin.intentionally-absent"
     Move-Item -LiteralPath $paperPin -Destination $paperPinBackup
     $paper = Start-JavaService 'paper-negative' $paperRoot (Join-Path $paperRoot 'paper.jar') '1024m' @('--nogui')
+    # MCAcePaperPlugin reports a missing pin with this exact text since v0.0.1; the older
+    # 'missing pinned proxy public key:' wording no longer exists and made this wait time out.
     Wait-ServiceLog $paper $paperLog @(
-        'missing pinned proxy public key:',
+        'MCAce requires the trusted proxy identity/server-public-key.txt',
         'Done ('
     ) 180
     $negativePaperLogText = Get-Content -Raw -LiteralPath $paperLog

@@ -306,14 +306,24 @@ final class RuntimeEvidenceEndToEndTest {
         assertTrue(tampered.audit().isEmpty());
         assertTrue(tampered.riskEvents().isEmpty());
 
+        // A proxy task pool can deliver an authentic chunk ahead of its BEGIN. It is held (no reply,
+        // no state or risk change) and applied in transport order once BEGIN arrives; frames far
+        // outside the reorder window are still rejected (EvidenceRequestRuntimeTest).
         Rig reordered = newRig();
         PreparedTransfer reorderedTransfer = preparedTransfer(reordered, "case-order");
         EvidenceIngressResult reorderedResult = reordered.server().receiveEvidence(
                 reordered.playerId(), reorderedTransfer.frames().get(1).data());
-        assertEquals(EvidenceIngressResult.Status.REJECTED, reorderedResult.status());
-        assertEvidenceError(reorderedResult, reorderedTransfer.request(), PacketType.EVIDENCE_CHUNK);
-        reordered.client().receiveEvidenceError(reorderedResult.outboundFrames().getFirst());
-        reordered.client().cancelEvidenceRequest(reorderedTransfer.request());
+        assertEquals(EvidenceIngressResult.Status.ACCEPTED, reorderedResult.status());
+        assertTrue(reorderedResult.outboundFrames().isEmpty());
+        assertEquals(reordered.baseline(), reordered.api().snapshot(reordered.playerId()).orElseThrow());
+        assertTrue(reordered.riskEvents().isEmpty());
+        EvidenceIngressResult reorderedFinal = reordered.server().receiveEvidence(
+                reordered.playerId(), reorderedTransfer.frames().get(0).data());
+        for (int index = 2; index < reorderedTransfer.frames().size(); index++) {
+            reorderedFinal = reordered.server().receiveEvidence(
+                    reordered.playerId(), reorderedTransfer.frames().get(index).data());
+        }
+        assertEquals(EvidenceIngressResult.Status.COMPLETE, reorderedFinal.status());
         assertEquals(reordered.baseline(), reordered.api().snapshot(reordered.playerId()).orElseThrow());
         assertTrue(reordered.riskEvents().isEmpty());
 
