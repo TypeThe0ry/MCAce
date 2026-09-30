@@ -21,6 +21,7 @@ public final class VulcanBehaviorIntegration implements AutoCloseable {
 
     private final Listener listener = new Listener() { };
     private final AtomicBoolean extractionWarningLogged = new AtomicBoolean();
+    private final AtomicBoolean foreignEventWarningLogged = new AtomicBoolean();
     private final ProviderEventIdentityCache eventIdentities = new ProviderEventIdentityCache();
     private final VulcanCallbackProvenanceLedger provenanceLedger;
 
@@ -43,6 +44,15 @@ public final class VulcanBehaviorIntegration implements AutoCloseable {
             owner.getServer().getPluginManager().registerEvent(
                     eventType, listener, EventPriority.MONITOR,
                     (ignored, event) -> {
+                        if (!isVulcanDefinedEvent(event, vulcan)) {
+                            // Always on (not only with the evidence ledger): another installed
+                            // plugin could otherwise fire a subclass of the flag event and have
+                            // it attributed to any player as a Vulcan detection.
+                            if (foreignEventWarningLogged.compareAndSet(false, true)) {
+                                logger.warning("Ignored a Vulcan flag event not defined by the Vulcan plugin");
+                            }
+                            return;
+                        }
                         try {
                             ExtractedAlert extracted = extract(
                                     event, vulcan, clock, eventIdentities.identityFor(event), contract);
@@ -78,6 +88,12 @@ public final class VulcanBehaviorIntegration implements AutoCloseable {
             HandlerList.unregisterAll(listener);
             throw exception;
         }
+    }
+
+    /** The runtime event class must come from the Vulcan plugin's own class loader. */
+    static boolean isVulcanDefinedEvent(Event event, Plugin vulcan) {
+        return event != null && vulcan != null
+                && event.getClass().getClassLoader() == vulcan.getClass().getClassLoader();
     }
 
     @Override
