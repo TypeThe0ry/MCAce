@@ -15,9 +15,10 @@ final class MinecraftWireProfileTest {
         assertProfile("1.21.11", 774, 21, 0x18, 0x2B, 0x30, 0x74, 0x15, 0x1B, 0x0F);
         assertProfile("26.1.2", 775, 25, 0x18, 0x2C, 0x31, 0x76, 0x16, 0x1C, 0x10);
         assertProfile("26.2", 776, 25, 0x18, 0x2C, 0x31, 0x76, 0x16, 0x1C, 0x10);
+        assertProfile("26.3", 777, 25, 0x18, 0x2D, 0x32, 0x78, 0x16, 0x1C, 0x10);
 
         assertEquals(
-                List.of("1.21.11", "26.1.2", "26.2"),
+                List.of("1.21.11", "26.1.2", "26.2", "26.3"),
                 MinecraftWireProfile.releaseProfiles().stream()
                         .map(MinecraftWireProfile::minecraftVersion)
                         .toList());
@@ -38,7 +39,10 @@ final class MinecraftWireProfileTest {
             assertEquals(0x04, packets.serverboundKeepAlive());
             assertEquals(0x05, packets.clientboundPing());
             assertEquals(0x05, packets.serverboundPong());
-            assertEquals(0x0E, packets.clientboundSelectKnownPacks());
+            assertEquals(
+                    "26.3".equals(profile.minecraftVersion()) ? 0x0F : 0x0E,
+                    packets.clientboundSelectKnownPacks(),
+                    profile.minecraftVersion());
             assertEquals(0x07, packets.serverboundSelectKnownPacks());
             assertEquals(0x00, packets.serverboundClientInformation());
             assertTrue(profile.clientInformationIncludesParticleStatus());
@@ -54,15 +58,42 @@ final class MinecraftWireProfileTest {
 
         IllegalArgumentException versionFailure = assertThrows(
                 IllegalArgumentException.class,
-                () -> MinecraftWireProfile.forMinecraftVersion("1.21.12"));
+                () -> MinecraftWireProfile.forMinecraftVersion("26.4"));
         assertTrue(versionFailure.getMessage().startsWith(
                 "MINECRAFT_WIRE_PROFILE_UNSUPPORTED_VERSION|"));
 
         IllegalArgumentException protocolFailure = assertThrows(
                 IllegalArgumentException.class,
-                () -> MinecraftWireProfile.forProtocolVersion(777));
+                () -> MinecraftWireProfile.forProtocolVersion(778));
         assertTrue(protocolFailure.getMessage().startsWith(
                 "MINECRAFT_WIRE_PROFILE_UNSUPPORTED_PROTOCOL|"));
+    }
+
+    @Test
+    void minecraft263OnlyShiftsClientboundSelectKnownPacksInConfiguration() {
+        MinecraftWireProfile.ConfigurationPackets previous =
+                MinecraftWireProfile.forMinecraftVersion("26.2").configuration();
+        MinecraftWireProfile.ConfigurationPackets current =
+                MinecraftWireProfile.forMinecraftVersion("26.3").configuration();
+        assertEquals(0x0E, previous.clientboundSelectKnownPacks());
+        assertEquals(0x0F, current.clientboundSelectKnownPacks());
+        assertEquals(
+                new MinecraftWireProfile.ConfigurationPackets(
+                        previous.clientboundCookieRequest(),
+                        previous.serverboundCookieResponse(),
+                        previous.clientboundCustomPayload(),
+                        previous.serverboundCustomPayload(),
+                        previous.clientboundDisconnect(),
+                        previous.clientboundFinish(),
+                        previous.serverboundFinish(),
+                        previous.clientboundKeepAlive(),
+                        previous.serverboundKeepAlive(),
+                        previous.clientboundPing(),
+                        previous.serverboundPong(),
+                        0x0F,
+                        previous.serverboundSelectKnownPacks(),
+                        previous.serverboundClientInformation()),
+                current);
     }
 
     @Test

@@ -37,6 +37,29 @@ record MinecraftWireProfile(
                     0x00  // serverbound client information
             );
 
+    /**
+     * Minecraft 26.3 inserts one clientbound configuration packet ahead of select_known_packs
+     * (0x0E -> 0x0F); every other configuration identifier is unchanged from 26.2. Derived from
+     * the official 26.3 server's {@code --reports} packets.json.
+     */
+    private static final ConfigurationPackets CONFIGURATION_26_3 =
+            new ConfigurationPackets(
+                    0x00, // clientbound cookie request
+                    0x01, // serverbound cookie response
+                    0x01, // clientbound custom payload
+                    0x02, // serverbound custom payload
+                    0x02, // clientbound disconnect
+                    0x03, // clientbound finish configuration
+                    0x03, // serverbound finish configuration
+                    0x04, // clientbound keep alive
+                    0x04, // serverbound keep alive
+                    0x05, // clientbound ping
+                    0x05, // serverbound pong
+                    0x0F, // clientbound select known packs
+                    0x07, // serverbound select known packs
+                    0x00  // serverbound client information
+            );
+
     private static final MinecraftWireProfile LEGACY_1_21_1 = new MinecraftWireProfile(
             "1.21.1",
             767,
@@ -69,22 +92,33 @@ record MinecraftWireProfile(
             CONFIGURATION_1_21_1_TO_26_2,
             new PlayPackets(0x18, 0x2C, 0x31, 0x76, 0x16, 0x1C, 0x10));
 
+    private static final MinecraftWireProfile MINECRAFT_26_3 = new MinecraftWireProfile(
+            "26.3",
+            777,
+            25,
+            true,
+            CONFIGURATION_26_3,
+            new PlayPackets(0x18, 0x2D, 0x32, 0x78, 0x16, 0x1C, 0x10));
+
     private static final List<MinecraftWireProfile> RELEASE_PROFILES = List.of(
             MINECRAFT_1_21_11,
             MINECRAFT_26_1_2,
-            MINECRAFT_26_2);
+            MINECRAFT_26_2,
+            MINECRAFT_26_3);
 
     private static final Map<String, MinecraftWireProfile> BY_MINECRAFT_VERSION = Map.of(
             LEGACY_1_21_1.minecraftVersion(), LEGACY_1_21_1,
             MINECRAFT_1_21_11.minecraftVersion(), MINECRAFT_1_21_11,
             MINECRAFT_26_1_2.minecraftVersion(), MINECRAFT_26_1_2,
-            MINECRAFT_26_2.minecraftVersion(), MINECRAFT_26_2);
+            MINECRAFT_26_2.minecraftVersion(), MINECRAFT_26_2,
+            MINECRAFT_26_3.minecraftVersion(), MINECRAFT_26_3);
 
     private static final Map<Integer, MinecraftWireProfile> BY_PROTOCOL_VERSION = Map.of(
             LEGACY_1_21_1.protocolVersion(), LEGACY_1_21_1,
             MINECRAFT_1_21_11.protocolVersion(), MINECRAFT_1_21_11,
             MINECRAFT_26_1_2.protocolVersion(), MINECRAFT_26_1_2,
-            MINECRAFT_26_2.protocolVersion(), MINECRAFT_26_2);
+            MINECRAFT_26_2.protocolVersion(), MINECRAFT_26_2,
+            MINECRAFT_26_3.protocolVersion(), MINECRAFT_26_3);
 
     MinecraftWireProfile {
         minecraftVersion = Objects.requireNonNull(minecraftVersion, "minecraftVersion").trim();

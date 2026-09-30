@@ -1019,14 +1019,61 @@ function Test-SourceProvenance([object]$Value, [string]$Current) {
     return $true
 }
 
+# Server-version process matrix (Matrix V4) shape. Folia publishes no 26.3 line,
+# so the 26.3 lane is Paper-only; Folia 26.2 and Paper 26.3 are the explicit
+# experimental (BETA) lanes and are never counted as STABLE.
+$matrixTargetVersions = @('1.21.11','26.1.2','26.2','26.3')
+$matrixBackendsByVersion = [ordered]@{
+    '1.21.11' = @('PAPER','FOLIA'); '26.1.2' = @('PAPER','FOLIA')
+    '26.2' = @('PAPER','FOLIA'); '26.3' = @('PAPER')
+}
+$matrixBetaLaneKeys = @('folia|26.2','paper|26.3')
+$matrixExpectedCaseCount = 14
+$matrixExpectedStableCaseCount = 10
+$matrixExpectedBetaCaseCount = 4
+$matrixBackendAssetKeys = @('paper|1.21.11','paper|26.1.2','paper|26.2','paper|26.3',
+    'folia|1.21.11','folia|26.1.2','folia|26.2')
+# Reviewed proxy pins -> required Java feature. Velocity 3.5.1-615 and BungeeCord 2085
+# predate protocol 777, so 26.3 cases bind Velocity 4.2.0-30 and BungeeCord 2100.
+$matrixProxyJavaByKey = [ordered]@{
+    'velocity|3.5.1-615' = 21; 'velocity|4.2.0-30' = 25
+    'bungeecord|2085' = 21; 'bungeecord|2100' = 21
+}
+
+function Get-MatrixProxyVersion([string]$ProxyProject, [string]$MinecraftVersion) {
+    if ($ProxyProject -ceq 'velocity') {
+        if ($MinecraftVersion -ceq '26.3') { return '4.2.0-30' }
+        return '3.5.1-615'
+    }
+    if ($ProxyProject -ceq 'bungeecord') {
+        if ($MinecraftVersion -ceq '26.3') { return '2100' }
+        return '2085'
+    }
+    throw "MCACE_RELEASE_MATRIX_PROXY_PROJECT_INVALID|$ProxyProject"
+}
+
+function Get-MatrixPlayLoginId([string]$MinecraftVersion) {
+    switch -CaseSensitive ($MinecraftVersion) {
+        '1.21.11' { return '0x30' }
+        '26.1.2' { return '0x31' }
+        '26.2' { return '0x31' }
+        '26.3' { return '0x32' }
+    }
+    throw "MCACE_RELEASE_MATRIX_VERSION_INVALID|$MinecraftVersion"
+}
+
 function Get-ExpectedMatrixCases {
     $list = [Collections.Generic.List[object]]::new()
-    foreach ($version in @('1.21.11','26.1.2','26.2')) {
-        foreach ($backend in @('PAPER','FOLIA')) {
+    foreach ($version in $matrixTargetVersions) {
+        foreach ($backend in @($matrixBackendsByVersion[$version])) {
             foreach ($proxy in @('VELOCITY','BUNGEE')) {
-                $protocol = if ($version -ceq '1.21.11') { 774 } elseif ($version -ceq '26.1.2') { 775 } else { 776 }
+                $protocol = switch -CaseSensitive ($version) {
+                    '1.21.11' { 774 } '26.1.2' { 775 } '26.2' { 776 } '26.3' { 777 }
+                }
                 $java = if ($version -ceq '1.21.11') { 21 } else { 25 }
-                $lane = if ($version -ceq '26.2' -and $backend -ceq 'FOLIA') { 'BETA' } else { 'STABLE' }
+                $lane = if ("$($backend.ToLowerInvariant())|$version" -cin $matrixBetaLaneKeys) {
+                    'BETA'
+                } else { 'STABLE' }
                 $proxyId = if ($proxy -ceq 'VELOCITY') { 'velocity' } else { 'bungee' }
                 $selector = if ($backend -ceq 'FOLIA') {
                     if ($proxy -ceq 'VELOCITY') {
@@ -1062,13 +1109,15 @@ function Assert-MatrixNativeCurrent([object]$Current, [object]$Report) {
             -not (Test-StringEqual $Current.product_version '0.0.1') -or
             -not (Test-StringEqual $Current.product_version ([string]$Report.product_version)) -or
             -not (Test-JsonArray $Current.target_versions) -or
-            ((@($Current.target_versions) -join ',') -cne '1.21.11,26.1.2,26.2') -or
-            -not (Test-JsonInteger $Current.case_count) -or [int]$Current.case_count -ne 12 -or
+            ((@($Current.target_versions) -join ',') -cne ($matrixTargetVersions -join ',')) -or
+            -not (Test-JsonInteger $Current.case_count) -or [int]$Current.case_count -ne $matrixExpectedCaseCount -or
             -not (Test-JsonInteger $Current.source_file_count) -or [int]$Current.source_file_count -lt 20 -or
-            -not (Test-JsonArray $Current.assets) -or @($Current.assets).Count -ne 8 -or
-            -not (Test-JsonArray $Current.prepared_trees) -or @($Current.prepared_trees).Count -ne 6 -or
+            -not (Test-JsonArray $Current.assets) -or
+            @($Current.assets).Count -ne ($matrixBackendAssetKeys.Count + $matrixProxyJavaByKey.Count) -or
+            -not (Test-JsonArray $Current.prepared_trees) -or
+            @($Current.prepared_trees).Count -ne $matrixBackendAssetKeys.Count -or
             -not (Test-JsonArray $Current.server_jdks) -or @($Current.server_jdks).Count -ne 2 -or
-            -not (Test-JsonArray $Current.definitions) -or @($Current.definitions).Count -ne 12 -or
+            -not (Test-JsonArray $Current.definitions) -or @($Current.definitions).Count -ne $matrixExpectedCaseCount -or
             -not (Test-ExactProperties $Current.product_jars @('velocity','bungee','paper'))) {
         throw 'MCACE_RELEASE_MATRIX_CURRENT_BINDING_INVALID'
     }
@@ -1091,20 +1140,19 @@ function Assert-MatrixNativeCurrent([object]$Current, [object]$Report) {
         $key = "$project|$version"
         if ($assetMap.ContainsKey($key)) { throw 'MCACE_RELEASE_MATRIX_ASSET_DUPLICATE' }
         if ($project -in @('paper','folia')) {
-            if ($version -notin @('1.21.11','26.1.2','26.2') -or
+            if ($key -cnotin $matrixBackendAssetKeys -or
                     [int]$asset.java_major -ne $(if ($version -ceq '1.21.11') { 21 } else { 25 }) -or
-                    -not (Test-StringEqual $asset.channel $(if ($project -ceq 'folia' -and $version -ceq '26.2') { 'BETA' } else { 'STABLE' }))) {
+                    -not (Test-StringEqual $asset.channel $(if ($key -cin $matrixBetaLaneKeys) { 'BETA' } else { 'STABLE' }))) {
                 throw 'MCACE_RELEASE_MATRIX_BACKEND_ASSET_IDENTITY_INVALID'
             }
-        } elseif (($project -ceq 'velocity' -and $version -cne '3.5.1-615') -or
-                ($project -ceq 'bungeecord' -and $version -cne '2085') -or
-                [int]$asset.java_major -ne 21 -or -not (Test-StringEqual $asset.channel 'REVIEWED')) {
+        } elseif (-not $matrixProxyJavaByKey.Contains($key) -or
+                [int]$asset.java_major -ne [int]$matrixProxyJavaByKey[$key] -or
+                -not (Test-StringEqual $asset.channel 'REVIEWED')) {
             throw 'MCACE_RELEASE_MATRIX_PROXY_ASSET_IDENTITY_INVALID'
         }
         $assetMap.Add($key, $asset)
     }
-    foreach ($key in @('paper|1.21.11','paper|26.1.2','paper|26.2','folia|1.21.11',
-            'folia|26.1.2','folia|26.2','velocity|3.5.1-615','bungeecord|2085')) {
+    foreach ($key in (@($matrixBackendAssetKeys) + @($matrixProxyJavaByKey.Keys))) {
         if (-not $assetMap.ContainsKey($key)) { throw "MCACE_RELEASE_MATRIX_ASSET_MISSING|$key" }
     }
 
@@ -1113,7 +1161,7 @@ function Assert-MatrixNativeCurrent([object]$Current, [object]$Report) {
     foreach ($prepared in @($Current.prepared_trees)) {
         if (-not (Test-ExactProperties $prepared $preparedNames) -or
                 [string]$prepared.project -notin @('paper','folia') -or
-                [string]$prepared.version -notin @('1.21.11','26.1.2','26.2') -or
+                "$($prepared.project)|$($prepared.version)" -cnotin $matrixBackendAssetKeys -or
                 [string]$prepared.build -cnotmatch '^[0-9]+$' -or
                 -not (Test-Sha256 $prepared.server_sha256) -or -not (Test-Sha256 $prepared.prepared_tree_sha256) -or
                 -not (Test-JsonInteger $prepared.file_count) -or [int]$prepared.file_count -le 0 -or
@@ -1222,7 +1270,7 @@ function Assert-MatrixNativeCurrent([object]$Current, [object]$Report) {
         }
         $backendKey = "$(([string]$case.backend).ToLowerInvariant())|$($case.minecraft_version)"
         $proxyProject = if ([string]$case.proxy -ceq 'VELOCITY') { 'velocity' } else { 'bungeecord' }
-        $proxyVersion = if ($proxyProject -ceq 'velocity') { '3.5.1-615' } else { '2085' }
+        $proxyVersion = Get-MatrixProxyVersion $proxyProject ([string]$case.minecraft_version)
         $backendAsset = $assetMap[$backendKey]
         $proxyAsset = $assetMap["$proxyProject|$proxyVersion"]
         $prepared = $preparedMap[$backendKey]
@@ -1392,9 +1440,9 @@ function Assert-MatrixEvidencePackageDirectory([string]$Prefix, [string[]]$Expec
     foreach ($child in $rawChildren) { $null = Get-ReleaseNoFollowFileIdentity $child.FullName }
     $actualRawNames = @($rawChildren | ForEach-Object Name | Sort-Object)
     $wantedRawNames = @($ExpectedRawFiles | Sort-Object)
-    if ($actualRawNames.Count -ne 12 -or $wantedRawNames.Count -ne 12 -or
+    if ($actualRawNames.Count -ne $matrixExpectedCaseCount -or $wantedRawNames.Count -ne $matrixExpectedCaseCount -or
             (($actualRawNames -join "`n") -cne ($wantedRawNames -join "`n"))) {
-        throw 'MCACE_RELEASE_MATRIX_EXACT_12_RAW_FILES_REQUIRED'
+        throw 'MCACE_RELEASE_MATRIX_EXACT_14_RAW_FILES_REQUIRED'
     }
 }
 
@@ -1446,7 +1494,7 @@ function Assert-MatrixRawReport([object]$Raw, [object]$Case, [object]$Expected) 
             $cleanupIds.Count -ne [int]$Case.cleanup_process_count) {
         throw "MCACE_RELEASE_MATRIX_RAW_CLEANUP_INVALID|$($Expected.case_id)"
     }
-    $playId = if ([string]$Expected.minecraft_version -ceq '1.21.11') { '0x30' } else { '0x31' }
+    $playId = Get-MatrixPlayLoginId ([string]$Expected.minecraft_version)
     if (@($Raw.channels | Where-Object { [string]$_ -ceq 'mcace:handshake' }).Count -lt 1 -or
             @($Raw.packet_trace | Where-Object { [string]$_ -ceq "PLAY:$playId" }).Count -ne 1) {
         throw "MCACE_RELEASE_MATRIX_RAW_PROTOCOL_INVALID|$($Expected.case_id)"
@@ -1624,12 +1672,12 @@ function Test-MatrixRsaPkcs1Sha256Signature(
 }
 
 function Get-MatrixCaseRuntimeCommitment([object]$Report, [object[]]$RawDocuments) {
-    if ($RawDocuments.Count -ne 12) {
+    if ($RawDocuments.Count -ne $matrixExpectedCaseCount) {
         throw 'MCACE_RELEASE_MATRIX_CASE_RUNTIME_DOCUMENT_SET_INVALID'
     }
     $commitments = [Collections.Generic.List[object]]::new()
     $processCount = 0
-    for ($caseIndex=0; $caseIndex -lt 12; $caseIndex++) {
+    for ($caseIndex=0; $caseIndex -lt $matrixExpectedCaseCount; $caseIndex++) {
         $case = @($Report.cases)[$caseIndex]
         $raw = $RawDocuments[$caseIndex]
         $processes = [Collections.Generic.List[object]]::new()
@@ -1668,7 +1716,7 @@ function Get-MatrixCaseRuntimeCommitment([object]$Report, [object[]]$RawDocument
     }
     $values = $commitments.ToArray()
     return [pscustomobject]@{
-        values=$values; count=12; process_count=$processCount
+        values=$values; count=$matrixExpectedCaseCount; process_count=$processCount
         sha256=Get-MatrixSetSha256 `
             'MCACE_SERVER_VERSION_PROCESS_MATRIX_CASE_RUNTIME_SET_V1' $values
     }
@@ -1743,7 +1791,7 @@ function Assert-MatrixSupervisorSigningRequest(
             [long]$request.raw_manifest_size_bytes -ne [long]$RawManifestDocument.size_bytes -or
             -not (Test-StringEqual $request.ordered_raw_report_set_sha256 ([string]$Report.ordered_raw_report_set_sha256)) -or
             -not (Test-StringEqual $request.case_runtime_commitment_sha256 ([string]$CaseCommitment.sha256)) -or
-            [int]$request.case_count -ne 12 -or
+            [int]$request.case_count -ne $matrixExpectedCaseCount -or
             [int]$request.process_identity_count -ne [int]$CaseCommitment.process_count -or
             -not (Test-StringEqual $request.release_bundle_schema 'MCACE_RELEASE_BUNDLE_V4') -or
             -not (Test-StringEqual $request.release_bundle_manifest_sha256 ([string]$Index.release_bundle.manifest_sha256)) -or
@@ -1910,9 +1958,9 @@ function Assert-MatrixIndex([object]$Index, [string]$IndexRelative, [string]$Req
             -not (Test-SourceProvenance $artifactSourceCommit $RequestedCommit) -or
             -not (Test-StringEqual $Index.product_version '0.0.1') -or
             -not (Test-JsonArray $Index.target_versions) -or
-            ((@($Index.target_versions) -join ',') -cne '1.21.11,26.1.2,26.2') -or
-            -not (Test-JsonInteger $Index.expected_case_count) -or [int]$Index.expected_case_count -ne 12 -or
-            -not (Test-JsonInteger $Index.observed_case_count) -or [int]$Index.observed_case_count -ne 12 -or
+            ((@($Index.target_versions) -join ',') -cne ($matrixTargetVersions -join ',')) -or
+            -not (Test-JsonInteger $Index.expected_case_count) -or [int]$Index.expected_case_count -ne $matrixExpectedCaseCount -or
+            -not (Test-JsonInteger $Index.observed_case_count) -or [int]$Index.observed_case_count -ne $matrixExpectedCaseCount -or
             -not (Test-True $Index.all_cases_passed) -or -not (Test-True $Index.cleanup_all_zero) -or
             -not (Test-StringEqual $Index.evidence_class 'EXECUTED_EXTERNALLY_SUPERVISED_RELEASE_EVIDENCE') -or
             -not (Test-True $Index.independent_supervisor_signature_required) -or
@@ -1923,7 +1971,7 @@ function Assert-MatrixIndex([object]$Index, [string]$IndexRelative, [string]$Req
                 'report','binding','commit','raw_manifest','signing_request',
                 'supervisor_receipt','raw_reports')) -or
             -not (Test-JsonArray $Index.canonical_evidence.raw_reports) -or
-            @($Index.canonical_evidence.raw_reports).Count -ne 12) {
+            @($Index.canonical_evidence.raw_reports).Count -ne $matrixExpectedCaseCount) {
         throw 'MCACE_RELEASE_MATRIX_INDEX_V4_INVALID'
     }
     $indexGenerated = Assert-FreshEvidenceTime $Index.generated_at
@@ -2034,11 +2082,11 @@ function Assert-MatrixIndex([object]$Index, [string]$IndexRelative, [string]$Req
                 ([string]$Index.release_bundle.source_commit)) -or
             -not (Test-StringEqual $report.product_version '0.0.1') -or
             -not (Test-JsonArray $report.target_versions) -or
-            ((@($report.target_versions) -join ',') -cne '1.21.11,26.1.2,26.2') -or
-            -not (Test-JsonInteger $report.expected_case_count) -or [int]$report.expected_case_count -ne 12 -or
-            -not (Test-JsonInteger $report.observed_case_count) -or [int]$report.observed_case_count -ne 12 -or
-            -not (Test-JsonInteger $report.stable_case_count) -or [int]$report.stable_case_count -ne 10 -or
-            -not (Test-JsonInteger $report.beta_case_count) -or [int]$report.beta_case_count -ne 2 -or
+            ((@($report.target_versions) -join ',') -cne ($matrixTargetVersions -join ',')) -or
+            -not (Test-JsonInteger $report.expected_case_count) -or [int]$report.expected_case_count -ne $matrixExpectedCaseCount -or
+            -not (Test-JsonInteger $report.observed_case_count) -or [int]$report.observed_case_count -ne $matrixExpectedCaseCount -or
+            -not (Test-JsonInteger $report.stable_case_count) -or [int]$report.stable_case_count -ne $matrixExpectedStableCaseCount -or
+            -not (Test-JsonInteger $report.beta_case_count) -or [int]$report.beta_case_count -ne $matrixExpectedBetaCaseCount -or
             -not (Test-True $report.all_cases_passed) -or -not (Test-True $report.cleanup_all_zero) -or
             -not (Test-StringEqual $report.raw_manifest_schema 'MCACE_SERVER_VERSION_PROCESS_MATRIX_RAW_MANIFEST_V1') -or
             -not (Test-Sha256 $report.raw_manifest_sha256) -or
@@ -2055,7 +2103,7 @@ function Assert-MatrixIndex([object]$Index, [string]$IndexRelative, [string]$Req
             -not (Test-StringEqual $report.supervisor_signature_algorithm 'RSA_PKCS1_SHA256') -or
             -not (Test-True $report.independent_supervisor_signature_present) -or
             -not (Test-True $report.release_eligible) -or
-            -not (Test-JsonArray $report.cases) -or @($report.cases).Count -ne 12) {
+            -not (Test-JsonArray $report.cases) -or @($report.cases).Count -ne $matrixExpectedCaseCount) {
         throw 'MCACE_RELEASE_MATRIX_REPORT_V4_INVALID'
     }
     $reportGenerated = Assert-FreshEvidenceTime $report.generated_at
@@ -2130,7 +2178,7 @@ function Assert-MatrixIndex([object]$Index, [string]$IndexRelative, [string]$Req
             throw "MCACE_RELEASE_MATRIX_CASE_TIME_ORDER_INVALID|$caseId"
         }
     }
-    if ($seenOrdinal.Count -ne 12 -or $seenFolded.Count -ne 12) {
+    if ($seenOrdinal.Count -ne $matrixExpectedCaseCount -or $seenFolded.Count -ne $matrixExpectedCaseCount) {
         throw 'MCACE_RELEASE_MATRIX_CASE_SET_INVALID'
     }
 
@@ -2142,9 +2190,9 @@ function Assert-MatrixIndex([object]$Index, [string]$IndexRelative, [string]$Req
             -not (Test-StringEqual $rawManifest.source_mode 'EXECUTED') -or
             -not (Test-StringEqual $rawManifest.source_commit $artifactSourceCommit) -or
             -not (Test-StringEqual $rawManifest.product_version '0.0.1') -or
-            -not (Test-JsonInteger $rawManifest.case_count) -or [int]$rawManifest.case_count -ne 12 -or
+            -not (Test-JsonInteger $rawManifest.case_count) -or [int]$rawManifest.case_count -ne $matrixExpectedCaseCount -or
             -not (Test-Sha256 $rawManifest.ordered_raw_report_set_sha256) -or
-            -not (Test-JsonArray $rawManifest.reports) -or @($rawManifest.reports).Count -ne 12 -or
+            -not (Test-JsonArray $rawManifest.reports) -or @($rawManifest.reports).Count -ne $matrixExpectedCaseCount -or
             [string]$report.raw_manifest_sha256 -cne [string]$rawManifestDoc.sha256 -or
             [long]$report.raw_manifest_bytes -ne [long]$rawManifestDoc.size_bytes) {
         throw 'MCACE_RELEASE_MATRIX_RAW_MANIFEST_INVALID'
@@ -2156,7 +2204,7 @@ function Assert-MatrixIndex([object]$Index, [string]$IndexRelative, [string]$Req
     $manifestRawDescriptors = @($rawManifest.reports)
     $indexedRawDescriptors = @($Index.canonical_evidence.raw_reports)
     $rawDocuments = [Collections.Generic.List[object]]::new()
-    for ($rawIndex = 0; $rawIndex -lt 12; $rawIndex++) {
+    for ($rawIndex = 0; $rawIndex -lt $matrixExpectedCaseCount; $rawIndex++) {
         $descriptor = $manifestRawDescriptors[$rawIndex]
         $indexDescriptor = $indexedRawDescriptors[$rawIndex]
         $case = $cases[$rawIndex]
@@ -3720,7 +3768,7 @@ $gates = [Collections.Generic.List[object]]::new()
 $matrix = Find-ValidatedIndex 'server-version-process-matrix-*.json' 'Assert-MatrixIndex' $requestedCommit
 $matrixEvidence = if ($matrix.passed) { [string]$matrix.selected.evidence } else { 'docs/evidence/server-version-process-matrix-*.json' }
 $matrixDetail = if ($matrix.passed) {
-    'Matrix V4 tracked seven-root-entry package, 12/12 raw/process commitments, protected V4 bundle and three server JAR bindings, externally pinned RSA supervisor receipt, freshness, replay, no-follow, and final stable re-reads verified'
+    'Matrix V4 tracked seven-root-entry package, 14/14 raw/process commitments, protected V4 bundle and three server JAR bindings, externally pinned RSA supervisor receipt, freshness, replay, no-follow, and final stable re-reads verified'
 } elseif ($matrix.errors.Count -gt 0) {
     "no valid Matrix V4 externally supervised protected-bundle evidence; rejections: $($matrix.errors -join ' || ')"
 } else { 'Matrix V4 externally supervised seven-root-entry package and protected-bundle cross-bindings are missing; V2/V3 remain non-release diagnostics' }

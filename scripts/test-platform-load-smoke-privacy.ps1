@@ -473,7 +473,7 @@ foreach ($required in @(
         '$smokeRoot = Initialize-SafeOwnedDirectory $smokeRoot $buildRoot',
         "'MCACE_SERVER_VERSION_MATRIX_PREPARED_V1'",
         "((@(`$manifest.roots) -join ',') -cne 'cache,libraries,versions')",
-        '@($manifest.trees).Count -ne 6',
+        '@($manifest.trees).Count -ne 7',
         'Get-PreparedTreeBinding $preparedPaperRoot',
         'paper_prepared_manifest_sha256 = $prepared.manifest_sha256',
         'paper_prepared_tree_sha256 = $prepared.tree_sha256',
@@ -772,7 +772,8 @@ foreach ($contract in @(
 foreach ($contract in @(
         "'MCACE_SERVER_VERSION_MATRIX_PREPARED_V1'",
         "(@(`$manifest.roots) -join ',') -cne 'cache,libraries,versions'",
-        '@($manifest.trees).Count -ne 6',
+        '@($manifest.trees).Count -ne 7',
+        '$sourceAssets.Count -ne 7',
         "`$tree.project -notin @('paper', 'folia')",
         "`$seenTrees.Count -ne `$sourceAssets.Count",
         'Get-PreparedTreeBinding $preparedPaperRoot',
@@ -1200,6 +1201,83 @@ foreach ($requiredModernArtifactModeClosure in @(
     Assert-True ($modernFabricBuildSource.IndexOf(
             $requiredModernArtifactModeClosure, [StringComparison]::Ordinal) -ge 0) `
         "Modern Fabric artifact-mode closure is missing: $requiredModernArtifactModeClosure"
+}
+
+# Execute the real server-matrix asset resolver against the eleven-asset manifest. The
+# 26.3 target must stay fail-closed: Paper 26.3 is only an experimental BETA matrix lane.
+foreach ($name in @('Get-Sha256', 'Get-ObjectProperty', 'Resolve-ServerMatrixAssets')) {
+    $functionAst = Get-TargetFunctionAst $name
+    Assert-True ($null -ne $functionAst) "server-matrix resolver helper is missing: $name"
+    Invoke-Expression $functionAst.Extent.Text
+}
+$velocityArtifactAssignment = $ast.Find({
+    param($node)
+    $node -is [System.Management.Automation.Language.AssignmentStatementAst] -and
+        $node.Left.Extent.Text -ceq '$velocityArtifact'
+}, $false)
+Assert-True ($null -ne $velocityArtifactAssignment) 'reviewed Velocity artifact pin is missing'
+Invoke-Expression $velocityArtifactAssignment.Extent.Text
+$serverMatrixRoot = Join-Path ([System.IO.Path]::GetTempPath()) (
+    'mcace-platform-server-matrix-' + [Guid]::NewGuid().ToString('N'))
+$serverMatrixManifest = Join-Path $serverMatrixRoot 'manifest.json'
+try {
+    $null = New-Item -ItemType Directory -Path $serverMatrixRoot -ErrorAction Stop
+    function New-MatrixFixtureAsset([string]$Project, [string]$Version, [string]$Build,
+            [string]$Sha256, [long]$Size, [string]$Channel, [int]$Java) {
+        return [ordered]@{
+            project = $Project; version = $Version; build = $Build
+            url = "https://fill-data.papermc.io/v1/objects/$Sha256/$Project-$Version-$Build.jar"
+            sha256 = $Sha256; size = $Size; channel = $Channel; java_major = $Java
+        }
+    }
+    $matrixAssets = [System.Collections.Generic.List[object]]::new()
+    foreach ($targetName in @('1.21.11', '26.1.2', '26.2')) {
+        $descriptor = $fabricTargets[$targetName]
+        [void]$matrixAssets.Add((New-MatrixFixtureAsset 'paper' $targetName ([string]$descriptor.paper_build) `
+            ([string]$descriptor.paper_sha256) ([long]$descriptor.paper_size) 'STABLE' ([int]$descriptor.java_major)))
+        [void]$matrixAssets.Add((New-MatrixFixtureAsset 'folia' $targetName '1' ('a' * 64) 1L 'STABLE' ([int]$descriptor.java_major)))
+    }
+    [void]$matrixAssets.Add((New-MatrixFixtureAsset 'paper' '26.3' '140' `
+        '98aabc113a80b9b5e183475e839a17cf99c39c915a1f46b8f35a5e89fd5de0f1' 54017532L 'BETA' 25))
+    $velocity = [ordered]@{
+        project = 'velocity'; version = '3.5.1-615'; build = '615'; url = $velocityArtifact.Url
+        sha256 = $velocityArtifact.Sha256; size = 18932366L; channel = 'REVIEWED'; java_major = 21
+    }
+    [void]$matrixAssets.Add($velocity)
+    [void]$matrixAssets.Add((New-MatrixFixtureAsset 'velocity' '4.2.0-30' '30' ('b' * 64) 1L 'REVIEWED' 25))
+    [void]$matrixAssets.Add((New-MatrixFixtureAsset 'bungeecord' '2085' '2085' ('c' * 64) 1L 'REVIEWED' 21))
+    [void]$matrixAssets.Add((New-MatrixFixtureAsset 'bungeecord' '2100' '2100' ('d' * 64) 1L 'REVIEWED' 21))
+    Assert-True ($matrixAssets.Count -eq 11) 'server-matrix fixture must hold eleven assets'
+    function Write-MatrixFixture([object[]]$Assets) {
+        [System.IO.File]::WriteAllText($serverMatrixManifest, ([ordered]@{
+            schema = 'MCACE_SERVER_VERSION_MATRIX_ASSETS_V1'; assets = @($Assets)
+        } | ConvertTo-Json -Depth 6), [System.Text.UTF8Encoding]::new($false))
+    }
+    Write-MatrixFixture $matrixAssets.ToArray()
+    $FabricTarget = '26.2'
+    $fabricDescriptor = $fabricTargets[$FabricTarget]
+    $resolved = Resolve-ServerMatrixAssets
+    Assert-True ([string]$resolved.velocity.Name -ceq 'velocity-3.5.1-615.jar' -and
+            [string]$resolved.paper.Build -ceq '116' -and
+            [string]$resolved.paper.Sha256 -ceq [string]$fabricDescriptor.paper_sha256) `
+        'server-matrix resolver did not bind the reviewed 26.2 Paper/Velocity pair'
+    $FabricTarget = '26.3'
+    $fabricDescriptor = $fabricTargets[$FabricTarget]
+    $failure = $null
+    try { $null = Resolve-ServerMatrixAssets } catch { $failure = $_.Exception.Message }
+    Assert-True ($failure -ceq 'PLATFORM_SMOKE_SERVER_MATRIX_TARGET_ASSET_REQUIRED') `
+        "26.3 platform lane must fail closed on the experimental Paper lane: $failure"
+    $FabricTarget = '26.2'
+    $fabricDescriptor = $fabricTargets[$FabricTarget]
+    Write-MatrixFixture @($matrixAssets | Select-Object -First 10)
+    $failure = $null
+    try { $null = Resolve-ServerMatrixAssets } catch { $failure = $_.Exception.Message }
+    Assert-True ($failure -ceq 'PLATFORM_SMOKE_SERVER_MATRIX_MANIFEST_INVALID') `
+        "server-matrix resolver accepted a ten-asset manifest: $failure"
+} finally {
+    if (Test-Path -LiteralPath $serverMatrixRoot) {
+        Remove-Item -LiteralPath $serverMatrixRoot -Recurse -Force
+    }
 }
 
 Write-Output 'PLATFORM_LOAD_SMOKE_PRIVACY_STATIC_PASS'

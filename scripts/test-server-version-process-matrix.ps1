@@ -55,10 +55,14 @@ $expectedAssets = @(
     @('paper','26.2','116','17eee738bc0f6b747646be4199672c4efcb2084efd7e291ec5254a45d5ae6f2e','64426830','STABLE','25'),
     @('folia','1.21.11','14','f52c408490a0225611e67907a3ca19f7e6da2c6bc899e715d5f46844e7103c39','55082693','STABLE','21'),
     @('folia','26.1.2','8','607afd1c3320008e1ffd2eaee6780ace4419d5f8c527b75e79f259be79ebf57b','53184326','STABLE','25'),
+    @('paper','26.3','140','98aabc113a80b9b5e183475e839a17cf99c39c915a1f46b8f35a5e89fd5de0f1','54017532','BETA','25'),
     @('folia','26.2','6','9a728381da3a3bea6732ee210519f8f6ab7d6affe132a430ee167c44c4603d08','64694365','BETA','25'),
     @('velocity','3.5.1-615','615','b4e3164df5377346854dc6cb9e6a78022b1946ff69e89676313f5f6f1c6f0fb3','18932366','REVIEWED','21'),
-    @('bungeecord','2085','2085','e6914a29c0ae04c0ed6335f201e409322b3c67548906a91e92e832d665cd6fce','25599274','REVIEWED','21')
+    @('velocity','4.2.0-30','30','35a5596a5468a035d8a32c8de5ebb0dc6b8d8f0cc3ff5169d514aca762af8aa8','42163652','REVIEWED','25'),
+    @('bungeecord','2085','2085','e6914a29c0ae04c0ed6335f201e409322b3c67548906a91e92e832d665cd6fce','25599274','REVIEWED','21'),
+    @('bungeecord','2100','2100','8b9f75994fa6bd027e98827b3f83523f462c9e4b978fdab2fad00182ba4c924b','25823945','REVIEWED','21')
 )
+
 foreach ($asset in $expectedAssets) {
     foreach ($value in $asset) {
         Assert-Contains $source ([string]$value) "asset identity token missing: $value"
@@ -66,10 +70,15 @@ foreach ($asset in $expectedAssets) {
 }
 
 foreach ($token in @(
-    "`$targetVersions = @('1.21.11', '26.1.2', '26.2')",
-    "'1.21.11'=774", "'26.1.2'=775", "'26.2'=776",
-    "'1.21.11'=21", "'26.1.2'=25", "'26.2'=25",
-    "'1.21.11'='0x30'", "'26.1.2'='0x31'", "'26.2'='0x31'",
+    "`$targetVersions = @('1.21.11', '26.1.2', '26.2', '26.3')",
+    "'26.3' = @('paper')", "`$betaLaneIdentities = @('folia:26.2','paper:26.3')",
+    "'1.21.11'=774", "'26.1.2'=775", "'26.2'=776", "'26.3'=777",
+    "'1.21.11'=21", "'26.1.2'=25", "'26.2'=25", "'26.3'=25",
+    "'1.21.11'='0x30'", "'26.1.2'='0x31'", "'26.2'='0x31'", "'26.3'='0x32'",
+    "target_versions=@('1.21.11','26.1.2','26.2') }", "target_versions=@('26.3') }",
+    'SERVER_VERSION_MATRIX_PROXY_ASSET_SELECTION_INVALID',
+    'SERVER_VERSION_MATRIX_DEFINITION_PROXY_JAVA_INVALID',
+    'SERVER_VERSION_MATRIX_DEFINITION_LANE_INVALID',
     'MCACE_SERVER_VERSION_PROCESS_MATRIX_REPORT_V4',
     'MCACE_SERVER_VERSION_PROCESS_MATRIX_BINDING_V4',
     'MCACE_SERVER_VERSION_PROCESS_MATRIX_COMMIT_V4',
@@ -139,9 +148,12 @@ foreach ($token in @(
     'matrix_product_jar_set_sha256')) {
     Assert-Contains $source $token "binding token missing: $token"
 }
-Assert-True ($source -match 'stable_case_count\s*=\s*10' -and
-    $source -match 'beta_case_count\s*=\s*2') `
-    '26.2 Folia must produce two BETA proxy cases and ten STABLE cases'
+Assert-True ($source -match '\$expectedCaseCount = 14' -and
+    $source -match '\$expectedStableCaseCount = 10' -and
+    $source -match '\$expectedBetaCaseCount = 4' -and
+    $source -match 'stable_case_count\s*=\s*\$expectedStableCaseCount' -and
+    $source -match 'beta_case_count\s*=\s*\$expectedBetaCaseCount') `
+    'Folia 26.2 and Paper 26.3 must produce four BETA proxy cases and ten STABLE cases'
 
 foreach ($token in @(
     "`$preparedRoots = @('cache', 'libraries', 'versions')",
@@ -544,7 +556,7 @@ exit /b 7
     Assert-True ($failureMessage -like '*SERVER_VERSION_MATRIX_GRADLE_FAILED|fixture-failure|7*') `
         'actual invocation helper accepted a nonzero native exit code'
 
-    # Execute the target's actual manifest resolver against all eight reviewed identities using
+    # Execute the target's actual manifest resolver against all eleven reviewed identities using
     # the preparer's real layout: server assets include /version/build/, proxy assets do not.
     $assetFixtureRoot = Join-Path $fixtureRoot 'runtime-assets'
     [void][IO.Directory]::CreateDirectory($assetFixtureRoot)
@@ -554,9 +566,16 @@ exit /b 7
         [ordered]@{ project='paper'; version='26.2'; build='116'; channel='STABLE'; java_major=25 },
         [ordered]@{ project='folia'; version='1.21.11'; build='14'; channel='STABLE'; java_major=21 },
         [ordered]@{ project='folia'; version='26.1.2'; build='8'; channel='STABLE'; java_major=25 },
+        [ordered]@{ project='paper'; version='26.3'; build='140'; channel='BETA'; java_major=25 },
         [ordered]@{ project='folia'; version='26.2'; build='6'; channel='BETA'; java_major=25 },
-        [ordered]@{ project='velocity'; version='3.5.1-615'; build='615'; channel='REVIEWED'; java_major=21 },
-        [ordered]@{ project='bungeecord'; version='2085'; build='2085'; channel='REVIEWED'; java_major=21 }
+        [ordered]@{ project='velocity'; version='3.5.1-615'; build='615'; channel='REVIEWED'; java_major=21
+            target_versions=@('1.21.11','26.1.2','26.2') },
+        [ordered]@{ project='velocity'; version='4.2.0-30'; build='30'; channel='REVIEWED'; java_major=25
+            target_versions=@('26.3') },
+        [ordered]@{ project='bungeecord'; version='2085'; build='2085'; channel='REVIEWED'; java_major=21
+            target_versions=@('1.21.11','26.1.2','26.2') },
+        [ordered]@{ project='bungeecord'; version='2100'; build='2100'; channel='REVIEWED'; java_major=21
+            target_versions=@('26.3') }
     )
     $fixtureExpectedAssets = [Collections.Generic.List[object]]::new()
     $fixtureManifestAssets = [Collections.Generic.List[object]]::new()
@@ -589,6 +608,10 @@ exit /b 7
             java_major = [int]$descriptor.java_major
             url = $url
         }
+        if ($isProxyFixture) {
+            $expected | Add-Member -NotePropertyName target_versions `
+                -NotePropertyValue ([string[]]@($descriptor.target_versions))
+        }
         [void]$fixtureExpectedAssets.Add($expected)
         $manifestEntry = [ordered]@{
             project = [string]$descriptor.project
@@ -601,7 +624,7 @@ exit /b 7
             java_major = [int]$descriptor.java_major
         }
         if ($isProxyFixture) {
-            $manifestEntry['target_versions'] = @('1.21.11','26.1.2','26.2')
+            $manifestEntry['target_versions'] = [string[]]@($descriptor.target_versions)
         }
         [void]$fixtureManifestAssets.Add([pscustomobject]$manifestEntry)
         $identity = "$($descriptor.project):$($descriptor.version):$($descriptor.build)"
@@ -634,10 +657,10 @@ Assert-AssetManifest
 "@
     $resolvedAssets = & ([ScriptBlock]::Create($assetFixtureSource)) `
         $assetFixtureRoot $fixtureManifestPath $fixtureExpectedAssets.ToArray() `
-        ([string[]]@('1.21.11','26.1.2','26.2'))
-    Assert-True (@($resolvedAssets.assets).Count -eq 8 -and
-        $resolvedAssets.by_identity.Count -eq 8) `
-        'actual asset manifest resolver did not bind all eight identities'
+        ([string[]]@('1.21.11','26.1.2','26.2','26.3'))
+    Assert-True (@($resolvedAssets.assets).Count -eq 11 -and
+        $resolvedAssets.by_identity.Count -eq 11) `
+        'actual asset manifest resolver did not bind all eleven identities'
     foreach ($identity in $expectedFixturePaths.Keys) {
         Assert-True ($resolvedAssets.by_identity.ContainsKey($identity)) `
             "actual asset manifest resolver omitted identity: $identity"
@@ -645,6 +668,95 @@ Assert-AssetManifest
                 [string]$resolvedAssets.by_identity[$identity].path) -ceq
             $expectedFixturePaths[$identity]) `
             "actual asset manifest resolver used the wrong layout: $identity"
+    }
+
+    # A proxy pin whose manifest target set drifts from its reviewed target set is rejected.
+    $driftManifest = $fixtureManifest | ConvertTo-Json -Depth 8 | ConvertFrom-Json
+    ($driftManifest.assets | Where-Object { $_.version -ceq '4.2.0-30' }).target_versions = @('26.2','26.3')
+    [IO.File]::WriteAllText($fixtureManifestPath,
+        ($driftManifest | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+    $driftFailure = $null
+    try {
+        & ([ScriptBlock]::Create($assetFixtureSource)) `
+            $assetFixtureRoot $fixtureManifestPath $fixtureExpectedAssets.ToArray() `
+            ([string[]]@('1.21.11','26.1.2','26.2','26.3')) | Out-Null
+    } catch { $driftFailure = $_.Exception.Message }
+    Assert-True ($driftFailure -ceq 'SERVER_VERSION_MATRIX_PROXY_TARGET_SET_INVALID|velocity:4.2.0-30:30') `
+        "proxy target-set drift was not rejected: $driftFailure"
+    [IO.File]::WriteAllText($fixtureManifestPath,
+        ($fixtureManifest | ConvertTo-Json -Depth 8), [Text.UTF8Encoding]::new($false))
+
+    # Execute the target's actual definition builder against the bound fixture identities.
+    $definitionFunctionNames = @('Get-ExpectedAsset','Get-AssetIdentity',
+        'Get-ProxyExpectedAsset','Get-MatrixDefinitions')
+    $targetVariables = @{}
+    foreach ($name in @('backendsByVersion','betaLaneIdentities','expectedCaseCount',
+            'expectedStableCaseCount','expectedBetaCaseCount')) {
+        $assignment = $ast.Find({ param($node)
+            $node -is [Management.Automation.Language.AssignmentStatementAst] -and
+                $node.Left.Extent.Text -ceq "`$$name"
+        }, $false)
+        Assert-True ($null -ne $assignment) "top-level assignment missing: $name"
+        $targetVariables[$name] = $assignment.Extent.Text
+    }
+    $definitionFixtureSource = @"
+param([object[]]`$FixtureExpectedAssets, [object]`$FixtureAssetState, [string]`$Mutation)
+Set-StrictMode -Version Latest
+`$ErrorActionPreference = 'Stop'
+`$expectedAssets = `$FixtureExpectedAssets
+`$targetVersions = @('1.21.11', '26.1.2', '26.2', '26.3')
+$($targetVariables.Values -join "`n")
+$($definitionFunctionNames | ForEach-Object { Get-FunctionText $_ } | Out-String)
+if (`$Mutation -ceq 'folia-263') { `$backendsByVersion['26.3'] = @('paper','folia') }
+if (`$Mutation -ceq 'paper-263-stable') { `$betaLaneIdentities = @('folia:26.2') }
+if (`$Mutation -ceq 'velocity-420-java-26') {
+    (`$expectedAssets | Where-Object { `$_.version -ceq '4.2.0-30' }).java_major = 26
+}
+if (`$Mutation -ceq 'velocity-overlap') {
+    (`$expectedAssets | Where-Object { `$_.version -ceq '4.2.0-30' }).target_versions = [string[]]@('26.2','26.3')
+}
+Get-MatrixDefinitions `$FixtureAssetState `$FixtureAssetState
+"@
+    $fixtureState = [pscustomobject]@{ by_identity = $resolvedAssets.by_identity }
+    $cloneExpected = { @($fixtureExpectedAssets | ForEach-Object { $_ | ConvertTo-Json -Depth 4 | ConvertFrom-Json }) }
+    $definitions = @(& ([ScriptBlock]::Create($definitionFixtureSource)) `
+        (& $cloneExpected) $fixtureState 'none')
+    $expectedCaseIds = @(
+        '1.21.11-paper-velocity','1.21.11-paper-bungee','1.21.11-folia-velocity','1.21.11-folia-bungee',
+        '26.1.2-paper-velocity','26.1.2-paper-bungee','26.1.2-folia-velocity','26.1.2-folia-bungee',
+        '26.2-paper-velocity','26.2-paper-bungee','26.2-folia-velocity','26.2-folia-bungee',
+        '26.3-paper-velocity','26.3-paper-bungee')
+    Assert-True ((@($definitions | ForEach-Object case_id) -join ',') -ceq ($expectedCaseIds -join ',')) `
+        'definition order/set is not the 14-case matrix'
+    Assert-True ((@($definitions | Where-Object lane -ceq 'BETA' | ForEach-Object case_id) -join ',') -ceq
+        '26.2-folia-velocity,26.2-folia-bungee,26.3-paper-velocity,26.3-paper-bungee') `
+        'BETA lane set is not exactly Folia 26.2 plus Paper 26.3'
+    foreach ($definition in $definitions) {
+        $is263 = $definition.minecraft_version -ceq '26.3'
+        $wantProxy = if ($definition.proxy -ceq 'BUNGEE') {
+            if ($is263) { 'bungeecord:2100:2100' } else { 'bungeecord:2085:2085' }
+        } elseif ($is263) { 'velocity:4.2.0-30:30' } else { 'velocity:3.5.1-615:615' }
+        Assert-True ([string]$definition.proxy_key -ceq $wantProxy) `
+            "wrong proxy asset for $($definition.case_id): $($definition.proxy_key)"
+        $wantPlay = switch ($definition.minecraft_version) { '1.21.11' { '0x30' } '26.3' { '0x32' } default { '0x31' } }
+        Assert-True ([string]$definition.expected_play_login -ceq $wantPlay) `
+            "wrong PLAY login id for $($definition.case_id)"
+        if ($definition.minecraft_version -ceq '26.3') {
+            Assert-True ($definition.minecraft_protocol -eq 777 -and $definition.server_java_feature -eq 25 -and
+                $definition.backend -ceq 'PAPER') "26.3 definition identity invalid: $($definition.case_id)"
+        }
+    }
+    foreach ($mutation in @(
+            [pscustomobject]@{ name='folia-263'; code='SERVER_VERSION_MATRIX_EXPECTED_ASSET_MISSING|folia|26.3' },
+            [pscustomobject]@{ name='paper-263-stable'; code='SERVER_VERSION_MATRIX_DEFINITION_LANE_INVALID|paper:26.3:140' },
+            [pscustomobject]@{ name='velocity-420-java-26'; code='SERVER_VERSION_MATRIX_DEFINITION_PROXY_JAVA_INVALID|velocity:4.2.0-30:30|26.3' },
+            [pscustomobject]@{ name='velocity-overlap'; code='SERVER_VERSION_MATRIX_PROXY_ASSET_SELECTION_INVALID|velocity|26.2|2' })) {
+        $mutationFailure = $null
+        try {
+            & ([ScriptBlock]::Create($definitionFixtureSource)) (& $cloneExpected) $fixtureState $mutation.name | Out-Null
+        } catch { $mutationFailure = $_.Exception.Message }
+        Assert-True ($mutationFailure -ceq $mutation.code) `
+            "definition mutation $($mutation.name) was not rejected exactly: $mutationFailure"
     }
 } finally {
     if (Test-Path -LiteralPath $fixtureRoot -PathType Container) {

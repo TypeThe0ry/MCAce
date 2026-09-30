@@ -2493,14 +2493,14 @@ final class MinecraftProxyPlayerProbeTest {
         }
 
         /**
-         * Minecraft 26.2 performs a first-run data-pack/world bootstrap before Bukkit plugin
+         * Minecraft 26.2 and 26.3 perform a first-run data-pack/world bootstrap before Bukkit plugin
          * enablement.  On a cold Windows checkout behind either proxy this can exceed two
          * minutes; keep the gate bounded, but do not turn a slow legitimate startup into a
          * false compatibility failure.  The warmed Velocity case is normally much faster, but
          * using the same bound keeps the matrix deterministic across proxy orderings.
          */
         private int backendStartupTimeoutSeconds() {
-            return "26.2".equals(backendMinecraftVersion)
+            return "26.2".equals(backendMinecraftVersion) || "26.3".equals(backendMinecraftVersion)
                     ? 300 : 120;
         }
 

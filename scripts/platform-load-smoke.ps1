@@ -215,9 +215,10 @@ $fabricTargets = [ordered]@{
         version_info_sha256 = '061edddc346be236acf38f51b63c2361b084ae7b0d7ca15367242f99b1596839'
         asset_index_sha1 = '32a06dd28a0a8a981f4a1dffbdb3931f3075ca6c'
         asset_index_size = 597035L
-        # No reviewed Paper 26.3 server is pinned in the server-version matrix (server-side
-        # versions are intentionally not extended), so this lane fails closed with
-        # PLATFORM_SMOKE_SERVER_MATRIX_TARGET_ASSET_REQUIRED until one is reviewed.
+        # Paper 26.3 exists in the server-version matrix only as the explicit experimental
+        # BETA lane (build 140, behind Velocity 4.2.0-30). This smoke accepts only a STABLE
+        # Paper behind Velocity 3.5.1-615, so the 26.3 lane fails closed with
+        # PLATFORM_SMOKE_SERVER_MATRIX_TARGET_ASSET_REQUIRED until a STABLE build is reviewed.
         paper_build = ''
         paper_sha256 = ''
         paper_size = 0L
@@ -259,8 +260,11 @@ function Resolve-ServerMatrixAssets {
     try { $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json -ErrorAction Stop }
     catch { throw 'PLATFORM_SMOKE_SERVER_MATRIX_MANIFEST_INVALID' }
     if ($manifest.schema -cne 'MCACE_SERVER_VERSION_MATRIX_ASSETS_V1' -or
-            @($manifest.assets).Count -ne 8) {
+            @($manifest.assets).Count -ne 11) {
         throw 'PLATFORM_SMOKE_SERVER_MATRIX_MANIFEST_INVALID'
+    }
+    if ([string]::IsNullOrEmpty([string]$fabricDescriptor.paper_build)) {
+        throw 'PLATFORM_SMOKE_SERVER_MATRIX_TARGET_ASSET_REQUIRED'
     }
     $velocity = @($manifest.assets | Where-Object {
         $_.project -ceq 'velocity' -and $_.version -ceq '3.5.1-615'
@@ -1592,7 +1596,7 @@ function Get-PreparedPaperBinding {
             $manifest.schema -cne 'MCACE_SERVER_VERSION_MATRIX_PREPARED_V1' -or
             [string]::IsNullOrWhiteSpace([string]$manifest.generated_at) -or
             ((@($manifest.roots) -join ',') -cne 'cache,libraries,versions') -or
-            @($manifest.trees).Count -ne 6) {
+            @($manifest.trees).Count -ne 7) {
         throw 'PLATFORM_SMOKE_PREPARED_MANIFEST_SCHEMA_INVALID'
     }
     $generatedAt = [DateTimeOffset]::MinValue
@@ -1615,7 +1619,7 @@ function Get-PreparedPaperBinding {
         }
         $sourceAssets.Add($identity, $asset)
     }
-    if ($sourceAssets.Count -ne 6) { throw 'PLATFORM_SMOKE_PREPARED_SOURCE_ASSET_SET_INVALID' }
+    if ($sourceAssets.Count -ne 7) { throw 'PLATFORM_SMOKE_PREPARED_SOURCE_ASSET_SET_INVALID' }
 
     $seenTrees = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
     $selectedTree = $null
